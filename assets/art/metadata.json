@@ -1,0 +1,58 @@
+{
+  "hero-ci-jian.jpg": {
+    "src": "assets/art/hero-ci-jian.jpg",
+    "width": 1672,
+    "height": 941,
+    "model": "gpt-image-2-all",
+    "generated": "2026-06-06"
+  },
+  "hero-concrete.jpg": {
+    "src": "assets/art/hero-concrete.jpg",
+    "width": 1672,
+    "height": 941,
+    "model": "gpt-image-2-all",
+    "generated": "2026-06-06"
+  },
+  "abstract-01.jpg": {
+    "src": "assets/art/abstract-01.jpg",
+    "width": 1024,
+    "height": 1536,
+    "model": "gpt-image-2-all",
+    "generated": "2026-06-06"
+  },
+  "abstract-02.jpg": {
+    "src": "assets/art/abstract-02.jpg",
+    "width": 1024,
+    "height": 1536,
+    "model": "gpt-image-2-all",
+    "generated": "2026-06-06"
+  },
+  "abstract-03.jpg": {
+    "src": "assets/art/abstract-03.jpg",
+    "width": 1024,
+    "height": 1536,
+    "model": "gpt-image-2-all",
+    "generated": "2026-06-06"
+  },
+  "concrete-01.jpg": {
+    "src": "assets/art/concrete-01.jpg",
+    "width": 1024,
+    "height": 1536,
+    "model": "gpt-image-2-all",
+    "generated": "2026-06-06"
+  },
+  "concrete-02.jpg": {
+    "src": "assets/art/concrete-02.jpg",
+    "width": 1024,
+    "height": 1536,
+    "model": "gpt-image-2-all",
+    "generated": "2026-06-06"
+  },
+  "concrete-03.jpg": {
+    "src": "assets/art/concrete-03.jpg",
+    "width": 1024,
+    "height": 1536,
+    "model": "gpt-image-2-all",
+    "generated": "2026-06-06"
+  }
+}

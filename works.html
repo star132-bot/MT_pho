@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Works Archive | MT CIJIAN</title>
+    <meta
+      name="description"
+      content="An intelligent photography archive for MT CIJIAN, with automatic ratio and abstract/concrete classification."
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="archive-page">
+    <header class="site-header archive-header" aria-label="Primary navigation">
+      <a class="brand-mark" href="index.html" aria-label="Back to home">
+        <span>MT</span>
+        <span>CIJIAN</span>
+      </a>
+      <nav class="site-nav" aria-label="Page navigation">
+        <a href="index.html">Home</a>
+        <a href="mailto:contact@mt-cijian.com">Contact</a>
+      </nav>
+    </header>
+
+    <main class="archive-main">
+      <section class="archive-hero" aria-labelledby="archive-title">
+        <div>
+          <div class="section-kicker">Archive</div>
+          <h1 id="archive-title">Works Archive</h1>
+        </div>
+        <div class="archive-upload">
+          <label class="upload-dropzone" for="image-upload">
+            <span>Upload Images</span>
+            <small>Original dimensions are read locally. Images are classified by ratio and type.</small>
+          </label>
+          <input id="image-upload" type="file" accept="image/*" multiple data-upload-input />
+        </div>
+      </section>
+
+      <section class="archive-controls" aria-label="Archive filters">
+        <div class="filter-group">
+          <span class="filter-label">Type</span>
+          <div class="filter-options" data-type-filters>
+            <button class="filter-button is-active" type="button" data-filter-type="All">All</button>
+            <button class="filter-button" type="button" data-filter-type="Abstract">Abstract</button>
+            <button class="filter-button" type="button" data-filter-type="Concrete">Concrete</button>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <span class="filter-label">Ratio</span>
+          <div class="filter-options ratio-options" data-ratio-filters>
+            <button class="filter-button is-active" type="button" data-filter-ratio="All">All</button>
+            <button class="filter-button" type="button" data-filter-ratio="1:1">1:1</button>
+            <button class="filter-button" type="button" data-filter-ratio="4:5">4:5</button>
+            <button class="filter-button" type="button" data-filter-ratio="2:3">2:3</button>
+            <button class="filter-button" type="button" data-filter-ratio="3:2">3:2</button>
+            <button class="filter-button" type="button" data-filter-ratio="16:9">16:9</button>
+            <button class="filter-button" type="button" data-filter-ratio="Panorama">Panorama</button>
+          </div>
+        </div>
+
+        <div class="archive-count" data-archive-count aria-live="polite"></div>
+      </section>
+
+      <section class="archive-gallery-section" aria-labelledby="gallery-title">
+        <h2 id="gallery-title" class="visually-hidden">Archive Gallery</h2>
+        <div class="archive-gallery" data-archive-gallery></div>
+      </section>
+    </main>
+
+    <script src="archive.js"></script>
+  </body>
+</html>
