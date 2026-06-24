@@ -3,22 +3,78 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Works Archive | MT CIJIAN</title>
+    <title>Works Archive | MT Presence</title>
     <meta
       name="description"
-      content="An intelligent photography archive for MT CIJIAN, with automatic ratio and abstract/concrete classification."
+      content="A quiet photography works archive for MT Presence, arranged by image type and ratio."
     />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20260615-tags-layout" />
   </head>
   <body class="archive-page">
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-sliders" viewBox="0 0 24 24">
+        <path d="M21 4h-7" />
+        <path d="M10 4H3" />
+        <path d="M21 12h-9" />
+        <path d="M8 12H3" />
+        <path d="M21 20h-5" />
+        <path d="M12 20H3" />
+        <path d="M14 2v4" />
+        <path d="M8 10v4" />
+        <path d="M16 18v4" />
+      </symbol>
+      <symbol id="icon-grip" viewBox="0 0 24 24">
+        <circle cx="9" cy="5" r="1" fill="currentColor" />
+        <circle cx="9" cy="12" r="1" fill="currentColor" />
+        <circle cx="9" cy="19" r="1" fill="currentColor" />
+        <circle cx="15" cy="5" r="1" fill="currentColor" />
+        <circle cx="15" cy="12" r="1" fill="currentColor" />
+        <circle cx="15" cy="19" r="1" fill="currentColor" />
+      </symbol>
+      <symbol id="icon-save" viewBox="0 0 24 24">
+        <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+        <path d="M17 21v-7H7v7" />
+        <path d="M7 3v5h8" />
+      </symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24">
+        <path d="M20 6 9 17l-5-5" />
+      </symbol>
+      <symbol id="icon-arrow-up" viewBox="0 0 24 24">
+        <path d="m18 15-6-6-6 6" />
+      </symbol>
+      <symbol id="icon-arrow-down" viewBox="0 0 24 24">
+        <path d="m6 9 6 6 6-6" />
+      </symbol>
+      <symbol id="icon-chevron-left" viewBox="0 0 24 24">
+        <path d="m15 18-6-6 6-6" />
+      </symbol>
+      <symbol id="icon-chevron-right" viewBox="0 0 24 24">
+        <path d="m9 18 6-6-6-6" />
+      </symbol>
+      <symbol id="icon-close" viewBox="0 0 24 24">
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </symbol>
+      <symbol id="icon-zoom-in" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.35-4.35" />
+        <path d="M11 8v6" />
+        <path d="M8 11h6" />
+      </symbol>
+      <symbol id="icon-zoom-out" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.35-4.35" />
+        <path d="M8 11h6" />
+      </symbol>
+    </svg>
     <header class="site-header archive-header" aria-label="Primary navigation">
       <a class="brand-mark" href="index.html" aria-label="Back to home">
         <span>MT</span>
-        <span>CIJIAN</span>
+        <span>Presence</span>
       </a>
       <nav class="site-nav" aria-label="Page navigation">
         <a href="index.html">Home</a>
-        <a href="mailto:contact@mt-cijian.com">Contact</a>
+        <a href="contact.html">Contact</a>
       </nav>
     </header>
 
@@ -27,48 +83,149 @@
         <div>
           <div class="section-kicker">Archive</div>
           <h1 id="archive-title">Works Archive</h1>
-        </div>
-        <div class="archive-upload">
-          <label class="upload-dropzone" for="image-upload">
-            <span>Upload Images</span>
-            <small>Original dimensions are read locally. Images are classified by ratio and type.</small>
-          </label>
-          <input id="image-upload" type="file" accept="image/*" multiple data-upload-input />
+          <p class="archive-hero-note">Selected studies in abstraction, landscape, surface, and light.</p>
         </div>
       </section>
 
       <section class="archive-controls" aria-label="Archive filters">
-        <div class="filter-group">
-          <span class="filter-label">Type</span>
-          <div class="filter-options" data-type-filters>
-            <button class="filter-button is-active" type="button" data-filter-type="All">All</button>
-            <button class="filter-button" type="button" data-filter-type="Abstract">Abstract</button>
-            <button class="filter-button" type="button" data-filter-type="Concrete">Concrete</button>
+        <div class="archive-discovery-bar">
+          <div class="archive-search-group">
+            <label class="visually-hidden" for="archive-search-input">Search works</label>
+            <div class="archive-search-control">
+              <input
+                id="archive-search-input"
+                class="archive-search-input"
+                type="search"
+                inputmode="search"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="Title, series, tag, ratio"
+                data-archive-search
+              />
+              <button class="archive-clear-search" type="button" aria-label="Clear search" data-clear-search hidden>Clear Search</button>
+            </div>
+          </div>
+
+          <div class="archive-toolbar">
+            <div class="archive-count" data-archive-count aria-live="polite"></div>
+            <div class="archive-arrange-actions" data-arrange-actions>
+              <button class="archive-arrange-button" type="button" aria-label="Enter arrange mode" data-arrange-toggle>
+                <svg class="ui-icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-sliders"></use>
+                </svg>
+                <span data-button-label>Arrange</span>
+              </button>
+              <button class="archive-arrange-button" type="button" aria-label="Save work order" data-save-order hidden disabled>
+                <svg class="ui-icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-save"></use>
+                </svg>
+                <span data-button-label>Save Order</span>
+              </button>
+              <button class="archive-arrange-button" type="button" aria-label="Exit arrange mode" data-arrange-done hidden>
+                <svg class="ui-icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-check"></use>
+                </svg>
+                <span data-button-label>Done</span>
+              </button>
+              <span class="archive-arrange-status" data-arrange-status></span>
+            </div>
+            <div class="visually-hidden" aria-live="polite" data-arrange-live></div>
           </div>
         </div>
 
-        <div class="filter-group">
-          <span class="filter-label">Ratio</span>
-          <div class="filter-options ratio-options" data-ratio-filters>
-            <button class="filter-button is-active" type="button" data-filter-ratio="All">All</button>
-            <button class="filter-button" type="button" data-filter-ratio="1:1">1:1</button>
-            <button class="filter-button" type="button" data-filter-ratio="4:5">4:5</button>
-            <button class="filter-button" type="button" data-filter-ratio="2:3">2:3</button>
-            <button class="filter-button" type="button" data-filter-ratio="3:2">3:2</button>
-            <button class="filter-button" type="button" data-filter-ratio="16:9">16:9</button>
-            <button class="filter-button" type="button" data-filter-ratio="Panorama">Panorama</button>
+        <div class="archive-filter-bar" aria-label="Archive channels">
+          <div class="filter-group">
+            <span class="visually-hidden">Type</span>
+            <div class="filter-options" data-type-filters>
+              <button class="filter-button is-active" type="button" data-filter-type="All">All Works</button>
+              <button class="filter-button" type="button" data-filter-type="Abstract">Abstract</button>
+              <button class="filter-button" type="button" data-filter-type="Concrete">Concrete</button>
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <span class="visually-hidden">Ratio</span>
+            <div class="filter-options ratio-options" data-ratio-filters>
+              <button class="filter-button is-active" type="button" data-filter-ratio="All">All Ratios</button>
+              <button class="filter-button" type="button" data-filter-ratio="1:1">Square</button>
+              <button class="filter-button" type="button" data-filter-ratio="4:3">4:3</button>
+              <button class="filter-button" type="button" data-filter-ratio="4:5">4:5</button>
+              <button class="filter-button" type="button" data-filter-ratio="2:3">2:3</button>
+              <button class="filter-button" type="button" data-filter-ratio="3:2">3:2</button>
+              <button class="filter-button" type="button" data-filter-ratio="16:9">16:9</button>
+              <button class="filter-button" type="button" data-filter-ratio="Panorama">Panorama</button>
+            </div>
           </div>
         </div>
-
-        <div class="archive-count" data-archive-count aria-live="polite"></div>
       </section>
 
       <section class="archive-gallery-section" aria-labelledby="gallery-title">
         <h2 id="gallery-title" class="visually-hidden">Archive Gallery</h2>
+        <p class="archive-data-status" data-archive-data-status role="status" aria-live="polite">Loading archive.</p>
+        <p class="archive-empty-state" data-archive-empty hidden>No works match this search.</p>
         <div class="archive-gallery" data-archive-gallery></div>
       </section>
     </main>
 
-    <script src="archive.js"></script>
+    <div class="work-viewer" data-work-viewer hidden>
+      <div class="work-viewer-backdrop" data-viewer-close aria-hidden="true"></div>
+      <section
+        class="work-viewer-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="work-viewer-title"
+        aria-describedby="work-viewer-note"
+        tabindex="-1"
+        data-work-viewer-dialog
+      >
+        <header class="work-viewer-controls" aria-label="Work viewer controls">
+          <p class="work-viewer-position" data-viewer-position></p>
+          <div class="work-viewer-actions">
+            <button class="work-viewer-icon-button" type="button" aria-label="View actual size" title="View actual size" data-viewer-zoom>
+              <svg class="ui-icon" aria-hidden="true" focusable="false">
+                <use href="#icon-zoom-in"></use>
+              </svg>
+            </button>
+            <button class="work-viewer-icon-button" type="button" aria-label="Previous work" data-viewer-prev>
+              <svg class="ui-icon" aria-hidden="true" focusable="false">
+                <use href="#icon-chevron-left"></use>
+              </svg>
+            </button>
+            <button class="work-viewer-icon-button" type="button" aria-label="Next work" data-viewer-next>
+              <svg class="ui-icon" aria-hidden="true" focusable="false">
+                <use href="#icon-chevron-right"></use>
+              </svg>
+            </button>
+            <button class="work-viewer-icon-button" type="button" aria-label="Close work viewer" data-viewer-close-button>
+              <svg class="ui-icon" aria-hidden="true" focusable="false">
+                <use href="#icon-close"></use>
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="work-viewer-layout">
+          <figure class="work-viewer-media">
+            <img src="" alt="" decoding="async" data-viewer-image />
+          </figure>
+          <aside class="work-viewer-info">
+            <h2 id="work-viewer-title" data-viewer-title></h2>
+            <p id="work-viewer-note" class="work-viewer-note" data-viewer-note></p>
+            <dl class="work-viewer-metadata" data-viewer-metadata></dl>
+            <section class="work-viewer-tags" data-viewer-tags-section hidden>
+              <h3>Tags</h3>
+              <div class="work-viewer-tag-groups" data-viewer-tags></div>
+            </section>
+            <section class="work-viewer-statement" data-viewer-statement-section hidden>
+              <h3 data-viewer-statement-heading>Statement</h3>
+              <p data-viewer-statement></p>
+            </section>
+          </aside>
+        </div>
+      </section>
+    </div>
+
+    <script src="archive-data.js?v=20260610-works-viewer-editor"></script>
+    <script src="archive.js?v=20260615-tags-layout"></script>
   </body>
 </html>

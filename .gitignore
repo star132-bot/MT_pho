@@ -1,13 +1,14 @@
 .DS_Store
 .env
 .env.*
-!.env.example
 
 node_modules/
 dist/
 build/
 coverage/
 *.log
+data/*.db
+data/*.db-*
 
 __pycache__/
 *.pyc
@@ -17,3 +18,5 @@ tmp/
 shots/
 .browser-profiles/
 project-development-guardrails/
+skills/
+image.png

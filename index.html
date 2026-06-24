@@ -3,22 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MT CIJIAN | Fine Art Photography</title>
+    <title>MT Presence | Fine Art Photography</title>
     <meta
       name="description"
-      content="MT CIJIAN is a fine art photography practice founded by MT, creating quiet images for long looking, collection, and encounter."
+      content="MT Presence is a fine art photography practice founded by MT, creating quiet images for long looking, collection, and encounter."
     />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20260608-hero-copy" />
   </head>
-  <body>
+  <body class="home-page">
     <header class="site-header" aria-label="Primary navigation">
       <a class="brand-mark" href="#top" aria-label="Back to home">
         <span>MT</span>
-        <span>CIJIAN</span>
+        <span>Presence</span>
       </a>
       <nav class="site-nav" aria-label="Page navigation">
         <a href="/works.html">Works</a>
-        <a href="#contact">Contact</a>
+        <a href="/contact.html">Contact</a>
       </nav>
     </header>
 
@@ -30,14 +30,26 @@
             <div class="hero-image hero-image-concrete"></div>
           </div>
           <div class="hero-copy">
-            <p class="eyebrow">Fine Art Photography</p>
-            <h1 id="hero-title">A QUIET FIELD FOR IMAGES</h1>
-            <p class="hero-statement">
-              Images are not records of the world. They are encounters held in the present space between the artist and the viewer.
-            </p>
+            <div class="hero-copy-text" aria-hidden="true">
+              <div class="hero-copy-panel hero-copy-panel-abstract" data-home-hero-panel="abstract">
+                <p class="eyebrow" data-home-hero-eyebrow>Abstract Field</p>
+                <h1 data-home-hero-title>A Quiet Field for Images</h1>
+                <p class="hero-statement" data-home-hero-statement>
+                  Images are not records of the world. They are encounters held in the present space between the artist and the viewer.
+                </p>
+              </div>
+              <div class="hero-copy-panel hero-copy-panel-concrete" data-home-hero-panel="concrete">
+                <p class="eyebrow" data-home-hero-eyebrow>Concrete Field</p>
+                <h1 data-home-hero-title>Where Looking Becomes Presence</h1>
+                <p class="hero-statement" data-home-hero-statement>
+                  Light, weather, and distance settle into form. Each photograph opens a quiet place for the viewer to stay.
+                </p>
+              </div>
+            </div>
+            <h1 id="hero-title" class="visually-hidden">A Quiet Field for Images</h1>
             <div class="hero-actions" aria-label="Primary actions">
               <a class="button button-primary" href="/works.html">Enter Works</a>
-              <a class="button button-secondary" href="mailto:contact@mt-cijian.com">Contact Artist</a>
+              <a class="button button-secondary" href="/contact.html">Contact Artist</a>
             </div>
           </div>
         </div>
@@ -95,20 +107,88 @@
         </div>
       </section>
 
-      <section id="statement" class="statement-section" aria-labelledby="statement-title">
-        <div class="section-kicker">Statement</div>
-        <div class="statement-grid">
-          <h2 id="statement-title">MT CIJIAN</h2>
-          <div class="statement-copy">
-            <p>
-              MT CIJIAN is a fine art photography practice founded by image maker MT. The work suspends photography's habitual
-              claim to documentation and moves toward a quieter form of encounter.
-            </p>
-            <p>
-              Each image is made for long looking and collection. It does not rush to explain itself, and it does not rush to end.
-              It stays in time, allowing a deeper resonance to form.
-            </p>
-          </div>
+      <section id="statement" class="statement-section" aria-labelledby="statement-title" data-statement-section>
+        <div class="statement-intro">
+          <div class="section-kicker statement-kicker">Statement</div>
+          <h2 id="statement-title" data-home-statement-title>MT Presence</h2>
+        </div>
+
+        <div class="statement-moments">
+          <article class="statement-moment" data-statement-moment data-home-statement-moment="0">
+            <figure class="statement-media">
+              <img
+                src="assets/art/abstract-02.jpg"
+                alt="Monochrome fine-art landscape of a pine ridge dissolving into fog."
+                loading="lazy"
+                decoding="async"
+                data-home-statement-image
+              />
+            </figure>
+            <div class="statement-moment-copy">
+              <span class="statement-index">01</span>
+              <p data-home-statement-text>
+                MT Presence is a fine art photography practice by MT, shaped around quiet images, long looking, and the space
+                between abstraction and the visible world.
+              </p>
+            </div>
+          </article>
+
+          <article class="statement-moment" data-statement-moment data-home-statement-moment="1">
+            <figure class="statement-media">
+              <img
+                src="assets/art/concrete-01.jpg"
+                alt="Muted color fine-art landscape of an alpine lake after rain."
+                loading="lazy"
+                decoding="async"
+                data-home-statement-image
+              />
+            </figure>
+            <div class="statement-moment-copy">
+              <span class="statement-index">02</span>
+              <p data-home-statement-text>
+                The work does not treat photography as simple documentation. It uses landscape, weather, surface, and distance
+                to hold a moment before it becomes explanation.
+              </p>
+            </div>
+          </article>
+
+          <article class="statement-moment" data-statement-moment data-home-statement-moment="2">
+            <figure class="statement-media">
+              <img
+                src="assets/art/abstract-03.jpg"
+                alt="Monochrome fine-art landscape of a rain-dark canyon and rising mist."
+                loading="lazy"
+                decoding="async"
+                data-home-statement-image
+              />
+            </figure>
+            <div class="statement-moment-copy">
+              <span class="statement-index">03</span>
+              <p data-home-statement-text>
+                Each image is made as an encounter: something to return to, collect, live with, and see differently over time.
+              </p>
+            </div>
+          </article>
+
+          <article class="statement-moment" data-statement-moment data-home-statement-moment="3">
+            <figure class="statement-media">
+              <img
+                src="assets/art/concrete-03.jpg"
+                alt="Muted color fine-art landscape of a steep winter mountain forest."
+                loading="lazy"
+                decoding="async"
+                data-home-statement-image
+              />
+            </figure>
+            <div class="statement-moment-copy">
+              <span class="statement-index">04</span>
+              <p data-home-statement-text>Enter the archive and spend time with the work.</p>
+            </div>
+          </article>
+        </div>
+
+        <div class="statement-cta">
+          <a class="button button-primary" href="/works.html">Enter Works</a>
         </div>
       </section>
 
@@ -118,17 +198,18 @@
           <h2 id="contact-title">Contact Artist</h2>
         </div>
         <p>
-          For collection inquiries, exhibitions, commissions, or licensing, contact MT CIJIAN directly.
+          For collection inquiries, exhibitions, commissions, or licensing, contact MT Presence directly.
         </p>
-        <a class="button button-primary" href="mailto:contact@mt-cijian.com">Contact Artist</a>
+        <a class="button button-primary" href="/contact.html">Contact Artist</a>
       </section>
     </main>
 
     <footer class="site-footer">
-      <span>MT CIJIAN</span>
+      <span>MT Presence</span>
       <span>Fine art photography for long looking.</span>
     </footer>
 
-    <script src="script.js"></script>
+    <script src="archive-data.js?v=20260610-works-viewer-editor"></script>
+    <script src="script.js?v=20260610-homepage-settings"></script>
   </body>
 </html>

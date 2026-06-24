@@ -1,4 +1,4 @@
--- MT CIJIAN photography archive database schema.
+-- MT Presence photography archive database schema.
 -- Target: PostgreSQL 14+ / Supabase-compatible SQL.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS public.ratio_categories (
 INSERT INTO public.ratio_categories (code, label, numerator, denominator, sort_order)
 VALUES
   ('one_to_one', '1:1', 1, 1, 10),
+  ('four_to_three', '4:3', 4, 3, 5),
   ('four_to_five', '4:5', 4, 5, 20),
   ('two_to_three', '2:3', 2, 3, 30),
   ('three_to_two', '3:2', 3, 2, 40),
@@ -81,6 +82,9 @@ CREATE TABLE IF NOT EXISTS public.images (
   title text NOT NULL,
   slug text UNIQUE,
   description text,
+  curatorial_note text,
+  artist_statement text,
+  series text,
   source_type public.image_source_type NOT NULL DEFAULT 'upload',
   visibility public.image_visibility NOT NULL DEFAULT 'draft',
   original_filename text,
@@ -115,11 +119,13 @@ CREATE TABLE IF NOT EXISTS public.image_assets (
   storage_bucket text NOT NULL,
   storage_path text NOT NULL,
   public_url text,
+  url_expires_at timestamptz,
   mime_type text NOT NULL,
   byte_size bigint CHECK (byte_size IS NULL OR byte_size > 0),
   width integer NOT NULL CHECK (width > 0),
   height integer NOT NULL CHECK (height > 0),
   checksum_sha256 char(64),
+  source_asset_id uuid REFERENCES public.image_assets(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (storage_bucket, storage_path),
   UNIQUE (image_id, kind, storage_path)
@@ -154,17 +160,54 @@ CREATE TABLE IF NOT EXISTS public.image_analysis_events (
 
 CREATE TABLE IF NOT EXISTS public.image_tags (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL UNIQUE,
-  slug text NOT NULL UNIQUE,
-  created_at timestamptz NOT NULL DEFAULT now()
+  name text NOT NULL,
+  slug text NOT NULL,
+  group_name text NOT NULL DEFAULT 'subject',
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (group_name, slug),
+  UNIQUE (group_name, name)
 );
 
 CREATE TABLE IF NOT EXISTS public.image_taggings (
   image_id uuid NOT NULL REFERENCES public.images(id) ON DELETE CASCADE,
   tag_id uuid NOT NULL REFERENCES public.image_tags(id) ON DELETE CASCADE,
+  sort_order integer NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (image_id, tag_id)
 );
+
+ALTER TABLE public.image_tags
+  ADD COLUMN IF NOT EXISTS sort_order integer NOT NULL DEFAULT 0;
+
+ALTER TABLE public.image_taggings
+  ADD COLUMN IF NOT EXISTS sort_order integer NOT NULL DEFAULT 0;
+
+DO $$
+BEGIN
+  ALTER TABLE public.image_tags DROP CONSTRAINT IF EXISTS image_tags_name_key;
+  ALTER TABLE public.image_tags DROP CONSTRAINT IF EXISTS image_tags_slug_key;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'image_tags_group_name_slug_key'
+      AND conrelid = 'public.image_tags'::regclass
+  ) THEN
+    ALTER TABLE public.image_tags
+      ADD CONSTRAINT image_tags_group_name_slug_key UNIQUE (group_name, slug);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'image_tags_group_name_name_key'
+      AND conrelid = 'public.image_tags'::regclass
+  ) THEN
+    ALTER TABLE public.image_tags
+      ADD CONSTRAINT image_tags_group_name_name_key UNIQUE (group_name, name);
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public.collections (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -200,11 +243,23 @@ CREATE INDEX IF NOT EXISTS images_uploaded_at_idx
 CREATE INDEX IF NOT EXISTS image_assets_image_kind_idx
   ON public.image_assets (image_id, kind);
 
+CREATE INDEX IF NOT EXISTS image_assets_source_asset_idx
+  ON public.image_assets (source_asset_id);
+
 CREATE INDEX IF NOT EXISTS image_square_slices_image_idx
   ON public.image_square_slices (image_id, slice_index);
 
 CREATE INDEX IF NOT EXISTS image_analysis_events_image_idx
   ON public.image_analysis_events (image_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS image_tags_group_name_idx
+  ON public.image_tags (group_name, sort_order, name);
+
+CREATE INDEX IF NOT EXISTS image_taggings_tag_idx
+  ON public.image_taggings (tag_id);
+
+CREATE INDEX IF NOT EXISTS image_taggings_image_sort_idx
+  ON public.image_taggings (image_id, sort_order, created_at);
 
 CREATE INDEX IF NOT EXISTS collection_images_collection_sort_idx
   ON public.collection_images (collection_id, sort_order, created_at);
@@ -299,6 +354,9 @@ SELECT
   i.title,
   i.slug,
   i.description,
+  i.curatorial_note,
+  i.artist_statement,
+  i.series,
   i.source_type,
   i.visibility,
   i.original_filename,
@@ -321,13 +379,19 @@ SELECT
   i.created_at,
   i.updated_at,
   original_asset.public_url AS original_url,
+  original_asset.url_expires_at AS original_url_expires_at,
   original_asset.storage_bucket AS original_storage_bucket,
   original_asset.storage_path AS original_storage_path,
   display_asset.public_url AS display_url,
+  display_asset.url_expires_at AS display_url_expires_at,
   display_asset.storage_bucket AS display_storage_bucket,
   display_asset.storage_path AS display_storage_path,
   thumbnail_asset.public_url AS thumbnail_url,
+  thumbnail_asset.url_expires_at AS thumbnail_url_expires_at,
   COALESCE(display_asset.public_url, original_asset.public_url) AS image_url,
+  COALESCE(display_asset.url_expires_at, original_asset.url_expires_at) AS image_url_expires_at,
+  COALESCE(tag_list.tags, ARRAY[]::text[]) AS tags,
+  COALESCE(tag_groups.tag_groups, '[]'::jsonb) AS tag_groups,
   (
     SELECT count(*)::integer
     FROM public.image_square_slices s
@@ -337,23 +401,47 @@ FROM public.images i
 JOIN public.ratio_categories rc
   ON rc.code = i.ratio_category_code
 LEFT JOIN LATERAL (
-  SELECT a.public_url, a.storage_bucket, a.storage_path
+  SELECT a.public_url, a.url_expires_at, a.storage_bucket, a.storage_path
   FROM public.image_assets a
   WHERE a.image_id = i.id AND a.kind = 'original'
   ORDER BY a.created_at DESC
   LIMIT 1
 ) original_asset ON true
 LEFT JOIN LATERAL (
-  SELECT a.public_url, a.storage_bucket, a.storage_path
+  SELECT a.public_url, a.url_expires_at, a.storage_bucket, a.storage_path
   FROM public.image_assets a
   WHERE a.image_id = i.id AND a.kind = 'display'
   ORDER BY a.created_at DESC
   LIMIT 1
 ) display_asset ON true
 LEFT JOIN LATERAL (
-  SELECT a.public_url
+  SELECT a.public_url, a.url_expires_at
   FROM public.image_assets a
   WHERE a.image_id = i.id AND a.kind = 'thumbnail'
   ORDER BY a.created_at DESC
   LIMIT 1
-) thumbnail_asset ON true;
+) thumbnail_asset ON true
+LEFT JOIN LATERAL (
+  SELECT array_agg(t.name ORDER BY t.group_name, it.sort_order, t.sort_order, t.name) AS tags
+  FROM public.image_taggings it
+  JOIN public.image_tags t
+    ON t.id = it.tag_id
+  WHERE it.image_id = i.id
+) tag_list ON true
+LEFT JOIN LATERAL (
+  SELECT jsonb_agg(
+    jsonb_build_object('label', grouped.group_name, 'tags', grouped.tags)
+    ORDER BY grouped.group_sort_order, grouped.group_name
+  ) AS tag_groups
+  FROM (
+    SELECT
+      t.group_name,
+      min(t.sort_order) AS group_sort_order,
+      jsonb_agg(t.name ORDER BY it.sort_order, t.sort_order, t.name) AS tags
+    FROM public.image_taggings it
+    JOIN public.image_tags t
+      ON t.id = it.tag_id
+    WHERE it.image_id = i.id
+    GROUP BY t.group_name
+  ) grouped
+) tag_groups ON true;
