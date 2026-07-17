@@ -3,12 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Works Viewer Editor | MT Presence</title>
+    <title>Archive Review | MT Presence</title>
     <meta
       name="description"
-      content="A quiet author workspace for maintaining MT Presence uploaded image records and archive metadata."
+      content="The internal MT Presence review center for checking image metadata, approving records, and publishing work."
     />
-    <link rel="stylesheet" href="styles.css?v=20260615-tags-layout" />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="styles.css?v=20260716-navigation-upload-ui" />
   </head>
   <body class="manage-page">
     <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -34,138 +35,131 @@
         <path d="M10 11v5" />
         <path d="M14 11v5" />
       </symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24">
+        <path d="M20 6 9 17l-5-5" />
+      </symbol>
+      <symbol id="icon-photo" viewBox="0 0 24 24">
+        <rect x="3" y="5" width="18" height="14" rx="1.5" />
+        <path d="m7 15 3.2-3.2a1.3 1.3 0 0 1 1.8 0L16 16" />
+        <path d="m14 14 1.1-1.1a1.3 1.3 0 0 1 1.8 0L21 17" />
+        <circle cx="8.5" cy="9.2" r="1.2" />
+      </symbol>
+      <symbol id="icon-folder" viewBox="0 0 24 24">
+        <path d="M3 6.8h6l2 2.4h10v8.6a1.7 1.7 0 0 1-1.7 1.7H4.7A1.7 1.7 0 0 1 3 17.8z" />
+        <path d="M3 8.8v-3a1.3 1.3 0 0 1 1.3-1.3h5.1l2 2.2" />
+      </symbol>
+      <symbol id="icon-pen" viewBox="0 0 24 24">
+        <path d="m4 20 4.3-1.1 10.4-10.4a2.1 2.1 0 0 0-3-3L5.3 15.9z" />
+        <path d="m14 6 4 4" />
+      </symbol>
+      <symbol id="icon-bell" viewBox="0 0 24 24">
+        <path d="M18 9a6 6 0 0 0-12 0c0 7-2 7-2 8h16c0-1-2-1-2-8" />
+        <path d="M9.7 20a2.5 2.5 0 0 0 4.6 0" />
+      </symbol>
+      <symbol id="icon-menu" viewBox="0 0 24 24">
+        <path d="M4 7h16" />
+        <path d="M4 12h16" />
+        <path d="M4 17h16" />
+      </symbol>
+      <symbol id="icon-bookmark" viewBox="0 0 24 24">
+        <path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.8L6 21z" />
+      </symbol>
+      <symbol id="icon-mail" viewBox="0 0 24 24">
+        <rect x="3.5" y="5.5" width="17" height="13" rx="1.8" />
+        <path d="m4.5 7 7.5 6 7.5-6" />
+      </symbol>
+      <symbol id="icon-user" viewBox="0 0 24 24">
+        <circle cx="12" cy="8" r="3.5" />
+        <path d="M5 20a7 7 0 0 1 14 0" />
+      </symbol>
     </svg>
 
-    <header class="site-header archive-header" aria-label="Primary navigation">
+    <aside class="archive-rail manage-rail" aria-label="Artist workspace navigation">
+      <a class="archive-rail-brand" href="index.html" aria-label="Back to MT Presence home">MT</a>
+      <nav class="archive-rail-nav" aria-label="Publishing workflow navigation">
+        <a class="archive-rail-button" href="works.html" aria-label="Works Archive">
+          <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-photo"></use></svg>
+          <span class="archive-rail-copy">Works</span>
+        </a>
+        <a class="archive-rail-button" href="/workspace/images" aria-label="Upload Studio">
+          <svg class="ui-icon" aria-hidden="true" focusable="false">
+            <use href="#icon-folder"></use>
+          </svg>
+          <span class="archive-rail-copy">Upload</span>
+        </a>
+        <a class="archive-rail-button is-active" href="manage.html" aria-label="Review Center" aria-current="page">
+          <svg class="ui-icon" aria-hidden="true" focusable="false">
+            <use href="#icon-pen"></use>
+          </svg>
+          <span class="archive-rail-copy">Review</span>
+        </a>
+      </nav>
+      <div class="archive-rail-footer">
+        <a class="archive-rail-button" href="/settings/account" aria-label="Account settings">
+          <svg class="ui-icon" aria-hidden="true" focusable="false">
+            <use href="#icon-user"></use>
+          </svg>
+          <span class="archive-rail-copy">Account</span>
+        </a>
+      </div>
+    </aside>
+
+    <header class="site-header archive-header manage-header" aria-label="Artist workspace navigation">
       <a class="brand-mark" href="index.html" aria-label="Back to home">
         <span>MT</span>
-        <span>Presence</span>
+        <span>Artist Workspace</span>
       </a>
-      <nav class="site-nav" aria-label="Page navigation">
-        <a href="works.html">Works</a>
-        <a href="contact.html">Messages</a>
+      <nav class="site-nav" aria-label="Workflow navigation">
+        <a href="/workspace/images">Upload</a>
+        <a href="manage.html" aria-current="page">Review Center</a>
+        <a href="/settings/account">Account</a>
       </nav>
     </header>
 
     <main class="manage-main">
       <section class="manage-hero" aria-labelledby="manage-title">
         <div>
-          <div class="section-kicker">Internal Author Archive</div>
-          <h1 id="manage-title">Works Viewer Editor</h1>
+          <div class="section-kicker">Internal Archive Review</div>
+          <h1 id="manage-title">Review</h1>
         </div>
         <div class="manage-hero-actions" aria-label="Author workspace actions">
-          <div class="archive-upload manage-upload manage-hero-upload">
-            <label class="upload-dropzone manage-upload-button" for="manage-image-upload">
-              <span class="upload-title">
-                <svg class="ui-icon" aria-hidden="true" focusable="false">
-                  <use href="#icon-plus"></use>
-                </svg>
-                Import Images
-              </span>
-            </label>
-            <input id="manage-image-upload" class="visually-hidden" type="file" accept="image/*" multiple data-upload-input />
-            <div class="upload-status-list manage-upload-status" data-upload-status-list aria-live="polite" hidden></div>
-          </div>
+          <a class="button button-primary manage-upload-link" href="/workspace/images">
+            <svg class="ui-icon" aria-hidden="true" focusable="false">
+              <use href="#icon-plus"></use>
+            </svg>
+            Upload Studio
+          </a>
           <a class="button button-secondary manage-upload-link" href="works.html">View Works</a>
         </div>
       </section>
 
-      <section class="manage-operations-panel" aria-label="Author operations">
-        <section class="manage-home-panel" aria-labelledby="manage-home-title">
-        <div class="manage-panel-heading manage-home-heading">
-          <div>
-            <h2 id="manage-home-title">Hero Images and Text</h2>
-          </div>
-          <div class="manage-save-dock" aria-label="Homepage save status">
-            <span class="manage-save-pill" data-home-save-label>Saved</span>
-            <span class="manage-save-time" data-home-last-saved>Last saved: Not yet</span>
-            <span class="manage-save-message" data-home-save-state aria-live="polite"></span>
-            <div class="manage-save-actions">
-              <button class="archive-arrange-button" type="submit" form="homepage-editor-form" data-save-home-settings>Save Current</button>
-              <button class="archive-arrange-button" type="button" data-save-all-home-settings>Save All</button>
-              <button class="archive-arrange-button" type="button" data-revert-home-settings>Revert</button>
-            </div>
-          </div>
-        </div>
-
-        <form class="manage-home-form" id="homepage-editor-form" data-home-form novalidate>
-          <fieldset class="manage-form-section manage-hero-editor" data-home-editor-section="abstract">
-            <legend>Abstract Hero</legend>
-            <figure class="manage-home-preview">
-              <img src="" alt="" data-home-preview="abstract" decoding="async" />
-              <figcaption data-home-preview-caption="abstract">Current default asset</figcaption>
-            </figure>
-            <div class="manage-home-fields">
-              <div class="manage-home-grid">
-                <label class="form-field" for="home-abstract-image">
-                  <span>Image selector</span>
-                  <select id="home-abstract-image" name="abstract_image_id" data-home-image-select="abstract"></select>
-                </label>
-                <label class="form-field" for="home-abstract-eyebrow">
-                  <span>Eyebrow</span>
-                  <input id="home-abstract-eyebrow" name="abstract_eyebrow" type="text" maxlength="120" />
-                </label>
-                <label class="form-field" for="home-abstract-title">
-                  <span>Title</span>
-                  <input id="home-abstract-title" name="abstract_title" type="text" maxlength="180" />
-                </label>
-                <label class="form-field manage-home-span" for="home-abstract-statement">
-                  <span>Statement</span>
-                  <textarea id="home-abstract-statement" name="abstract_statement" rows="3" maxlength="700"></textarea>
-                </label>
-              </div>
-            </div>
-          </fieldset>
-
-          <fieldset class="manage-form-section manage-hero-editor" data-home-editor-section="concrete">
-            <legend>Concrete Hero</legend>
-            <figure class="manage-home-preview">
-              <img src="" alt="" data-home-preview="concrete" decoding="async" />
-              <figcaption data-home-preview-caption="concrete">Current default asset</figcaption>
-            </figure>
-            <div class="manage-home-fields">
-              <div class="manage-home-grid">
-                <label class="form-field" for="home-concrete-image">
-                  <span>Image selector</span>
-                  <select id="home-concrete-image" name="concrete_image_id" data-home-image-select="concrete"></select>
-                </label>
-                <label class="form-field" for="home-concrete-eyebrow">
-                  <span>Eyebrow</span>
-                  <input id="home-concrete-eyebrow" name="concrete_eyebrow" type="text" maxlength="120" />
-                </label>
-                <label class="form-field" for="home-concrete-title">
-                  <span>Title</span>
-                  <input id="home-concrete-title" name="concrete_title" type="text" maxlength="180" />
-                </label>
-                <label class="form-field manage-home-span" for="home-concrete-statement">
-                  <span>Statement</span>
-                  <textarea id="home-concrete-statement" name="concrete_statement" rows="3" maxlength="700"></textarea>
-                </label>
-              </div>
-            </div>
-          </fieldset>
-
-          <fieldset class="manage-form-section">
-            <legend>Statement Section</legend>
-            <label class="form-field" for="home-statement-title">
-              <span>Statement Title</span>
-              <input id="home-statement-title" name="statement_title" type="text" maxlength="180" />
-            </label>
-            <div class="manage-home-moments" data-home-moments></div>
-          </fieldset>
-
-        </form>
-        </section>
+      <section class="manage-review-summary" aria-label="Review queue filters">
+        <button class="manage-review-stat is-active" type="button" data-review-filter="all" aria-pressed="true">
+          <span>All records</span>
+          <strong data-review-count="all">0</strong>
+        </button>
+        <button class="manage-review-stat" type="button" data-review-filter="attention" aria-pressed="false">
+          <span>Needs review</span>
+          <strong data-review-count="attention">0</strong>
+        </button>
+        <button class="manage-review-stat" type="button" data-review-filter="draft" aria-pressed="false">
+          <span>Unpublished</span>
+          <strong data-review-count="draft">0</strong>
+        </button>
+        <button class="manage-review-stat" type="button" data-review-filter="published" aria-pressed="false">
+          <span>Published</span>
+          <strong data-review-count="published">0</strong>
+        </button>
       </section>
 
       <section class="manage-workspace" aria-label="Author image management workspace">
         <aside class="manage-list-panel" aria-labelledby="manage-list-title">
           <div class="manage-panel-heading">
             <div>
-              <h2 id="manage-list-title">Works</h2>
+              <h2 id="manage-list-title">Review Queue</h2>
               <span data-manage-count>Loading records</span>
             </div>
-            <button class="archive-arrange-button" type="button" data-refresh-records>
+            <button class="archive-arrange-button" type="button" data-refresh-records data-tooltip="Refresh records">
               <svg class="ui-icon" aria-hidden="true" focusable="false">
                 <use href="#icon-refresh"></use>
               </svg>
@@ -192,6 +186,8 @@
                 <h2 id="manage-editor-title" data-editor-title>Untitled Work</h2>
                 <dl class="manage-record-meta" data-editor-meta></dl>
                 <div class="manage-schema-summary" data-record-schema></div>
+                <div class="manage-review-status" data-review-status></div>
+                <ul class="manage-review-checks" data-review-checks aria-label="Review checks"></ul>
                 <p class="manage-editor-status" data-editor-status aria-live="polite"></p>
               </div>
             </header>
@@ -269,11 +265,17 @@
             </fieldset>
 
             <div class="manage-form-actions">
+              <button class="button manage-approve-button" type="button" data-approve-record>
+                <svg class="ui-icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-check"></use>
+                </svg>
+                <span data-approve-label>Approve &amp; Publish</span>
+              </button>
               <button class="button button-primary" type="submit" data-save-record>
                 <svg class="ui-icon" aria-hidden="true" focusable="false">
                   <use href="#icon-save"></use>
                 </svg>
-                Save Current
+                Save Review
               </button>
               <button class="button button-secondary" type="button" data-save-all-records>Save All</button>
               <button class="button button-secondary" type="button" data-revert-record>Revert</button>
@@ -299,6 +301,94 @@
                 </button>
               </div>
             </section>
+          </form>
+        </section>
+      </section>
+
+      <section class="manage-operations-panel" aria-label="Author operations">
+        <section class="manage-home-panel" aria-labelledby="manage-home-title">
+          <div class="manage-panel-heading manage-home-heading">
+            <div>
+              <p class="manage-settings-kicker">Site settings</p>
+              <h2 id="manage-home-title">Homepage Images and Text</h2>
+            </div>
+            <div class="manage-save-dock" aria-label="Homepage save status">
+              <span class="manage-save-pill" data-home-save-label>Saved</span>
+              <span class="manage-save-time" data-home-last-saved>Last saved: Not yet</span>
+              <span class="manage-save-message" data-home-save-state aria-live="polite"></span>
+              <div class="manage-save-actions">
+                <button class="archive-arrange-button" type="submit" form="homepage-editor-form" data-save-home-settings>Save Current</button>
+                <button class="archive-arrange-button" type="button" data-save-all-home-settings>Save All</button>
+                <button class="archive-arrange-button" type="button" data-revert-home-settings>Revert</button>
+              </div>
+            </div>
+          </div>
+
+          <form class="manage-home-form" id="homepage-editor-form" data-home-form novalidate>
+            <fieldset class="manage-form-section manage-hero-editor" data-home-editor-section="abstract">
+              <legend>Abstract Hero</legend>
+              <figure class="manage-home-preview">
+                <img src="" alt="" data-home-preview="abstract" decoding="async" />
+                <figcaption data-home-preview-caption="abstract">Current default asset</figcaption>
+              </figure>
+              <div class="manage-home-fields">
+                <div class="manage-home-grid">
+                  <label class="form-field" for="home-abstract-image">
+                    <span>Image selector</span>
+                    <select id="home-abstract-image" name="abstract_image_id" data-home-image-select="abstract"></select>
+                  </label>
+                  <label class="form-field" for="home-abstract-eyebrow">
+                    <span>Eyebrow</span>
+                    <input id="home-abstract-eyebrow" name="abstract_eyebrow" type="text" maxlength="120" />
+                  </label>
+                  <label class="form-field" for="home-abstract-title">
+                    <span>Title</span>
+                    <input id="home-abstract-title" name="abstract_title" type="text" maxlength="180" />
+                  </label>
+                  <label class="form-field manage-home-span" for="home-abstract-statement">
+                    <span>Statement</span>
+                    <textarea id="home-abstract-statement" name="abstract_statement" rows="3" maxlength="700"></textarea>
+                  </label>
+                </div>
+              </div>
+            </fieldset>
+
+            <fieldset class="manage-form-section manage-hero-editor" data-home-editor-section="concrete">
+              <legend>Concrete Hero</legend>
+              <figure class="manage-home-preview">
+                <img src="" alt="" data-home-preview="concrete" decoding="async" />
+                <figcaption data-home-preview-caption="concrete">Current default asset</figcaption>
+              </figure>
+              <div class="manage-home-fields">
+                <div class="manage-home-grid">
+                  <label class="form-field" for="home-concrete-image">
+                    <span>Image selector</span>
+                    <select id="home-concrete-image" name="concrete_image_id" data-home-image-select="concrete"></select>
+                  </label>
+                  <label class="form-field" for="home-concrete-eyebrow">
+                    <span>Eyebrow</span>
+                    <input id="home-concrete-eyebrow" name="concrete_eyebrow" type="text" maxlength="120" />
+                  </label>
+                  <label class="form-field" for="home-concrete-title">
+                    <span>Title</span>
+                    <input id="home-concrete-title" name="concrete_title" type="text" maxlength="180" />
+                  </label>
+                  <label class="form-field manage-home-span" for="home-concrete-statement">
+                    <span>Statement</span>
+                    <textarea id="home-concrete-statement" name="concrete_statement" rows="3" maxlength="700"></textarea>
+                  </label>
+                </div>
+              </div>
+            </fieldset>
+
+            <fieldset class="manage-form-section">
+              <legend>Statement Section</legend>
+              <label class="form-field" for="home-statement-title">
+                <span>Statement Title</span>
+                <input id="home-statement-title" name="statement_title" type="text" maxlength="180" />
+              </label>
+              <div class="manage-home-moments" data-home-moments></div>
+            </fieldset>
           </form>
         </section>
       </section>

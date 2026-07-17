@@ -19,6 +19,28 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 - 不把临时图库素材或 AI 图表述为 MT 正式作品。
 - 上传系统后续应支持作者指定作品比例、裁切点和展示说明。
 
+## AI 辅助设计工作流（强制）
+
+每次新增、改版或美化页面前，必须先为当前页面编写一份具体、可验收的英文 UI design prompt，再开始修改代码。不能只使用 “make it beautiful” 一类空泛提示。
+
+提示词必须包含：
+
+- 页面目标、主要用户和首要任务。
+- 视觉方向、品牌气质、排版、色彩、密度和图片角色。
+- 页面布局、信息层级和关键组件。
+- loading、empty、error、success、disabled、permission、dirty、conflict 等相关状态。
+- desktop 与 mobile 行为、键盘操作、focus、文字溢出和可访问性要求。
+- 明确的 `Avoid` 清单，防止 generic AI/SaaS UI、过度圆角、渐变、玻璃拟态、装饰性卡片和无意义动效。
+- 与当前页面相关的验收标准。
+
+每次执行 Web 页面任务还必须：
+
+1. 先读取本设计系统、产品规格和相邻页面实现。
+2. 使用真实产品 UI 样本进行有目的的参考研究；优先研究对应组件和完整流程，不照搬单张概念图。
+3. 在实现前向用户展示或概括本次使用的 UI design prompt。
+4. 实现后检查桌面与移动端视口，并验证 hover、focus、active、empty、error 等相关状态。
+5. 同步更新项目功能地图，并说明未完成或无法验证的部分。
+
 ## 当前首版组件策略
 
 当前项目是静态站点，没有 React/Vue/Next 依赖。首版先使用自建轻量组件系统：
@@ -44,6 +66,69 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 - 首版只有一个页面和一个精选作品带，不需要重型组件库。
 - 艺术站点的视觉质量主要来自排版、图片比例、留白和节奏，不来自复杂 UI 控件。
 - 未来如果升级为多页面或 CMS，再引入框架和组件库。
+
+### 2026-07-04 静态组件体系增强
+
+当前仓库仍不引入 React、Next.js、Tailwind、shadcn/ui 或 Radix UI 运行时依赖。本轮优化把这些体系里的可执行方法迁移到静态站：
+
+- `styles.css` 增加 `--ui-*` token：统一 focus ring、圆角、缓动曲线和动效时长。
+- Works / Collections 的图片项渲染时由 JS 注入 `--item-delay`，配合 CSS 做轻量 stagger reveal；筛选和集合切换不再是生硬 DOM 替换。
+- `archive-gallery` / `collection-gallery` 在重渲染时设置 `aria-busy`，筛选按钮和集合按钮用 `aria-pressed` 表达状态。
+- Upload Studio 使用 Folders 作为私有整理系统：文件夹不是公开收藏页，不自动成为 Series 或标签；Inbox 是不可重命名/删除的 system folder。
+- Contact 表单用 `.is-focused`、`.is-filled`、`.has-error` 和 `aria-invalid` 表达交互状态；提交按钮有 loading spinner。
+- 全站交互控件统一 `focus-visible`，保证键盘操作时可见但不破坏摄影页面的低声量视觉。
+
+后续如果迁移到 Next.js，可把这些 token 和状态命名直接映射到 Tailwind theme、shadcn/ui variants 和 Radix state attributes。
+
+### 2026-07-04 Viewer 和 Rail 修正
+
+作品查看器不使用大面积黑色影棚底。参考馆藏/摄影作品页的处理方式，图片区域使用 gallery white / stone surface，黑色只用于文字和少量 hover/active 强调：
+
+- `.work-viewer-media` 使用浅色 gallery surface、细分割线和低透明阴影承托作品。
+- 图片自身用浅边框和轻阴影聚焦，不让背景比作品更抢眼。
+- 左侧 `archive-rail-button.is-active` 不再使用黑色块，改为轻色底、品牌酒红图标和细内边界。
+- 详情层默认是全屏图片优先，不显示右侧信息栏；`Info` 图标打开展签、metadata、tags 和 related works 抽屉；图片本身的点击不再切换局部 zoom，避免把“全屏查看”误做成“单图放大”。
+- 作品卡片 hover 只显示 `MT` 角标和 Save / Collect / Download 图标按钮；不再显示底部标题说明和大号 Download 文案按钮，避免遮挡图片。
+- 图标按钮必须有 `aria-label` 和 `data-tooltip`，鼠标 hover 或键盘 focus 时显示统一黑底提示；不要只依赖浏览器原生 `title`。
+
+Rail 功能设计方向：
+
+- Works：当前作品档案入口，保持主入口 active。
+- Manage：内部 Archive Review 审核入口，后续应加权限/内部模式提示，避免公开访客误入。
+- Sets：进入 `collections.html`，只负责浏览当前浏览器保存/策展的作品集合，不承担上传或审核。
+- Upload Studio：个人上传入口，提供文件夹、上传队列、点击图片编辑 Draft、保存和移入 Trash；不提供 Publish，不能替换后续 Review/Admin 的审核、发布和首页设置能力。
+- Draft editor 使用无卡片的 Work details 与 Accessibility/Rights 分组；Alt Text 和长文案跨两列，版权/枚举字段维持双列，Recognizable People=Yes 时才显示 Model Release。桌面 editor 可独立纵向滚动，1180px 以下回到普通页面流，移动端严格单列。字段编辑停顿 900ms 后自动保存，同时保留明确的手工 Save 命令。
+- Download Visible：下载当前筛选视图第一张作品；后续可升级为打开下载设置菜单。
+- Saved：切换只看已保存作品，保留 `aria-pressed` 状态。
+- Notifications：建议改成“Activity / Sync status”，展示上传、保存、数据库同步和失败重试状态。
+- Avatar：进入联系作者或作者信息；如果未来有登录态，可改成 account menu。
+- More：建议改为更多菜单，放入 Help、Keyboard shortcuts、Display density、About archive 等低频项。
+
+### Upload Queue
+
+- 队列卡片使用固定缩略图轨道、弹性信息轨道和稳定的独立操作区；卡片主区域负责选中 Draft，Cancel/Retry/Remove 图标按钮不嵌套在主按钮内。
+- Reading、Processing、Uploading、Canceling、Failed、Canceled 和 Draft ready 保持同一外框尺寸，以左侧细状态线、进度条和两行内消息表达变化，禁止状态切换导致列表跳动。
+- 运行中任务显示 Cancel；失败任务显示 Retry 与 Remove；取消任务显示 Retry 与 Remove。图标按钮必须有 `aria-label` 和 tooltip，点击范围固定，不用文字胶囊挤占图片信息。
+- 桌面端操作区靠右，移动端移动到信息区下方并保持按钮尺寸；长文件名省略，状态消息最多两行，不覆盖缩略图或后续卡片。
+- 同一文件夹仍有排队、失败或取消任务时禁止删除该文件夹，先完成或移除任务，避免 Retry 指向失效 Folder。
+
+### Upload Workspace
+
+- 页面使用 gallery white 工作面与细分隔线，不使用渐变背景、三个并列浮卡或大面积阴影。Folder 是窄导航列，导入/队列是主工作区，Draft editor 只在存在选中记录时展开。
+- 初始远程 hydrate 必须显示 `Loading folders`、Loading state 和骨架，不得先渲染 `0 folders` / Ready 造成假空态。
+- 空状态保持 Folder + 导入区两列，队列空提示控制在紧凑高度；有 Draft 时桌面展开三列，1180px 以下 editor 移到下一行，760px 以下严格单列。
+- Import Images 是页面主命令；Choose files 是 dropzone 内的同一 file input 入口。两者状态同步，Loading/离线时都必须 disabled。
+- 面板靠边界、留白和层级区分，不做卡片套卡片；统计使用同一条分隔栏，不使用两个独立统计卡。
+
+### Draft Save and Conflict
+
+- 自动保存采用 900ms debounce，多个 mutation 必须串行；保存请求期间继续输入不能丢失，当前请求完成后应继续保存较新的表单 revision。
+- 手工 Save 始终保留，与自动保存共用同一校验、串行队列和 `expected_version` 协议，不能形成两套结果不同的保存逻辑。
+- 状态文本使用稳定占位并通过 `aria-live` 低声量报告 Saving、Saved、Error 和 Conflict；颜色只作为辅助，不能取代可读文字，也不能因文案变化让 editor toolbar 跳动。
+- Saving 时 Save 与 Trash 禁用，避免并发 mutation；普通失败显示 Error 并保留 dirty 表单，作者可再次 Save，不能把离线缓存失败误报为服务端保存失败。
+- Conflict 表示 HTTP 409 乐观并发冲突：停止自动保存、保持全部本地输入、不自动合并或覆盖，同时禁用 Save 与 Trash；显示带 retry 图标的 `Reload Server Draft`，由作者明确触发后才用最新服务器 Draft 替换表单。
+- `Reload Server Draft` 只在 Conflict 中出现，不作为常驻主按钮；桌面与移动端都必须与 Save/status 保持稳定间距，长状态文案可换行但不得覆盖输入区或操作按钮。
+- Draft PATCH 成功只更新 metadata 状态，现有预览图保持不变；保存状态不依赖再次获取 signed asset URL，避免写入已成功却显示 Error。
 
 ## 推荐技术选型
 
@@ -151,20 +236,20 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 
 当前色彩系统：
 
-- Gallery white 背景：`#f6f6f3`
-- 主文字：`#171716`
-- 次文字：`#66645f`
-- 低对比分割线：`rgba(23, 23, 22, 0.13)`
-- 浅石灰面板：`#ecebe6`
-- 深酒红强调：`#5f2f29`
-- 深褐灰暗色区：`#2d2521`
+- Gallery white 背景：`#ffffff`
+- 主文字：`#111111`
+- 次文字：`#62666d`
+- 低对比分割线：`rgba(17, 17, 17, 0.12)`
+- 冷中性面板：`#f5f6f7`
+- 深蓝灰强调：`#2f5f7f`
+- 深中性暗色区：`#171b20`
 - 主内容表面：`#ffffff`
 
 规则：
 
-- 页面背景应接近现代摄影画廊的 gallery white / stone white，不能偏淡黄色、奶油黄或旧纸色。
-- 页面不能变成单一冷灰，需要一点深酒红和深褐灰作为品牌温度。
-- 暖色只用于标签、强调、hover/focus/error/dirty 等局部状态，不大面积铺满。
+- 页面背景必须接近纯白现代摄影画廊：以 `#fff`、冷中性浅灰和细线为主，不能偏淡黄色、奶油黄或旧纸色。
+- 页面不能变成单一冷灰，需要通过图片、黑白强对比、细线层级和少量深蓝灰强调建立品牌温度。
+- 强调色只用于标签、强调、hover/focus/error/dirty 等局部状态，不大面积铺满。
 - 图片区域不加复杂边框和卡片阴影，避免破坏作品气质。
 
 ### 布局
@@ -211,7 +296,8 @@ Statement：
 - 上传状态必须逐图显示读取中、压缩中、切片中、分析中、保存中、完成或失败；多图上传时一个失败不能影响其他图片继续保存。
 - 前台作品图优先使用 `display` 版本；没有 `display` 时才 fallback 到 `original`。`thumbnail` 不能替代作品展示图。
 - Gallery 在 `All` 模式使用协调的 masonry 图墙，让不同尺寸图片自然错落并保持整体平衡。选择具体比例时切换为比例专用网格，按该比例组缩放图片并铺满行宽。不裁切、不拉伸、不加黑边。
-- Works 顶部按三层组织：导航；`Works Archive` 标题和简短说明；Search/Type/Ratio 筛选与 Count/Arrange 管理动作。公开 Works 页不显示 Add Works，上传入口只放在内部 `manage.html`。
+- Works 和工具页不再使用“大标题 + 说明 + 内容”的通用模板。除首页外，页面首屏必须优先呈现紧凑操作栏、搜索/筛选、结果网格或工作队列；标题只作为 18-20px 模块标签出现。
+- Works 顶部按素材库/图库索引组织：导航、Search/Type/Ratio 筛选、Count/Arrange 管理动作和作品网格。公开 Works 页不显示 Add Works，不再提供 `Your Studio` / `user-manage.html` 入口；上传入口进入 `upload-studio.html`。
 - 过滤器包含 Search、Type 和 Ratio，放在 `archive-filter-bar` 中，像档案索引而不是后台 toolbar；搜索输入使用小字号 label、细线输入框和轻量 Clear Search 按钮。
 - Search、Type、Ratio 必须叠加生效；搜索匹配 title、series、description、curatorial note、artist statement、tags、tag groups、content type/type、ratio/ratio label、source/original filename，并支持 `1:1`、`4:3`、`4:5`、`2:3`、`3:2`、`16:9`、`panorama`、`vertical`、`horizontal` 等比例关键词。
 - 搜索结果数量必须通过 Count 更新并使用 `aria-live`；无结果时显示 `No works match this search.`，移动端筛选区不能横向溢出。
@@ -226,11 +312,22 @@ Statement：
 - 标签分组服务作品理解，不做彩色 chip 墙；推荐使用 Subject、Mood、Material / Surface、Palette / Tone、Technique、Series / Collection、Place 等细线分组，标签以轻量行内文字和小点分隔。
 - 鉴赏层必须支持 Esc、遮罩、关闭按钮、左右按钮和 ArrowLeft/ArrowRight；打开后锁定背景滚动、焦点进入 dialog，关闭后恢复触发卡片焦点；`prefers-reduced-motion` 下取消 blur/scale 转场。
 
+功能侧栏：
+
+- 桌面端 `archive-rail` 统一使用 78px 极简短标题侧栏。入口只包含 icon 和一个短标题，不放说明句、不放常驻分组标题。
+- Home、Works、About、Contact、Lightbox 五个主要公开页必须使用同一 public rail，顺序固定为 Home、Works、Upload、Lightbox、About，Contact 固定在底部；当前页面只激活一个对应入口。
+- 作者工作区使用 Works、Upload、Review、Account，Review 按权限显示；公开 rail 的 Upload 始终进入受保护 `/workspace/images`，不直接暴露 Draft 数据。
+- 侧栏 active 状态使用轻色底、细边界和品牌色，不使用大面积黑块；所有入口保持 8px 圆角、细线、低对比 hover。
+- 移动端隐藏侧栏，顶部导航保留主要入口；不要为了塞满功能把窄屏顶栏做成过多小字按钮。
+- 不再添加 `Your Studio` 或 `user-manage.html`；账户与云端 Draft 统一进入现有受保护 Upload/Account 边界。
+
 内部管理页：
 
-- `manage.html` 是内部作者工作台，不是公开展示页，也不是普通 SaaS 后台；应保持 fine art photography 的安静、克制、纸面感和较高信息密度。
+- `manage.html` 是 Archive Review 审核中心，不是公开展示页，也不是普通 SaaS 后台；应保持 fine art photography 的安静、克制、纸面感和较高信息密度。
 - 页面使用 neutral gallery palette，避免淡黄色、奶油黄、旧纸黄、大面积彩色背景、厚重卡片、大阴影和蓝紫渐变。
-- 顶部保留 `MT Presence` 品牌以及 `Works / Messages` 导航；主体按 Import、Homepage、Works list、Viewer editor 组织。
+- 顶部保留 `MT Artist Workspace` 和紧凑 workflow 导航；桌面端使用与 Works / Upload Studio 一致的 78px 短标题侧栏。主体按紧凑 Review 操作栏、筛选 pill、Review Queue、Viewer editor、Homepage settings 组织。
+- Manage 不再承载直接图片导入；上传、压缩、文件夹归类和上传后的初始编辑都在 `upload-studio.html` 完成，Manage 只提供入口链接。
+- 审核区必须可扫描：顶部用一行 pill 显示 All records、Needs review、Unpublished、Published 数量；左侧列表显示缩略图、visibility 和审核状态；右侧表单显示 checklist，并提供 `Approve & Publish`。
 - Homepage 设置必须作为内容维护模块展示：Abstract Hero、Concrete Hero、Statement / Homepage text；每个 Hero 区域包含当前图片预览、Image selector、Eyebrow、Title、Statement。
 - 保存状态要明确但克制：Saved、Unsaved changes、Last saved time、Save Current、Save All、Revert；修改字段后立即显示未保存状态，保存/失败用 inline 状态和 toast 反馈。
 - 表单字段宽度、间距、label、输入框和 textarea 对齐统一；分区之间用细线和留白，不使用卡片套卡片。
@@ -286,7 +383,7 @@ Statement：
 
 ### Works Viewer Editor
 
-- 用于内部作者维护，不加入公开导航，不改变公开 Works 页面视觉。
+- 用于内部作者维护；顶部公开导航不强调，桌面极简 rail 可提供 `Review` 入口，但不能把审核字段混入公开 Works 作品浏览界面。
 - 桌面布局优先露出 Add Works、Homepage 内容维护台、左侧作品列表和右侧当前作品表单；Homepage 区保持紧凑，避免把作品维护工作区压到首屏之外。左侧可 sticky，移动端改为横向可滚动列表加单列表单。
 - Add Works 只出现在内部页面，上传状态必须显示读取、压缩、切片、保存、完成或失败。
 - Homepage 设置区用于维护首页抽象/具象 hero 图片和文案、Statement 标题、四段图片和文字；使用克制的常驻编辑台和小型图片预览，不做营销式预览大卡。

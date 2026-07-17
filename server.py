@@ -4,18 +4,30 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import hmac
 import hashlib
 import json
+import os
+import secrets
+import shutil
 import sqlite3
 import re
+import threading
+import time
+import urllib.error
+import urllib.request
+import uuid
 from datetime import datetime, timezone
 from email import policy
 from email.parser import BytesParser
 from functools import partial
 from http import HTTPStatus
+from http.cookies import SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlencode, urlparse
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 ROOT = Path(__file__).resolve().parent
@@ -72,10 +84,342 @@ TAG_GROUP_SORT_ORDER = {
     "Series / Collection": 70,
 }
 
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+SUPABASE_PUBLISHABLE_KEY = os.environ.get("SUPABASE_PUBLISHABLE_KEY", "")
+COOKIE_SECURE = os.environ.get("MT_COOKIE_SECURE", "0") == "1"
+PUBLIC_BASE_URL = os.environ.get("MT_PUBLIC_BASE_URL", "").rstrip("/")
+ACCESS_COOKIE = "mt_access_token"
+REFRESH_COOKIE = "mt_refresh_token"
+CSRF_COOKIE = "__Host-mt_csrf_token" if COOKIE_SECURE else "mt_csrf_token"
+RECOVERY_COOKIE = "__Host-mt_recovery_grant" if COOKIE_SECURE else "mt_recovery_grant"
+CSRF_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{40,128}$")
+RECOVERY_GRANT_TTL_SECONDS = 10 * 60
+RECOVERY_GRANTS: dict[str, tuple[str, float]] = {}
+RECOVERY_GRANTS_LOCK = threading.Lock()
+PROFILE_FIELDS = (
+    "display_name",
+    "avatar_url",
+    "bio",
+    "website_url",
+    "country_code",
+    "preferred_locale",
+    "timezone",
+    "copyright_name",
+    "default_license_preference",
+)
+PROFILE_EDITABLE_FIELDS = tuple(field for field in PROFILE_FIELDS if field != "avatar_url")
+PROFILE_LOCALES = {"en"}
+PROFILE_LICENSES = {
+    "all-rights-reserved",
+    "cc-by-4.0",
+    "cc-by-sa-4.0",
+    "cc-by-nc-4.0",
+    "cc-by-nc-sa-4.0",
+}
+WORKSPACE_ASSET_KINDS = {"original", "display", "thumbnail"}
+WORKSPACE_ASSET_LIMITS = {
+    "original": 50 * 1024 * 1024,
+    "display": 20 * 1024 * 1024,
+    "thumbnail": 10 * 1024 * 1024,
+}
+WORKSPACE_IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
+WORKSPACE_DRAFT_FIELDS = {
+    "folder_id",
+    "title",
+    "caption",
+    "description",
+    "alt_text",
+    "tags",
+    "content_category",
+    "captured_at",
+    "location_name",
+    "copyright_holder",
+    "copyright_year",
+    "contains_recognizable_people",
+    "model_release_status",
+    "property_release_status",
+    "rights_declared",
+    "ai_disclosure",
+    "sensitive_content_disclosure",
+}
+WORKSPACE_DRAFT_CORE_FIELDS = WORKSPACE_DRAFT_FIELDS - {
+    "copyright_holder",
+    "copyright_year",
+    "contains_recognizable_people",
+    "model_release_status",
+    "property_release_status",
+    "rights_declared",
+    "ai_disclosure",
+    "sensitive_content_disclosure",
+}
+WORKSPACE_RELEASE_STATUSES = {"not_applicable", "available", "not_available", "pending"}
+WORKSPACE_AI_DISCLOSURES = {"none", "ai_edited", "ai_generated"}
+WORKSPACE_SENSITIVE_DISCLOSURES = {"none", "contains_sensitive_content"}
+WORKSPACE_ERROR_STATUS = {
+    "FOLDER_VALIDATION_FAILED": HTTPStatus.UNPROCESSABLE_ENTITY,
+    "FOLDER_NAME_CONFLICT": HTTPStatus.CONFLICT,
+    "FOLDER_NOT_FOUND": HTTPStatus.NOT_FOUND,
+    "FOLDER_NOT_EMPTY": HTTPStatus.CONFLICT,
+    "FOLDER_RESTORE_CONFLICT": HTTPStatus.CONFLICT,
+    "UPLOAD_INTENT_INVALID": HTTPStatus.UNPROCESSABLE_ENTITY,
+    "UPLOAD_ASSETS_INVALID": HTTPStatus.UNPROCESSABLE_ENTITY,
+    "UPLOAD_INTENT_NOT_FOUND": HTTPStatus.NOT_FOUND,
+    "UPLOAD_INTENT_EXPIRED": HTTPStatus.GONE,
+    "UPLOAD_INTENT_NOT_CANCELABLE": HTTPStatus.CONFLICT,
+    "UPLOAD_ASSETS_INCOMPLETE": HTTPStatus.CONFLICT,
+    "UPLOAD_ALREADY_COMPLETED": HTTPStatus.CONFLICT,
+    "DRAFT_VALIDATION_FAILED": HTTPStatus.UNPROCESSABLE_ENTITY,
+    "DRAFT_NOT_FOUND": HTTPStatus.NOT_FOUND,
+    "DRAFT_LOCKED": HTTPStatus.LOCKED,
+    "DRAFT_VERSION_REQUIRED": HTTPStatus.UNPROCESSABLE_ENTITY,
+    "DRAFT_VERSION_CONFLICT": HTTPStatus.CONFLICT,
+    "DRAFT_NOT_READY": HTTPStatus.UNPROCESSABLE_ENTITY,
+    "SUBMISSION_CONFIRMATION_REQUIRED": HTTPStatus.UNPROCESSABLE_ENTITY,
+    "SUBMISSION_VERSION_REQUIRED": HTTPStatus.UNPROCESSABLE_ENTITY,
+    "SUBMISSION_IDEMPOTENCY_REQUIRED": HTTPStatus.UNPROCESSABLE_ENTITY,
+    "SUBMISSION_IDEMPOTENCY_CONFLICT": HTTPStatus.CONFLICT,
+    "SUBMISSION_ALREADY_OPEN": HTTPStatus.CONFLICT,
+    "SUBMISSION_STATE_CONFLICT": HTTPStatus.CONFLICT,
+}
+
+WORKSPACE_READINESS_CHECKS = {
+    "work_details": "Work details",
+    "rights_disclosures": "Rights & disclosures",
+    "image_assets": "Image assets",
+    "security_scan": "Security scan",
+    "submission_state": "Submission state",
+}
+WORKSPACE_READINESS_FIELD_KEYS = {
+    "title",
+    "alt_text",
+    "content_category",
+    "copyright_holder",
+    "copyright_year",
+    "contains_recognizable_people",
+    "model_release_status",
+    "property_release_status",
+    "rights_declared",
+    "ai_disclosure",
+    "sensitive_content_disclosure",
+    "processing_status",
+    "image_assets",
+    "security_scan",
+    "submission_state",
+}
+
+
+def auth_configured() -> bool:
+    return bool(SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY)
+
+
+def auth_error(
+    code: str,
+    message: str,
+    field_errors: dict | None = None,
+    details: dict | None = None,
+) -> dict:
+    error = {"code": code, "message": message, "request_id": uuid.uuid4().hex}
+    if field_errors:
+        error["field_errors"] = field_errors
+    if details:
+        error["details"] = details
+    return {"error": error}
+
+
+def decode_jwt_payload(token: str) -> dict:
+    """Decode provider-verified JWT claims without treating them as authorization."""
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        decoded = json.loads(base64.urlsafe_b64decode(payload.encode("ascii")).decode("utf-8"))
+    except (IndexError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+    return decoded if isinstance(decoded, dict) else {}
+
+
+def session_has_auth_method(session: dict, method: str) -> bool:
+    claims = decode_jwt_payload(str(session.get("access_token") or ""))
+    return any(
+        isinstance(entry, dict) and entry.get("method") == method
+        for entry in claims.get("amr") or []
+    )
+
+
+def create_recovery_grant(user_id: str) -> str:
+    token = secrets.token_urlsafe(32)
+    now = time.monotonic()
+    with RECOVERY_GRANTS_LOCK:
+        expired = [key for key, (_, deadline) in RECOVERY_GRANTS.items() if deadline <= now]
+        for key in expired:
+            RECOVERY_GRANTS.pop(key, None)
+        RECOVERY_GRANTS[token] = (user_id, now + RECOVERY_GRANT_TTL_SECONDS)
+    return token
+
+
+def recovery_grant_is_valid(token: str, user_id: str) -> bool:
+    if not token or not user_id:
+        return False
+    now = time.monotonic()
+    with RECOVERY_GRANTS_LOCK:
+        grant = RECOVERY_GRANTS.get(token)
+        if not grant or grant[1] <= now:
+            RECOVERY_GRANTS.pop(token, None)
+            return False
+        return hmac.compare_digest(grant[0], user_id)
+
+
+def consume_recovery_grant(token: str) -> None:
+    if not token:
+        return
+    with RECOVERY_GRANTS_LOCK:
+        RECOVERY_GRANTS.pop(token, None)
+
+
+def supabase_auth_request(
+    path: str,
+    payload: dict | None = None,
+    access_token: str = "",
+    *,
+    method: str | None = None,
+) -> tuple[int, dict]:
+    if not auth_configured():
+        return HTTPStatus.SERVICE_UNAVAILABLE, auth_error(
+            "AUTH_NOT_CONFIGURED",
+            "Authentication is not configured for this environment.",
+        )
+    headers = {
+        "apikey": SUPABASE_PUBLISHABLE_KEY,
+        "Content-Type": "application/json",
+    }
+    if access_token:
+        headers["Authorization"] = f"Bearer {access_token}"
+    body = json.dumps(payload).encode("utf-8") if payload is not None else None
+    request = urllib.request.Request(
+        f"{SUPABASE_URL}/auth/v1/{path}",
+        data=body,
+        headers=headers,
+        method=method,
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:
+            raw_body = response.read()
+            return response.status, json.loads(raw_body.decode("utf-8")) if raw_body else {}
+    except urllib.error.HTTPError as error:
+        try:
+            data = json.loads(error.read().decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            data = {}
+        return error.code, data
+    except (urllib.error.URLError, TimeoutError):
+        return HTTPStatus.BAD_GATEWAY, auth_error("AUTH_PROVIDER_UNAVAILABLE", "Authentication is temporarily unavailable.")
+
+
+def supabase_rest_request(
+    path: str,
+    access_token: str,
+    payload: dict | None = None,
+    *,
+    method: str = "POST",
+    extra_headers: dict[str, str] | None = None,
+) -> tuple[int, dict | list]:
+    if not auth_configured():
+        return HTTPStatus.SERVICE_UNAVAILABLE, auth_error("AUTH_NOT_CONFIGURED", "Authentication is not configured for this environment.")
+    headers = {
+        "apikey": SUPABASE_PUBLISHABLE_KEY,
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+    headers.update(extra_headers or {})
+    body = json.dumps(payload).encode("utf-8") if payload is not None else None
+    request = urllib.request.Request(f"{SUPABASE_URL}/rest/v1/{path}", data=body, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:
+            raw_body = response.read()
+            return response.status, json.loads(raw_body.decode("utf-8")) if raw_body else {}
+    except urllib.error.HTTPError as error:
+        try:
+            data = json.loads(error.read().decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            data = {}
+        return error.code, data
+    except (urllib.error.URLError, TimeoutError):
+        return HTTPStatus.BAD_GATEWAY, auth_error("AUTH_PROVIDER_UNAVAILABLE", "Authorization is temporarily unavailable.")
+
+
+def supabase_storage_request(
+    path: str,
+    access_token: str,
+    payload: dict | None = None,
+    *,
+    method: str = "POST",
+) -> tuple[int, dict | list]:
+    if not auth_configured():
+        return HTTPStatus.SERVICE_UNAVAILABLE, auth_error(
+            "AUTH_NOT_CONFIGURED",
+            "Authentication is not configured for this environment.",
+        )
+    headers = {
+        "apikey": SUPABASE_PUBLISHABLE_KEY,
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+    body = json.dumps(payload).encode("utf-8") if payload is not None else None
+    request = urllib.request.Request(
+        f"{SUPABASE_URL}/storage/v1/{path.lstrip('/')}",
+        data=body,
+        headers=headers,
+        method=method,
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:
+            raw_body = response.read()
+            return response.status, json.loads(raw_body.decode("utf-8")) if raw_body else {}
+    except urllib.error.HTTPError as error:
+        try:
+            data = json.loads(error.read().decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            data = {}
+        return error.code, data
+    except (urllib.error.URLError, TimeoutError):
+        return HTTPStatus.BAD_GATEWAY, auth_error("STORAGE_PROVIDER_UNAVAILABLE", "Image storage is temporarily unavailable.")
+
 
 def is_private_static_path(path: str) -> bool:
     parts = [part for part in path.split("/") if part]
-    return any(part.startswith(".") for part in parts) or (bool(parts) and parts[0] in {"data", "tmp", "shots"})
+    local_original = (
+        len(parts) >= 3
+        and parts[:2] == ["assets", "uploads"]
+        and parts[-1].lower().startswith("original-")
+    )
+    return (
+        any(part.startswith(".") for part in parts)
+        or (bool(parts) and parts[0] in {"data", "tmp", "shots"})
+        or local_original
+    )
+
+
+def legacy_upload_asset_access(path: str) -> tuple[str, str] | None:
+    """Return (kind, visibility) for a registered legacy upload asset URL."""
+    if not ARCHIVE_DB_PATH.exists():
+        return None
+    public_url = path.lstrip("/")
+    try:
+        with sqlite3.connect(ARCHIVE_DB_PATH) as connection:
+            row = connection.execute(
+                """
+                SELECT a.kind, i.visibility
+                FROM image_assets AS a
+                JOIN images AS i ON i.id = a.image_id
+                WHERE a.public_url = ?
+                LIMIT 1
+                """,
+                (public_url,),
+            ).fetchone()
+    except sqlite3.Error:
+        return None
+    return (str(row[0]), str(row[1])) if row else None
 
 
 def parse_archive_json(value: str | None, fallback):
@@ -111,6 +455,519 @@ def clean_identifier(value, field_name: str = "id") -> str:
     if not text or not ARCHIVE_UPLOAD_ID_PATTERN.match(text):
         raise ValueError(f"Invalid {field_name}.")
     return text
+
+
+def clean_uuid(value, field_name: str) -> str:
+    text = clean_text(value, 64)
+    try:
+        return str(uuid.UUID(text))
+    except (ValueError, AttributeError, TypeError) as error:
+        raise ValueError(f"Invalid {field_name}.") from error
+
+
+def clean_workspace_submit_readiness(value) -> dict | None:
+    """Project provider readiness into the only shape safe for browser clients."""
+    if not isinstance(value, dict):
+        return None
+    try:
+        image_id = clean_uuid(value.get("image_id"), "image id")
+    except ValueError:
+        return None
+    lock_version = value.get("lock_version")
+    if isinstance(lock_version, bool) or not isinstance(lock_version, int) or lock_version < 1:
+        return None
+    workflow_status = clean_text(value.get("workflow_status"), 40)
+    if workflow_status not in {"draft", "changes_requested", "submitted"}:
+        return None
+
+    raw_checks = value.get("checks")
+    if not isinstance(raw_checks, list) or len(raw_checks) != len(WORKSPACE_READINESS_CHECKS):
+        return None
+    checks_by_code = {}
+    for raw_check in raw_checks:
+        if not isinstance(raw_check, dict):
+            return None
+        code = clean_text(raw_check.get("code"), 80)
+        state = clean_text(raw_check.get("state"), 20)
+        if code not in WORKSPACE_READINESS_CHECKS or code in checks_by_code or state not in {"pass", "pending", "fail"}:
+            return None
+        message = clean_text(raw_check.get("message"), 300)
+        if not message:
+            return None
+        checks_by_code[code] = {
+            "code": code,
+            "label": WORKSPACE_READINESS_CHECKS[code],
+            "state": state,
+            "message": message,
+        }
+    if set(checks_by_code) != set(WORKSPACE_READINESS_CHECKS):
+        return None
+    checks = [checks_by_code[code] for code in WORKSPACE_READINESS_CHECKS]
+
+    failed = sum(check["state"] == "fail" for check in checks)
+    pending = sum(check["state"] == "pending" for check in checks)
+    status = "blocked" if failed else "pending" if pending else "ready"
+    field_errors = {}
+    raw_field_errors = value.get("field_errors")
+    if isinstance(raw_field_errors, dict):
+        for key in sorted(WORKSPACE_READINESS_FIELD_KEYS.intersection(raw_field_errors)):
+            message = clean_text(raw_field_errors.get(key), 300)
+            if message:
+                field_errors[key] = message
+    return {
+        "image_id": image_id,
+        "lock_version": lock_version,
+        "workflow_status": workflow_status,
+        "status": status,
+        "ready": status == "ready",
+        "blocker_count": failed + pending,
+        "checks": checks,
+        "field_errors": field_errors,
+    }
+
+
+def clean_workspace_submission_result(value, expected_image_id: str) -> dict | None:
+    """Allowlist a successful Submit response and reject inconsistent provider data."""
+    if not isinstance(value, dict) or value.get("submitted") is not True:
+        return None
+    submission = value.get("submission")
+    image = value.get("image")
+    if not isinstance(submission, dict) or not isinstance(image, dict):
+        return None
+    try:
+        submission_id = clean_uuid(submission.get("id"), "submission id")
+        submission_image_id = clean_uuid(submission.get("image_id"), "submission image id")
+        image_version_id = clean_uuid(submission.get("image_version_id"), "image version id")
+        image_id = clean_uuid(image.get("id"), "image id")
+    except ValueError:
+        return None
+    if submission_image_id != expected_image_id or image_id != expected_image_id:
+        return None
+    if clean_text(submission.get("status"), 40) != "submitted":
+        return None
+    if clean_text(image.get("workflow_status"), 40) != "submitted":
+        return None
+    policy_version = clean_text(submission.get("policy_version"), 80)
+    submitted_at = clean_text(submission.get("submitted_at"), 80)
+    lock_version = image.get("lock_version")
+    if (
+        not policy_version
+        or not submitted_at
+        or isinstance(lock_version, bool)
+        or not isinstance(lock_version, int)
+        or lock_version < 1
+    ):
+        return None
+    return {
+        "submitted": True,
+        "submission": {
+            "id": submission_id,
+            "image_id": submission_image_id,
+            "image_version_id": image_version_id,
+            "status": "submitted",
+            "policy_version": policy_version,
+            "submitted_at": submitted_at,
+        },
+        "image": {
+            "id": image_id,
+            "workflow_status": "submitted",
+            "lock_version": lock_version,
+        },
+    }
+
+
+def normalize_profile_update(body: dict) -> tuple[dict, dict]:
+    """Return a PostgREST-safe profile patch and stable field errors."""
+    updates: dict = {}
+    field_errors: dict[str, str] = {}
+    unknown = sorted(set(body) - set(PROFILE_EDITABLE_FIELDS))
+    for field in unknown:
+        field_errors[field] = "This field cannot be updated."
+
+    def text_value(field: str, maximum: int, *, required: bool = False) -> str | None:
+        if field not in body:
+            return None
+        value = body.get(field)
+        if value is None and not required:
+            return ""
+        if not isinstance(value, str):
+            field_errors[field] = "Enter text for this field."
+            return None
+        normalized = value.strip()
+        if required and not normalized:
+            field_errors[field] = "This field is required."
+            return None
+        if len(normalized) > maximum:
+            field_errors[field] = f"Use {maximum} characters or fewer."
+            return None
+        return normalized
+
+    display_name = text_value("display_name", 120, required=True)
+    if "display_name" in body and display_name is not None:
+        updates["display_name"] = display_name
+
+    for field, maximum in (("website_url", 2048),):
+        value = text_value(field, maximum)
+        if field not in body or value is None:
+            continue
+        if value:
+            parsed = urlparse(value)
+            try:
+                port = parsed.port
+            except ValueError:
+                port = -1
+            if (
+                parsed.scheme != "https"
+                or not parsed.netloc
+                or parsed.username
+                or parsed.password
+                or "\\" in value
+                or any(ord(character) < 32 or ord(character) == 127 for character in value)
+                or not re.fullmatch(r"[A-Za-z0-9.-]+(?::[0-9]{1,5})?", parsed.netloc)
+                or port == -1
+            ):
+                field_errors[field] = "Use a complete HTTPS address."
+                continue
+        updates[field] = value or None
+
+    bio = text_value("bio", 1600)
+    if "bio" in body and bio is not None:
+        updates["bio"] = bio or None
+
+    country_code = text_value("country_code", 2)
+    if "country_code" in body and country_code is not None:
+        if country_code and not re.fullmatch(r"[A-Za-z]{2}", country_code):
+            field_errors["country_code"] = "Use a two-letter country code."
+        else:
+            updates["country_code"] = country_code.upper() or None
+
+    preferred_locale = text_value("preferred_locale", 35, required=True)
+    if "preferred_locale" in body and preferred_locale is not None:
+        if preferred_locale not in PROFILE_LOCALES:
+            field_errors["preferred_locale"] = "Choose one of the available languages."
+        else:
+            updates["preferred_locale"] = preferred_locale
+
+    timezone_name = text_value("timezone", 64, required=True)
+    if "timezone" in body and timezone_name is not None:
+        try:
+            ZoneInfo(timezone_name)
+        except (ZoneInfoNotFoundError, ValueError):
+            field_errors["timezone"] = "Choose a valid IANA timezone."
+        else:
+            updates["timezone"] = timezone_name
+
+    copyright_name = text_value("copyright_name", 160)
+    if "copyright_name" in body and copyright_name is not None:
+        updates["copyright_name"] = copyright_name or None
+
+    license_preference = text_value("default_license_preference", 64)
+    if "default_license_preference" in body and license_preference is not None:
+        if license_preference and license_preference not in PROFILE_LICENSES:
+            field_errors["default_license_preference"] = "Choose one of the available license preferences."
+        else:
+            updates["default_license_preference"] = license_preference or None
+
+    return updates, field_errors
+
+
+def normalize_workspace_folder_name(value) -> tuple[str, dict]:
+    if not isinstance(value, str):
+        return "", {"name": "Enter a folder name."}
+    name = value.strip()
+    if not name or len(name) > 120 or any(ord(character) < 32 or ord(character) == 127 for character in name):
+        return "", {"name": "Use a folder name between 1 and 120 characters."}
+    return name, {}
+
+
+def normalize_workspace_upload_intent(body: dict) -> tuple[dict, dict]:
+    field_errors: dict[str, str] = {}
+    allowed = {"folder_id", "original_filename", "original_width", "original_height", "checksum_sha256", "assets"}
+    for field in sorted(set(body) - allowed):
+        field_errors[field] = "This field cannot be used for an upload intent."
+
+    folder_id = None
+    if body.get("folder_id") is not None and body.get("folder_id") != "":
+        try:
+            folder_id = clean_uuid(body.get("folder_id"), "folder id")
+        except ValueError:
+            field_errors["folder_id"] = "Choose an available folder."
+
+    original_filename = body.get("original_filename")
+    if not isinstance(original_filename, str):
+        field_errors["original_filename"] = "Original filename is required."
+        original_filename = ""
+    else:
+        original_filename = original_filename.strip()
+        if (
+            not original_filename
+            or len(original_filename) > 512
+            or any(ord(character) < 32 or ord(character) == 127 for character in original_filename)
+        ):
+            field_errors["original_filename"] = "Original filename is invalid."
+
+    dimensions: dict[str, int] = {}
+    for field in ("original_width", "original_height"):
+        value = body.get(field)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 1 or value > 100_000:
+            field_errors[field] = "Image dimensions are invalid."
+        else:
+            dimensions[field] = value
+
+    checksum = clean_text(body.get("checksum_sha256"), 64).lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", checksum):
+        field_errors["checksum_sha256"] = "Original checksum is invalid."
+
+    raw_assets = body.get("assets")
+    normalized_assets: list[dict] = []
+    if not isinstance(raw_assets, list) or len(raw_assets) != 3:
+        field_errors["assets"] = "Original, display, and thumbnail assets are required."
+    else:
+        seen_kinds: set[str] = set()
+        for index, asset in enumerate(raw_assets):
+            key = f"assets[{index}]"
+            if not isinstance(asset, dict):
+                field_errors[key] = "Asset metadata must be an object."
+                continue
+            kind = clean_text(asset.get("kind"), 32).lower()
+            mime_type = clean_text(asset.get("mime_type"), 120).lower()
+            byte_size = asset.get("byte_size")
+            width = asset.get("width")
+            height = asset.get("height")
+            asset_checksum = clean_text(asset.get("checksum_sha256"), 64).lower()
+            if kind not in WORKSPACE_ASSET_KINDS or kind in seen_kinds:
+                field_errors[key] = "Asset kinds must be unique original, display, and thumbnail values."
+                continue
+            seen_kinds.add(kind)
+            if mime_type not in WORKSPACE_IMAGE_MIME_TYPES:
+                field_errors[key] = "Asset MIME type is not supported."
+                continue
+            if (
+                not isinstance(byte_size, int)
+                or isinstance(byte_size, bool)
+                or byte_size < 1
+                or byte_size > WORKSPACE_ASSET_LIMITS[kind]
+            ):
+                field_errors[key] = "Asset size exceeds the server limit."
+                continue
+            if any(
+                not isinstance(value, int) or isinstance(value, bool) or value < 1 or value > 100_000
+                for value in (width, height)
+            ):
+                field_errors[key] = "Asset dimensions are invalid."
+                continue
+            if not re.fullmatch(r"[0-9a-f]{64}", asset_checksum):
+                field_errors[key] = "Asset checksum is invalid."
+                continue
+            normalized_assets.append({
+                "kind": kind,
+                "mime_type": mime_type,
+                "byte_size": byte_size,
+                "width": width,
+                "height": height,
+                "checksum_sha256": asset_checksum,
+            })
+        if seen_kinds != WORKSPACE_ASSET_KINDS:
+            field_errors["assets"] = "Original, display, and thumbnail assets are required."
+
+    original_asset = next((asset for asset in normalized_assets if asset["kind"] == "original"), None)
+    if original_asset and dimensions:
+        if original_asset["width"] != dimensions.get("original_width") or original_asset["height"] != dimensions.get("original_height"):
+            field_errors["assets"] = "Original asset dimensions must match the image metadata."
+        if original_asset["checksum_sha256"] != checksum:
+            field_errors["assets"] = "Original asset checksum must match the upload metadata."
+
+    return {
+        "folder_id": folder_id,
+        "original_filename": original_filename,
+        **dimensions,
+        "checksum_sha256": checksum,
+        "assets": normalized_assets,
+    }, field_errors
+
+
+def normalize_workspace_draft_patch(
+    body: dict,
+    *,
+    allow_empty: bool = False,
+    allow_compliance: bool = True,
+) -> tuple[dict, dict]:
+    updates: dict = {}
+    field_errors: dict[str, str] = {}
+    allowed_fields = WORKSPACE_DRAFT_FIELDS if allow_compliance else WORKSPACE_DRAFT_CORE_FIELDS
+    for field in sorted(set(body) - allowed_fields):
+        field_errors[field] = "This Draft field cannot be updated."
+
+    if "folder_id" in body:
+        try:
+            updates["folder_id"] = clean_uuid(body.get("folder_id"), "folder id")
+        except ValueError:
+            field_errors["folder_id"] = "Choose an available folder."
+
+    def text_field(name: str, maximum: int) -> None:
+        if name not in body:
+            return
+        value = body.get(name)
+        if not isinstance(value, str):
+            field_errors[name] = "Enter text for this field."
+            return
+        normalized = value.strip()
+        if len(normalized) > maximum:
+            field_errors[name] = f"Use {maximum} characters or fewer."
+            return
+        updates[name] = normalized
+
+    for field, maximum in (
+        ("title", 180),
+        ("caption", 500),
+        ("description", 10_000),
+        ("alt_text", 500),
+        ("location_name", 500),
+        ("copyright_holder", 160),
+    ):
+        text_field(field, maximum)
+
+    if "tags" in body:
+        tags = body.get("tags")
+        if (
+            not isinstance(tags, list)
+            or len(tags) > 30
+            or any(not isinstance(tag, str) or not tag.strip() or len(tag.strip()) > 64 for tag in tags)
+        ):
+            field_errors["tags"] = "Use at most 30 tags of 64 characters or fewer."
+        else:
+            updates["tags"] = unique_text_values(tags)
+
+    if "content_category" in body:
+        category = clean_text(body.get("content_category"), 64).lower()
+        if category and category not in {"abstract", "concrete"}:
+            field_errors["content_category"] = "Choose an available content category."
+        else:
+            updates["content_category"] = category or None
+
+    if "captured_at" in body:
+        captured_at = clean_text(body.get("captured_at"), 40)
+        if captured_at:
+            try:
+                datetime.fromisoformat(captured_at.replace("Z", "+00:00"))
+            except ValueError:
+                field_errors["captured_at"] = "Use a valid captured date."
+            else:
+                updates["captured_at"] = captured_at
+        else:
+            updates["captured_at"] = None
+
+    if "copyright_year" in body:
+        copyright_year = body.get("copyright_year")
+        maximum_year = datetime.now(timezone.utc).year + 1
+        if copyright_year is None:
+            updates["copyright_year"] = None
+        elif isinstance(copyright_year, bool) or not isinstance(copyright_year, int):
+            field_errors["copyright_year"] = "Enter a valid copyright year."
+        elif not 1000 <= copyright_year <= maximum_year:
+            field_errors["copyright_year"] = f"Use a year from 1000 to {maximum_year}."
+        else:
+            updates["copyright_year"] = copyright_year
+
+    if "contains_recognizable_people" in body:
+        people_value = body.get("contains_recognizable_people")
+        if people_value is not None and not isinstance(people_value, bool):
+            field_errors["contains_recognizable_people"] = "Choose Yes, No, or Not set."
+        else:
+            updates["contains_recognizable_people"] = people_value
+
+    if "rights_declared" in body:
+        rights_value = body.get("rights_declared")
+        if not isinstance(rights_value, bool):
+            field_errors["rights_declared"] = "Confirm whether you control the required rights."
+        else:
+            updates["rights_declared"] = rights_value
+
+    def enum_field(name: str, choices: set[str], message: str) -> None:
+        if name not in body:
+            return
+        value = body.get(name)
+        if value is None or value == "":
+            updates[name] = None
+            return
+        if not isinstance(value, str) or value not in choices:
+            field_errors[name] = message
+            return
+        updates[name] = value
+
+    enum_field("model_release_status", WORKSPACE_RELEASE_STATUSES, "Choose an available model release status.")
+    enum_field("property_release_status", WORKSPACE_RELEASE_STATUSES, "Choose an available property release status.")
+    enum_field("ai_disclosure", WORKSPACE_AI_DISCLOSURES, "Choose an available AI disclosure.")
+    enum_field(
+        "sensitive_content_disclosure",
+        WORKSPACE_SENSITIVE_DISCLOSURES,
+        "Choose an available sensitive content disclosure.",
+    )
+
+    if not allow_empty and not updates and not field_errors:
+        field_errors["draft"] = "Choose at least one Draft field to update."
+    return updates, field_errors
+
+
+def unique_text_values(values: list[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = value.strip()
+        key = text.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(text)
+    return result
+
+
+def user_agent_summary(user_agent: str) -> dict[str, str]:
+    """Return intentionally coarse device data without exposing fingerprinting details."""
+    value = clean_text(user_agent, 512)
+    if "Edg/" in value:
+        browser = "Edge"
+    elif "OPR/" in value or "Opera/" in value:
+        browser = "Opera"
+    elif "Chrome/" in value or "CriOS/" in value:
+        browser = "Chrome"
+    elif "Firefox/" in value or "FxiOS/" in value:
+        browser = "Firefox"
+    elif "Safari/" in value:
+        browser = "Safari"
+    else:
+        browser = "Unknown browser"
+
+    if "iPhone" in value:
+        device = "iPhone"
+        operating_system = "iOS"
+    elif "iPad" in value:
+        device = "iPad"
+        operating_system = "iPadOS"
+    elif "Android" in value:
+        device = "Android device"
+        operating_system = "Android"
+    elif "Macintosh" in value or "Mac OS X" in value:
+        device = "Mac"
+        operating_system = "macOS"
+    elif "Windows" in value:
+        device = "PC"
+        operating_system = "Windows"
+    elif "Linux" in value:
+        device = "Computer"
+        operating_system = "Linux"
+    else:
+        device = "Unknown device"
+        operating_system = "Unknown system"
+    return {"browser": browser, "device": device, "operating_system": operating_system}
+
+
+def jwt_timestamp_iso(value) -> str | None:
+    try:
+        timestamp = int(value)
+        return datetime.fromtimestamp(timestamp, timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    except (TypeError, ValueError, OverflowError, OSError):
+        return None
 
 
 def positive_int(value, field_name: str) -> int:
@@ -150,6 +1007,13 @@ def optional_json_object(value, fallback):
     return parsed if parsed is not None else fallback
 
 
+def optional_json_list(value, fallback=None):
+    if fallback is None:
+        fallback = []
+    parsed = optional_json_object(value, fallback)
+    return parsed if isinstance(parsed, list) else fallback
+
+
 def mime_extension(mime_type: str, fallback: str = "jpg") -> str:
     return MIME_EXTENSIONS.get(clean_text(mime_type).lower(), fallback)
 
@@ -166,6 +1030,76 @@ def safe_upload_filename(asset: dict, file_part: dict, index: int) -> str:
         stem = f"{kind}-{stem}"
     extension = mime_extension(file_part.get("content_type") or asset.get("mime_type"))
     return f"{stem[:96]}.{extension}"
+
+
+def normalize_archive_assets(value, image_id: str) -> list[dict]:
+    if not isinstance(value, list):
+        return []
+    assets: list[dict] = []
+    seen_ids: set[str] = set()
+    for index, asset in enumerate(value):
+        if not isinstance(asset, dict):
+            continue
+        kind = clean_text(asset.get("kind")).lower()
+        if kind not in ARCHIVE_ASSET_KINDS:
+            raise ValueError("Invalid asset kind.")
+        asset_id = clean_identifier(asset.get("id") or f"{image_id}-{kind}-{index}", "asset id")
+        if asset_id in seen_ids:
+            raise ValueError("Duplicate asset id.")
+        seen_ids.add(asset_id)
+        assets.append(
+            {
+                "id": asset_id,
+                "image_id": image_id,
+                "kind": kind,
+                "storage_bucket": clean_text(asset.get("storage_bucket"), 120) or "local-upload-assets",
+                "storage_path": clean_text(asset.get("storage_path"), 512),
+                "public_url": clean_text(asset.get("public_url"), 512) or None,
+                "url_expires_at": clean_text(asset.get("url_expires_at"), 80) or None,
+                "mime_type": clean_text(asset.get("mime_type"), 120) or "image/jpeg",
+                "byte_size": non_negative_int(asset.get("byte_size"), "asset byte_size", 0) or None,
+                "width": positive_int(asset.get("width"), "asset width"),
+                "height": positive_int(asset.get("height"), "asset height"),
+                "checksum_sha256": clean_text(asset.get("checksum_sha256"), 64) or None,
+                "source_asset_id": clean_text(asset.get("source_asset_id"), 128) or None,
+            }
+        )
+    return sorted(assets, key=lambda asset: ARCHIVE_ASSET_KIND_ORDER.get(asset["kind"], 99))
+
+
+def normalize_archive_square_slices(value, image_id: str, asset_ids: set[str]) -> list[dict]:
+    if not isinstance(value, list):
+        return []
+    slices: list[dict] = []
+    seen_ids: set[str] = set()
+    for index, slice_row in enumerate(value):
+        if not isinstance(slice_row, dict):
+            continue
+        slice_id = clean_identifier(slice_row.get("id") or f"{image_id}-slice-{index}", "slice id")
+        if slice_id in seen_ids:
+            raise ValueError("Duplicate square slice id.")
+        seen_ids.add(slice_id)
+        asset_id = clean_identifier(slice_row.get("asset_id"), "square slice asset id")
+        if asset_id not in asset_ids:
+            raise ValueError("Square slice asset does not exist.")
+        width = positive_int(slice_row.get("width"), "square slice width")
+        height = positive_int(slice_row.get("height"), "square slice height")
+        if width != height:
+            raise ValueError("Square slice width and height must match.")
+        slices.append(
+            {
+                "id": slice_id,
+                "image_id": image_id,
+                "asset_id": asset_id,
+                "slice_index": non_negative_int(slice_row.get("slice_index"), "square slice index", index),
+                "source_x": non_negative_int(slice_row.get("source_x"), "square slice source_x", 0),
+                "source_y": non_negative_int(slice_row.get("source_y"), "square slice source_y", 0),
+                "source_size": positive_int(slice_row.get("source_size"), "square slice source_size"),
+                "width": width,
+                "height": height,
+            }
+        )
+    return slices
 
 
 def archive_image_payload(row: sqlite3.Row) -> dict:
@@ -194,6 +1128,10 @@ def archive_query_filters(query: dict[str, list[str]]) -> tuple[list[str], list,
             raise ValueError("Invalid visibility filter.")
         filters.append("visibility = ?")
         params.append(visibility)
+
+    include_missing_assets = single_query_value(query, "include_missing_assets").lower()
+    if include_missing_assets not in {"1", "true", "yes"}:
+        filters.append("image_url IS NOT NULL")
 
     content_type = single_query_value(query, "type").lower()
     if content_type:
@@ -324,8 +1262,125 @@ def replace_image_tags(connection: sqlite3.Connection, image_id: str, tag_groups
             tag_order += 1
 
 
+def write_upload_assets(
+    connection: sqlite3.Connection,
+    image_id: str,
+    assets: list[dict],
+    square_slices: list[dict],
+    file_parts: dict[str, dict],
+    timestamp: str,
+) -> None:
+    if not assets:
+        raise ValueError("At least one upload asset is required.")
+
+    upload_dir = UPLOAD_ASSET_ROOT / image_id
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    asset_ids = {asset["id"] for asset in assets}
+    if not any(asset["kind"] == "original" for asset in assets):
+        raise ValueError("An original upload asset is required.")
+
+    for index, asset in enumerate(assets):
+        file_part = file_parts.get(asset["id"])
+        if file_part:
+            file_body = file_part["body"]
+            if not file_body:
+                raise ValueError("Upload asset file is empty.")
+            filename = safe_upload_filename(asset, file_part, index)
+            asset_path = upload_dir / filename
+            asset_path.write_bytes(file_body)
+            checksum = hashlib.sha256(file_body).hexdigest()
+            if asset["checksum_sha256"] and asset["checksum_sha256"] != checksum:
+                raise ValueError("Upload asset checksum does not match.")
+            asset["checksum_sha256"] = checksum
+            asset["byte_size"] = len(file_body)
+            asset["mime_type"] = file_part.get("content_type") or asset["mime_type"]
+            asset["storage_bucket"] = "local-upload-assets"
+            asset["storage_path"] = f"{image_id}/{filename}"
+            asset["public_url"] = f"{UPLOAD_ASSET_URL_PREFIX}/{image_id}/{filename}"
+        elif not asset["public_url"]:
+            raise ValueError("Upload asset file is missing.")
+
+        if asset["source_asset_id"] and asset["source_asset_id"] not in asset_ids:
+            raise ValueError("Upload asset source_asset_id does not exist.")
+
+        connection.execute(
+            """
+            INSERT INTO image_assets (
+              id, image_id, kind, storage_bucket, storage_path, public_url, url_expires_at,
+              mime_type, byte_size, width, height, checksum_sha256, source_asset_id, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                asset["id"],
+                image_id,
+                asset["kind"],
+                asset["storage_bucket"],
+                asset["storage_path"],
+                asset["public_url"],
+                asset["url_expires_at"],
+                asset["mime_type"],
+                asset["byte_size"],
+                asset["width"],
+                asset["height"],
+                asset["checksum_sha256"],
+                asset["source_asset_id"],
+                timestamp,
+            ),
+        )
+
+    for slice_row in square_slices:
+        connection.execute(
+            """
+            INSERT INTO image_square_slices (
+              id, image_id, asset_id, slice_index, source_x, source_y, source_size, width, height, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                slice_row["id"],
+                image_id,
+                slice_row["asset_id"],
+                slice_row["slice_index"],
+                slice_row["source_x"],
+                slice_row["source_y"],
+                slice_row["source_size"],
+                slice_row["width"],
+                slice_row["height"],
+                timestamp,
+            ),
+        )
+
+
 class MTRequestHandler(SimpleHTTPRequestHandler):
     server_version = "MTPresenceServer/1.0"
+
+    def log_request(self, code: int | str = "-", size: int | str = "-") -> None:
+        # Never write password-recovery codes, token hashes, or other query data
+        # into the default development access log.
+        self.log_message(
+            '"%s %s %s" %s %s',
+            self.command,
+            urlparse(self.path).path,
+            self.request_version,
+            str(code),
+            str(size),
+        )
+
+    def end_headers(self) -> None:
+        for cookie in getattr(self, "_pending_response_cookies", []):
+            self.send_header("Set-Cookie", cookie)
+        self._pending_response_cookies = []
+        if urlparse(self.path).path in {
+            "/auth.html",
+            "/auth.js",
+            "/mfa.html",
+            "/mfa.js",
+            "/account-settings.html",
+            "/account-settings.js",
+        }:
+            self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
+        super().end_headers()
 
     def send_json(self, status: HTTPStatus, payload: dict) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -335,6 +1390,1375 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
+
+    def request_cookies(self) -> SimpleCookie:
+        cookies = SimpleCookie()
+        cookies.load(self.headers.get("Cookie", ""))
+        return cookies
+
+    def cookie_value(self, name: str) -> str:
+        morsel = self.request_cookies().get(name)
+        return morsel.value if morsel else ""
+
+    def request_origin(self) -> str:
+        host = clean_text(self.headers.get("Host"), 255)
+        if not host or not re.fullmatch(r"[A-Za-z0-9.\-\[\]:]+", host):
+            return ""
+        scheme = "https" if COOKIE_SECURE else "http"
+        return f"{scheme}://{host}"
+
+    def public_base_url(self) -> str:
+        if PUBLIC_BASE_URL:
+            parsed = urlparse(PUBLIC_BASE_URL)
+            valid_scheme = parsed.scheme == "https" if COOKIE_SECURE else parsed.scheme in {"http", "https"}
+            if (
+                valid_scheme
+                and parsed.netloc
+                and parsed.path in {"", "/"}
+                and not parsed.query
+                and not parsed.fragment
+            ):
+                return f"{parsed.scheme}://{parsed.netloc}"
+            return ""
+
+        # Local development may derive its loopback origin. Non-loopback
+        # deployments must set MT_PUBLIC_BASE_URL to prevent Host injection in
+        # verification and recovery emails.
+        host = clean_text(self.headers.get("Host"), 255)
+        if re.fullmatch(r"(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?", host):
+            return self.request_origin()
+        return ""
+
+    def csrf_cookie_header(self, token: str) -> str:
+        secure = "; Secure" if COOKIE_SECURE else ""
+        return f"{CSRF_COOKIE}={token}; Path=/; Max-Age=3600; HttpOnly; SameSite=Strict{secure}"
+
+    def clear_csrf_cookie_header(self) -> str:
+        secure = "; Secure" if COOKIE_SECURE else ""
+        return f"{CSRF_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict{secure}"
+
+    def recovery_cookie_header(self, token: str) -> str:
+        secure = "; Secure" if COOKIE_SECURE else ""
+        return (
+            f"{RECOVERY_COOKIE}={token}; Path=/; "
+            f"Max-Age={RECOVERY_GRANT_TTL_SECONDS}; HttpOnly; SameSite=Strict{secure}"
+        )
+
+    def clear_recovery_cookie_header(self) -> str:
+        secure = "; Secure" if COOKIE_SECURE else ""
+        return f"{RECOVERY_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict{secure}"
+
+    def handle_csrf_token(self) -> None:
+        token = self.cookie_value(CSRF_COOKIE)
+        if not CSRF_TOKEN_PATTERN.fullmatch(token):
+            token = secrets.token_urlsafe(32)
+        self.send_auth_json(HTTPStatus.OK, {"csrf_token": token}, [self.csrf_cookie_header(token)])
+
+    def require_csrf(self, *, require_json: bool = True) -> bool:
+        if self.headers.get("Sec-Fetch-Site", "").lower() == "cross-site":
+            self.send_json(HTTPStatus.FORBIDDEN, auth_error("CSRF_REJECTED", "The request origin could not be verified."))
+            return False
+
+        origin = clean_text(self.headers.get("Origin"), 512)
+        expected_origin = self.request_origin()
+        if not origin or not expected_origin or not hmac.compare_digest(origin, expected_origin):
+            self.send_json(HTTPStatus.FORBIDDEN, auth_error("CSRF_REJECTED", "The request origin could not be verified."))
+            return False
+
+        header_token = clean_text(self.headers.get("X-CSRF-Token"), 256)
+        cookie_token = self.cookie_value(CSRF_COOKIE)
+        if (
+            not CSRF_TOKEN_PATTERN.fullmatch(header_token)
+            or not CSRF_TOKEN_PATTERN.fullmatch(cookie_token)
+            or not hmac.compare_digest(header_token, cookie_token)
+        ):
+            self.send_json(HTTPStatus.FORBIDDEN, auth_error("CSRF_REJECTED", "The security token is missing or expired."))
+            return False
+
+        if require_json and not self.headers.get("Content-Type", "").lower().startswith("application/json"):
+            self.send_json(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, auth_error("CONTENT_TYPE_INVALID", "Use application/json for this request."))
+            return False
+        return True
+
+    def session_cookie_headers(self, session: dict) -> list[str]:
+        secure = "; Secure" if COOKIE_SECURE else ""
+        access_age = max(60, int(session.get("expires_in") or 3600))
+        refresh_age = 60 * 60 * 24 * 30
+        return [
+            f"{ACCESS_COOKIE}={session.get('access_token', '')}; Path=/; Max-Age={access_age}; HttpOnly; SameSite=Lax{secure}",
+            f"{REFRESH_COOKIE}={session.get('refresh_token', '')}; Path=/; Max-Age={refresh_age}; HttpOnly; SameSite=Lax{secure}",
+        ]
+
+    def clear_session_cookie_headers(self) -> list[str]:
+        secure = "; Secure" if COOKIE_SECURE else ""
+        return [
+            f"{ACCESS_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax{secure}",
+            f"{REFRESH_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax{secure}",
+        ]
+
+    def send_auth_json(self, status: HTTPStatus, payload: dict, cookies: list[str] | None = None) -> None:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        if cookies is not None:
+            # An explicit session (MFA verification/sign-out) must supersede any
+            # access/refresh pair queued by current_auth_user().
+            self._pending_response_cookies = []
+        for cookie in cookies or []:
+            self.send_header("Set-Cookie", cookie)
+        self.end_headers()
+        self.wfile.write(body)
+
+    def send_current_user_error(self, status: int, payload: dict) -> None:
+        if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+            provider_error = payload if isinstance(payload, dict) and payload.get("error") else auth_error(
+                "AUTH_PROVIDER_UNAVAILABLE",
+                "Authentication is temporarily unavailable.",
+            )
+            self.send_auth_json(status, provider_error)
+            return
+        self.send_auth_json(HTTPStatus.UNAUTHORIZED, auth_error("AUTH_REQUIRED", "Sign in to continue."))
+
+    def current_auth_user(self) -> tuple[int, dict]:
+        access_token = self.cookie_value(ACCESS_COOKIE)
+        if access_token:
+            status, user = supabase_auth_request("user", access_token=access_token)
+            if status == HTTPStatus.OK:
+                return status, user
+            if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+                return status, user
+        refresh_token = self.cookie_value(REFRESH_COOKIE)
+        if not refresh_token:
+            return HTTPStatus.UNAUTHORIZED, auth_error("AUTH_REQUIRED", "Sign in to continue.")
+        status, session = supabase_auth_request("token?grant_type=refresh_token", {"refresh_token": refresh_token})
+        if status != HTTPStatus.OK:
+            if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+                return status, session
+            return HTTPStatus.UNAUTHORIZED, auth_error("AUTH_REQUIRED", "Sign in to continue.")
+        # Supabase rotates refresh tokens. Queue the replacement immediately so
+        # every response path (including MFA/Admin errors) preserves the session.
+        self._pending_response_cookies = self.session_cookie_headers(session)
+        status, user = supabase_auth_request("user", access_token=session.get("access_token", ""))
+        if status == HTTPStatus.OK:
+            user["_refreshed_session"] = session
+        return status, user
+
+    def handle_auth_register(self) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        email = clean_text(body.get("email"), 320).lower()
+        password = str(body.get("password") or "")
+        display_name = clean_text(body.get("display_name"), 120)
+        terms_accepted = body.get("terms_accepted") is True
+        field_errors = {}
+        if "@" not in email:
+            field_errors["email"] = "Enter a valid email address."
+        if len(password) < 10:
+            field_errors["password"] = "Use at least 10 characters."
+        if not display_name:
+            field_errors["display_name"] = "Display name is required."
+        if not terms_accepted:
+            field_errors["terms_accepted"] = "Accept the Terms to continue."
+        if field_errors:
+            self.send_json(HTTPStatus.UNPROCESSABLE_ENTITY, auth_error("AUTH_VALIDATION_FAILED", "Check the highlighted fields.", field_errors))
+            return
+        public_base_url = self.public_base_url()
+        if not public_base_url:
+            self.send_json(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                auth_error("AUTH_REDIRECT_NOT_CONFIGURED", "Email verification is not configured for this environment."),
+            )
+            return
+        redirect_to = f"{public_base_url}/auth/verify-email"
+        status, result = supabase_auth_request(f"signup?{urlencode({'redirect_to': redirect_to})}", {
+            "email": email,
+            "password": password,
+            "data": {"display_name": display_name, "terms_policy_version": "2026-07", "terms_accepted_at": now_iso()},
+        })
+        if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+            self.send_json(status, result)
+            return
+        if status not in {HTTPStatus.OK, HTTPStatus.CREATED}:
+            self.send_json(HTTPStatus.BAD_REQUEST, auth_error("REGISTRATION_FAILED", "Unable to create this account. Check your details or try again later."))
+            return
+        user = result.get("user") or {}
+        if result.get("access_token") and (user.get("email_confirmed_at") or user.get("confirmed_at")):
+            self.send_json(HTTPStatus.CREATED, {"status": "account_ready", "message": "Account created. Sign in to continue."})
+            return
+        self.send_json(HTTPStatus.CREATED, {"status": "verification_required", "message": "Check your email to verify your account."})
+
+    def handle_auth_forgot_password(self) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        email = clean_text(body.get("email"), 320).lower()
+        if "@" not in email:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("AUTH_VALIDATION_FAILED", "Enter a valid email address.", {"email": "Enter a valid email address."}),
+            )
+            return
+        public_base_url = self.public_base_url()
+        if not public_base_url:
+            self.send_json(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                auth_error("AUTH_REDIRECT_NOT_CONFIGURED", "Password recovery is not configured for this environment."),
+            )
+            return
+        redirect_to = f"{public_base_url}/auth/reset-password"
+        status, result = supabase_auth_request(
+            f"recover?{urlencode({'redirect_to': redirect_to})}",
+            {"email": email},
+        )
+        if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+            self.send_json(status, result)
+            return
+        if status == HTTPStatus.TOO_MANY_REQUESTS:
+            self.send_json(
+                HTTPStatus.TOO_MANY_REQUESTS,
+                auth_error("RECOVERY_RATE_LIMITED", "Please wait before requesting another reset link."),
+            )
+            return
+        if status not in {HTTPStatus.OK, HTTPStatus.CREATED}:
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("RECOVERY_REQUEST_FAILED", "Unable to send a reset link right now. Try again later."),
+            )
+            return
+        self.send_json(
+            HTTPStatus.ACCEPTED,
+            {
+                "status": "recovery_email_sent",
+                "message": "If an account exists for this email, a reset link has been sent.",
+            },
+        )
+
+    def handle_auth_callback_session(self, expected_type: str) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        callback_type = clean_text(body.get("type"), 32).lower()
+        token_hash = clean_text(body.get("token_hash"), 2048)
+        refresh_token = clean_text(body.get("refresh_token"), 4096)
+        if callback_type != expected_type or not (token_hash or refresh_token):
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("AUTH_CALLBACK_INVALID", "This verification link is invalid or has expired."),
+            )
+            return
+
+        if token_hash:
+            status, session = supabase_auth_request("verify", {"type": expected_type, "token_hash": token_hash})
+        else:
+            status, session = supabase_auth_request(
+                "token?grant_type=refresh_token",
+                {"refresh_token": refresh_token},
+            )
+
+        if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+            self.send_json(status, session)
+            return
+        if (
+            status != HTTPStatus.OK
+            or not session.get("access_token")
+            or not session.get("refresh_token")
+            or (expected_type == "recovery" and refresh_token and not session_has_auth_method(session, "recovery"))
+        ):
+            self.send_json(
+                HTTPStatus.BAD_REQUEST,
+                auth_error("AUTH_CALLBACK_INVALID", "This verification link is invalid or has expired."),
+            )
+            return
+
+        user = session.get("user") or {}
+        if not user.get("id"):
+            user_status, user = supabase_auth_request("user", access_token=session.get("access_token", ""))
+            if user_status != HTTPStatus.OK:
+                self.send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    auth_error("AUTH_CALLBACK_INVALID", "This verification link is invalid or has expired."),
+                )
+                return
+        if expected_type == "signup" and not (user.get("email_confirmed_at") or user.get("confirmed_at")):
+            self.send_json(
+                HTTPStatus.BAD_REQUEST,
+                auth_error("EMAIL_NOT_VERIFIED", "This verification link is invalid or has expired."),
+            )
+            return
+
+        cookies = self.session_cookie_headers(session)
+        payload = {"verified": True, "type": expected_type}
+        if expected_type == "recovery":
+            grant = create_recovery_grant(str(user.get("id")))
+            cookies.append(self.recovery_cookie_header(grant))
+            payload["recovery_ready"] = True
+        else:
+            consume_recovery_grant(self.cookie_value(RECOVERY_COOKIE))
+            cookies.append(self.clear_recovery_cookie_header())
+        self.send_auth_json(HTTPStatus.OK, payload, cookies)
+
+    def handle_auth_recovery_status(self) -> None:
+        status, user = self.current_auth_user()
+        if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+            self.send_current_user_error(status, user)
+            return
+        if status != HTTPStatus.OK:
+            self.send_json(HTTPStatus.OK, {"recovery_ready": False})
+            return
+        if not recovery_grant_is_valid(self.cookie_value(RECOVERY_COOKIE), str(user.get("id") or "")):
+            self.send_json(HTTPStatus.OK, {"recovery_ready": False})
+            return
+        self.send_auth_json(HTTPStatus.OK, {"recovery_ready": True})
+
+    def handle_auth_verification_status(self) -> None:
+        status, user = self.current_auth_user()
+        if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+            self.send_current_user_error(status, user)
+            return
+        if status != HTTPStatus.OK:
+            self.send_json(HTTPStatus.OK, {"email_verified": False})
+            return
+        verified = bool(user.get("email_confirmed_at") or user.get("confirmed_at"))
+        self.send_auth_json(HTTPStatus.OK, {"email_verified": verified})
+
+    def handle_auth_reset_password(self) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        password = str(body.get("password") or "")
+        password_confirmation = str(body.get("password_confirmation") or "")
+        field_errors = {}
+        if len(password) < 10:
+            field_errors["password"] = "Use at least 10 characters."
+        elif len(password) > 256:
+            field_errors["password"] = "Password is too long."
+        if password != password_confirmation:
+            field_errors["password_confirmation"] = "Passwords do not match."
+        if field_errors:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("AUTH_VALIDATION_FAILED", "Check the highlighted fields.", field_errors),
+            )
+            return
+
+        status, user = self.current_auth_user()
+        if status != HTTPStatus.OK:
+            self.send_current_user_error(status, user)
+            return
+        grant = self.cookie_value(RECOVERY_COOKIE)
+        if not recovery_grant_is_valid(grant, str(user.get("id") or "")):
+            self.send_json(
+                HTTPStatus.UNAUTHORIZED,
+                auth_error("RECOVERY_SESSION_REQUIRED", "Request a new password reset link to continue."),
+            )
+            return
+        access_token = self.current_access_token(user)
+        update_status, result = supabase_auth_request(
+            "user",
+            {"password": password},
+            access_token,
+            method="PUT",
+        )
+        if update_status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+            self.send_json(update_status, result)
+            return
+        if update_status != HTTPStatus.OK:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error(
+                    "PASSWORD_UPDATE_FAILED",
+                    "Choose a stronger password and try again.",
+                    {"password": "Choose a stronger password and try again."},
+                ),
+            )
+            return
+
+        consume_recovery_grant(grant)
+        supabase_auth_request("logout?scope=global", {}, access_token, method="POST")
+        self.send_auth_json(
+            HTTPStatus.OK,
+            {"password_reset": True, "next_action": "sign-in", "message": "Password updated. Sign in with your new password."},
+            [
+                *self.clear_session_cookie_headers(),
+                self.clear_recovery_cookie_header(),
+                self.clear_csrf_cookie_header(),
+            ],
+        )
+
+    def handle_auth_sign_in(self) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        email = clean_text(body.get("email"), 320).lower()
+        password = str(body.get("password") or "")
+        if not email or not password:
+            self.send_json(HTTPStatus.UNPROCESSABLE_ENTITY, auth_error("AUTH_VALIDATION_FAILED", "Email and password are required."))
+            return
+        status, session = supabase_auth_request("token?grant_type=password", {"email": email, "password": password})
+        if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+            self.send_json(status, session)
+            return
+        if status != HTTPStatus.OK or not session.get("access_token") or not session.get("refresh_token"):
+            self.send_json(HTTPStatus.UNAUTHORIZED, auth_error("INVALID_CREDENTIALS", "Email or password is incorrect."))
+            return
+        user = session.get("user") or {}
+        if not user.get("email_confirmed_at") and not user.get("confirmed_at"):
+            supabase_auth_request("logout?scope=local", {}, session.get("access_token", ""), method="POST")
+            self.send_json(HTTPStatus.FORBIDDEN, auth_error("EMAIL_NOT_VERIFIED", "Verify your email before signing in."))
+            return
+        authz_status, authorization = supabase_rest_request("rpc/current_authorization", session.get("access_token", ""))
+        if authz_status != HTTPStatus.OK:
+            supabase_auth_request("logout?scope=local", {}, session.get("access_token", ""), method="POST")
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("AUTHORIZATION_FAILED", "Unable to verify account access. Try again."),
+            )
+            return
+        if authorization.get("account_status") != "active":
+            supabase_auth_request("logout?scope=local", {}, session.get("access_token", ""), method="POST")
+            self.send_json(
+                HTTPStatus.FORBIDDEN,
+                auth_error("ACCOUNT_RESTRICTED", "This account cannot access the Workspace."),
+            )
+            return
+        roles = set(authorization.get("roles") or [])
+        next_action = "mfa" if roles.intersection({"admin", "super_admin"}) and authorization.get("aal") != "aal2" else "workspace"
+        consume_recovery_grant(self.cookie_value(RECOVERY_COOKIE))
+        self.send_auth_json(
+            HTTPStatus.OK,
+            {"user": {"id": user.get("id"), "email": user.get("email")}, "next_action": next_action},
+            [*self.session_cookie_headers(session), self.clear_recovery_cookie_header()],
+        )
+
+    def handle_auth_sign_out(self) -> None:
+        status, user = self.current_auth_user()
+        if status == HTTPStatus.OK:
+            supabase_auth_request("logout?scope=local", {}, self.current_access_token(user), method="POST")
+        grant = self.cookie_value(RECOVERY_COOKIE)
+        consume_recovery_grant(grant)
+        self.send_auth_json(
+            HTTPStatus.OK,
+            {"signed_out": True},
+            [
+                *self.clear_session_cookie_headers(),
+                self.clear_recovery_cookie_header(),
+                self.clear_csrf_cookie_header(),
+            ],
+        )
+
+    def handle_me(self) -> None:
+        status, user = self.current_auth_user()
+        if status != HTTPStatus.OK:
+            self.send_current_user_error(status, user)
+            return
+        if session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery"):
+            self.send_json(
+                HTTPStatus.FORBIDDEN,
+                auth_error("RECOVERY_SESSION_RESTRICTED", "Finish resetting your password before accessing account data."),
+            )
+            return
+        authz_status, authorization = self.current_authorization(user)
+        if authz_status != HTTPStatus.OK or not isinstance(authorization, dict):
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("AUTHORIZATION_FAILED", "Unable to verify account access. Try again."),
+            )
+            return
+        profile_status, profile = self.fetch_current_profile(user)
+        if profile_status != HTTPStatus.OK:
+            self.send_json(profile_status, profile)
+            return
+        session = user.get("_refreshed_session")
+        self.send_auth_json(
+            HTTPStatus.OK,
+            self.account_payload(user, authorization, profile),
+            self.session_cookie_headers(session) if session else None,
+        )
+
+    def current_authorization(self, user: dict) -> tuple[int, dict]:
+        refreshed = user.get("_refreshed_session") or {}
+        access_token = refreshed.get("access_token") or self.cookie_value(ACCESS_COOKIE)
+        if not access_token:
+            return HTTPStatus.UNAUTHORIZED, auth_error("AUTH_REQUIRED", "Sign in to continue.")
+        status, authorization = supabase_rest_request("rpc/current_authorization", access_token)
+        if status in {
+            HTTPStatus.REQUEST_TIMEOUT,
+            HTTPStatus.TOO_MANY_REQUESTS,
+            HTTPStatus.INTERNAL_SERVER_ERROR,
+            HTTPStatus.BAD_GATEWAY,
+            HTTPStatus.SERVICE_UNAVAILABLE,
+            HTTPStatus.GATEWAY_TIMEOUT,
+        }:
+            return supabase_rest_request("rpc/current_authorization", access_token)
+        return status, authorization
+
+    def current_access_token(self, user: dict) -> str:
+        refreshed = user.get("_refreshed_session") or {}
+        return refreshed.get("access_token") or self.cookie_value(ACCESS_COOKIE)
+
+    def require_account_session(self, *, require_admin_mfa: bool = True) -> tuple[dict | None, dict | None]:
+        status, user = self.current_auth_user()
+        if status != HTTPStatus.OK:
+            self.send_current_user_error(status, user)
+            return None, None
+        access_token = self.current_access_token(user)
+        if session_has_auth_method({"access_token": access_token}, "recovery"):
+            self.send_json(
+                HTTPStatus.FORBIDDEN,
+                auth_error("RECOVERY_SESSION_RESTRICTED", "Finish resetting your password before opening account settings."),
+            )
+            return None, None
+        authz_status, authorization = self.current_authorization(user)
+        if authz_status != HTTPStatus.OK or not isinstance(authorization, dict):
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("AUTHORIZATION_FAILED", "Unable to verify account access. Try again."),
+            )
+            return None, None
+        if authorization.get("account_status") != "active":
+            self.send_json(
+                HTTPStatus.FORBIDDEN,
+                auth_error("ACCOUNT_RESTRICTED", "This account cannot change profile or session settings."),
+            )
+            return None, authorization
+        roles = set(authorization.get("roles") or [])
+        if require_admin_mfa and roles.intersection({"admin", "super_admin"}) and authorization.get("aal") != "aal2":
+            self.send_json(
+                HTTPStatus.FORBIDDEN,
+                auth_error("MFA_REQUIRED", "Complete multi-factor authentication before changing administrator settings."),
+            )
+            return None, authorization
+        return user, authorization
+
+    def fetch_current_profile(self, user: dict) -> tuple[int, dict]:
+        user_id = clean_text(user.get("id"), 64)
+        try:
+            user_id = clean_uuid(user_id, "user id")
+        except ValueError:
+            return HTTPStatus.BAD_GATEWAY, auth_error("PROFILE_UNAVAILABLE", "Your profile could not be loaded.")
+        query = urlencode({"select": ",".join(PROFILE_FIELDS), "user_id": f"eq.{user_id}", "limit": "1"})
+        status, result = supabase_rest_request(
+            f"user_profiles?{query}",
+            self.current_access_token(user),
+            method="GET",
+        )
+        if status != HTTPStatus.OK or not isinstance(result, list) or len(result) != 1:
+            return HTTPStatus.BAD_GATEWAY, auth_error("PROFILE_UNAVAILABLE", "Your profile could not be loaded.")
+        profile = result[0]
+        if not isinstance(profile, dict):
+            return HTTPStatus.BAD_GATEWAY, auth_error("PROFILE_UNAVAILABLE", "Your profile could not be loaded.")
+        return HTTPStatus.OK, {field: profile.get(field) for field in PROFILE_FIELDS}
+
+    def account_payload(self, user: dict, authorization: dict, profile: dict) -> dict:
+        email_verified_at = user.get("email_confirmed_at") or user.get("confirmed_at")
+        account = {
+            "id": user.get("id"),
+            "email": user.get("email"),
+            "email_verified": bool(email_verified_at),
+            "email_verified_at": email_verified_at,
+            "account_status": authorization.get("account_status"),
+            "roles": authorization.get("roles") or [],
+            "aal": authorization.get("aal") or "aal1",
+        }
+        return {
+            "user": {
+                "id": account["id"],
+                "email": account["email"],
+                "display_name": profile.get("display_name"),
+            },
+            "account": account,
+            "profile": profile,
+        }
+
+    def handle_profile_get(self) -> None:
+        user, authorization = self.require_account_session()
+        if not user or not authorization:
+            return
+        status, profile = self.fetch_current_profile(user)
+        if status != HTTPStatus.OK:
+            self.send_json(status, profile)
+            return
+        self.send_auth_json(HTTPStatus.OK, self.account_payload(user, authorization, profile))
+
+    def handle_profile_update(self) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        updates, field_errors = normalize_profile_update(body)
+        if field_errors:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("PROFILE_VALIDATION_FAILED", "Check the highlighted fields.", field_errors),
+            )
+            return
+        if not updates:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("PROFILE_VALIDATION_FAILED", "Choose at least one profile field to update."),
+            )
+            return
+        user, authorization = self.require_account_session()
+        if not user or not authorization:
+            return
+        status, result = supabase_rest_request(
+            "rpc/update_my_profile",
+            self.current_access_token(user),
+            {"profile_patch": updates},
+        )
+        if status != HTTPStatus.OK or not isinstance(result, dict):
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("PROFILE_UPDATE_FAILED", "Your profile could not be saved. Try again."),
+            )
+            return
+        profile = {field: result.get(field) for field in PROFILE_FIELDS}
+        if not profile.get("display_name"):
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("PROFILE_UPDATE_FAILED", "Your profile could not be saved. Try again."),
+            )
+            return
+        self.send_auth_json(HTTPStatus.OK, {"profile": profile, "saved": True})
+
+    def handle_sessions_get(self) -> None:
+        user, authorization = self.require_account_session()
+        if not user or not authorization:
+            return
+        claims = decode_jwt_payload(self.current_access_token(user))
+        session_id = clean_text(claims.get("session_id"), 64)
+        try:
+            session_id = clean_uuid(session_id, "session id")
+        except ValueError:
+            session_id = "current"
+        methods = [
+            clean_text(entry.get("method"), 32)
+            for entry in claims.get("amr") or []
+            if isinstance(entry, dict) and clean_text(entry.get("method"), 32)
+        ]
+        session = {
+            "id": session_id,
+            "current": True,
+            **user_agent_summary(self.headers.get("User-Agent", "")),
+            "aal": authorization.get("aal") or claims.get("aal") or "aal1",
+            "auth_methods": methods,
+            "authenticated_at": jwt_timestamp_iso(claims.get("iat")),
+            "expires_at": jwt_timestamp_iso(claims.get("exp")),
+            "observed_at": now_iso(),
+            "approximate_location": None,
+        }
+        self.send_auth_json(
+            HTTPStatus.OK,
+            {
+                "sessions": [session],
+                "scope": "current_only",
+                "capabilities": {
+                    "list_all": False,
+                    "revoke_by_id": False,
+                    "sign_out_others": True,
+                    "sign_out_all": True,
+                },
+            },
+        )
+
+    def handle_session_revoke(self, target: str) -> None:
+        if target not in {"others", "all"}:
+            self.send_json(
+                HTTPStatus.NOT_FOUND,
+                auth_error("SESSION_TARGET_UNSUPPORTED", "This provider cannot revoke an arbitrary session by identifier."),
+            )
+            return
+        body = self.read_json_body()
+        if body is None:
+            return
+        expected_confirmation = f"sign-out-{target}"
+        if body.get("confirmation") != expected_confirmation:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("SESSION_CONFIRMATION_REQUIRED", "Confirm the session action before continuing."),
+            )
+            return
+        user, authorization = self.require_account_session()
+        if not user or not authorization:
+            return
+        status, _ = supabase_auth_request(
+            f"logout?scope={'global' if target == 'all' else 'others'}",
+            {},
+            self.current_access_token(user),
+            method="POST",
+        )
+        if status not in {HTTPStatus.OK, HTTPStatus.NO_CONTENT}:
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("SESSION_REVOCATION_FAILED", "Sessions could not be revoked. Try again."),
+            )
+            return
+        if target == "others":
+            self.send_auth_json(
+                HTTPStatus.OK,
+                {
+                    "revoked": "others",
+                    "signed_out": False,
+                    "message": "Other devices can no longer refresh their sessions. Short-lived access may remain until it expires.",
+                },
+            )
+            return
+        consume_recovery_grant(self.cookie_value(RECOVERY_COOKIE))
+        self.send_auth_json(
+            HTTPStatus.OK,
+            {"revoked": "all", "signed_out": True, "message": "All device sessions have been signed out."},
+            [
+                *self.clear_session_cookie_headers(),
+                self.clear_recovery_cookie_header(),
+                self.clear_csrf_cookie_header(),
+            ],
+        )
+
+    def send_workspace_error(self, error: dict) -> None:
+        code = clean_text(error.get("code"), 80) or "WORKSPACE_REQUEST_FAILED"
+        message = clean_text(error.get("message"), 500) or "Unable to complete this Workspace request."
+        field_errors = {}
+        raw_field_errors = error.get("field_errors")
+        if isinstance(raw_field_errors, dict):
+            for raw_key, raw_message in raw_field_errors.items():
+                key = clean_text(raw_key, 80)
+                safe_message = clean_text(raw_message, 300)
+                if re.fullmatch(r"[a-z][a-z0-9_]*", key) and safe_message:
+                    field_errors[key] = safe_message
+        details = None
+        if code == "DRAFT_NOT_READY" and isinstance(error.get("details"), dict):
+            raw_details = error["details"].get("readiness", error["details"])
+            details = clean_workspace_submit_readiness(raw_details)
+        self.send_json(
+            WORKSPACE_ERROR_STATUS.get(code, HTTPStatus.BAD_REQUEST),
+            auth_error(code, message, field_errors or None, details),
+        )
+
+    def workspace_rpc(self, name: str, payload: dict | None = None) -> tuple[dict | None, dict | None]:
+        user, authorization = self.require_account_session()
+        if not user or not authorization:
+            return None, None
+        status, result = supabase_rest_request(
+            f"rpc/{name}",
+            self.current_access_token(user),
+            payload or {},
+        )
+        if status != HTTPStatus.OK or not isinstance(result, dict):
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("WORKSPACE_PROVIDER_FAILED", "Workspace data could not be updated. Try again."),
+            )
+            return None, None
+        if isinstance(result.get("error"), dict):
+            self.send_workspace_error(result["error"])
+            return None, None
+        return user, result
+
+    def absolute_storage_url(self, value: str) -> str:
+        path = clean_text(value, 4096)
+        if path.startswith("/"):
+            return f"{SUPABASE_URL}/storage/v1{path}"
+        parsed = urlparse(path)
+        expected = urlparse(SUPABASE_URL)
+        if parsed.scheme == "https" and parsed.netloc == expected.netloc:
+            return path
+        return ""
+
+    def create_signed_upload_urls(self, user: dict, upload: dict) -> dict | None:
+        signed_assets = []
+        for asset in upload.get("assets") or []:
+            if not isinstance(asset, dict):
+                self.send_json(HTTPStatus.BAD_GATEWAY, auth_error("UPLOAD_INTENT_FAILED", "Upload destinations are invalid."))
+                return None
+            bucket = clean_text(asset.get("storage_bucket"), 80)
+            storage_key = clean_text(asset.get("storage_key"), 1024)
+            if bucket not in {"image-originals", "image-display", "image-thumbnails"} or not storage_key:
+                self.send_json(HTTPStatus.BAD_GATEWAY, auth_error("UPLOAD_INTENT_FAILED", "Upload destinations are invalid."))
+                return None
+            endpoint = f"object/upload/sign/{quote(bucket, safe='')}/{quote(storage_key, safe='/')}"
+            status, signed = supabase_storage_request(endpoint, self.current_access_token(user), {})
+            signed_url = self.absolute_storage_url(signed.get("url", "")) if isinstance(signed, dict) else ""
+            if status != HTTPStatus.OK or not signed_url:
+                self.send_json(
+                    HTTPStatus.BAD_GATEWAY,
+                    auth_error("UPLOAD_INTENT_FAILED", "Secure upload destinations could not be created. Try again."),
+                )
+                return None
+            signed_assets.append({**asset, "signed_url": signed_url})
+        return {**upload, "assets": signed_assets}
+
+    def remove_workspace_upload_objects(self, user: dict, assets: list) -> bool:
+        expected_owner = clean_text(user.get("id"), 64)
+        grouped: dict[str, list[str]] = {}
+        for asset in assets:
+            if not isinstance(asset, dict):
+                return False
+            bucket = clean_text(asset.get("storage_bucket"), 80)
+            storage_key = clean_text(asset.get("storage_key"), 1024)
+            if (
+                bucket not in {"image-originals", "image-display", "image-thumbnails"}
+                or not storage_key.startswith(f"{expected_owner}/")
+            ):
+                return False
+            grouped.setdefault(bucket, []).append(storage_key)
+
+        cleanup_succeeded = True
+        for bucket, storage_keys in grouped.items():
+            status, _ = supabase_storage_request(
+                f"bucket/{quote(bucket, safe='')}/delete",
+                self.current_access_token(user),
+                {"prefixes": storage_keys},
+            )
+            if status != HTTPStatus.OK:
+                cleanup_succeeded = False
+        return cleanup_succeeded
+
+    def sign_workspace_draft(self, user: dict, draft: dict) -> dict | None:
+        signed_assets = []
+        for asset in draft.get("assets") or []:
+            if not isinstance(asset, dict):
+                continue
+            bucket = clean_text(asset.get("storage_bucket"), 80)
+            storage_key = clean_text(asset.get("storage_key"), 1024)
+            if bucket not in {"image-originals", "image-display", "image-thumbnails"} or not storage_key:
+                continue
+            endpoint = f"object/sign/{quote(bucket, safe='')}/{quote(storage_key, safe='/')}"
+            status, signed = supabase_storage_request(
+                endpoint,
+                self.current_access_token(user),
+                {"expiresIn": 10 * 60},
+            )
+            signed_value = ""
+            if isinstance(signed, dict):
+                signed_value = signed.get("signedURL") or signed.get("signedUrl") or ""
+            signed_url = self.absolute_storage_url(signed_value)
+            if status != HTTPStatus.OK or not signed_url:
+                self.send_json(
+                    HTTPStatus.BAD_GATEWAY,
+                    auth_error("DRAFT_ASSET_UNAVAILABLE", "Private Draft previews could not be loaded. Try again."),
+                )
+                return None
+            signed_assets.append({**asset, "signed_url": signed_url})
+        return {**draft, "assets": signed_assets}
+
+    def handle_workspace_folders_get(self) -> None:
+        _, result = self.workspace_rpc("workspace_list_folders")
+        if result is not None:
+            self.send_auth_json(HTTPStatus.OK, result)
+
+    def handle_workspace_folder_create(self) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        name, field_errors = normalize_workspace_folder_name(body.get("name"))
+        if set(body) - {"name"}:
+            field_errors["folder"] = "Only a folder name can be provided."
+        if field_errors:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("FOLDER_VALIDATION_FAILED", "Check the folder name.", field_errors),
+            )
+            return
+        _, result = self.workspace_rpc("workspace_create_folder", {"folder_name": name})
+        if result is not None:
+            self.send_auth_json(HTTPStatus.CREATED, result)
+
+    def handle_workspace_folder_rename(self, folder_id: str) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        try:
+            folder_id = clean_uuid(folder_id, "folder id")
+        except ValueError:
+            self.send_json(HTTPStatus.NOT_FOUND, auth_error("FOLDER_NOT_FOUND", "The folder is unavailable."))
+            return
+        name, field_errors = normalize_workspace_folder_name(body.get("name"))
+        if set(body) - {"name"}:
+            field_errors["folder"] = "Only a folder name can be provided."
+        if field_errors:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("FOLDER_VALIDATION_FAILED", "Check the folder name.", field_errors),
+            )
+            return
+        _, result = self.workspace_rpc(
+            "workspace_rename_folder",
+            {"folder_id": folder_id, "folder_name": name},
+        )
+        if result is not None:
+            self.send_auth_json(HTTPStatus.OK, result)
+
+    def handle_workspace_folder_delete(self, folder_id: str) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        try:
+            folder_id = clean_uuid(folder_id, "folder id")
+        except ValueError:
+            self.send_json(HTTPStatus.NOT_FOUND, auth_error("FOLDER_NOT_FOUND", "The folder is unavailable."))
+            return
+        policy = clean_text(body.get("non_empty_policy"), 40) or "reject"
+        if policy not in {"reject", "move_to_inbox"} or set(body) - {"non_empty_policy"}:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("FOLDER_VALIDATION_FAILED", "Choose how to handle images in this folder."),
+            )
+            return
+        _, result = self.workspace_rpc(
+            "workspace_delete_folder",
+            {"folder_id": folder_id, "non_empty_policy": policy},
+        )
+        if result is not None:
+            self.send_auth_json(HTTPStatus.OK, result)
+
+    def handle_workspace_folder_restore(self, folder_id: str) -> None:
+        try:
+            folder_id = clean_uuid(folder_id, "folder id")
+        except ValueError:
+            self.send_json(HTTPStatus.NOT_FOUND, auth_error("FOLDER_NOT_FOUND", "The folder is unavailable."))
+            return
+        _, result = self.workspace_rpc("workspace_restore_folder", {"folder_id": folder_id})
+        if result is not None:
+            self.send_auth_json(HTTPStatus.OK, result)
+
+    def handle_workspace_upload_intent_create(self) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        intent, field_errors = normalize_workspace_upload_intent(body)
+        if field_errors:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("UPLOAD_INTENT_INVALID", "Check the upload metadata.", field_errors),
+            )
+            return
+        user, result = self.workspace_rpc("workspace_create_upload_intent", {"intent": intent})
+        if not user or result is None:
+            return
+        signed = self.create_signed_upload_urls(user, result)
+        if signed is not None:
+            self.send_auth_json(HTTPStatus.CREATED, signed)
+
+    def handle_workspace_upload_complete(self, upload_id: str) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        try:
+            upload_id = clean_uuid(upload_id, "upload id")
+        except ValueError:
+            self.send_json(HTTPStatus.NOT_FOUND, auth_error("UPLOAD_INTENT_NOT_FOUND", "The upload intent is unavailable."))
+            return
+        if set(body) - {"draft"} or not isinstance(body.get("draft", {}), dict):
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("DRAFT_VALIDATION_FAILED", "Draft metadata must be an object."),
+            )
+            return
+        draft_patch, field_errors = normalize_workspace_draft_patch(
+            body.get("draft", {}),
+            allow_empty=True,
+            allow_compliance=False,
+        )
+        if field_errors:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("DRAFT_VALIDATION_FAILED", "Check the Draft metadata.", field_errors),
+            )
+            return
+        user, result = self.workspace_rpc(
+            "workspace_complete_upload",
+            {"upload_id": upload_id, "draft": draft_patch},
+        )
+        if not user or result is None:
+            return
+        signed = self.sign_workspace_draft(user, result.get("draft") or {})
+        if signed is not None:
+            self.send_auth_json(HTTPStatus.CREATED, {"draft": signed})
+
+    def handle_workspace_upload_cancel(self, upload_id: str) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        try:
+            upload_id = clean_uuid(upload_id, "upload id")
+        except ValueError:
+            self.send_json(HTTPStatus.NOT_FOUND, auth_error("UPLOAD_INTENT_NOT_FOUND", "The upload intent is unavailable."))
+            return
+        if body != {"confirmation": "cancel-upload"}:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("UPLOAD_CANCEL_CONFIRMATION_REQUIRED", "Confirm canceling this upload."),
+            )
+            return
+
+        user, canceled = self.workspace_rpc("workspace_cancel_upload_intent", {"upload_id": upload_id})
+        if not user or canceled is None:
+            return
+        if canceled.get("cleanup_status") == "complete":
+            self.send_auth_json(HTTPStatus.OK, {
+                "canceled": True,
+                "upload_id": upload_id,
+                "cleanup_status": "complete",
+            })
+            return
+
+        cleanup_succeeded = self.remove_workspace_upload_objects(user, canceled.get("assets") or [])
+        finalize_status, finalized = supabase_rest_request(
+            "rpc/workspace_finish_upload_cleanup",
+            self.current_access_token(user),
+            {"upload_id": upload_id, "cleanup_succeeded": cleanup_succeeded},
+        )
+        finalized_status = finalized.get("cleanup_status") if isinstance(finalized, dict) else None
+        cleanup_complete = cleanup_succeeded and finalize_status == HTTPStatus.OK and finalized_status == "complete"
+        response = {
+            "canceled": True,
+            "upload_id": upload_id,
+            "cleanup_status": "complete" if cleanup_complete else "failed",
+        }
+        if not cleanup_complete:
+            response["message"] = "Upload canceled, but some temporary objects still require cleanup."
+        self.send_auth_json(HTTPStatus.OK if cleanup_complete else HTTPStatus.ACCEPTED, response)
+
+    def handle_workspace_images_get(self, parsed) -> None:
+        query = parse_qs(parsed.query)
+        workflow_status = single_query_value(query, "workflow_status") or "draft"
+        if workflow_status != "draft":
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("IMAGE_FILTER_INVALID", "This Workspace slice currently supports Draft images only."),
+            )
+            return
+        user, result = self.workspace_rpc("workspace_list_drafts")
+        if not user or result is None:
+            return
+        signed_images = []
+        for draft in result.get("images") or []:
+            if not isinstance(draft, dict):
+                continue
+            signed = self.sign_workspace_draft(user, draft)
+            if signed is None:
+                return
+            signed_images.append(signed)
+        self.send_auth_json(HTTPStatus.OK, {"images": signed_images})
+
+    def handle_workspace_submit_readiness(self, image_id: str) -> None:
+        try:
+            image_id = clean_uuid(image_id, "image id")
+        except ValueError:
+            self.send_json(HTTPStatus.NOT_FOUND, auth_error("DRAFT_NOT_FOUND", "The Draft is unavailable."))
+            return
+        _, result = self.workspace_rpc("workspace_get_submit_readiness", {"image_id": image_id})
+        if result is None:
+            return
+        readiness = clean_workspace_submit_readiness(result.get("readiness"))
+        if readiness is None or readiness["image_id"] != image_id:
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("WORKSPACE_PROVIDER_FAILED", "Submission readiness could not be verified. Try again."),
+            )
+            return
+        self.send_auth_json(HTTPStatus.OK, {"readiness": readiness})
+
+    def handle_workspace_draft_submit(self, image_id: str) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        try:
+            image_id = clean_uuid(image_id, "image id")
+        except ValueError:
+            self.send_json(HTTPStatus.NOT_FOUND, auth_error("DRAFT_NOT_FOUND", "The Draft is unavailable."))
+            return
+        expected_version = body.get("expected_version")
+        try:
+            idempotency_key = clean_uuid(body.get("idempotency_key"), "idempotency key")
+        except ValueError:
+            idempotency_key = ""
+        if (
+            set(body) != {"confirmation", "expected_version", "idempotency_key"}
+            or body.get("confirmation") != "submit-for-review"
+            or isinstance(expected_version, bool)
+            or not isinstance(expected_version, int)
+            or expected_version < 1
+            or not idempotency_key
+        ):
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error(
+                    "SUBMISSION_CONFIRMATION_REQUIRED",
+                    "Confirm the current Draft version before submitting it for review.",
+                    {
+                        "expected_version": "Use the current positive Draft version.",
+                        "idempotency_key": "Use a valid request UUID.",
+                    },
+                ),
+            )
+            return
+        _, result = self.workspace_rpc(
+            "workspace_submit_draft_versioned",
+            {
+                "image_id": image_id,
+                "expected_version": expected_version,
+                "idempotency_key": idempotency_key,
+            },
+        )
+        if result is None:
+            return
+        response = clean_workspace_submission_result(result, image_id)
+        if response is None:
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("WORKSPACE_PROVIDER_FAILED", "The submission result could not be verified. Try again."),
+            )
+            return
+        self.send_auth_json(HTTPStatus.CREATED, response)
+
+    def handle_workspace_draft_update(self, image_id: str) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        try:
+            image_id = clean_uuid(image_id, "image id")
+        except ValueError:
+            self.send_json(HTTPStatus.NOT_FOUND, auth_error("DRAFT_NOT_FOUND", "The Draft is unavailable."))
+            return
+        if set(body) != {"draft", "expected_version"} or not isinstance(body.get("draft"), dict):
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error(
+                    "DRAFT_VALIDATION_FAILED",
+                    "Draft updates require metadata and the version you edited.",
+                    {"draft": "Send draft and expected_version only."},
+                ),
+            )
+            return
+        expected_version = body.get("expected_version")
+        if isinstance(expected_version, bool) or not isinstance(expected_version, int) or expected_version < 1:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error(
+                    "DRAFT_VERSION_REQUIRED",
+                    "Reload this Draft before saving changes.",
+                    {"expected_version": "Use the current positive Draft version."},
+                ),
+            )
+            return
+        patch, field_errors = normalize_workspace_draft_patch(body["draft"])
+        if field_errors:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("DRAFT_VALIDATION_FAILED", "Check the Draft metadata.", field_errors),
+            )
+            return
+        user, result = self.workspace_rpc(
+            "workspace_update_draft_versioned",
+            {"image_id": image_id, "patch": patch, "expected_version": expected_version},
+        )
+        if not user or result is None:
+            return
+        draft = result.get("draft") if isinstance(result.get("draft"), dict) else {}
+        self.send_auth_json(
+            HTTPStatus.OK,
+            {"draft": {key: value for key, value in draft.items() if key != "assets"}, "saved": True},
+        )
+
+    def handle_workspace_draft_trash(self, image_id: str) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        try:
+            image_id = clean_uuid(image_id, "image id")
+        except ValueError:
+            self.send_json(HTTPStatus.NOT_FOUND, auth_error("DRAFT_NOT_FOUND", "The Draft is unavailable."))
+            return
+        expected_version = body.get("expected_version")
+        if (
+            set(body) != {"confirmation", "expected_version"}
+            or body.get("confirmation") != "move-to-trash"
+            or isinstance(expected_version, bool)
+            or not isinstance(expected_version, int)
+            or expected_version < 1
+        ):
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error(
+                    "DRAFT_CONFIRMATION_REQUIRED",
+                    "Confirm moving the current Draft version to Trash.",
+                    {"expected_version": "Reload the Draft before moving it to Trash."},
+                ),
+            )
+            return
+        _, result = self.workspace_rpc(
+            "workspace_trash_draft_versioned",
+            {"image_id": image_id, "expected_version": expected_version},
+        )
+        if result is not None:
+            self.send_auth_json(HTTPStatus.OK, result)
+
+    def handle_workspace_draft_restore(self, image_id: str) -> None:
+        try:
+            image_id = clean_uuid(image_id, "image id")
+        except ValueError:
+            self.send_json(HTTPStatus.NOT_FOUND, auth_error("DRAFT_NOT_FOUND", "The Draft is unavailable."))
+            return
+        user, result = self.workspace_rpc("workspace_restore_draft", {"image_id": image_id})
+        if not user or result is None:
+            return
+        signed = self.sign_workspace_draft(user, result.get("draft") or {})
+        if signed is not None:
+            self.send_auth_json(HTTPStatus.OK, {"draft": signed})
+
+    def handle_mfa_factors(self) -> None:
+        user, _ = self.require_account_session(require_admin_mfa=False)
+        if not user:
+            return
+        all_factors = user.get("factors") or []
+        factors = {
+            "all": all_factors,
+            "totp": [factor for factor in all_factors if factor.get("factor_type") == "totp"],
+            "phone": [factor for factor in all_factors if factor.get("factor_type") == "phone"],
+        }
+        session = user.get("_refreshed_session")
+        self.send_auth_json(HTTPStatus.OK, factors, self.session_cookie_headers(session) if session else None)
+
+    def handle_mfa_enroll(self) -> None:
+        user, _ = self.require_account_session(require_admin_mfa=False)
+        if not user:
+            return
+        factors = user.get("factors") or []
+        totp_factors = [
+            factor
+            for factor in factors
+            if (factor.get("factor_type") or factor.get("type")) == "totp"
+        ]
+        if any(factor.get("status") == "verified" for factor in totp_factors):
+            self.send_json(
+                HTTPStatus.CONFLICT,
+                auth_error("MFA_ALREADY_ENROLLED", "Use your existing authenticator to continue."),
+            )
+            return
+
+        if any(factor.get("status") != "unverified" for factor in totp_factors):
+            self.send_json(
+                HTTPStatus.CONFLICT,
+                auth_error("MFA_RESET_FAILED", "The authenticator state could not be verified safely."),
+            )
+            return
+
+        access_token = self.current_access_token(user)
+        for pending_factor in (factor for factor in totp_factors if factor.get("status") == "unverified"):
+            try:
+                factor_id = clean_uuid(pending_factor.get("id"), "factor id")
+            except ValueError:
+                self.send_json(
+                    HTTPStatus.CONFLICT,
+                    auth_error("MFA_RESET_FAILED", "The incomplete authenticator setup could not be reset."),
+                )
+                return
+            reset_status, _ = supabase_auth_request(
+                f"factors/{factor_id}",
+                access_token=access_token,
+                method="DELETE",
+            )
+            if reset_status not in {HTTPStatus.OK, HTTPStatus.NO_CONTENT, HTTPStatus.NOT_FOUND}:
+                self.send_json(
+                    HTTPStatus.CONFLICT,
+                    auth_error("MFA_RESET_FAILED", "The incomplete authenticator setup could not be reset. Try again."),
+                )
+                return
+
+        status, factor = supabase_auth_request(
+            "factors",
+            {"factor_type": "totp", "friendly_name": "MT Presence authenticator"},
+            access_token,
+        )
+        if status not in {HTTPStatus.OK, HTTPStatus.CREATED}:
+            self.send_json(HTTPStatus.BAD_REQUEST, auth_error("MFA_ENROLL_FAILED", "Unable to start authenticator setup."))
+            return
+        self.send_auth_json(HTTPStatus.CREATED, factor)
+
+    def handle_mfa_challenge(self) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        try:
+            factor_id = clean_uuid(body.get("factor_id"), "factor id")
+        except ValueError as error:
+            self.send_json(HTTPStatus.UNPROCESSABLE_ENTITY, auth_error("MFA_VALIDATION_FAILED", str(error)))
+            return
+        user, _ = self.require_account_session(require_admin_mfa=False)
+        if not user:
+            return
+        status, challenge = supabase_auth_request(
+            f"factors/{factor_id}/challenge", {}, self.current_access_token(user)
+        )
+        if status not in {HTTPStatus.OK, HTTPStatus.CREATED}:
+            self.send_json(HTTPStatus.BAD_REQUEST, auth_error("MFA_CHALLENGE_FAILED", "Unable to start MFA verification."))
+            return
+        self.send_auth_json(HTTPStatus.OK, {"id": challenge.get("id")})
+
+    def handle_mfa_verify(self) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        code = clean_text(body.get("code"), 6)
+        try:
+            factor_id = clean_uuid(body.get("factor_id"), "factor id")
+            challenge_id = clean_uuid(body.get("challenge_id"), "challenge id")
+        except ValueError as error:
+            self.send_json(HTTPStatus.UNPROCESSABLE_ENTITY, auth_error("MFA_VALIDATION_FAILED", str(error)))
+            return
+        if not re.fullmatch(r"\d{6}", code):
+            self.send_json(HTTPStatus.UNPROCESSABLE_ENTITY, auth_error("MFA_VALIDATION_FAILED", "Enter the 6-digit code."))
+            return
+        user, _ = self.require_account_session(require_admin_mfa=False)
+        if not user:
+            return
+        status, session = supabase_auth_request(
+            f"factors/{factor_id}/verify",
+            {"challenge_id": challenge_id, "code": code},
+            self.current_access_token(user),
+        )
+        if status != HTTPStatus.OK or not session.get("access_token"):
+            self.send_json(HTTPStatus.UNAUTHORIZED, auth_error("MFA_CODE_INVALID", "That code is invalid or expired. Try the current code."))
+            return
+        self.send_auth_json(
+            HTTPStatus.OK,
+            {"verified": True, "aal": "aal2"},
+            self.session_cookie_headers(session),
+        )
+
+    def require_admin(self) -> tuple[bool, dict | None]:
+        status, user = self.current_auth_user()
+        if status != HTTPStatus.OK:
+            self.send_current_user_error(status, user)
+            return False, None
+        status, authorization = self.current_authorization(user)
+        if status != HTTPStatus.OK:
+            self.send_json(status, authorization if "error" in authorization else auth_error("AUTHORIZATION_FAILED", "Unable to verify access."))
+            return False, None
+        if authorization.get("account_status") != "active":
+            self.send_json(HTTPStatus.FORBIDDEN, auth_error("ACCOUNT_RESTRICTED", "This account cannot access the Admin Platform."))
+            return False, authorization
+        roles = set(authorization.get("roles") or [])
+        if not roles.intersection({"admin", "super_admin"}):
+            self.send_json(HTTPStatus.FORBIDDEN, auth_error("ADMIN_REQUIRED", "You do not have access to the Admin Platform."))
+            return False, authorization
+        if authorization.get("aal") != "aal2":
+            self.send_json(HTTPStatus.FORBIDDEN, auth_error("MFA_REQUIRED", "Complete multi-factor authentication to continue."))
+            return False, authorization
+        return True, authorization
+
+    def has_admin_access_silently(self) -> bool:
+        status, user = self.current_auth_user()
+        if status != HTTPStatus.OK:
+            return False
+        status, authorization = self.current_authorization(user)
+        if status != HTTPStatus.OK or authorization.get("account_status") != "active":
+            return False
+        roles = set(authorization.get("roles") or [])
+        return bool(roles.intersection({"admin", "super_admin"})) and authorization.get("aal") == "aal2"
 
     def read_json_body(self) -> dict | None:
         try:
@@ -349,10 +2773,65 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "Request body is too large."})
             return None
         try:
-            return json.loads(self.rfile.read(length).decode("utf-8"))
+            body = json.loads(self.rfile.read(length).decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
             self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Request body must be valid JSON."})
             return None
+        if not isinstance(body, dict):
+            self.send_json(HTTPStatus.BAD_REQUEST, auth_error("JSON_OBJECT_REQUIRED", "Request body must be a JSON object."))
+            return None
+        return body
+
+    def read_archive_create_body(self) -> tuple[dict, dict[str, dict]] | None:
+        content_type = self.headers.get("Content-Type", "")
+        if content_type.startswith("multipart/form-data"):
+            try:
+                length = int(self.headers.get("Content-Length") or "0")
+            except ValueError:
+                self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Invalid Content-Length."})
+                return None
+            if length <= 0:
+                self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Request body is required."})
+                return None
+            if length > MAX_UPLOAD_BYTES:
+                self.send_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "Upload request is too large."})
+                return None
+
+            raw_body = self.rfile.read(length)
+            message = BytesParser(policy=policy.default).parsebytes(
+                f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("utf-8") + raw_body
+            )
+            metadata = None
+            files: dict[str, dict] = {}
+            for part in message.iter_parts():
+                name = part.get_param("name", header="content-disposition")
+                if not name:
+                    continue
+                filename = part.get_filename()
+                payload = part.get_payload(decode=True) or b""
+                if name == "metadata":
+                    try:
+                        metadata = json.loads(payload.decode(part.get_content_charset() or "utf-8"))
+                    except (UnicodeDecodeError, json.JSONDecodeError):
+                        self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Upload metadata must be valid JSON."})
+                        return None
+                    continue
+                if name.startswith("asset:"):
+                    asset_id = name.removeprefix("asset:")
+                    files[asset_id] = {
+                        "filename": filename or asset_id,
+                        "content_type": part.get_content_type(),
+                        "body": payload,
+                    }
+            if not isinstance(metadata, dict):
+                self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Upload metadata is required."})
+                return None
+            return metadata, files
+
+        body = self.read_json_body()
+        if body is None:
+            return None
+        return body, {}
 
     def handle_archive_images(self, parsed) -> None:
         if not ARCHIVE_DB_PATH.exists():
@@ -469,13 +2948,238 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
 
         self.send_json(HTTPStatus.OK, {"item": archive_image_payload(row), "source": "local-sqlite"})
 
+    def handle_archive_image_delete(self, image_id: str) -> None:
+        if not ARCHIVE_DB_PATH.exists():
+            self.send_json(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                {
+                    "error": "Local archive database is not available.",
+                    "hint": "Run python3 scripts/seed_local_archive_db.py first.",
+                },
+            )
+            return
+
+        try:
+            image_id = clean_identifier(image_id, "image id")
+        except ValueError as error:
+            self.send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+            return
+
+        upload_dir = UPLOAD_ASSET_ROOT / image_id
+        try:
+            with sqlite3.connect(ARCHIVE_DB_PATH) as connection:
+                connection.row_factory = sqlite3.Row
+                connection.execute("PRAGMA foreign_keys = ON")
+                existing = connection.execute("SELECT id, source_type FROM images WHERE id = ?", (image_id,)).fetchone()
+                if not existing:
+                    self.send_json(HTTPStatus.NOT_FOUND, {"error": "Archive image not found."})
+                    return
+                if existing["source_type"] != "upload":
+                    self.send_json(HTTPStatus.FORBIDDEN, {"error": "Only uploaded image records can be deleted from Upload Studio."})
+                    return
+
+                with connection:
+                    connection.execute("DELETE FROM images WHERE id = ?", (image_id,))
+        except sqlite3.Error:
+            self.send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "Unable to delete local archive database record."})
+            return
+
+        warning = ""
+        try:
+            if upload_dir.exists():
+                shutil.rmtree(upload_dir)
+        except OSError:
+            warning = "Database record deleted, but local upload files could not be removed."
+
+        payload = {"id": image_id, "deleted": True, "source": "local-sqlite"}
+        if warning:
+            payload["warning"] = warning
+        self.send_json(HTTPStatus.OK, payload)
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
+        parts = [part for part in parsed.path.split("/") if part]
+        if parsed.path in {
+            "/auth/sign-in",
+            "/auth/register",
+            "/auth/forgot-password",
+            "/auth/reset-password",
+            "/auth/verify-email",
+        }:
+            self.path = "/auth.html"
+            super().do_GET()
+            return
+        if parsed.path == "/auth/mfa":
+            status, user = self.current_auth_user()
+            if status != HTTPStatus.OK:
+                if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+                    self.send_current_user_error(status, user)
+                    return
+                self.send_response(HTTPStatus.SEE_OTHER)
+                self.send_header("Location", "/auth/sign-in?next=/workspace/images")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                return
+            self.path = "/mfa.html"
+            super().do_GET()
+            return
+        if parsed.path == "/upload-studio.html":
+            self.send_response(HTTPStatus.SEE_OTHER)
+            self.send_header("Location", "/workspace/images")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            return
+        if parsed.path == "/account-settings.html":
+            self.send_response(HTTPStatus.SEE_OTHER)
+            self.send_header("Location", "/settings/account")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            return
+        if parsed.path in {"/settings/account", "/settings/account/"}:
+            status, user = self.current_auth_user()
+            if status != HTTPStatus.OK:
+                if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+                    self.send_current_user_error(status, user)
+                    return
+                self.send_response(HTTPStatus.SEE_OTHER)
+                self.send_header("Location", f"/auth/sign-in?{urlencode({'next': '/settings/account'})}")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                return
+            if session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery"):
+                self.send_response(HTTPStatus.SEE_OTHER)
+                self.send_header("Location", "/auth/reset-password")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                return
+            authz_status, authorization = self.current_authorization(user)
+            if authz_status != HTTPStatus.OK or not isinstance(authorization, dict):
+                self.send_json(
+                    HTTPStatus.BAD_GATEWAY,
+                    auth_error("AUTHORIZATION_FAILED", "Unable to verify account access. Try again."),
+                )
+                return
+            if authorization.get("account_status") != "active":
+                self.send_json(
+                    HTTPStatus.FORBIDDEN,
+                    auth_error("ACCOUNT_RESTRICTED", "This account cannot open account settings."),
+                )
+                return
+            roles = set(authorization.get("roles") or [])
+            if roles.intersection({"admin", "super_admin"}) and authorization.get("aal") != "aal2":
+                self.send_response(HTTPStatus.SEE_OTHER)
+                self.send_header("Location", f"/auth/mfa?{urlencode({'next': '/settings/account'})}")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                return
+            self.path = "/account-settings.html"
+            super().do_GET()
+            return
+        if parsed.path in {"/workspace", "/workspace/", "/workspace/images", "/workspace/images/"}:
+            status, user = self.current_auth_user()
+            if status != HTTPStatus.OK:
+                if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+                    self.send_current_user_error(status, user)
+                    return
+                self.send_response(HTTPStatus.SEE_OTHER)
+                next_path = "/workspace/images"
+                self.send_header("Location", f"/auth/sign-in?{urlencode({'next': next_path})}")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                return
+            if session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery"):
+                self.send_response(HTTPStatus.SEE_OTHER)
+                self.send_header("Location", "/auth/reset-password")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                return
+            authz_status, authorization = self.current_authorization(user)
+            if authz_status != HTTPStatus.OK or not isinstance(authorization, dict):
+                self.send_json(
+                    HTTPStatus.BAD_GATEWAY,
+                    auth_error("AUTHORIZATION_FAILED", "Unable to verify account access. Try again."),
+                )
+                return
+            if authorization.get("account_status") != "active":
+                self.send_json(HTTPStatus.FORBIDDEN, auth_error("ACCOUNT_RESTRICTED", "This account cannot access the Workspace."))
+                return
+            if parsed.path in {"/workspace", "/workspace/"}:
+                self.send_response(HTTPStatus.SEE_OTHER)
+                self.send_header("Location", "/workspace/images")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                return
+            self.path = "/upload-studio.html"
+            super().do_GET()
+            return
+        if parsed.path == "/api/auth/csrf":
+            self.handle_csrf_token()
+            return
+        if parsed.path == "/api/auth/recovery-status":
+            self.handle_auth_recovery_status()
+            return
+        if parsed.path == "/api/auth/verification-status":
+            self.handle_auth_verification_status()
+            return
+        if parsed.path == "/api/me":
+            self.handle_me()
+            return
+        if parsed.path == "/api/me/profile":
+            self.handle_profile_get()
+            return
+        if parsed.path == "/api/me/sessions":
+            self.handle_sessions_get()
+            return
+        if parsed.path == "/api/folders":
+            self.handle_workspace_folders_get()
+            return
+        if parsed.path == "/api/images":
+            self.handle_workspace_images_get(parsed)
+            return
+        if len(parts) == 4 and parts[:2] == ["api", "images"] and parts[3] == "readiness":
+            self.handle_workspace_submit_readiness(parts[2])
+            return
+        if parsed.path == "/api/auth/mfa/factors":
+            self.handle_mfa_factors()
+            return
+        if parsed.path == "/api/admin/access-check":
+            allowed, authorization = self.require_admin()
+            if allowed:
+                self.send_auth_json(HTTPStatus.OK, {"allowed": True, "authorization": authorization})
+            return
         if parsed.path == "/api/archive/images":
+            visibility = single_query_value(parse_qs(parsed.query), "visibility").lower()
+            if visibility not in {"", "published"}:
+                allowed, _ = self.require_admin()
+                if not allowed:
+                    return
             self.handle_archive_images(parsed)
             return
 
+        if parsed.path.startswith("/assets/uploads/"):
+            asset_path = Path(self.translate_path(parsed.path))
+            if parsed.path.endswith("/") or asset_path.is_dir():
+                self.send_json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
+                return
+            access = legacy_upload_asset_access(parsed.path)
+            is_public_derivative = bool(
+                access
+                and access[1] == "published"
+                and access[0] in {"display", "thumbnail", "square_slice"}
+            )
+            if not is_public_derivative and not self.has_admin_access_silently():
+                self.send_json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
+                return
+            self.path = parsed.path
+            super().do_GET()
+            return
+
         if parsed.path.startswith("/api/"):
+            if parsed.path.startswith("/api/admin/"):
+                allowed, _ = self.require_admin()
+                if allowed:
+                    self.send_json(HTTPStatus.NOT_FOUND, {"error": "Admin API endpoint not found."})
+                return
             self.send_json(HTTPStatus.NOT_FOUND, {"error": "API endpoint not found."})
             return
 
@@ -496,9 +3200,10 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             )
             return
 
-        body = self.read_json_body()
-        if body is None:
+        create_body = self.read_archive_create_body()
+        if create_body is None:
             return
+        body, file_parts = create_body
 
         try:
             image_id = clean_identifier(body.get("id"), "image id")
@@ -527,6 +3232,12 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
 
         original_filename = clean_text(body.get("original_filename"), 512) or payload["title"]
         timestamp = now_iso()
+        try:
+            assets = normalize_archive_assets(body.get("assets"), image_id)
+            square_slices = normalize_archive_square_slices(body.get("square_slices"), image_id, {asset["id"] for asset in assets})
+        except ValueError as error:
+            self.send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+            return
 
         try:
             with sqlite3.connect(ARCHIVE_DB_PATH) as connection:
@@ -581,9 +3292,13 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                         ),
                     )
                     replace_image_tags(connection, image_id, payload["tag_groups"], timestamp)
+                    write_upload_assets(connection, image_id, assets, square_slices, file_parts, timestamp)
 
                 row = connection.execute("SELECT * FROM archive_image_view WHERE id = ?", (image_id,)).fetchone()
-        except sqlite3.Error as error:
+        except ValueError as error:
+            self.send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+            return
+        except sqlite3.Error:
             self.send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "Unable to create image in local archive database."})
             return
 
@@ -591,7 +3306,75 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+        parts = [part for part in parsed.path.split("/") if part]
+        if parsed.path.startswith("/api/auth/") and not self.require_csrf():
+            return
+        if parsed.path == "/api/auth/register":
+            self.handle_auth_register()
+            return
+        if parsed.path == "/api/auth/sign-in":
+            self.handle_auth_sign_in()
+            return
+        if parsed.path == "/api/auth/sign-out":
+            self.handle_auth_sign_out()
+            return
+        if parsed.path == "/api/auth/forgot-password":
+            self.handle_auth_forgot_password()
+            return
+        if parsed.path == "/api/auth/recovery-session":
+            self.handle_auth_callback_session("recovery")
+            return
+        if parsed.path == "/api/auth/verify-email":
+            self.handle_auth_callback_session("signup")
+            return
+        if parsed.path == "/api/auth/reset-password":
+            self.handle_auth_reset_password()
+            return
+        if parsed.path == "/api/auth/mfa/enroll":
+            self.handle_mfa_enroll()
+            return
+        if parsed.path == "/api/auth/mfa/challenge":
+            self.handle_mfa_challenge()
+            return
+        if parsed.path == "/api/auth/mfa/verify":
+            self.handle_mfa_verify()
+            return
+        if parsed.path == "/api/folders":
+            if not self.require_csrf():
+                return
+            self.handle_workspace_folder_create()
+            return
+        if len(parts) == 4 and parts[:2] == ["api", "folders"] and parts[3] == "restore":
+            if not self.require_csrf():
+                return
+            self.handle_workspace_folder_restore(parts[2])
+            return
+        if parsed.path == "/api/uploads/intents":
+            if not self.require_csrf():
+                return
+            self.handle_workspace_upload_intent_create()
+            return
+        if len(parts) == 4 and parts[:2] == ["api", "uploads"] and parts[3] == "complete":
+            if not self.require_csrf():
+                return
+            self.handle_workspace_upload_complete(parts[2])
+            return
+        if len(parts) == 4 and parts[:2] == ["api", "images"] and parts[3] == "restore":
+            if not self.require_csrf():
+                return
+            self.handle_workspace_draft_restore(parts[2])
+            return
+        if len(parts) == 4 and parts[:2] == ["api", "images"] and parts[3] == "submit":
+            if not self.require_csrf():
+                return
+            self.handle_workspace_draft_submit(parts[2])
+            return
         if parsed.path == "/api/archive/images":
+            if not self.require_csrf(require_json=False):
+                return
+            allowed, _ = self.require_admin()
+            if not allowed:
+                return
             self.handle_archive_image_create()
             return
 
@@ -600,8 +3383,62 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
     def do_PATCH(self) -> None:
         parsed = urlparse(self.path)
         parts = [part for part in parsed.path.split("/") if part]
+        if parsed.path == "/api/me/profile":
+            if not self.require_csrf():
+                return
+            self.handle_profile_update()
+            return
+        if len(parts) == 3 and parts[:2] == ["api", "folders"]:
+            if not self.require_csrf():
+                return
+            self.handle_workspace_folder_rename(parts[2])
+            return
+        if len(parts) == 4 and parts[:2] == ["api", "images"] and parts[3] == "draft":
+            if not self.require_csrf():
+                return
+            self.handle_workspace_draft_update(parts[2])
+            return
         if len(parts) == 4 and parts[:3] == ["api", "archive", "images"]:
+            if not self.require_csrf():
+                return
+            allowed, _ = self.require_admin()
+            if not allowed:
+                return
             self.handle_archive_image_update(parts[3])
+            return
+
+        self.send_json(HTTPStatus.NOT_FOUND, {"error": "API endpoint not found."})
+
+    def do_DELETE(self) -> None:
+        parsed = urlparse(self.path)
+        parts = [part for part in parsed.path.split("/") if part]
+        if len(parts) == 4 and parts[:3] == ["api", "me", "sessions"]:
+            if not self.require_csrf():
+                return
+            self.handle_session_revoke(parts[3])
+            return
+        if len(parts) == 3 and parts[:2] == ["api", "folders"]:
+            if not self.require_csrf():
+                return
+            self.handle_workspace_folder_delete(parts[2])
+            return
+        if len(parts) == 3 and parts[:2] == ["api", "uploads"]:
+            if not self.require_csrf():
+                return
+            self.handle_workspace_upload_cancel(parts[2])
+            return
+        if len(parts) == 3 and parts[:2] == ["api", "images"]:
+            if not self.require_csrf():
+                return
+            self.handle_workspace_draft_trash(parts[2])
+            return
+        if len(parts) == 4 and parts[:3] == ["api", "archive", "images"]:
+            if not self.require_csrf(require_json=False):
+                return
+            allowed, _ = self.require_admin()
+            if not allowed:
+                return
+            self.handle_archive_image_delete(parts[3])
             return
 
         self.send_json(HTTPStatus.NOT_FOUND, {"error": "API endpoint not found."})

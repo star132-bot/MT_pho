@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign In | MT Presence</title>
+    <meta name="description" content="Sign in to the private MT Presence image workspace." />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css?v=20260714-account-recovery" />
+  </head>
+  <body class="auth-page">
+    <a class="auth-skip" href="#auth-form">Skip to form</a>
+    <main class="auth-shell">
+      <section class="auth-visual" aria-label="MT Presence">
+        <a class="auth-brand" href="/" aria-label="MT Presence home"><span>MT</span><small>Presence</small></a>
+        <figure>
+          <img src="/assets/art/hero-concrete.jpg" alt="A quiet mountain landscape held in low cloud." />
+          <figcaption>A private workspace for images in progress.</figcaption>
+        </figure>
+      </section>
+
+      <section class="auth-panel" aria-labelledby="auth-title">
+        <div class="auth-panel-inner">
+          <p class="auth-eyebrow">Private Workspace</p>
+          <h1 id="auth-title">Sign in</h1>
+          <p id="auth-intro" class="auth-intro" data-auth-intro>Continue to your images, drafts, and review activity.</p>
+
+          <div class="auth-notice" role="status" aria-live="polite" aria-atomic="true" tabindex="-1" data-auth-notice hidden></div>
+          <a class="auth-open-browser" href="/auth/sign-in" target="_blank" rel="noopener" data-auth-open-browser hidden>Open secure sign-in in a full browser</a>
+
+          <div class="auth-loading" role="status" aria-live="polite" data-auth-loading hidden>
+            <span aria-hidden="true"></span>
+            <p data-auth-loading-copy>Validating your secure link…</p>
+          </div>
+
+          <form id="auth-form" class="auth-form" data-auth-form aria-describedby="auth-intro" novalidate>
+            <label class="auth-field" data-auth-field="display_name" hidden>
+              <span>Display name</span>
+              <input id="auth-display-name" name="display_name" type="text" autocomplete="name" maxlength="120" aria-describedby="auth-display-name-error" />
+              <small id="auth-display-name-error" data-field-error="display_name"></small>
+            </label>
+
+            <label class="auth-field" data-auth-field="email">
+              <span>Email</span>
+              <input id="auth-email" name="email" type="email" autocomplete="email" inputmode="email" required maxlength="320" aria-describedby="auth-email-error" />
+              <small id="auth-email-error" data-field-error="email"></small>
+            </label>
+
+            <label class="auth-field" data-auth-field="password">
+              <span data-password-label>Password</span>
+              <input id="auth-password" name="password" type="password" autocomplete="current-password" required minlength="10" maxlength="256" aria-describedby="auth-password-hint auth-password-error" />
+              <p id="auth-password-hint" class="auth-field-hint" data-password-hint hidden>Use at least 10 characters.</p>
+              <small id="auth-password-error" data-field-error="password"></small>
+            </label>
+
+            <label class="auth-field" data-auth-field="password_confirmation" hidden>
+              <span>Confirm new password</span>
+              <input id="auth-password-confirmation" name="password_confirmation" type="password" autocomplete="new-password" required minlength="10" maxlength="256" aria-describedby="auth-password-confirmation-error" />
+              <small id="auth-password-confirmation-error" data-field-error="password_confirmation"></small>
+            </label>
+
+            <label class="auth-consent" data-auth-field="terms_accepted" hidden>
+              <input name="terms_accepted" type="checkbox" />
+              <span>I accept the Terms and Privacy Policy.</span>
+              <small data-field-error="terms_accepted"></small>
+            </label>
+
+            <button class="auth-submit" type="submit" data-auth-submit>Sign in</button>
+          </form>
+
+          <a class="auth-secondary-link" href="/auth/forgot-password" data-auth-forgot-link>Forgot password?</a>
+
+          <p class="auth-switch">
+            <span data-auth-switch-copy>New to MT Presence?</span>
+            <a href="/auth/register" data-auth-switch-link>Create an account</a>
+          </p>
+          <a class="auth-next-link" href="/auth/sign-in" data-auth-next-link hidden>Return to sign in</a>
+          <a class="auth-public-link" href="/works.html">Return to public Works</a>
+        </div>
+      </section>
+    </main>
+    <script src="/auth.js?v=20260714-account-recovery"></script>
+  </body>
+</html>

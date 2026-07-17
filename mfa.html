@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>Security Verification | MT Presence</title>
+    <meta name="description" content="Complete multi-factor authentication for protected MT Presence administration." />
+    <link rel="stylesheet" href="/styles.css?v=20260714-account-recovery" />
+  </head>
+  <body class="auth-page">
+    <a class="auth-skip" href="#mfa-form">Skip to verification</a>
+    <main class="auth-shell">
+      <section class="auth-visual" aria-label="MT Presence">
+        <a class="auth-brand" href="/" aria-label="MT Presence home"><span>MT</span><small>Presence</small></a>
+        <figure>
+          <img src="/assets/art/hero-concrete.jpg" alt="A quiet mountain landscape held in low cloud." />
+          <figcaption>Protected access for editorial administration.</figcaption>
+        </figure>
+      </section>
+
+      <section class="auth-panel" aria-labelledby="mfa-title">
+        <div class="auth-panel-inner mfa-panel-inner">
+          <p class="auth-eyebrow">Security checkpoint · Step 2 of 2</p>
+          <h1 id="mfa-title">Verify your identity</h1>
+          <p class="auth-intro" data-mfa-intro>Preparing your authenticator setup…</p>
+
+          <div class="auth-notice" role="status" aria-live="polite" tabindex="-1" data-mfa-notice hidden></div>
+
+          <div class="mfa-loading" data-mfa-loading aria-live="polite">
+            <span aria-hidden="true"></span>
+            Checking security factors…
+          </div>
+
+          <section class="mfa-enrollment" data-mfa-enrollment hidden aria-labelledby="mfa-setup-title">
+            <h2 id="mfa-setup-title">Add MT Presence to your authenticator</h2>
+            <ol>
+              <li>Open 1Password, Google Authenticator, Microsoft Authenticator, or Apple Passwords.</li>
+              <li>Scan this QR code, then enter the current 6-digit code below.</li>
+            </ol>
+            <div class="mfa-qr-frame"><img data-mfa-qr alt="Authenticator enrollment QR code" /></div>
+            <details class="mfa-secret">
+              <summary>Can’t scan the code?</summary>
+              <p>Enter this setup key manually. Treat it like a password.</p>
+              <code data-mfa-secret></code>
+            </details>
+          </section>
+
+          <form id="mfa-form" class="auth-form mfa-form" data-mfa-form hidden novalidate>
+            <label class="auth-field">
+              <span>Authentication code</span>
+              <input name="code" type="text" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" required aria-describedby="mfa-code-hint" />
+              <small id="mfa-code-hint">Enter the current 6-digit code.</small>
+            </label>
+            <button class="auth-submit" type="submit" data-mfa-submit>Verify and continue</button>
+          </form>
+
+          <button class="mfa-sign-out" type="button" data-mfa-sign-out>Sign out and use another account</button>
+          <p class="mfa-trust">Your code is verified by Supabase Auth. MT Presence never stores the authenticator secret in its business database.</p>
+        </div>
+      </section>
+    </main>
+    <script src="/mfa.js?v=20260714-account-recovery"></script>
+  </body>
+</html>

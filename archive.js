@@ -340,6 +340,9 @@ const saveOrderButton = document.querySelector("[data-save-order]");
 const arrangeDoneButton = document.querySelector("[data-arrange-done]");
 const arrangeStatus = document.querySelector("[data-arrange-status]");
 const arrangeLive = document.querySelector("[data-arrange-live]");
+const savedFilterButton = document.querySelector("[data-saved-filter]");
+const downloadVisibleButton = document.querySelector("[data-download-visible]");
+const archiveToast = document.querySelector("[data-archive-toast]");
 const workViewer = document.querySelector("[data-work-viewer]");
 const workViewerDialog = document.querySelector("[data-work-viewer-dialog]");
 const viewerImage = document.querySelector("[data-viewer-image]");
@@ -352,15 +355,23 @@ const viewerTags = document.querySelector("[data-viewer-tags]");
 const viewerStatementSection = document.querySelector("[data-viewer-statement-section]");
 const viewerStatementHeading = document.querySelector("[data-viewer-statement-heading]");
 const viewerStatement = document.querySelector("[data-viewer-statement]");
+const viewerRelatedSection = document.querySelector("[data-viewer-related-section]");
+const viewerRelated = document.querySelector("[data-viewer-related]");
 const viewerZoomButton = document.querySelector("[data-viewer-zoom]");
+const viewerInfoButton = document.querySelector("[data-viewer-info-toggle]");
+const viewerInfoPanel = document.querySelector("[data-viewer-info]");
 const viewerPrevButton = document.querySelector("[data-viewer-prev]");
 const viewerNextButton = document.querySelector("[data-viewer-next]");
 const viewerCloseButton = document.querySelector("[data-viewer-close-button]");
+const viewerInquireLink = document.querySelector("[data-viewer-inquire]");
+const lightboxCount = document.querySelector("[data-lightbox-count]");
 
 const ORDER_STORAGE_KEY = "mt-cijian-archive-order-v1";
+const publicArchive = window.MTPresencePublicArchive;
 let activeType = "All";
 let activeRatio = "All";
 let activeSearch = "";
+let showSavedOnly = false;
 let archiveItems = [...sampleItems];
 let archiveDataSource = "local";
 let archiveDb = null;
@@ -376,6 +387,53 @@ let viewerOriginalBodyOverflow = "";
 let viewerOriginalHtmlOverflow = "";
 let viewerOriginalBodyPaddingRight = "";
 let isViewerZoomed = false;
+let archiveToastTimer = null;
+
+function replaceArchiveUrl(changes = {}) {
+  const url = new URL(window.location.href);
+  Object.entries(changes).forEach(([key, value]) => {
+    if (value) {
+      url.searchParams.set(key, value);
+    } else {
+      url.searchParams.delete(key);
+    }
+  });
+  history.replaceState(history.state, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+function hydrateArchiveUrlState() {
+  const params = new URLSearchParams(window.location.search);
+  const requestedType = cleanText(params.get("type")).toLowerCase();
+  const requestedRatio = cleanText(params.get("ratio"));
+  const requestedQuery = cleanText(params.get("q"));
+  const typeMatch = ["Abstract", "Concrete"].find((value) => value.toLowerCase() === requestedType);
+  const ratioMatch = ratioProfiles.find((profile) => profile.label.toLowerCase() === requestedRatio.toLowerCase());
+  activeType = typeMatch || "All";
+  activeRatio = ratioMatch?.label || "All";
+  activeSearch = requestedQuery;
+  if (searchInput) {
+    searchInput.value = activeSearch;
+  }
+}
+
+function readStoredIdSet(key) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || "[]");
+    return new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeStoredIdSet(key, ids) {
+  try {
+    localStorage.setItem(key, JSON.stringify([...ids]));
+  } catch {
+    // Local viewing can continue even when storage is unavailable.
+  }
+}
+
+let lightboxWorkIds = new Set(publicArchive?.readLightboxIds?.() || []);
 
 function readSavedOrder() {
   try {
@@ -476,6 +534,21 @@ function setArchiveDataStatus(message = "", state = "ready") {
   dataStatus.textContent = message;
   dataStatus.hidden = !message;
   dataStatus.dataset.state = state;
+}
+
+function showArchiveToast(message, type = "default") {
+  if (!archiveToast) {
+    return;
+  }
+  window.clearTimeout(archiveToastTimer);
+  archiveToast.textContent = message;
+  archiveToast.dataset.type = type;
+  archiveToast.hidden = false;
+  archiveToast.classList.add("is-visible");
+  archiveToastTimer = window.setTimeout(() => {
+    archiveToast.classList.remove("is-visible");
+    archiveToast.hidden = true;
+  }, 2400);
 }
 
 function ratioCssValue(label) {
@@ -810,6 +883,16 @@ function cleanText(value) {
     return "";
   }
   return String(value).trim();
+}
+
+function slugify(value, fallback = "item") {
+  return (
+    cleanText(value)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 96) || fallback
+  );
 }
 
 function humanizeToken(value) {
@@ -1350,11 +1433,7 @@ function isStoredUpload(item) {
 
 function effectiveArchiveVisibility(item) {
   const record = item?.imageRecord || {};
-  const visibility = cleanText(record.visibility || item?.visibility);
-  if (visibility === "draft" && isStoredUpload(item) && record.visibility_manually_set !== true) {
-    return "published";
-  }
-  return visibility;
+  return cleanText(record.visibility || item?.visibility);
 }
 
 function isPublishedArchiveItem(item) {
@@ -1760,14 +1839,16 @@ function filteredItems() {
   return orderedItems().filter((item) => {
     const typeMatch = activeType === "All" || item.type === activeType;
     const ratioMatch = activeRatio === "All" || item.ratio === activeRatio;
-    return typeMatch && ratioMatch && itemMatchesSearch(item);
+    const savedMatch = !showSavedOnly || lightboxWorkIds.has(item.id);
+    return savedMatch && typeMatch && ratioMatch && itemMatchesSearch(item);
   });
 }
 
 function itemMatchesActiveFilters(item) {
   const typeMatch = activeType === "All" || item.type === activeType;
   const ratioMatch = activeRatio === "All" || item.ratio === activeRatio;
-  return typeMatch && ratioMatch && itemMatchesSearch(item);
+  const savedMatch = !showSavedOnly || lightboxWorkIds.has(item.id);
+  return savedMatch && typeMatch && ratioMatch && itemMatchesSearch(item);
 }
 
 function markOrderChanged(message = "Order changed.") {
@@ -1948,13 +2029,80 @@ function renderViewerTags(groups = []) {
     .join("");
 }
 
+function flatGroupTags(groups = []) {
+  return normalizeTagGroups(groups).flatMap((group) => group.tags.map((tag) => cleanText(tag).toLowerCase()).filter(Boolean));
+}
+
+function relatedWorksFor(item, detail, limit = 4) {
+  const currentTags = new Set(flatGroupTags(detail.tagGroups));
+  return orderedItems()
+    .filter((candidate) => candidate.id !== item.id && isPublishedArchiveItem(candidate) && candidate.src)
+    .map((candidate) => {
+      const candidateDetail = normalizeWorkDetail(candidate);
+      const candidateTags = flatGroupTags(candidateDetail.tagGroups);
+      const tagScore = candidateTags.reduce((score, tag) => score + (currentTags.has(tag) ? 1 : 0), 0);
+      const score =
+        (candidate.type === item.type ? 4 : 0) +
+        (candidate.ratio === item.ratio ? 3 : 0) +
+        (cleanText(candidate.series) && cleanText(candidate.series) === cleanText(item.series) ? 3 : 0) +
+        tagScore;
+      return { candidate, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || (a.candidate.sortOrder || 0) - (b.candidate.sortOrder || 0))
+    .slice(0, limit)
+    .map((entry) => entry.candidate);
+}
+
+function renderViewerRelated(item, detail) {
+  if (!viewerRelatedSection || !viewerRelated) {
+    return;
+  }
+  const related = relatedWorksFor(item, detail);
+  if (!related.length) {
+    viewerRelatedSection.hidden = true;
+    viewerRelated.innerHTML = "";
+    return;
+  }
+  viewerRelatedSection.hidden = false;
+  viewerRelated.innerHTML = related
+    .map(
+      (work) => `
+        <button class="work-viewer-related-item" type="button" data-related-work-id="${escapeHtml(work.id)}">
+          <img src="${escapeHtml(work.src)}" alt="" loading="lazy" decoding="async" />
+          <span>
+            <strong>${escapeHtml(work.title)}</strong>
+            <small>${escapeHtml(work.type)} / ${escapeHtml(work.ratio)}</small>
+          </span>
+        </button>
+      `,
+    )
+    .join("");
+}
+
+function updateViewerActionStates(itemId) {
+  workViewerDialog?.querySelectorAll("[data-viewer-action]").forEach((button) => {
+    const action = button.dataset.viewerAction;
+    const active = action === "lightbox" && lightboxWorkIds.has(itemId);
+    button.classList.toggle("is-active", active);
+    if (action === "lightbox") {
+      button.setAttribute("aria-pressed", String(active));
+      button.dataset.tooltip = active ? "Remove from Lightbox" : "Add to Lightbox";
+      const label = button.querySelector("span");
+      if (label) {
+        label.textContent = active ? "In Lightbox" : "Add to Lightbox";
+      }
+    }
+  });
+}
+
 function setViewerZoom(zoomed) {
   isViewerZoomed = Boolean(zoomed);
   workViewerDialog?.classList.toggle("is-zoomed", isViewerZoomed);
   if (viewerZoomButton) {
     const label = isViewerZoomed ? "Fit image to screen" : "View actual size";
     viewerZoomButton.setAttribute("aria-label", label);
-    viewerZoomButton.setAttribute("title", label);
+    viewerZoomButton.dataset.tooltip = isViewerZoomed ? "Fit screen" : "Actual size";
     const useElement = viewerZoomButton.querySelector("use");
     if (useElement) {
       useElement.setAttribute("href", `#icon-${isViewerZoomed ? "zoom-out" : "zoom-in"}`);
@@ -1962,9 +2110,25 @@ function setViewerZoom(zoomed) {
   }
 }
 
+function setViewerInfoOpen(open) {
+  const isOpen = Boolean(open);
+  workViewerDialog?.classList.toggle("is-info-open", isOpen);
+  if (viewerInfoButton) {
+    const label = isOpen ? "Hide work details" : "Show work details";
+    viewerInfoButton.setAttribute("aria-label", label);
+    viewerInfoButton.dataset.tooltip = isOpen ? "Hide details" : "Details";
+    viewerInfoButton.setAttribute("aria-expanded", String(isOpen));
+    viewerInfoButton.classList.toggle("is-active", isOpen);
+  }
+  if (viewerInfoPanel) {
+    viewerInfoPanel.setAttribute("aria-hidden", String(!isOpen));
+  }
+}
+
 function renderWorkViewer(item, index, items) {
   const detail = normalizeWorkDetail(item);
   setViewerZoom(false);
+  setViewerInfoOpen(false);
   if (workViewerDialog) {
     workViewerDialog.dataset.displayMode = detail.displayMode;
     workViewerDialog.dataset.workType = detail.type;
@@ -2001,6 +2165,11 @@ function renderWorkViewer(item, index, items) {
   if (viewerPosition) {
     viewerPosition.textContent = `${index + 1} / ${items.length}`;
   }
+  updateViewerActionStates(item.id);
+  if (viewerInquireLink) {
+    viewerInquireLink.href = `contact.html?source=work&work=${encodeURIComponent(item.id)}`;
+  }
+  renderViewerRelated(item, detail);
   if (viewerPrevButton) {
     viewerPrevButton.disabled = items.length <= 1;
   }
@@ -2054,6 +2223,7 @@ function openWorkViewer(itemId, triggerElement = null) {
   viewerTriggerElement =
     triggerElement || Array.from(gallery.querySelectorAll("[data-item-id]")).find((element) => element.dataset.itemId === itemId);
   renderWorkViewer(items[index], index, items);
+  replaceArchiveUrl({ work: itemId });
 
   if (workViewer.hidden) {
     workViewer.hidden = false;
@@ -2074,6 +2244,7 @@ function closeWorkViewer({ restoreFocus = true } = {}) {
   }
 
   workViewer.classList.remove("is-open");
+  replaceArchiveUrl({ work: "" });
   clearTimeout(viewerCloseTimer);
   const finishClose = () => {
     workViewer.hidden = true;
@@ -2126,7 +2297,7 @@ function focusableViewerElements() {
     workViewerDialog.querySelectorAll(
       'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
     ),
-  ).filter((element) => !element.hasAttribute("hidden") && element.offsetParent !== null);
+  ).filter((element) => !element.hasAttribute("hidden") && !element.closest('[aria-hidden="true"]') && element.offsetParent !== null);
 }
 
 function trapViewerFocus(event) {
@@ -2155,7 +2326,64 @@ function trapViewerFocus(event) {
   }
 }
 
+function updateSavedFilterButton() {
+  if (savedFilterButton) {
+    savedFilterButton.classList.toggle("is-active", showSavedOnly);
+    savedFilterButton.setAttribute("aria-pressed", String(showSavedOnly));
+    savedFilterButton.setAttribute(
+      "aria-label",
+      showSavedOnly ? `Showing ${lightboxWorkIds.size} lightbox works` : `Lightbox works, ${lightboxWorkIds.size} saved`,
+    );
+  }
+  if (lightboxCount) {
+    lightboxCount.textContent = String(lightboxWorkIds.size);
+  }
+}
+
+function toggleLightboxWork(id, { rerenderGallery = true } = {}) {
+  if (!id) {
+    return false;
+  }
+  const result = publicArchive.toggleLightboxId(id);
+  lightboxWorkIds = new Set(result.ids);
+  showArchiveToast(result.added ? "Added to your lightbox." : "Removed from your lightbox.");
+  updateSavedFilterButton();
+  if (rerenderGallery) {
+    renderGallery();
+  }
+  return result.added;
+}
+
+function downloadWork(item) {
+  if (!item?.src) {
+    showArchiveToast("This work does not have a downloadable image.", "error");
+    return;
+  }
+  const link = document.createElement("a");
+  link.href = item.src;
+  link.download = `${slugify(item.title || item.id || "mt-presence-work", "mt-presence-work")}.jpg`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  showArchiveToast("Download started.");
+}
+
+function handleWorkAction(action, itemId, { rerenderGallery = true } = {}) {
+  const item = archiveItems.find((entry) => entry.id === itemId);
+  if (!item) {
+    return;
+  }
+  if (action === "lightbox") {
+    toggleLightboxWork(itemId, { rerenderGallery });
+    return;
+  }
+  if (action === "download") {
+    downloadWork(item);
+  }
+}
+
 function renderGallery() {
+  gallery.setAttribute("aria-busy", "true");
   const items = filteredItems();
   const total = archiveItems.length;
   const filterParts = [];
@@ -2168,6 +2396,9 @@ function renderGallery() {
   if (activeSearch) {
     filterParts.push(`"${activeSearch}"`);
   }
+  if (showSavedOnly) {
+    filterParts.push("Saved");
+  }
   count.textContent = `${items.length} of ${total} work${total === 1 ? "" : "s"}${filterParts.length ? ` / ${filterParts.join(" + ")}` : ""}`;
   gallery.classList.toggle("is-ratio-filtered", activeRatio !== "All");
   gallery.classList.toggle("is-arranging", isArrangeMode);
@@ -2179,31 +2410,38 @@ function renderGallery() {
     searchInput.value = activeSearch;
   }
   if (emptyState) {
+    emptyState.textContent = showSavedOnly ? "No saved works match this view." : "No works match this search.";
     emptyState.hidden = items.length > 0;
   }
+  updateSavedFilterButton();
 
   gallery.innerHTML = items
-    .map(
-      (item, index) => `
+    .map((item, index) => {
+      const typeLabel = escapeHtml(item.type || "Work");
+      const ratioLabel = escapeHtml(item.ratio || "");
+      const isInLightbox = lightboxWorkIds.has(item.id);
+      return `
         <article
           class="archive-item"
+          style="--item-delay: ${Math.min(index, 14) * 24}ms;"
           data-item-id="${escapeHtml(item.id)}"
           data-type="${escapeHtml(item.type)}"
           data-ratio="${escapeHtml(item.ratio)}"
+          data-lightbox="${String(isInLightbox)}"
           ${isArrangeMode ? 'draggable="true"' : 'role="button" tabindex="0" aria-label="Open work viewer for ' + escapeHtml(item.title) + '"'}
         >
           ${
             isArrangeMode
               ? `
                 <div class="archive-arrange-panel">
-                  <button class="archive-icon-button archive-drag-handle" type="button" aria-label="Drag ${escapeHtml(item.title)} to arrange" title="Drag">
+                  <button class="archive-icon-button archive-drag-handle" type="button" aria-label="Drag ${escapeHtml(item.title)} to arrange" data-tooltip="Drag">
                     ${iconSvg("grip")}
                   </button>
                   <span class="archive-order-number">${index + 1}</span>
-                  <button class="archive-icon-button archive-move-button" type="button" data-move-offset="-1" aria-label="Move ${escapeHtml(item.title)} earlier" title="Move earlier">
+                  <button class="archive-icon-button archive-move-button" type="button" data-move-offset="-1" aria-label="Move ${escapeHtml(item.title)} earlier" data-tooltip="Move earlier">
                     ${iconSvg("arrow-up")}
                   </button>
-                  <button class="archive-icon-button archive-move-button" type="button" data-move-offset="1" aria-label="Move ${escapeHtml(item.title)} later" title="Move later">
+                  <button class="archive-icon-button archive-move-button" type="button" data-move-offset="1" aria-label="Move ${escapeHtml(item.title)} later" data-tooltip="Move later">
                     ${iconSvg("arrow-down")}
                   </button>
                 </div>
@@ -2212,25 +2450,44 @@ function renderGallery() {
           }
           <figure class="archive-image-frame" style="--display-ratio: ${ratioCssValue(item.ratio)};">
             <img src="${escapeHtml(item.src)}" alt="${escapeHtml(item.title)}" loading="lazy" decoding="async" />
-            ${isArrangeMode ? "" : '<span class="archive-view-chip">View</span>'}
+            ${
+              isArrangeMode
+                ? ""
+                : `
+                  <div class="archive-hover-layer">
+                    <div class="archive-hover-brand">MT</div>
+                    <div class="archive-hover-actions">
+                      <button class="archive-hover-icon ${isInLightbox ? "is-active" : ""}" type="button" data-card-action="lightbox" aria-pressed="${String(isInLightbox)}" aria-label="${isInLightbox ? "Remove from lightbox" : "Add to lightbox"}" data-tooltip="${isInLightbox ? "Remove from Lightbox" : "Add to Lightbox"}">
+                        ${iconSvg("bookmark")}
+                      </button>
+                      <button class="archive-hover-icon" type="button" data-card-action="download" aria-label="Download display image" data-tooltip="Download">
+                        ${iconSvg("download")}
+                      </button>
+                    </div>
+                  </div>
+                `
+            }
           </figure>
           <div class="archive-item-meta">
             <h3>${escapeHtml(item.title)}</h3>
             <dl>
               <div>
                 <dt>Type</dt>
-                <dd>${escapeHtml(item.type)}</dd>
+                <dd>${typeLabel}</dd>
               </div>
               <div>
                 <dt>Ratio</dt>
-                <dd>${escapeHtml(item.ratio)}</dd>
+                <dd>${ratioLabel}</dd>
               </div>
             </dl>
           </div>
         </article>
-      `,
-    )
+      `;
+    })
     .join("");
+  window.requestAnimationFrame(() => {
+    gallery.setAttribute("aria-busy", "false");
+  });
   updateArrangeControls();
 }
 
@@ -2250,6 +2507,7 @@ typeFilters.addEventListener("click", (event) => {
 
   activeType = button.dataset.filterType;
   setActiveButton(typeFilters, "data-filter-type", activeType);
+  replaceArchiveUrl({ type: activeType === "All" ? "" : activeType.toLowerCase() });
   renderGallery();
 });
 
@@ -2261,16 +2519,19 @@ ratioFilters.addEventListener("click", (event) => {
 
   activeRatio = button.dataset.filterRatio;
   setActiveButton(ratioFilters, "data-filter-ratio", activeRatio);
+  replaceArchiveUrl({ ratio: activeRatio === "All" ? "" : activeRatio });
   renderGallery();
 });
 
 searchInput?.addEventListener("input", () => {
   activeSearch = cleanText(searchInput.value);
+  replaceArchiveUrl({ q: activeSearch });
   renderGallery();
 });
 
 searchInput?.addEventListener("search", () => {
   activeSearch = cleanText(searchInput.value);
+  replaceArchiveUrl({ q: activeSearch });
   renderGallery();
 });
 
@@ -2280,6 +2541,7 @@ clearSearchButton?.addEventListener("click", () => {
     searchInput.value = "";
     searchInput.focus();
   }
+  replaceArchiveUrl({ q: "" });
   renderGallery();
 });
 
@@ -2312,6 +2574,21 @@ saveOrderButton?.addEventListener("click", async () => {
   }
 });
 
+savedFilterButton?.addEventListener("click", () => {
+  showSavedOnly = !showSavedOnly;
+  showArchiveToast(showSavedOnly ? "Showing lightbox works." : "Showing all works.");
+  renderGallery();
+});
+
+downloadVisibleButton?.addEventListener("click", () => {
+  const [firstVisible] = filteredItems();
+  if (!firstVisible) {
+    showArchiveToast("No visible work is available to download.", "error");
+    return;
+  }
+  downloadWork(firstVisible);
+});
+
 gallery.addEventListener("click", (event) => {
   if (isArrangeMode) {
     const moveButton = event.target.closest("[data-move-offset]");
@@ -2321,6 +2598,13 @@ gallery.addEventListener("click", (event) => {
 
     const item = moveButton.closest("[data-item-id]");
     moveArchiveItemByOffset(item?.dataset.itemId, Number(moveButton.dataset.moveOffset));
+    return;
+  }
+
+  const actionButton = event.target.closest("[data-card-action]");
+  if (actionButton) {
+    const item = actionButton.closest("[data-item-id]");
+    handleWorkAction(actionButton.dataset.cardAction, item?.dataset.itemId);
     return;
   }
 
@@ -2351,6 +2635,32 @@ gallery.addEventListener("keydown", (event) => {
 workViewer?.addEventListener("click", (event) => {
   if (event.target.closest("[data-viewer-close]")) {
     closeWorkViewer();
+    return;
+  }
+
+  const actionButton = event.target.closest("[data-viewer-action]");
+  if (actionButton && viewerCurrentId) {
+    handleWorkAction(actionButton.dataset.viewerAction, viewerCurrentId, { rerenderGallery: true });
+    updateViewerActionStates(viewerCurrentId);
+    return;
+  }
+
+  const relatedButton = event.target.closest("[data-related-work-id]");
+  if (relatedButton) {
+    const nextId = relatedButton.dataset.relatedWorkId;
+    let items = viewerItems();
+    const nextIndex = items.findIndex((item) => item.id === nextId);
+    if (nextIndex >= 0) {
+      viewerCurrentId = nextId;
+      renderWorkViewer(items[nextIndex], nextIndex, items);
+      return;
+    }
+    items = orderedItems().filter((item) => isPublishedArchiveItem(item) && item.src);
+    const allIndex = items.findIndex((item) => item.id === nextId);
+    if (allIndex >= 0) {
+      viewerCurrentId = nextId;
+      renderWorkViewer(items[allIndex], allIndex, items);
+    }
   }
 });
 
@@ -2358,7 +2668,8 @@ viewerCloseButton?.addEventListener("click", () => closeWorkViewer());
 viewerPrevButton?.addEventListener("click", () => moveViewer(-1));
 viewerNextButton?.addEventListener("click", () => moveViewer(1));
 viewerZoomButton?.addEventListener("click", () => setViewerZoom(!isViewerZoomed));
-viewerImage?.addEventListener("click", () => setViewerZoom(!isViewerZoomed));
+viewerInfoButton?.addEventListener("click", () => setViewerInfoOpen(!workViewerDialog?.classList.contains("is-info-open")));
+viewerImage?.addEventListener("click", () => setViewerInfoOpen(false));
 
 document.addEventListener("keydown", (event) => {
   if (!workViewer || workViewer.hidden) {
@@ -2380,6 +2691,12 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "ArrowRight") {
     event.preventDefault();
     moveViewer(1);
+    return;
+  }
+
+  if (event.key.toLowerCase() === "i") {
+    event.preventDefault();
+    setViewerInfoOpen(!workViewerDialog?.classList.contains("is-info-open"));
     return;
   }
 
@@ -2542,7 +2859,7 @@ async function buildUploadedItem(file, task, index) {
     content_type: contentTypeCode(type),
     display_mode: displayModeForType(type),
     exif,
-    visibility: "published",
+    visibility: "draft",
     visibility_manually_set: false,
     sort_order: 0,
     captured_at: normalizeCapturedDate(exif.datetime_original || exif.datetime),
@@ -2619,6 +2936,7 @@ uploadInput?.addEventListener("change", async (event) => {
 
 async function initArchive() {
   setArchiveDataStatus("Loading archive.", "loading");
+  hydrateArchiveUrlState();
   let storedItems = [];
 
   try {
@@ -2656,10 +2974,32 @@ async function initArchive() {
     .map(reviveStoredItem)
     .sort((a, b) => b.createdAt - a.createdAt);
 
-  archiveItems = applySavedSortOrders([...uploadedItems, ...mergedBaseItems].filter(isPublishedArchiveItem));
+  archiveItems = applySavedSortOrders([...mergedBaseItems, ...uploadedItems].filter(isPublishedArchiveItem));
   normalizeSortOrders();
 
+  setActiveButton(typeFilters, "data-filter-type", activeType);
+  setActiveButton(ratioFilters, "data-filter-ratio", activeRatio);
   renderGallery();
+  const requestedWorkId = new URLSearchParams(window.location.search).get("work");
+  if (requestedWorkId) {
+    openWorkViewer(requestedWorkId);
+  }
 }
+
+window.addEventListener("mt:lightbox-change", (event) => {
+  lightboxWorkIds = new Set(event.detail?.ids || publicArchive.readLightboxIds());
+  renderGallery();
+  if (viewerCurrentId) {
+    updateViewerActionStates(viewerCurrentId);
+  }
+});
+
+window.addEventListener("storage", (event) => {
+  if (event.key !== publicArchive.LIGHTBOX_STORAGE_KEY) {
+    return;
+  }
+  lightboxWorkIds = new Set(publicArchive.readLightboxIds());
+  renderGallery();
+});
 
 initArchive();

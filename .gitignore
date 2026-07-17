@@ -1,8 +1,11 @@
 .DS_Store
 .env
 .env.*
+!.env.example
+!.env.worker.example
 
 node_modules/
+.venv*/
 dist/
 build/
 coverage/
@@ -16,6 +19,7 @@ scripts/__pycache__/
 
 tmp/
 shots/
+assets/uploads/
 .browser-profiles/
 project-development-guardrails/
 skills/

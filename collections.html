@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Series | MT Presence</title>
+    <meta name="description" content="Photography series by MT Presence, sequenced as sustained studies of weather, surface, and distance." />
+    <link rel="stylesheet" href="styles.css?v=20260713-public-architecture" />
+  </head>
+  <body class="public-page series-page">
+    <header class="site-header archive-header" aria-label="Primary navigation">
+      <a class="brand-mark" href="index.html" aria-label="Back to home"><span>MT</span><span>Presence</span></a>
+      <nav class="site-nav" aria-label="Page navigation">
+        <a href="works.html">Works</a>
+        <a href="collections.html" aria-current="page">Series</a>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+        <a href="lightbox.html">Lightbox</a>
+      </nav>
+    </header>
+
+    <main class="public-shell series-main">
+      <section class="series-intro" aria-labelledby="series-title">
+        <div>
+          <p class="section-kicker">Photographic Projects</p>
+          <h1 id="series-title">Series</h1>
+        </div>
+        <p>Works gathered through place, repetition, and time. Each sequence is arranged by the artist rather than by format or category.</p>
+      </section>
+
+      <section class="series-index" data-series-index aria-label="Photography series">
+        <div class="series-toolbar">
+          <div class="series-filters" data-series-filters aria-label="Filter series by status">
+            <button class="is-active" type="button" data-series-filter="all" aria-pressed="true">All</button>
+            <button type="button" data-series-filter="ongoing" aria-pressed="false">Ongoing</button>
+            <button type="button" data-series-filter="completed" aria-pressed="false">Completed</button>
+          </div>
+          <p data-series-count aria-live="polite">Loading series.</p>
+        </div>
+        <p class="archive-data-status" data-series-status role="status" aria-live="polite">Loading archive.</p>
+        <div class="series-grid" data-series-grid aria-busy="true"></div>
+        <div class="series-empty" data-series-empty hidden><h2>No public series are available.</h2><a href="works.html">Browse Works</a></div>
+      </section>
+
+      <section class="series-detail" data-series-detail hidden aria-labelledby="series-detail-title">
+        <a class="series-back-link" href="collections.html" data-series-back>Back to Series</a>
+        <header class="series-detail-header">
+          <div>
+            <p class="section-kicker" data-series-detail-meta></p>
+            <h1 id="series-detail-title" data-series-detail-title></h1>
+          </div>
+          <div class="series-detail-statement">
+            <p data-series-detail-synopsis></p>
+            <p data-series-detail-statement></p>
+            <a class="button button-secondary" data-series-inquire href="contact.html?source=series">Inquire About This Series</a>
+          </div>
+        </header>
+        <div class="series-work-grid" data-series-work-grid aria-label="Works in this series"></div>
+        <nav class="series-next" aria-label="Series navigation" data-series-next></nav>
+      </section>
+    </main>
+
+    <script src="archive-data.js?v=20260610-works-viewer-editor"></script>
+    <script src="public-archive.js?v=20260713-public-architecture"></script>
+    <script src="series-data.js?v=20260713-public-architecture"></script>
+    <script src="collections.js?v=20260713-public-series"></script>
+  </body>
+</html>

@@ -1,0 +1,477 @@
+const pageLoading = document.querySelector("[data-account-loading]");
+const pageContent = document.querySelector("[data-account-content]");
+const pageNotice = document.querySelector("[data-account-notice]");
+const liveRegion = document.querySelector("[data-account-live]");
+const accountSummary = document.querySelector("[data-account-summary]");
+const profileForm = document.querySelector("[data-profile-form]");
+const preferencesForm = document.querySelector("[data-preferences-form]");
+const profileSubmit = document.querySelector("[data-profile-submit]");
+const preferencesSubmit = document.querySelector("[data-preferences-submit]");
+const profileSaveState = document.querySelector("[data-profile-save-state]");
+const preferencesSaveState = document.querySelector("[data-preferences-save-state]");
+const sessionLoading = document.querySelector("[data-session-loading]");
+const sessionList = document.querySelector("[data-session-list]");
+const sessionNote = document.querySelector("[data-session-note]");
+const sessionActions = document.querySelector("[data-session-actions]");
+const signOutCurrent = document.querySelector("[data-sign-out-current]");
+const dialog = document.querySelector("[data-account-dialog]");
+const dialogForm = document.querySelector("[data-dialog-form]");
+const dialogTitle = document.querySelector("[data-dialog-title]");
+const dialogDescription = document.querySelector("[data-dialog-description]");
+const dialogNotice = document.querySelector("[data-dialog-notice]");
+const dialogCancel = document.querySelector("[data-dialog-cancel]");
+const dialogConfirm = document.querySelector("[data-dialog-confirm]");
+
+const PROFILE_NAMES = ["display_name", "bio", "website_url", "country_code"];
+const PREFERENCE_NAMES = ["preferred_locale", "timezone", "copyright_name", "default_license_preference"];
+
+let csrfTokenPromise = null;
+let accountData = null;
+let sessionAction = "";
+let dialogTrigger = null;
+let dialogBusy = false;
+const formSnapshots = new WeakMap();
+
+function redirectForAuth(error) {
+  if (error.status === 401) {
+    window.location.assign("/auth/sign-in?next=%2Fsettings%2Faccount");
+    return true;
+  }
+  if (error.status === 403 && error.code === "MFA_REQUIRED") {
+    window.location.assign("/auth/mfa?next=%2Fsettings%2Faccount");
+    return true;
+  }
+  if (error.status === 403 && error.code === "RECOVERY_SESSION_RESTRICTED") {
+    window.location.assign("/auth/reset-password");
+    return true;
+  }
+  return false;
+}
+
+async function csrfToken(force = false) {
+  if (force) csrfTokenPromise = null;
+  if (!csrfTokenPromise) {
+    csrfTokenPromise = fetch("/api/auth/csrf", {
+      method: "GET",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    }).then(async (response) => {
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.csrf_token) throw new Error("Unable to initialize security verification.");
+      return result.csrf_token;
+    });
+  }
+  return csrfTokenPromise;
+}
+
+async function accountRequest(path, options = {}, retryCsrf = true) {
+  const method = String(options.method || "GET").toUpperCase();
+  const headers = { Accept: "application/json", ...(options.headers || {}) };
+  if (!["GET", "HEAD"].includes(method)) {
+    headers["Content-Type"] = "application/json";
+    headers["X-CSRF-Token"] = await csrfToken();
+  }
+  const response = await fetch(path, {
+    credentials: "same-origin",
+    cache: "no-store",
+    ...options,
+    method,
+    headers,
+  });
+  const result = await response.json().catch(() => ({}));
+  if (response.status === 403 && result.error?.code === "CSRF_REJECTED" && retryCsrf) {
+    await csrfToken(true);
+    return accountRequest(path, options, false);
+  }
+  if (!response.ok) {
+    const error = new Error(result.error?.message || "Unable to complete this account request.");
+    error.status = response.status;
+    error.code = result.error?.code || "ACCOUNT_REQUEST_FAILED";
+    error.fieldErrors = result.error?.field_errors || {};
+    throw error;
+  }
+  return result;
+}
+
+function showNotice(message, kind = "error", retry = null) {
+  pageNotice.replaceChildren(document.createTextNode(message));
+  pageNotice.className = `account-page-notice is-${kind}`;
+  pageNotice.hidden = false;
+  if (retry) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "Retry";
+    button.addEventListener("click", retry, { once: true });
+    pageNotice.append(" ", button);
+  }
+  pageNotice.focus();
+}
+
+function hideNotice() {
+  pageNotice.hidden = true;
+  pageNotice.replaceChildren();
+}
+
+function announce(message) {
+  liveRegion.textContent = "";
+  window.setTimeout(() => { liveRegion.textContent = message; }, 20);
+}
+
+function initials(value) {
+  const words = String(value || "MT").trim().split(/\s+/).filter(Boolean);
+  return words.slice(0, 2).map((word) => word[0]?.toUpperCase() || "").join("") || "MT";
+}
+
+function addSelectValue(select, value) {
+  if (!value || Array.from(select.options).some((option) => option.value === value)) return;
+  select.add(new Option(value, value));
+}
+
+function renderAccountChrome(result) {
+  const profile = result.profile || {};
+  const account = result.account || {};
+  document.querySelector("[data-account-initials]").textContent = initials(profile.display_name);
+  document.querySelector("[data-account-display-name]").textContent = profile.display_name || "Member";
+  document.querySelector("[data-account-email]").textContent = account.email || "";
+  document.querySelector("[data-account-status]").textContent = `${String(account.account_status || "active").replaceAll("_", " ")} account`;
+
+  document.querySelector("[data-security-email]").textContent = account.email || "";
+  document.querySelector("[data-security-email-state]").textContent = account.email_verified ? "Verified email" : "Verification pending";
+  const roles = Array.isArray(account.roles) ? account.roles : [];
+  const primaryRole = roles.includes("super_admin") ? "Super Admin" : roles.includes("admin") ? "Administrator" : roles.includes("reviewer") ? "Reviewer" : "Member";
+  document.querySelector("[data-security-role]").textContent = primaryRole;
+  document.querySelector("[data-security-status]").textContent = `${String(account.account_status || "active").replaceAll("_", " ")} account`;
+  const isAal2 = account.aal === "aal2";
+  document.querySelector("[data-security-aal]").textContent = isAal2 ? "MFA-verified session" : "Standard session";
+  document.querySelector("[data-security-aal-detail]").textContent = isAal2 ? "Authenticator verification is active" : "Password-protected access";
+
+  const showAdmin = roles.some((role) => ["reviewer", "admin", "super_admin"].includes(role));
+  document.querySelectorAll("[data-admin-only]").forEach((link) => { link.hidden = !showAdmin; });
+}
+
+function populateAccount(result) {
+  accountData = result;
+  const profile = result.profile || {};
+
+  profileForm.elements.display_name.value = profile.display_name || "";
+  profileForm.elements.bio.value = profile.bio || "";
+  profileForm.elements.website_url.value = profile.website_url || "";
+  profileForm.elements.country_code.value = profile.country_code || "";
+
+  preferencesForm.elements.preferred_locale.value = profile.preferred_locale || "en";
+  addSelectValue(preferencesForm.elements.timezone, profile.timezone);
+  preferencesForm.elements.timezone.value = profile.timezone || "UTC";
+  preferencesForm.elements.copyright_name.value = profile.copyright_name || "";
+  preferencesForm.elements.default_license_preference.value = profile.default_license_preference || "";
+
+  renderAccountChrome(result);
+
+  accountSummary.hidden = false;
+  pageContent.hidden = false;
+  pageLoading.hidden = true;
+  rememberForm(profileForm, PROFILE_NAMES);
+  rememberForm(preferencesForm, PREFERENCE_NAMES);
+}
+
+function formPayload(form, names) {
+  const payload = {};
+  names.forEach((name) => {
+    let value = form.elements[name].value.trim();
+    if (name === "country_code") value = value.toUpperCase();
+    payload[name] = value;
+  });
+  return payload;
+}
+
+function signature(form, names) {
+  return JSON.stringify(formPayload(form, names));
+}
+
+function formStateElements(form) {
+  return form === profileForm
+    ? { names: PROFILE_NAMES, submit: profileSubmit, status: profileSaveState, label: "profile" }
+    : { names: PREFERENCE_NAMES, submit: preferencesSubmit, status: preferencesSaveState, label: "preferences" };
+}
+
+function rememberForm(form, names) {
+  formSnapshots.set(form, signature(form, names));
+  updateFormDirtyState(form);
+}
+
+function isFormDirty(form) {
+  const { names } = formStateElements(form);
+  const snapshot = formSnapshots.get(form);
+  return snapshot !== undefined && signature(form, names) !== snapshot;
+}
+
+function updateFormDirtyState(form) {
+  const { submit, status } = formStateElements(form);
+  const dirty = isFormDirty(form);
+  submit.disabled = !dirty;
+  status.textContent = dirty ? "Unsaved changes." : "No unsaved changes.";
+}
+
+function clearFieldErrors(form) {
+  form.querySelectorAll("[aria-invalid='true']").forEach((field) => field.removeAttribute("aria-invalid"));
+  form.querySelectorAll("[data-field-error]").forEach((element) => { element.textContent = ""; });
+}
+
+function applyFieldErrors(form, fieldErrors) {
+  Object.entries(fieldErrors || {}).forEach(([name, message]) => {
+    const field = form.elements[name];
+    const error = form.querySelector(`[data-field-error="${CSS.escape(name)}"]`);
+    if (field) field.setAttribute("aria-invalid", "true");
+    if (error) error.textContent = message;
+  });
+  const firstInvalid = form.querySelector("[aria-invalid='true']");
+  if (firstInvalid) firstInvalid.focus();
+}
+
+async function saveForm(form) {
+  const { names, submit, status, label } = formStateElements(form);
+  clearFieldErrors(form);
+  if (!form.reportValidity()) return;
+  submit.disabled = true;
+  submit.textContent = "Saving…";
+  form.setAttribute("aria-busy", "true");
+  status.textContent = "Saving securely…";
+  hideNotice();
+  let saved = false;
+  try {
+    const result = await accountRequest("/api/me/profile", {
+      method: "PATCH",
+      body: JSON.stringify(formPayload(form, names)),
+    });
+    accountData.profile = { ...accountData.profile, ...(result.profile || {}) };
+    names.forEach((name) => {
+      form.elements[name].value = accountData.profile[name] || "";
+    });
+    renderAccountChrome(accountData);
+    rememberForm(form, names);
+    saved = true;
+    announce(`${label === "profile" ? "Profile" : "Preferences"} saved.`);
+  } catch (error) {
+    if (redirectForAuth(error)) return;
+    applyFieldErrors(form, error.fieldErrors);
+    status.textContent = "Changes were not saved.";
+    if (!Object.keys(error.fieldErrors || {}).length) showNotice(error.message);
+  } finally {
+    form.removeAttribute("aria-busy");
+    submit.textContent = label === "profile" ? "Save profile" : "Save preferences";
+    updateFormDirtyState(form);
+    if (saved) status.textContent = "Saved just now.";
+  }
+}
+
+function formatExpiry(value) {
+  if (!value) return "Expiry managed by your authentication provider";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Expiry managed by your authentication provider";
+  return `Access renews before ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date)}`;
+}
+
+function renderSessions(result) {
+  sessionList.replaceChildren();
+  const sessions = Array.isArray(result.sessions) ? result.sessions : [];
+  sessions.forEach((session) => {
+    const item = document.createElement("li");
+    const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    icon.setAttribute("class", "ui-icon");
+    icon.setAttribute("aria-hidden", "true");
+    const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    use.setAttribute("href", "#icon-monitor");
+    icon.append(use);
+
+    const copy = document.createElement("span");
+    copy.className = "account-session-copy";
+    const title = document.createElement("strong");
+    title.textContent = `${session.browser || "Browser"} on ${session.operating_system || session.device || "this device"}`;
+    const detail = document.createElement("span");
+    detail.textContent = `${session.device || "Current device"} · Active now · ${String(session.aal || "aal1").toUpperCase()}`;
+    const expiry = document.createElement("small");
+    expiry.textContent = formatExpiry(session.expires_at);
+    copy.append(title, detail, expiry);
+
+    const current = document.createElement("span");
+    current.className = "account-session-current";
+    current.textContent = "Current session";
+    item.append(icon, copy, current);
+    sessionList.append(item);
+  });
+  if (!sessions.length) {
+    const item = document.createElement("li");
+    item.className = "account-session-empty";
+    item.textContent = "The current session could not be described.";
+    sessionList.append(item);
+  }
+  sessionLoading.hidden = true;
+  sessionList.hidden = false;
+  sessionNote.hidden = false;
+  sessionActions.hidden = false;
+}
+
+async function loadSessions() {
+  sessionLoading.hidden = false;
+  sessionList.hidden = true;
+  sessionNote.hidden = true;
+  sessionActions.hidden = true;
+  try {
+    renderSessions(await accountRequest("/api/me/sessions"));
+  } catch (error) {
+    if (redirectForAuth(error)) return;
+    sessionLoading.hidden = true;
+    sessionList.hidden = false;
+    sessionList.replaceChildren();
+    const item = document.createElement("li");
+    item.className = "account-session-empty";
+    item.textContent = error.message;
+    sessionList.append(item);
+  }
+}
+
+async function loadAccount() {
+  hideNotice();
+  pageLoading.hidden = false;
+  pageContent.hidden = true;
+  accountSummary.hidden = true;
+  try {
+    const result = await accountRequest("/api/me/profile");
+    populateAccount(result);
+    await loadSessions();
+  } catch (error) {
+    if (redirectForAuth(error)) return;
+    pageLoading.hidden = true;
+    showNotice(error.message, "error", loadAccount);
+  }
+}
+
+function dialogCopy(target) {
+  if (target === "all") {
+    return {
+      title: "Sign out all devices?",
+      description: "This browser and every other device will lose refresh access. You will need to sign in again before opening your Workspace.",
+      confirm: "Sign out all devices",
+    };
+  }
+  return {
+    title: "Sign out other devices?",
+    description: "Every other device will lose refresh access. This current browser will remain signed in.",
+    confirm: "Sign out other devices",
+  };
+}
+
+function openSessionDialog(target, trigger) {
+  sessionAction = target;
+  dialogTrigger = trigger;
+  const copy = dialogCopy(target);
+  dialogTitle.textContent = copy.title;
+  dialogDescription.textContent = copy.description;
+  dialogConfirm.textContent = copy.confirm;
+  dialogNotice.hidden = true;
+  dialogNotice.textContent = "";
+  dialog.showModal();
+  window.setTimeout(() => dialogCancel.focus(), 0);
+}
+
+async function revokeSessions() {
+  if (!sessionAction || dialogBusy) return;
+  dialogBusy = true;
+  dialogCancel.disabled = true;
+  dialogConfirm.disabled = true;
+  const originalLabel = dialogConfirm.textContent;
+  dialogConfirm.textContent = "Signing out…";
+  dialogNotice.hidden = true;
+  try {
+    const result = await accountRequest(`/api/me/sessions/${sessionAction}`, {
+      method: "DELETE",
+      body: JSON.stringify({ confirmation: `sign-out-${sessionAction}` }),
+    });
+    dialog.close();
+    if (result.signed_out) {
+      window.location.assign("/auth/sign-in");
+      return;
+    }
+    showNotice(result.message || "Other device sessions were revoked.", "success");
+    announce("Other devices signed out.");
+    await loadSessions();
+  } catch (error) {
+    if (redirectForAuth(error)) return;
+    dialogNotice.textContent = error.message;
+    dialogNotice.hidden = false;
+    dialogNotice.focus?.();
+  } finally {
+    dialogBusy = false;
+    dialogCancel.disabled = false;
+    dialogConfirm.disabled = false;
+    dialogConfirm.textContent = originalLabel;
+  }
+}
+
+profileForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  saveForm(profileForm);
+});
+
+preferencesForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  saveForm(preferencesForm);
+});
+
+[profileForm, preferencesForm].forEach((form) => {
+  form.addEventListener("input", () => updateFormDirtyState(form));
+  form.addEventListener("change", () => updateFormDirtyState(form));
+});
+
+profileForm.elements.country_code.addEventListener("input", (event) => {
+  event.target.value = event.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2);
+});
+
+document.querySelectorAll("[data-session-action]").forEach((button) => {
+  button.addEventListener("click", () => openSessionDialog(button.dataset.sessionAction, button));
+});
+
+signOutCurrent.addEventListener("click", async () => {
+  signOutCurrent.disabled = true;
+  signOutCurrent.textContent = "Signing out…";
+  try {
+    await accountRequest("/api/auth/sign-out", { method: "POST", body: JSON.stringify({}) });
+  } finally {
+    window.location.assign("/auth/sign-in");
+  }
+});
+
+dialogForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  revokeSessions();
+});
+
+dialogCancel.addEventListener("click", () => {
+  if (!dialogBusy) dialog.close();
+});
+
+dialog.addEventListener("cancel", (event) => {
+  if (dialogBusy) event.preventDefault();
+});
+
+dialog.addEventListener("close", () => {
+  sessionAction = "";
+  const trigger = dialogTrigger;
+  dialogTrigger = null;
+  if (trigger && document.contains(trigger)) trigger.focus();
+});
+
+document.querySelectorAll(".account-settings-index a").forEach((link) => {
+  link.addEventListener("click", () => {
+    document.querySelectorAll(".account-settings-index a").forEach((item) => item.removeAttribute("aria-current"));
+    link.setAttribute("aria-current", "location");
+  });
+});
+
+window.addEventListener("beforeunload", (event) => {
+  if (!isFormDirty(profileForm) && !isFormDirty(preferencesForm)) return;
+  event.preventDefault();
+  event.returnValue = "";
+});
+
+loadAccount();

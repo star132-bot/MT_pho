@@ -8,17 +8,39 @@
       name="description"
       content="Contact MT Presence for collection inquiries, exhibitions, commissions, or licensing."
     />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="styles.css?v=20260716-universal-rail" />
   </head>
-  <body class="contact-page">
+  <body class="contact-page public-page public-rail-page">
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-home" viewBox="0 0 24 24"><path d="m3 10.5 9-7.5 9 7.5" /><path d="M5 9v12h14V9" /><path d="M9 21v-7h6v7" /></symbol>
+      <symbol id="icon-photo" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1.5" /><path d="m7 15 3.2-3.2a1.3 1.3 0 0 1 1.8 0L16 16" /><path d="m14 14 1.1-1.1a1.3 1.3 0 0 1 1.8 0L21 17" /><circle cx="8.5" cy="9.2" r="1.2" /></symbol>
+      <symbol id="icon-folder" viewBox="0 0 24 24"><path d="M3 6.8h6l2 2.4h10v8.6a1.7 1.7 0 0 1-1.7 1.7H4.7A1.7 1.7 0 0 1 3 17.8z" /><path d="M3 8.8v-3a1.3 1.3 0 0 1 1.3-1.3h5.1l2 2.2" /></symbol>
+      <symbol id="icon-bookmark" viewBox="0 0 24 24"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.8L6 21z" /></symbol>
+      <symbol id="icon-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" /><path d="M4.5 21a7.5 7.5 0 0 1 15 0" /></symbol>
+      <symbol id="icon-mail" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13" rx="1.8" /><path d="m4.5 7 7.5 6 7.5-6" /></symbol>
+    </svg>
+    <aside class="archive-rail public-site-rail" aria-label="Site navigation">
+      <a class="archive-rail-brand" href="index.html" aria-label="MT Presence home">MT</a>
+      <nav class="archive-rail-nav" aria-label="Photography navigation">
+        <a class="archive-rail-button" href="index.html" aria-label="Home"><svg class="ui-icon" aria-hidden="true"><use href="#icon-home"></use></svg><span class="archive-rail-copy">Home</span></a>
+        <a class="archive-rail-button" href="works.html" aria-label="Works Archive"><svg class="ui-icon" aria-hidden="true"><use href="#icon-photo"></use></svg><span class="archive-rail-copy">Works</span></a>
+        <a class="archive-rail-button" href="/workspace/images" aria-label="Upload images"><svg class="ui-icon" aria-hidden="true"><use href="#icon-folder"></use></svg><span class="archive-rail-copy">Upload</span></a>
+        <a class="archive-rail-button" href="lightbox.html" aria-label="Open lightbox"><svg class="ui-icon" aria-hidden="true"><use href="#icon-bookmark"></use></svg><span class="archive-rail-copy">Lightbox</span></a>
+        <a class="archive-rail-button" href="about.html" aria-label="About the artist"><svg class="ui-icon" aria-hidden="true"><use href="#icon-user"></use></svg><span class="archive-rail-copy">About</span></a>
+      </nav>
+      <div class="archive-rail-footer"><a class="archive-rail-button is-active" href="contact.html" aria-label="Contact artist" aria-current="page"><svg class="ui-icon" aria-hidden="true"><use href="#icon-mail"></use></svg><span class="archive-rail-copy">Contact</span></a></div>
+    </aside>
     <header class="site-header archive-header" aria-label="Primary navigation">
       <a class="brand-mark" href="index.html" aria-label="Back to home">
         <span>MT</span>
         <span>Presence</span>
       </a>
       <nav class="site-nav" aria-label="Page navigation">
-        <a href="index.html">Home</a>
         <a href="works.html">Works</a>
+        <a href="about.html">About</a>
+        <a href="contact.html" aria-current="page">Contact</a>
+        <a href="lightbox.html">Lightbox</a>
       </nav>
     </header>
 
@@ -28,29 +50,79 @@
           <div class="section-kicker">Contact</div>
           <h1 id="contact-page-title">Contact Artist</h1>
           <p class="contact-page-lede">
-            For collection inquiries, exhibitions, commissions, licensing, or quiet notes about the work.
+            For exhibitions, editorial projects, licensing, print inquiries, and considered commissions.
           </p>
           <div class="contact-page-art" aria-hidden="true"></div>
         </div>
 
         <form class="contact-form contact-page-form" data-contact-form novalidate>
           <div class="form-field">
-            <label for="contact-name">Name <span>Optional</span></label>
-            <input id="contact-name" name="sender_name" type="text" autocomplete="name" maxlength="120" placeholder="Your name" />
+            <label for="contact-name">Name</label>
+            <input id="contact-name" name="sender_name" type="text" autocomplete="name" maxlength="120" placeholder="Your name" aria-describedby="contact-name-error" required />
+            <p id="contact-name-error" class="field-error" data-error-for="sender_name"></p>
           </div>
           <div class="form-field">
             <label for="contact-email">Email</label>
-            <input id="contact-email" name="sender_email" type="email" autocomplete="email" maxlength="180" placeholder="you@example.com" required />
-            <p class="field-error" data-error-for="sender_email"></p>
+            <input
+              id="contact-email"
+              name="sender_email"
+              type="email"
+              autocomplete="email"
+              maxlength="180"
+              placeholder="you@example.com"
+              aria-describedby="contact-email-error"
+              required
+            />
+            <p id="contact-email-error" class="field-error" data-error-for="sender_email"></p>
           </div>
           <div class="form-field">
-            <label for="contact-subject">Subject <span>Optional</span></label>
-            <input id="contact-subject" name="subject" type="text" maxlength="180" placeholder="Inquiry, commission, exhibition..." />
+            <label for="contact-inquiry-type">Inquiry Type</label>
+            <select id="contact-inquiry-type" name="inquiry_type" required aria-describedby="contact-inquiry-type-error">
+              <option value="">Select an inquiry type</option>
+              <option value="exhibition">Exhibition</option>
+              <option value="editorial">Editorial</option>
+              <option value="licensing">Licensing</option>
+              <option value="print">Print</option>
+              <option value="commission">Commission</option>
+              <option value="other">Other</option>
+            </select>
+            <p id="contact-inquiry-type-error" class="field-error" data-error-for="inquiry_type"></p>
           </div>
           <div class="form-field">
-            <label for="contact-message">Note</label>
-            <textarea id="contact-message" name="message" rows="5" maxlength="5000" placeholder="Write your note here." required></textarea>
-            <p class="field-error" data-error-for="message"></p>
+            <label for="contact-organization">Organization <span>Optional</span></label>
+            <input id="contact-organization" name="organization" type="text" autocomplete="organization" maxlength="180" placeholder="Studio, gallery, publication..." />
+          </div>
+          <div class="form-field">
+            <label for="contact-project-use">Project / Intended Use</label>
+            <input id="contact-project-use" name="project_use" type="text" maxlength="280" placeholder="How would you like to work with the images?" aria-describedby="contact-project-use-error" required />
+            <p id="contact-project-use-error" class="field-error" data-error-for="project_use"></p>
+          </div>
+          <div class="contact-form-row">
+            <div class="form-field">
+              <label for="contact-timeline">Timeline <span>Optional</span></label>
+              <input id="contact-timeline" name="timeline" type="text" maxlength="120" placeholder="Month or date range" />
+            </div>
+            <div class="form-field" data-budget-field hidden>
+              <label for="contact-budget">Budget Range <span>Optional</span></label>
+              <input id="contact-budget" name="budget_range" type="text" maxlength="120" placeholder="Expected range" />
+            </div>
+          </div>
+          <section class="contact-context" data-contact-context hidden aria-labelledby="contact-context-title">
+            <div class="contact-context-heading"><h2 id="contact-context-title">Selected Works</h2><span data-contact-context-source></span></div>
+            <div class="contact-context-list" data-contact-context-list></div>
+          </section>
+          <div class="form-field">
+            <label for="contact-message">Message</label>
+            <textarea
+              id="contact-message"
+              name="message"
+              rows="5"
+              maxlength="5000"
+              placeholder="Share the context, scope, and any details that would help begin the conversation."
+              aria-describedby="contact-message-error"
+              required
+            ></textarea>
+            <p id="contact-message-error" class="field-error" data-error-for="message"></p>
           </div>
           <p class="contact-privacy">This opens your email app; no local inquiry is stored.</p>
           <button class="button button-primary contact-submit" type="submit" data-contact-submit>Open Email Draft</button>
@@ -59,6 +131,8 @@
     </main>
 
     <div class="contact-toast" role="status" aria-live="polite" data-contact-toast></div>
-    <script src="contact.js?v=20260614-mailto"></script>
+    <script src="archive-data.js?v=20260610-works-viewer-editor"></script>
+    <script src="public-archive.js?v=20260713-public-architecture"></script>
+    <script src="contact.js?v=20260713-inquiry-context"></script>
   </body>
 </html>

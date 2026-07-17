@@ -2,9 +2,9 @@
 
 ## 当前状态
 
-作品档案数据库暂缓接入。当前项目继续使用静态页面、本地图片资源和浏览器 IndexedDB；不要下载 MySQL，也不要在现在执行 `database/schema.sql`。
+Phase 2A-2F 已把账户 owner-scoped Folder、Upload Intent、Draft、Version、Asset metadata、可靠取消/清理、private Supabase Storage、权威 readiness、Submit transaction 与可信 asset scanner 接入当前 development boundary。公开 Works 与 legacy Review Center 仍使用本地 SQLite/sample；不要下载 MySQL，也不要执行历史 `database/schema.sql` 作为当前 production baseline。
 
-`server.py` 提供本地静态文件服务，并提供 `GET /api/archive/images` 端点用于从 `data/archive.db` 的 `archive_image_view` 读取已发布作品，以及 `PATCH /api/archive/images/{id}` 端点用于把内部管理页对既有 seed 作品的 metadata 和标签写回 SQLite。Contact 页面使用 `mailto:` 打开访客邮件客户端，不保存本地消息，也不提供消息中心。
+`server.py` 同时维护两条明确分离的边界：`/api/folders`、`/api/uploads/*`、`/api/images*` 是 Supabase Workspace/Submit；`/api/archive/images*` 是 Admin+AAL2 legacy SQLite Review/public prototype。Upload Studio 只使用前者；`manage.html` 尚未读取 Supabase `review_submissions`。Contact 页面使用 `mailto:`，不保存本地消息。
 
 当前新增了一个本地 SQLite 验证库，不作为生产后端，也不改变页面数据源：
 
@@ -12,9 +12,10 @@
 - `scripts/seed_local_archive_db.py`：从 `archive-data.js` 读取 27 张本地 sample 图片，写入 `data/archive.db`。
 - `scripts/validate_local_archive_db.py`：创建临时 SQLite 数据库，运行 seed，并验证表/视图、外键、数据量、多版本资产、标签 JSON、比例分类、展示 URL fallback 和本地资源路径。
 - `.github/workflows/database.yml`：在 pull request、`main`/`master` push 和手动触发时运行本地数据库验证。
-- `server.py`：读取 `data/archive.db` 并通过 `GET /api/archive/images` 返回 `archive_image_view` 中 `visibility = 'published'` 的作品；支持 `type`、`ratio` 和 `limit` 查询参数；`PATCH /api/archive/images/{id}` 更新既有图片的标题、说明、系列、可见性、排序和标签关系。
+- `server.py`：读取 `data/archive.db` 并通过 `GET /api/archive/images` 返回 `archive_image_view` 中 `visibility = 'published'` 且有 `image_url` 的作品；支持 `type`、`ratio`、`limit` 和调试用 `include_missing_assets` 查询参数；multipart `POST /api/archive/images` 保存上传资产到 ignored `assets/uploads/` 并写入 `images`、`image_assets`、`image_square_slices` 和标签关系；`PATCH /api/archive/images/{id}` 更新既有图片的标题、说明、系列、可见性、排序和标签关系；`DELETE /api/archive/images/{id}` 只删除 upload 来源作品并清理本地上传文件夹。
 - `archive.js`：公开 Works 页面启动时优先读取 `/api/archive/images`，失败或无结果时回退到本地 sample/IndexedDB。
-- `manage.js`：保存已有 seed 作品时同步调用 `PATCH /api/archive/images/{id}`，写入 `images`、`image_tags` 和 `image_taggings`；上传图和首页设置仍保存到 IndexedDB 过渡层。
+- `upload-studio.js`：个人上传平台；通过 signed URL 写入三个 private Storage bucket，完成/保存/readiness/Submit/Trash 走 Supabase RPC-backed API，IndexedDB 仅为离线只读 cache。
+- `manage.js`：保存已有 seed 作品时同步调用 legacy SQLite API；首页设置仍在 IndexedDB 过渡层，dirty signature 只比较可编辑字段；当前不消费 Supabase submissions。
 - `data/archive.db`：本地生成文件，已被 `.gitignore` 忽略；包含 `images`、`image_assets`、`image_tags`、`image_taggings`、`collections`、`collection_images` 和 `archive_image_view`。
 
 生成命令：
@@ -33,7 +34,7 @@ python3 scripts/validate_local_archive_db.py
 
 ## 目标
 
-项目完工后，MT Presence 的数据库可用于保存作者作品档案的服务端版本，替代当前 `archive.js` 中的浏览器 IndexedDB 本地存储。图片数据库只保存图片元数据、分类结果、对象存储路径和分析记录；真实图片文件应放在对象存储中，例如 Supabase Storage、S3 或自建文件服务。
+当前 Supabase 已保存私人 Draft，并能权威计算 readiness、创建 immutable submission snapshots 和锁定 submitted workflow；剩余目标是把 Admin Review Queue/decision、Publish、公开 Works、sample/import 和首页精选迁移到同一 production boundary。关系数据库保存 metadata、状态和对象 key，真实图片文件保存在 Supabase Storage。
 
 核心要求：
 
@@ -58,7 +59,7 @@ python3 scripts/validate_local_archive_db.py
 
 Archive 页面展示时读取 `archive_image_view.image_url`。该字段优先使用 `display` 的 URL，没有 `display` 时才 fallback 到 `original`。`thumbnail` 只用于列表和后台，不作为作品主展示图。`images.original_width` / `images.original_height` 永远来自 `original`，不能被压缩后的 `display` 尺寸覆盖。
 
-当前静态原型在内部 `manage.html` 中用 IndexedDB 模拟这套对象存储模型：每张上传图保存 `imageRecord`、`assets[]` 和 `squareSlices[]`，其中 `assets[]` 字段对齐 `image_assets`，`squareSlices[]` 对齐 `image_square_slices`。内部上传默认写成 `published`，方便作者保存后立刻到公开 `works.html` 检查；作者仍可在 Manage 页把 visibility 改成 `draft`、`private` 或 `archived`，公开页面只读取已发布作品。未来接 API 时，把这些本地对象上传到对象存储并批量写入数据库即可。
+当前 Upload Studio 在浏览器生成 `original`、`display`、`thumbnail`，服务端创建 `{auth.uid}/{image_id}/{kind}.{ext}` signed destination，浏览器直传 private Storage，再由 complete RPC 创建 Draft/version/asset rows。Folder/Draft/readiness/Submit 以 PostgreSQL 为 authority，IndexedDB 只缓存最近成功响应。上传永远不会直接 published；成功 Submit 只进入 `submitted`，Admin Review/Publish 尚未接入。真实 asset 初始 `scan_status=pending`，Phase 2F 独立 worker 通过仅授予 service_role 的 leased RPC 读取并验证 private object，只有三个资产都以当前 policy 明确 `clean` 才允许 Submit；当前没有 user quota/capacity policy。Trash 是 soft delete，restore RPC/API 已有而页面待实现。
 
 ## 文件
 
@@ -68,9 +69,13 @@ Archive 页面展示时读取 `archive_image_view.image_url`。该字段优先�
 - `scripts/validate_local_archive_db.py`：本地和 CI 共用的数据库验收脚本；运行 seed 后检查 SQLite integrity/foreign key、核心表和 `archive_image_view`、published 数量、三类资产、URL fallback、标签 JSON、比例 code 和本地图片路径。
 - `.github/workflows/database.yml`：数据库检查工作流；安装 Python 3.11 和 Node 20 后执行 `python3 scripts/validate_local_archive_db.py`。
 - `archive-upload.js`：当前内部上传的本地处理管线，输出可迁移到 `images`、`image_assets` 和 `image_square_slices` 的对象。
-- `manage.js`：当前前端本地模型写入来源；已有 seed 作品的 metadata/tag 保存会同步到本地 SQLite API，上传图、图片资产二进制和首页设置仍保存在 IndexedDB 过渡层；项目完工后再考虑把全部写入逻辑改为生产 API。
+- `upload-studio.js`：当前个人 Draft/Submit 客户端；signed upload、Folder、Draft、readiness、Submit、Trash 走 Supabase API，IndexedDB 仅为离线只读 cache。
+- `manage.js`：当前 legacy Review Center metadata 写入来源；已有 seed 作品保存到本地 SQLite，首页设置保存在 IndexedDB；尚未读取 Supabase `review_submissions`。
 - `archive.js`：当前公开 Works 读取模型来源；优先读取本地只读 API 的 published 作品，失败时使用 sample/IndexedDB fallback，写入仍停留在浏览器本地过渡层。
-- `server.py`：当前本地静态服务器；提供 `GET /api/archive/images` 作品读取端点和 `PATCH /api/archive/images/{id}` 既有作品 metadata/tag 写入端点，不提供消息 API、上传 API 或图片文件写入 API。
+- `server.py`：本地静态服务器；除 legacy Archive API 外，提供受保护的 Supabase Folder/upload/Draft/readiness/Submit 边界，对 readiness/error/submission response 做 allowlist 清洗；不提供消息 API。
+- `database/migrations/20260716_workspace_submit_readiness.sql`：Phase 2E 增量；增加 submission UUID/readiness/asset snapshots 和 immutability guards，安装五项 readiness 与 versioned Submit RPC，收紧 submission table/Storage delete 权限，并把 workflow、notification、audit 写入同一事务。
+- `database/migrations/20260717_workspace_asset_scanner.sql`：Phase 2F 增量；新增 restricted leased jobs、append-only events、INSERT enqueue trigger、SKIP LOCKED claim、token-bound retry/complete、attempt exhaustion、Storage object/观察值校验、scan notification/audit，并只向 service_role 授予三条 RPC 的 EXECUTE。
+- `workers/scan_adapters.py` / `workers/image_scanner.py` / `workers/image_probe.py`：不进入 Web 进程的 trusted scanner；使用隔离的高权限 secret 下载 private object，拒绝 redirect 并核对 size/checksum/magic；ClamAV 与 Pillow 在无凭据子进程中执行，完整 decode/EXIF-oriented dimensions 受 time/resource limit 约束，明确区分 terminal failure 与 transient retry。
 
 ## 数据表
 
@@ -272,21 +277,30 @@ ORDER BY ci.sort_order ASC, ci.created_at ASC;
 
 ## API 边界
 
-当前本地接口：
+当前 legacy SQLite 接口：
 
 - `GET /api/archive/images`：读取 `data/archive.db` 的 `archive_image_view`，只返回 `visibility = 'published'` 的作品。
 - 可选查询参数：`type=abstract|concrete`、`ratio=four_to_three|4:3|panorama`、`limit=1..1000`。
 - 如果 `data/archive.db` 不存在，返回 `503` 和 seed 提示；`works.html` 会显示状态并回退到本地 sample 数据。
+- `POST /api/archive/images`：创建新上传作品；请求为 multipart，`metadata` 字段包含 `images` metadata、`assets[]` 和 `square_slices[]`，每个文件字段名为 `asset:{asset_id}`；服务端保存文件到 ignored `assets/uploads/{image_id}/`，写入 `image_assets` / `image_square_slices`，并通过 `archive_image_view` 返回可展示 URL。
 - `PATCH /api/archive/images/{id}`：只更新既有 `images` 行的 `title`、`description`、`curatorial_note`、`artist_statement`、`series`、`captured_at`、`content_type`、`display_mode`、`visibility`、`sort_order`，并替换该图片的 `image_taggings` 关系；不会创建图片、不会写入 `image_assets`、不会接收文件。
-- `PATCH` 会强制校验 `abstract -> black_white`、`concrete -> color`；`manage.js` 对 seed 作品调用该端点，上传图则继续只保存到 IndexedDB。
+- `DELETE /api/archive/images/{id}`：只删除 `source_type = 'upload'` 的作品；SQLite 外键级联移除 `image_assets`、`image_square_slices`、`image_taggings` 和 `collection_images`，服务端同时删除 `assets/uploads/{image_id}/` 本地文件夹；内置 sample 作品返回 `403`。
+- legacy `POST`/`PATCH` 强制校验 `abstract -> black_white`、`concrete -> color`；Upload Studio 不再调用这些接口。
 
-后续生产服务端建议提供这些接口：
+当前 Phase 2A-2F Workspace 接口：
 
-- `GET /api/images?type=abstract&ratio=four_to_three`
-- `POST /api/images/upload-intent`
-- `POST /api/images`
-- `POST /api/images/:id/analyze`
-- `GET /api/collections/homepage-selected`
+- `GET|POST /api/folders` 与 `PATCH|DELETE /api/folders/{id}`
+- `POST /api/uploads/intents`、`DELETE /api/uploads/{id}` 与 `POST /api/uploads/{id}/complete`
+- `GET /api/images?workflow_status=draft`
+- `GET /api/images/{id}/readiness`
+- `PATCH /api/images/{id}/draft`、`DELETE /api/images/{id}` 与 restore endpoint
+- `POST /api/images/{id}/submit`，body 精确包含 `confirmation=submit-for-review`、current `expected_version` 与 UUID `idempotency_key`
+
+Scanner 内部 RPC 不经过浏览器或 `server.py`，只接受 Supabase service-role/secret 身份：
+
+- `scanner_claim_asset_scan(worker_id, lease_seconds)`：领取一个 allowlisted job snapshot 与短期 lease token；并发 worker 使用 `SKIP LOCKED`。
+- `scanner_retry_asset_scan(asset_id, lease_token, error_code, retry_after_seconds)`：仅当前未过期 token 可安排有界重试，达到 attempt 上限后 terminal failed。
+- `scanner_complete_asset_scan(asset_id, lease_token, result)`：只接受固定字段和固定 outcome/result code，重新锁定并核对 asset 与 Storage object；same-token retry 幂等，旧 token 被拒绝。
 
 前端不应该直接拼对象存储路径；应读取 `archive_image_view.image_url` 或 API 返回的签名 URL。
 
@@ -294,21 +308,23 @@ ORDER BY ci.sort_order ASC, ci.created_at ASC;
 
 ## 权限建议
 
-如果使用 Supabase：
+Supabase 当前规则：
 
 - 公开页面只能读取 `visibility = 'published'` 的图片和集合。
 - 作者后台可以读取自己的 `draft/private/published` 图片。
-- 上传、修改、删除只能由作者或管理员执行。
-- 对象存储 bucket 建议拆成 `originals` 和 `public-display`，原图默认不公开，展示图可公开或走签名 URL。
+- Workspace 写入只能由 active owner 通过 validated RPC 执行；Admin/Super Admin 还需要 AAL2。
+- private bucket 已拆成 `image-originals`、`image-display`、`image-thumbnails`；Draft 读取使用签名 URL，原图不公开。
+- authenticated 不能直接 INSERT/UPDATE/DELETE `review_submissions`；Submit RPC 才能创建 submission 并锁定版本。Owner 只可删除尚未登记为 `image_assets` 的临时 Storage object，registered object 留给受控 retention worker。
+- Submit transaction 在 image/version/asset/object 锁下重新计算五项 readiness，保存 readiness/asset snapshot，更新 workflow/version，并原子写 notification 和 append-only audit。
 
 ## 后续接入顺序
 
-以下步骤暂缓，等页面、作品展示、上传体验和后台需求稳定后再执行：
+当前进度与后续顺序：
 
 1. 当前已完成本地读取连接：`server.py` 读取 `data/archive.db`，`works.html` / `archive.js` 优先消费 `/api/archive/images`。
 2. 当前已完成本地既有作品 metadata/tag 写入连接：`manage.js` 保存 seed 作品时调用 `PATCH /api/archive/images/{id}`。
-3. 后续接生产时，先执行 `database/schema.sql` 创建表。
-4. 建一个上传 API，把当前 `archive.js` / `manage.js` 的上传文件和资产写入改为服务端写入。
-5. 把 `sampleItems` 导入 `images`、`image_assets` 和一个 `archive-featured` collection。
-6. 把 Archive 页面读取切换到生产 `archive_image_view` 或同形状 API 返回值。
-7. 再接真实 AI 视觉模型，替换当前 `classifyContent()` 的文件名关键词逻辑。
+3. 已完成 `database/product_schema.sql` + Phase 1 RLS/Auth + Phase 2A-2F ordered Workspace migrations 的当前 development boundary。
+4. 已完成 owner-scoped signed upload、Folder、Draft edit/list、soft-delete Trash、双并发 Retry/Cancel/Remove、partial-object cleanup、五项 readiness、idempotent Submit transaction，以及独立 trusted scanner 的 leased/retry/clean/flagged/failed 代码与数据库状态机；development 常驻 Worker 仍需 provision scanner secret 与 ClamAV 后才会自动消费当前 queued jobs。
+5. 下一步把 legacy `manage.html` 拆出的 Admin Review Queue/Detail 接到 Supabase `review_submissions`，让真实 submitted record 可以被领取、查看和决策。
+6. 后续补 scheduled orphan repair、user quota/rate limit 与 TUS，再实现 Review decisions/Publish 和 published-only production DTO/public delivery。
+7. 最后迁移 `sampleItems`、首页精选、真实 AI 分析与仍被产品确认需要的 square slice/tag 能力。

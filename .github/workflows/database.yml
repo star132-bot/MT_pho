@@ -27,5 +27,38 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Install trusted scanner dependencies
+        run: python3 -m pip install --disable-pip-version-check --require-hashes -r requirements-scanner.txt
+
+      - name: Validate scanner environment template
+        run: |
+          set -a
+          source .env.worker.example
+          set +a
+          test "$MT_SCANNER_CLAMAV_COMMAND" = "clamdscan --fdpass --no-summary"
+
       - name: Seed and validate local archive database
         run: python3 scripts/validate_local_archive_db.py
+
+      - name: Validate product and Supabase security contracts
+        run: |
+          python3 scripts/validate_product_phase0.py
+          python3 scripts/validate_auth_foundation.py
+          python3 scripts/validate_supabase_phase1_rls.py
+          python3 scripts/validate_workspace_phase2.py
+          python3 scripts/validate_workspace_asset_scanner.py
+
+      - name: Validate protected browser script syntax
+        run: |
+          node --check auth.js
+          node --check mfa.js
+          node --check account-settings.js
+          node --check upload-studio.js
+          node --check manage.js
+
+      - name: Exercise local Auth security boundary
+        run: |
+          python3 scripts/test_auth_security_boundary.py
+          python3 scripts/test_workspace_phase2_boundary.py
+          python3 scripts/test_workspace_asset_scanner.py
+          python3 scripts/test_supabase_deploy_script.py

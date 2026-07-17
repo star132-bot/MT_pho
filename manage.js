@@ -3,6 +3,42 @@ const DB_VERSION = 4;
 const DB_STORE = "images";
 const SETTINGS_STORE = "site_settings";
 const ARCHIVE_API_URL = "/api/archive/images";
+let archiveCsrfTokenPromise = null;
+
+async function archiveCsrfToken(force = false) {
+  if (force) archiveCsrfTokenPromise = null;
+  if (!archiveCsrfTokenPromise) {
+    archiveCsrfTokenPromise = fetch("/api/auth/csrf", {
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    }).then(async (response) => {
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.csrf_token) throw new Error("Unable to initialize secure archive access.");
+      return result.csrf_token;
+    });
+  }
+  return archiveCsrfTokenPromise;
+}
+
+async function archiveMutationFetch(url, options = {}, retryCsrf = true) {
+  const headers = { ...(options.headers || {}), "X-CSRF-Token": await archiveCsrfToken() };
+  const response = await fetch(url, {
+    credentials: "same-origin",
+    cache: "no-store",
+    ...options,
+    headers,
+  });
+  if (response.status === 403 && retryCsrf) {
+    const result = await response.clone().json().catch(() => ({}));
+    if (result.error?.code === "CSRF_REJECTED") {
+      await archiveCsrfToken(true);
+      return archiveMutationFetch(url, options, false);
+    }
+  }
+  return response;
+}
+
 const LOCAL_STORAGE_BUCKET = "indexeddb-local";
 const ORDER_STORAGE_KEY = "mt-cijian-archive-order-v1";
 const HOME_SETTINGS_ID = "homepage";
@@ -44,7 +80,15 @@ const deleteImageButton = document.querySelector("[data-delete-image]");
 const saveButton = document.querySelector("[data-save-record]");
 const saveAllButton = document.querySelector("[data-save-all-records]");
 const revertButton = document.querySelector("[data-revert-record]");
+const approveButton = document.querySelector("[data-approve-record]");
+const approveLabel = document.querySelector("[data-approve-label]");
 const tagGroupsEditor = document.querySelector("[data-tag-groups-editor]");
+const reviewStatusElement = document.querySelector("[data-review-status]");
+const reviewChecksElement = document.querySelector("[data-review-checks]");
+const reviewFilterButtons = Array.from(document.querySelectorAll("[data-review-filter]"));
+const reviewCountElements = new Map(
+  Array.from(document.querySelectorAll("[data-review-count]"), (element) => [element.dataset.reviewCount, element]),
+);
 const liveRegion = document.querySelector("[data-manage-live]");
 const confirmDialog = document.querySelector("[data-confirm-dialog]");
 const confirmTitle = document.querySelector("[data-confirm-title]");
@@ -59,6 +103,7 @@ let currentConfirm = null;
 let isRenderingForm = false;
 let isRenderingHomeForm = false;
 let uploadTasks = [];
+let currentReviewFilter = "all";
 let homeSettings = null;
 let savedHomeSettings = null;
 let homeSettingsSignature = "";
@@ -438,6 +483,124 @@ function tagRowsFromGroups(imageId, groups = []) {
   return rows;
 }
 
+function hasRenderableAsset(record) {
+  const imageRecord = record.imageRecord || {};
+  return Boolean(
+    record.image_url ||
+      record.thumbnail_url ||
+      record.src ||
+      imageRecord.image_url ||
+      imageRecord.thumbnail_url ||
+      imageRecord.display_url ||
+      (record.assets || []).some((asset) => asset.public_url || asset.signed_url || asset.blob || asset.storage_path),
+  );
+}
+
+function reviewChecklist(record) {
+  const imageRecord = record.imageRecord || {};
+  const groups = tagGroupsForRecord(record);
+  return [
+    {
+      key: "title",
+      label: "Title",
+      passed: Boolean(cleanText(imageRecord.title || record.title)),
+    },
+    {
+      key: "viewer_text",
+      label: "Viewer text",
+      passed: Boolean(cleanText(imageRecord.curatorial_note || record.curatorial_note) || cleanText(imageRecord.description || record.description)),
+    },
+    {
+      key: "tags",
+      label: "Tags",
+      passed: flatTagsFromGroups(groups).length > 0,
+    },
+    {
+      key: "asset",
+      label: "Display asset",
+      passed: hasRenderableAsset(record),
+    },
+  ];
+}
+
+function reviewState(record) {
+  const imageRecord = record.imageRecord || {};
+  const visibility = imageRecord.visibility || "draft";
+  const checks = reviewChecklist(record);
+  const missing = checks.filter((check) => !check.passed);
+  const isPublished = visibility === "published";
+  const isDirty = dirtyRecordIds.has(record.id);
+  const needsReview = isDirty || missing.length > 0 || !isPublished;
+  const tone = isDirty ? "dirty" : missing.length ? "attention" : isPublished ? "published" : "draft";
+  const label = isDirty
+    ? "Unsaved review"
+    : missing.length
+      ? "Needs details"
+      : isPublished
+        ? "Approved"
+        : "Ready to approve";
+  return {
+    checks,
+    missing,
+    visibility,
+    isPublished,
+    isDirty,
+    needsReview,
+    tone,
+    label,
+  };
+}
+
+function reviewMatchesFilter(record, filter = currentReviewFilter) {
+  const state = reviewState(record);
+  if (filter === "attention") {
+    return state.needsReview;
+  }
+  if (filter === "draft") {
+    return !state.isPublished;
+  }
+  if (filter === "published") {
+    return state.isPublished;
+  }
+  return true;
+}
+
+function filteredRecords() {
+  return records.filter((record) => reviewMatchesFilter(record));
+}
+
+function reviewCounts() {
+  return records.reduce(
+    (counts, record) => {
+      const state = reviewState(record);
+      counts.all += 1;
+      if (state.needsReview) {
+        counts.attention += 1;
+      }
+      if (!state.isPublished) {
+        counts.draft += 1;
+      }
+      if (state.isPublished) {
+        counts.published += 1;
+      }
+      return counts;
+    },
+    { all: 0, attention: 0, draft: 0, published: 0 },
+  );
+}
+
+function renderReviewSummary() {
+  const counts = reviewCounts();
+  reviewCountElements.forEach((element, key) => {
+    element.textContent = String(counts[key] || 0);
+  });
+  reviewFilterButtons.forEach((button) => {
+    const isActive = button.dataset.reviewFilter === currentReviewFilter;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+}
+
 function visibilityLabel(value) {
   return titleCase(value || "draft");
 }
@@ -448,10 +611,7 @@ function isUploadRecordShape(item, rawRecord = item?.imageRecord || {}) {
 
 function effectiveVisibility(item, rawRecord = item?.imageRecord || {}) {
   const visibility = cleanText(rawRecord.visibility || item?.visibility);
-  if (visibility === "draft" && isUploadRecordShape(item, rawRecord) && rawRecord.visibility_manually_set !== true) {
-    return "published";
-  }
-  return visibility || (isUploadRecordShape(item, rawRecord) ? "published" : "draft");
+  return visibility || "draft";
 }
 
 function nowIso() {
@@ -587,13 +747,31 @@ function normalizeHomepageSettings(raw = null) {
   };
 }
 
-function homepageSignature(settings) {
+function homepageEditableSnapshot(settings) {
   const normalized = normalizeHomepageSettings(settings);
-  return stableStringify({
-    hero: normalized.hero,
-    statement: normalized.statement,
-    database_shape: normalized.database_shape,
+  const heroSnapshot = (hero) => ({
+    image_id: hero.image_id,
+    eyebrow: hero.eyebrow,
+    title: hero.title,
+    statement: hero.statement,
   });
+  return {
+    hero: {
+      abstract: heroSnapshot(normalized.hero.abstract),
+      concrete: heroSnapshot(normalized.hero.concrete),
+    },
+    statement: {
+      title: normalized.statement.title,
+      moments: normalized.statement.moments.map((moment) => ({
+        image_id: moment.image_id,
+        text: moment.text,
+      })),
+    },
+  };
+}
+
+function homepageSignature(settings) {
+  return stableStringify(homepageEditableSnapshot(settings));
 }
 
 function createdAtIso(value) {
@@ -713,7 +891,24 @@ function archiveApiCreatePayload(record) {
     ratio_category_code: imageRecord.ratio_category_code || ratioCategoryCode(record.ratio),
     original_filename: imageRecord.original_filename || record.title,
     exif: imageRecord.exif || {},
+    assets: (record.assets || []).map(({ blob, objectUrl, ...asset }) => asset),
+    square_slices: record.squareSlices || [],
   };
+}
+
+function archiveApiCreateBody(record) {
+  const payload = archiveApiCreatePayload(record);
+  const formData = new FormData();
+  formData.append("metadata", JSON.stringify(payload));
+  (record.assets || []).forEach((asset) => {
+    if (!asset?.blob) {
+      return;
+    }
+    const fallbackName = `${asset.kind || "asset"}-${asset.id || record.id}.jpg`;
+    const fileName = (asset.storage_path || fallbackName).split("/").pop() || fallbackName;
+    formData.append(`asset:${asset.id}`, asset.blob, fileName);
+  });
+  return formData;
 }
 
 async function syncArchiveApiRecord(record, isNewUpload = false) {
@@ -725,14 +920,19 @@ async function syncArchiveApiRecord(record, isNewUpload = false) {
   const method = isNewUpload && isUploadRecord ? "POST" : "PATCH";
   const url = method === "POST" ? ARCHIVE_API_URL : `${ARCHIVE_API_URL}/${encodeURIComponent(record.id)}`;
   const payload = method === "POST" ? archiveApiCreatePayload(record) : archiveApiUpdatePayload(record);
+  const body = method === "POST" ? archiveApiCreateBody(record) : JSON.stringify(payload);
+  const headers =
+    method === "POST"
+      ? { Accept: "application/json" }
+      : {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        };
 
-  const response = await fetch(url, {
+  const response = await archiveMutationFetch(url, {
     method,
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+    headers,
+    body,
   });
 
   if (response.status === 404 || response.status === 503) {
@@ -1313,6 +1513,7 @@ function setBusy(isBusy, state = "") {
     saveButton,
     saveAllButton,
     revertButton,
+    approveButton,
     clearContentButton,
     deleteImageButton,
     refreshButton,
@@ -1331,7 +1532,16 @@ function setBusy(isBusy, state = "") {
 
 function updateCount() {
   const dirtyCount = dirtyRecordIds.size;
-  countElement.textContent = `${records.length} work${records.length === 1 ? "" : "s"}${dirtyCount ? ` / ${dirtyCount} unsaved` : ""}`;
+  const visibleCount = filteredRecords().length;
+  const filterLabel =
+    {
+      all: "all",
+      attention: "needs review",
+      draft: "unpublished",
+      published: "published",
+    }[currentReviewFilter] || "all";
+  countElement.textContent = `${visibleCount} of ${records.length} ${filterLabel}${dirtyCount ? ` / ${dirtyCount} unsaved` : ""}`;
+  renderReviewSummary();
 }
 
 function updateHomePreview(settings = homeSettings) {
@@ -1403,11 +1613,13 @@ function statusHasContent(record) {
 }
 
 function renderListItem(record) {
+  const review = reviewState(record);
   const button = document.createElement("button");
   button.className = "manage-list-item";
   button.type = "button";
   button.dataset.recordId = record.id;
   button.dataset.visibility = record.imageRecord.visibility || "draft";
+  button.dataset.review = review.tone;
   button.classList.toggle("is-active", record.id === activeRecordId);
   button.classList.toggle("is-dirty", dirtyRecordIds.has(record.id));
   button.setAttribute("aria-pressed", String(record.id === activeRecordId));
@@ -1419,7 +1631,9 @@ function renderListItem(record) {
   thumb.decoding = "async";
 
   const copy = createElement("div", "manage-list-copy");
-  copy.append(createElement("strong", "", record.title));
+  const titleRow = createElement("div", "manage-list-title-row");
+  titleRow.append(createElement("strong", "", record.title), createElement("span", `manage-review-pill is-${review.tone}`, review.label));
+  copy.append(titleRow);
 
   const meta = createElement("dl", "manage-list-meta");
   [
@@ -1428,7 +1642,7 @@ function renderListItem(record) {
     ["Size", `${record.width} x ${record.height}`],
     [
       "Status",
-      `${visibilityLabel(record.imageRecord.visibility)} / ${statusHasContent(record) ? "Content" : "No content"}${
+      `${visibilityLabel(review.visibility)} / ${review.missing.length ? `${review.missing.length} missing` : "Ready"}${
         dirtyRecordIds.has(record.id) ? " / Unsaved" : ""
       }`,
     ],
@@ -1450,6 +1664,7 @@ function renderListItem(record) {
 function renderList() {
   listElement.replaceChildren();
   updateCount();
+  const visibleRecords = filteredRecords();
 
   if (!records.length) {
     const empty = createElement("div", "manage-list-empty");
@@ -1461,7 +1676,14 @@ function renderList() {
     return;
   }
 
-  records.forEach((record) => {
+  if (!visibleRecords.length) {
+    const empty = createElement("div", "manage-list-empty");
+    empty.append(createElement("strong", "", "No records in this review view."), createElement("p", "", "Switch to All records to see the complete archive."));
+    listElement.append(empty);
+    return;
+  }
+
+  visibleRecords.forEach((record) => {
     listElement.append(renderListItem(record));
   });
 }
@@ -1642,6 +1864,11 @@ function updateListItem(record) {
     renderList();
     return;
   }
+  if (!reviewMatchesFilter(record)) {
+    renderList();
+    updateActiveListState();
+    return;
+  }
   const currentItem = listElement.querySelector(`[data-record-id="${CSS.escape(record.id)}"]`);
   if (!currentItem) {
     renderList();
@@ -1680,6 +1907,30 @@ function renderSchemaSummary(record) {
     const chip = createElement("span", "", `${label}: ${value}`);
     recordSchema.append(chip);
   });
+}
+
+function renderReviewPanel(record) {
+  if (!reviewStatusElement || !reviewChecksElement) {
+    return;
+  }
+  const state = reviewState(record);
+  reviewStatusElement.replaceChildren();
+  const badge = createElement("span", `manage-review-badge is-${state.tone}`, state.label);
+  const detailText = state.missing.length
+    ? `Missing ${state.missing.map((check) => check.label).join(", ")}`
+    : state.isPublished
+      ? "Visible in the public Works archive."
+      : "Ready for final approval.";
+  reviewStatusElement.append(badge, createElement("span", "manage-review-detail", detailText));
+
+  reviewChecksElement.replaceChildren(
+    ...state.checks.map((check) => {
+      const item = createElement("li", "", "");
+      item.dataset.state = check.passed ? "passed" : "missing";
+      item.append(createElement("span", "", check.label), createElement("strong", "", check.passed ? "Ready" : "Missing"));
+      return item;
+    }),
+  );
 }
 
 function renderTagGroupsEditor(record) {
@@ -1729,6 +1980,22 @@ function updateEditorActions() {
   if (saveAllButton) {
     saveAllButton.disabled = dirtyRecordIds.size === 0;
   }
+  if (approveButton) {
+    approveButton.disabled = !record;
+    const state = record ? reviewState(record) : null;
+    approveButton.dataset.state = state?.tone || "";
+    approveButton.title = state?.missing?.length ? `Missing: ${state.missing.map((check) => check.label).join(", ")}` : "";
+  }
+  if (approveLabel) {
+    const state = record ? reviewState(record) : null;
+    approveLabel.textContent = !state
+      ? "Approve & Publish"
+      : state.missing.length
+        ? "Review Required"
+        : state.isPublished && !state.isDirty
+          ? "Approved"
+          : "Approve & Publish";
+  }
   if (clearContentButton) {
     clearContentButton.disabled = !record;
   }
@@ -1773,6 +2040,8 @@ function renderEditor() {
   formElement.hidden = !record;
 
   if (!record) {
+    reviewStatusElement?.replaceChildren();
+    reviewChecksElement?.replaceChildren();
     updateEditorActions();
     return;
   }
@@ -1792,6 +2061,7 @@ function renderEditor() {
     metaTerm("Slices", `${record.squareSlices.length}`),
   );
   renderSchemaSummary(record);
+  renderReviewPanel(record);
 
   formElement.elements.title.value = imageRecord.title || "";
   formElement.elements.description.value = imageRecord.description || "";
@@ -1934,6 +2204,40 @@ async function saveActiveRecord() {
     return;
   }
   await saveRecordById(record.id);
+}
+
+async function approveActiveRecord() {
+  const record = activeRecord();
+  if (!record) {
+    return;
+  }
+
+  syncActiveFormToRecord();
+  const currentRecord = activeRecord();
+  const missingChecks = reviewChecklist(currentRecord).filter((check) => !check.passed);
+  if (missingChecks.length) {
+    const message = `Complete required checks before publishing: ${missingChecks.map((check) => check.label).join(", ")}.`;
+    errorElement.textContent = message;
+    setEditorState("Error: review is incomplete.", "error");
+    showToast(message, "error");
+    renderReviewPanel(currentRecord);
+    updateEditorActions();
+    return;
+  }
+
+  formElement.elements.visibility.value = "published";
+  const nextRecord = syncActiveFormToRecord();
+  const savedRecord = await saveRecordById(nextRecord.id, { silent: true });
+  if (!savedRecord) {
+    return;
+  }
+
+  if (!reviewMatchesFilter(savedRecord) && filteredRecords().length) {
+    activeRecordId = filteredRecords()[0].id;
+  }
+  renderAll();
+  setEditorState("Work approved and published.", "saved");
+  showToast("Work approved and published.");
 }
 
 async function saveAllDirtyRecords() {
@@ -2259,6 +2563,25 @@ function selectRecord(id) {
   renderEditor();
 }
 
+function setReviewFilter(filter) {
+  if (!["all", "attention", "draft", "published"].includes(filter) || filter === currentReviewFilter) {
+    return;
+  }
+  syncActiveFormToRecord();
+  if (hasAnyUnsavedChanges() && !confirmUnsavedAction("There are unsaved changes. Change the review filter?")) {
+    return;
+  }
+  currentReviewFilter = filter;
+  const visibleRecords = filteredRecords();
+  if (!activeRecordId && visibleRecords.length) {
+    activeRecordId = visibleRecords[0].id;
+  } else if (activeRecordId && !visibleRecords.some((record) => record.id === activeRecordId)) {
+    activeRecordId = visibleRecords[0]?.id || null;
+  }
+  renderAll();
+  setListState(visibleRecords.length ? "" : "Empty: no records match this review filter.", visibleRecords.length ? "" : "empty");
+}
+
 function renderAll() {
   renderList();
   renderEditor();
@@ -2367,6 +2690,10 @@ formElement.elements.content_type.addEventListener("change", () => {
 
 saveAllButton?.addEventListener("click", saveAllDirtyRecords);
 revertButton?.addEventListener("click", revertActiveRecord);
+approveButton?.addEventListener("click", approveActiveRecord);
+reviewFilterButtons.forEach((button) => {
+  button.addEventListener("click", () => setReviewFilter(button.dataset.reviewFilter || "all"));
+});
 
 clearContentButton.addEventListener("click", () => {
   const record = activeRecord();
@@ -2421,8 +2748,6 @@ confirmSubmit.addEventListener("click", async () => {
 
 refreshButton.addEventListener("click", loadRecords);
 window.addEventListener("beforeunload", (event) => {
-  syncActiveFormToRecord();
-  syncHomepageForm();
   if (!hasAnyUnsavedChanges()) {
     return;
   }
@@ -2434,4 +2759,8 @@ window.addEventListener("pagehide", () => {
   objectUrls.clear();
 });
 
+const requestedReviewFilter = new URLSearchParams(window.location.search).get("filter");
+if (["all", "attention", "draft", "published"].includes(requestedReviewFilter)) {
+  currentReviewFilter = requestedReviewFilter;
+}
 loadRecords();

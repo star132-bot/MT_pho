@@ -563,7 +563,7 @@ window.MTArchiveUpload = (() => {
       content_type: contentType,
       display_mode: displayModeForType(contentType),
       exif,
-      visibility: "published",
+      visibility: "draft",
       visibility_manually_set: false,
       sort_order: 0,
       captured_at: normalizeCapturedDate(exif.datetime_original || exif.datetime),

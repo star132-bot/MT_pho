@@ -8,10 +8,63 @@
       name="description"
       content="A quiet photography works archive for MT Presence, arranged by image type and ratio."
     />
-    <link rel="stylesheet" href="styles.css?v=20260615-tags-layout" />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="styles.css?v=20260716-universal-rail" />
   </head>
   <body class="archive-page">
     <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-home" viewBox="0 0 24 24">
+        <path d="m3 10.5 9-7.5 9 7.5" />
+        <path d="M5 9v12h14V9" />
+        <path d="M9 21v-7h6v7" />
+      </symbol>
+      <symbol id="icon-photo" viewBox="0 0 24 24">
+        <rect x="3" y="5" width="18" height="14" rx="1.5" />
+        <path d="m7 15 3.2-3.2a1.3 1.3 0 0 1 1.8 0L16 16" />
+        <path d="m14 14 1.1-1.1a1.3 1.3 0 0 1 1.8 0L21 17" />
+        <circle cx="8.5" cy="9.2" r="1.2" />
+      </symbol>
+      <symbol id="icon-pen" viewBox="0 0 24 24">
+        <path d="m4 20 4.3-1.1 10.4-10.4a2.1 2.1 0 0 0-3-3L5.3 15.9z" />
+        <path d="m14 6 4 4" />
+      </symbol>
+      <symbol id="icon-user" viewBox="0 0 24 24">
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4.5 21a7.5 7.5 0 0 1 15 0" />
+      </symbol>
+      <symbol id="icon-folder" viewBox="0 0 24 24">
+        <path d="M3 6.8h6l2 2.4h10v8.6a1.7 1.7 0 0 1-1.7 1.7H4.7A1.7 1.7 0 0 1 3 17.8z" />
+        <path d="M3 8.8v-3a1.3 1.3 0 0 1 1.3-1.3h5.1l2 2.2" />
+      </symbol>
+      <symbol id="icon-download" viewBox="0 0 24 24">
+        <path d="M12 3v11" />
+        <path d="m7 10 5 5 5-5" />
+        <path d="M5 20h14" />
+      </symbol>
+      <symbol id="icon-bookmark" viewBox="0 0 24 24">
+        <path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.8L6 21z" />
+      </symbol>
+      <symbol id="icon-bell" viewBox="0 0 24 24">
+        <path d="M18 9a6 6 0 0 0-12 0c0 7-2 7-2 8h16c0-1-2-1-2-8" />
+        <path d="M9.7 20a2.5 2.5 0 0 0 4.6 0" />
+      </symbol>
+      <symbol id="icon-menu" viewBox="0 0 24 24">
+        <path d="M4 7h16" />
+        <path d="M4 12h16" />
+        <path d="M4 17h16" />
+      </symbol>
+      <symbol id="icon-search" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-3.8-3.8" />
+      </symbol>
+      <symbol id="icon-plus" viewBox="0 0 24 24">
+        <path d="M12 5v14" />
+        <path d="M5 12h14" />
+      </symbol>
+      <symbol id="icon-lock" viewBox="0 0 24 24">
+        <rect x="5.5" y="10" width="13" height="10" rx="1.5" />
+        <path d="M8.5 10V7.5a3.5 3.5 0 0 1 7 0V10" />
+      </symbol>
       <symbol id="icon-sliders" viewBox="0 0 24 24">
         <path d="M21 4h-7" />
         <path d="M10 4H3" />
@@ -66,106 +119,128 @@
         <path d="m21 21-4.35-4.35" />
         <path d="M8 11h6" />
       </symbol>
+      <symbol id="icon-info" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 10v7" />
+        <path d="M12 7h.01" />
+      </symbol>
+      <symbol id="icon-mail" viewBox="0 0 24 24">
+        <rect x="3.5" y="5.5" width="17" height="13" rx="1.8" />
+        <path d="m4.5 7 7.5 6 7.5-6" />
+      </symbol>
     </svg>
-    <header class="site-header archive-header" aria-label="Primary navigation">
-      <a class="brand-mark" href="index.html" aria-label="Back to home">
-        <span>MT</span>
-        <span>Presence</span>
-      </a>
-      <nav class="site-nav" aria-label="Page navigation">
-        <a href="index.html">Home</a>
-        <a href="contact.html">Contact</a>
+    <aside class="archive-rail public-site-rail" aria-label="Public photography navigation">
+      <a class="archive-rail-brand" href="index.html" aria-label="Back to MT Presence home">MT</a>
+      <nav class="archive-rail-nav" aria-label="Photography navigation">
+        <a class="archive-rail-button" href="index.html" aria-label="Home">
+          <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-home"></use></svg>
+          <span class="archive-rail-copy">Home</span>
+        </a>
+        <a class="archive-rail-button is-active" href="works.html" aria-label="Works Archive" aria-current="page">
+          <svg class="ui-icon" aria-hidden="true" focusable="false">
+            <use href="#icon-photo"></use>
+          </svg>
+          <span class="archive-rail-copy">Works</span>
+        </a>
+        <a class="archive-rail-button" href="/workspace/images" aria-label="Upload images">
+          <svg class="ui-icon" aria-hidden="true" focusable="false">
+            <use href="#icon-folder"></use>
+          </svg>
+          <span class="archive-rail-copy">Upload</span>
+        </a>
+        <a class="archive-rail-button" href="lightbox.html" aria-label="Open lightbox">
+          <svg class="ui-icon" aria-hidden="true" focusable="false">
+            <use href="#icon-bookmark"></use>
+          </svg>
+          <span class="archive-rail-copy">Lightbox <span data-lightbox-count>0</span></span>
+        </a>
+        <a class="archive-rail-button" href="about.html" aria-label="About the artist">
+          <svg class="ui-icon" aria-hidden="true" focusable="false">
+            <use href="#icon-user"></use>
+          </svg>
+          <span class="archive-rail-copy">About</span>
+        </a>
       </nav>
-    </header>
+      <div class="archive-rail-footer">
+        <a class="archive-rail-button" href="contact.html" aria-label="Contact artist">
+          <svg class="ui-icon" aria-hidden="true" focusable="false">
+            <use href="#icon-mail"></use>
+          </svg>
+          <span class="archive-rail-copy">Contact</span>
+        </a>
+      </div>
+    </aside>
 
     <main class="archive-main">
-      <section class="archive-hero" aria-labelledby="archive-title">
-        <div>
-          <div class="section-kicker">Archive</div>
-          <h1 id="archive-title">Works Archive</h1>
-          <p class="archive-hero-note">Selected studies in abstraction, landscape, surface, and light.</p>
+      <header class="archive-topbar" aria-label="Archive header">
+        <div class="archive-search-group">
+          <label class="visually-hidden" for="archive-search-input">Search works</label>
+          <div class="archive-search-control">
+            <svg class="ui-icon archive-search-icon" aria-hidden="true" focusable="false">
+              <use href="#icon-search"></use>
+            </svg>
+            <input
+              id="archive-search-input"
+              class="archive-search-input"
+              type="search"
+              inputmode="search"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="Search works, tags, ratios"
+              data-archive-search
+            />
+            <button class="archive-clear-search" type="button" aria-label="Clear search" data-clear-search hidden>Clear</button>
+          </div>
         </div>
-      </section>
+        <nav class="archive-top-actions" aria-label="Site actions">
+          <a href="index.html">Home</a>
+          <a href="about.html">About</a>
+          <a href="lightbox.html">Lightbox</a>
+          <a href="contact.html">Contact</a>
+        </nav>
+      </header>
 
       <section class="archive-controls" aria-label="Archive filters">
         <div class="archive-discovery-bar">
-          <div class="archive-search-group">
-            <label class="visually-hidden" for="archive-search-input">Search works</label>
-            <div class="archive-search-control">
-              <input
-                id="archive-search-input"
-                class="archive-search-input"
-                type="search"
-                inputmode="search"
-                autocomplete="off"
-                spellcheck="false"
-                placeholder="Title, series, tag, ratio"
-                data-archive-search
-              />
-              <button class="archive-clear-search" type="button" aria-label="Clear search" data-clear-search hidden>Clear Search</button>
-            </div>
-          </div>
-
-          <div class="archive-toolbar">
-            <div class="archive-count" data-archive-count aria-live="polite"></div>
-            <div class="archive-arrange-actions" data-arrange-actions>
-              <button class="archive-arrange-button" type="button" aria-label="Enter arrange mode" data-arrange-toggle>
-                <svg class="ui-icon" aria-hidden="true" focusable="false">
-                  <use href="#icon-sliders"></use>
-                </svg>
-                <span data-button-label>Arrange</span>
-              </button>
-              <button class="archive-arrange-button" type="button" aria-label="Save work order" data-save-order hidden disabled>
-                <svg class="ui-icon" aria-hidden="true" focusable="false">
-                  <use href="#icon-save"></use>
-                </svg>
-                <span data-button-label>Save Order</span>
-              </button>
-              <button class="archive-arrange-button" type="button" aria-label="Exit arrange mode" data-arrange-done hidden>
-                <svg class="ui-icon" aria-hidden="true" focusable="false">
-                  <use href="#icon-check"></use>
-                </svg>
-                <span data-button-label>Done</span>
-              </button>
-              <span class="archive-arrange-status" data-arrange-status></span>
-            </div>
-            <div class="visually-hidden" aria-live="polite" data-arrange-live></div>
-          </div>
-        </div>
-
-        <div class="archive-filter-bar" aria-label="Archive channels">
           <div class="filter-group">
             <span class="visually-hidden">Type</span>
             <div class="filter-options" data-type-filters>
-              <button class="filter-button is-active" type="button" data-filter-type="All">All Works</button>
-              <button class="filter-button" type="button" data-filter-type="Abstract">Abstract</button>
-              <button class="filter-button" type="button" data-filter-type="Concrete">Concrete</button>
+              <button class="filter-button is-active" type="button" data-filter-type="All" aria-pressed="true">All Works</button>
+              <button class="filter-button" type="button" data-filter-type="Abstract" aria-pressed="false">Abstract</button>
+              <button class="filter-button" type="button" data-filter-type="Concrete" aria-pressed="false">Concrete</button>
             </div>
           </div>
 
           <div class="filter-group">
             <span class="visually-hidden">Ratio</span>
             <div class="filter-options ratio-options" data-ratio-filters>
-              <button class="filter-button is-active" type="button" data-filter-ratio="All">All Ratios</button>
-              <button class="filter-button" type="button" data-filter-ratio="1:1">Square</button>
-              <button class="filter-button" type="button" data-filter-ratio="4:3">4:3</button>
-              <button class="filter-button" type="button" data-filter-ratio="4:5">4:5</button>
-              <button class="filter-button" type="button" data-filter-ratio="2:3">2:3</button>
-              <button class="filter-button" type="button" data-filter-ratio="3:2">3:2</button>
-              <button class="filter-button" type="button" data-filter-ratio="16:9">16:9</button>
-              <button class="filter-button" type="button" data-filter-ratio="Panorama">Panorama</button>
+              <button class="filter-button is-active" type="button" data-filter-ratio="All" aria-pressed="true">All Ratios</button>
+              <button class="filter-button" type="button" data-filter-ratio="1:1" aria-pressed="false">Square</button>
+              <button class="filter-button" type="button" data-filter-ratio="4:3" aria-pressed="false">Classic</button>
+              <button class="filter-button" type="button" data-filter-ratio="4:5" aria-pressed="false">Portrait</button>
+              <button class="filter-button" type="button" data-filter-ratio="2:3" aria-pressed="false">Vertical</button>
+              <button class="filter-button" type="button" data-filter-ratio="3:2" aria-pressed="false">Landscape</button>
+              <button class="filter-button" type="button" data-filter-ratio="16:9" aria-pressed="false">Cinema</button>
+              <button class="filter-button" type="button" data-filter-ratio="Panorama" aria-pressed="false">Panorama</button>
             </div>
+          </div>
+          <div class="archive-toolbar">
+            <div class="archive-count" data-archive-count aria-live="polite"></div>
           </div>
         </div>
       </section>
 
       <section class="archive-gallery-section" aria-labelledby="gallery-title">
-        <h2 id="gallery-title" class="visually-hidden">Archive Gallery</h2>
-        <p class="archive-data-status" data-archive-data-status role="status" aria-live="polite">Loading archive.</p>
+        <div class="archive-gallery-heading">
+          <h1 id="gallery-title">Works Archive</h1>
+          <p class="archive-data-status" data-archive-data-status role="status" aria-live="polite">Loading archive.</p>
+        </div>
         <p class="archive-empty-state" data-archive-empty hidden>No works match this search.</p>
         <div class="archive-gallery" data-archive-gallery></div>
       </section>
     </main>
+
+    <div class="archive-toast" role="status" aria-live="polite" data-archive-toast hidden></div>
 
     <div class="work-viewer" data-work-viewer hidden>
       <div class="work-viewer-backdrop" data-viewer-close aria-hidden="true"></div>
@@ -181,22 +256,27 @@
         <header class="work-viewer-controls" aria-label="Work viewer controls">
           <p class="work-viewer-position" data-viewer-position></p>
           <div class="work-viewer-actions">
-            <button class="work-viewer-icon-button" type="button" aria-label="View actual size" title="View actual size" data-viewer-zoom>
+            <button class="work-viewer-icon-button" type="button" aria-label="Show work details" data-tooltip="Details" aria-expanded="false" data-viewer-info-toggle>
+              <svg class="ui-icon" aria-hidden="true" focusable="false">
+                <use href="#icon-info"></use>
+              </svg>
+            </button>
+            <button class="work-viewer-icon-button" type="button" aria-label="View actual size" data-tooltip="Actual size" data-viewer-zoom>
               <svg class="ui-icon" aria-hidden="true" focusable="false">
                 <use href="#icon-zoom-in"></use>
               </svg>
             </button>
-            <button class="work-viewer-icon-button" type="button" aria-label="Previous work" data-viewer-prev>
+            <button class="work-viewer-icon-button" type="button" aria-label="Previous work" data-tooltip="Previous" data-viewer-prev>
               <svg class="ui-icon" aria-hidden="true" focusable="false">
                 <use href="#icon-chevron-left"></use>
               </svg>
             </button>
-            <button class="work-viewer-icon-button" type="button" aria-label="Next work" data-viewer-next>
+            <button class="work-viewer-icon-button" type="button" aria-label="Next work" data-tooltip="Next" data-viewer-next>
               <svg class="ui-icon" aria-hidden="true" focusable="false">
                 <use href="#icon-chevron-right"></use>
               </svg>
             </button>
-            <button class="work-viewer-icon-button" type="button" aria-label="Close work viewer" data-viewer-close-button>
+            <button class="work-viewer-icon-button" type="button" aria-label="Close work viewer" data-tooltip="Close" data-viewer-close-button>
               <svg class="ui-icon" aria-hidden="true" focusable="false">
                 <use href="#icon-close"></use>
               </svg>
@@ -208,9 +288,27 @@
           <figure class="work-viewer-media">
             <img src="" alt="" decoding="async" data-viewer-image />
           </figure>
-          <aside class="work-viewer-info">
+          <aside class="work-viewer-info" data-viewer-info>
             <h2 id="work-viewer-title" data-viewer-title></h2>
             <p id="work-viewer-note" class="work-viewer-note" data-viewer-note></p>
+            <div class="work-viewer-primary-actions" aria-label="Work actions">
+              <button class="work-viewer-action-button" type="button" data-viewer-action="lightbox" aria-pressed="false" data-tooltip="Add to Lightbox">
+                <svg class="ui-icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-bookmark"></use>
+                </svg>
+                <span>Add to Lightbox</span>
+              </button>
+              <a class="work-viewer-action-button" href="contact.html?source=work" data-viewer-inquire data-tooltip="Inquire">
+                <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-mail"></use></svg>
+                <span>Inquire</span>
+              </a>
+              <button class="work-viewer-action-button" type="button" data-viewer-action="download" data-tooltip="Download">
+                <svg class="ui-icon" aria-hidden="true" focusable="false">
+                  <use href="#icon-download"></use>
+                </svg>
+                <span>Download</span>
+              </button>
+            </div>
             <dl class="work-viewer-metadata" data-viewer-metadata></dl>
             <section class="work-viewer-tags" data-viewer-tags-section hidden>
               <h3>Tags</h3>
@@ -220,12 +318,17 @@
               <h3 data-viewer-statement-heading>Statement</h3>
               <p data-viewer-statement></p>
             </section>
+            <section class="work-viewer-related" data-viewer-related-section hidden>
+              <h3>Related Works</h3>
+              <div class="work-viewer-related-grid" data-viewer-related></div>
+            </section>
           </aside>
         </div>
       </section>
     </div>
 
     <script src="archive-data.js?v=20260610-works-viewer-editor"></script>
-    <script src="archive.js?v=20260615-tags-layout"></script>
+    <script src="public-archive.js?v=20260713-public-architecture"></script>
+    <script src="archive.js?v=20260713-public-architecture"></script>
   </body>
 </html>
