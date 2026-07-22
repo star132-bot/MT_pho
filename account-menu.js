@@ -7,9 +7,9 @@
   container.dataset.accountMenu = "";
   const profileLink = document.createElement("a");
   profileLink.className = "account-profile-link";
-  profileLink.href = "/settings/account#profile";
+  profileLink.href = "/dashboard";
   profileLink.dataset.accountProfileLink = "";
-  profileLink.setAttribute("aria-label", "Open personal information");
+  profileLink.setAttribute("aria-label", "Open personal profile");
   const profileInitials = document.createElement("span");
   profileInitials.dataset.accountMenuInitials = "";
   profileInitials.setAttribute("aria-hidden", "true");
@@ -39,9 +39,9 @@
   identity.setAttribute("aria-live", "polite");
   const avatar = document.createElement("a");
   avatar.className = "account-menu-avatar";
-  avatar.href = "/settings/account#profile";
+  avatar.href = "/dashboard";
   avatar.dataset.accountMenuAvatar = "";
-  avatar.setAttribute("aria-label", "Open personal information");
+  avatar.setAttribute("aria-label", "Open personal profile");
   avatar.textContent = "MT";
   const identityCopy = document.createElement("span");
   const accountName = document.createElement("strong");

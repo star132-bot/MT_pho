@@ -22,7 +22,18 @@ const dialogNotice = document.querySelector("[data-dialog-notice]");
 const dialogCancel = document.querySelector("[data-dialog-cancel]");
 const dialogConfirm = document.querySelector("[data-dialog-confirm]");
 
-const PROFILE_NAMES = ["display_name", "bio", "website_url", "country_code"];
+const PROFILE_NAMES = [
+  "display_name",
+  "professional_headline",
+  "company",
+  "country_code",
+  "city",
+  "bio",
+  "website_url",
+  "instagram_url",
+  "linkedin_url",
+  "availability_status",
+];
 const PREFERENCE_NAMES = ["preferred_locale", "timezone", "copyright_name", "default_license_preference"];
 
 let csrfTokenPromise = null;
@@ -169,9 +180,15 @@ function populateAccount(result) {
   const profile = result.profile || {};
 
   profileForm.elements.display_name.value = profile.display_name || "";
+  profileForm.elements.professional_headline.value = profile.professional_headline || "";
+  profileForm.elements.company.value = profile.company || "";
+  profileForm.elements.country_code.value = profile.country_code || "";
+  profileForm.elements.city.value = profile.city || "";
   profileForm.elements.bio.value = profile.bio || "";
   profileForm.elements.website_url.value = profile.website_url || "";
-  profileForm.elements.country_code.value = profile.country_code || "";
+  profileForm.elements.instagram_url.value = profile.instagram_url || "";
+  profileForm.elements.linkedin_url.value = profile.linkedin_url || "";
+  profileForm.elements.availability_status.value = profile.availability_status || "unavailable";
 
   preferencesForm.elements.preferred_locale.value = profile.preferred_locale || "en";
   addSelectValue(preferencesForm.elements.timezone, profile.timezone);

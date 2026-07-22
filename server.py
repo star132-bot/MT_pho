@@ -107,9 +107,20 @@ PROFILE_FIELDS = (
     "timezone",
     "copyright_name",
     "default_license_preference",
+    "professional_headline",
+    "company",
+    "city",
+    "availability_status",
+    "instagram_url",
+    "linkedin_url",
 )
 PROFILE_EDITABLE_FIELDS = tuple(field for field in PROFILE_FIELDS if field != "avatar_url")
 PROFILE_LOCALES = {"en"}
+PROFILE_AVAILABILITY_STATUSES = {"unavailable", "open", "limited"}
+PROFILE_SOCIAL_HOSTS = {
+    "instagram_url": {"instagram.com", "www.instagram.com"},
+    "linkedin_url": {"linkedin.com", "www.linkedin.com"},
+}
 PROFILE_LICENSES = {
     "all-rights-reserved",
     "cc-by-4.0",
@@ -117,6 +128,13 @@ PROFILE_LICENSES = {
     "cc-by-nc-4.0",
     "cc-by-nc-sa-4.0",
 }
+PROFILE_COVER_ASSET_KINDS = {"display", "thumbnail"}
+PROFILE_COVER_ASSET_BUCKETS = {
+    "display": "image-display",
+    "thumbnail": "image-thumbnails",
+}
+PROFILE_COVER_SCAN_POLICY_VERSION = "mt-asset-scan-2026-07-v1"
+PROFILE_COVER_MAX_CANDIDATES = 24
 WORKSPACE_ASSET_KINDS = {"original", "display", "thumbnail"}
 WORKSPACE_ASSET_LIMITS = {
     "original": 50 * 1024 * 1024,
@@ -813,6 +831,82 @@ def clean_dashboard_result(value) -> dict | None:
     }
 
 
+def clean_profile_cover_asset(value) -> dict | None:
+    """Validate the private provider descriptor before any Storage signing."""
+    if not isinstance(value, dict):
+        return None
+    try:
+        asset_id = clean_uuid(value.get("id"), "profile cover asset id")
+        image_id = clean_uuid(value.get("image_id"), "profile cover image id")
+    except ValueError:
+        return None
+    kind = clean_text(value.get("kind"), 32)
+    bucket = clean_text(value.get("storage_bucket"), 80)
+    storage_key = clean_text(value.get("storage_key"), 1024)
+    mime_type = clean_text(value.get("mime_type"), 120).lower()
+    width = value.get("width")
+    height = value.get("height")
+    if (
+        kind not in PROFILE_COVER_ASSET_KINDS
+        or bucket != PROFILE_COVER_ASSET_BUCKETS.get(kind)
+        or not storage_key
+        or mime_type not in WORKSPACE_IMAGE_MIME_TYPES
+        or any(
+            isinstance(dimension, bool)
+            or not isinstance(dimension, int)
+            or dimension < 1
+            or dimension > 100_000
+            for dimension in (width, height)
+        )
+        or value.get("scan_status") != "clean"
+        or value.get("scan_result_code") != "clean"
+        or value.get("scan_policy_version") != PROFILE_COVER_SCAN_POLICY_VERSION
+    ):
+        return None
+    return {
+        "id": asset_id,
+        "image_id": image_id,
+        "title": clean_text(value.get("title"), 180) or "Untitled Work",
+        "kind": kind,
+        "storage_bucket": bucket,
+        "storage_key": storage_key,
+        "mime_type": mime_type,
+        "width": width,
+        "height": height,
+    }
+
+
+def clean_profile_cover_result(value, *, include_candidates: bool) -> dict | None:
+    if not isinstance(value, dict):
+        return None
+    cover = None
+    if value.get("cover_asset") is not None:
+        cover = clean_profile_cover_asset(value.get("cover_asset"))
+        if cover is None:
+            return None
+
+    result = {"cover_asset": cover}
+    if not include_candidates:
+        if value.get("saved") is not True:
+            return None
+        result["saved"] = True
+        return result
+
+    raw_candidates = value.get("candidates")
+    if not isinstance(raw_candidates, list) or len(raw_candidates) > PROFILE_COVER_MAX_CANDIDATES:
+        return None
+    candidates = []
+    seen_ids = set()
+    for raw_candidate in raw_candidates:
+        candidate = clean_profile_cover_asset(raw_candidate)
+        if candidate is None or candidate["id"] in seen_ids:
+            return None
+        seen_ids.add(candidate["id"])
+        candidates.append(candidate)
+    result["candidates"] = candidates
+    return result
+
+
 def clean_review_person(value, *, required: bool = True) -> dict | None:
     if value is None and not required:
         return None
@@ -1321,6 +1415,96 @@ def clean_review_mutation_result(value, expected_submission_id: str) -> dict | N
     return result
 
 
+def valid_profile_https_url(value: str, *, allowed_hosts: set[str] | None = None) -> bool:
+    parsed = urlparse(value)
+    try:
+        port = parsed.port
+        hostname = parsed.hostname or ""
+    except ValueError:
+        return False
+    if (
+        parsed.scheme != "https"
+        or not parsed.netloc
+        or not hostname
+        or parsed.username
+        or parsed.password
+        or "\\" in value
+        or any(ord(character) < 32 or ord(character) == 127 for character in value)
+        or not re.fullmatch(r"[A-Za-z0-9.-]+(?::[0-9]{1,5})?", parsed.netloc)
+    ):
+        return False
+    if allowed_hosts is not None and (hostname.lower() not in allowed_hosts or port is not None):
+        return False
+    return True
+
+
+def clean_profile_result(value) -> dict | None:
+    if not isinstance(value, dict):
+        return None
+    display_name = clean_text(value.get("display_name"), 120)
+    if not display_name:
+        return None
+
+    profile = {
+        "display_name": display_name,
+        "avatar_url": clean_text(value.get("avatar_url"), 2048) or None,
+    }
+    for field, maximum in (
+        ("bio", 1600),
+        ("copyright_name", 160),
+        ("professional_headline", 160),
+        ("company", 160),
+        ("city", 120),
+    ):
+        raw_value = value.get(field)
+        if raw_value is not None and not isinstance(raw_value, str):
+            return None
+        normalized = clean_text(raw_value, maximum)
+        if isinstance(raw_value, str) and len(raw_value.strip()) > maximum:
+            return None
+        profile[field] = normalized or None
+
+    for field in ("website_url", "instagram_url", "linkedin_url"):
+        raw_value = value.get(field)
+        if raw_value is not None and not isinstance(raw_value, str):
+            return None
+        normalized = clean_text(raw_value, 2048)
+        if isinstance(raw_value, str) and len(raw_value.strip()) > 2048:
+            return None
+        if normalized and not valid_profile_https_url(
+            normalized,
+            allowed_hosts=PROFILE_SOCIAL_HOSTS.get(field),
+        ):
+            return None
+        profile[field] = normalized or None
+
+    country_code = clean_text(value.get("country_code"), 2).upper()
+    if country_code and not re.fullmatch(r"[A-Z]{2}", country_code):
+        return None
+    profile["country_code"] = country_code or None
+
+    locale = clean_text(value.get("preferred_locale"), 35)
+    timezone_name = clean_text(value.get("timezone"), 64)
+    license_preference = clean_text(value.get("default_license_preference"), 64)
+    availability = clean_text(value.get("availability_status"), 32) or "unavailable"
+    if (
+        locale not in PROFILE_LOCALES
+        or not timezone_name
+        or (license_preference and license_preference not in PROFILE_LICENSES)
+        or availability not in PROFILE_AVAILABILITY_STATUSES
+    ):
+        return None
+    try:
+        ZoneInfo(timezone_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        return None
+    profile["preferred_locale"] = locale
+    profile["timezone"] = timezone_name
+    profile["default_license_preference"] = license_preference or None
+    profile["availability_status"] = availability
+    return {field: profile.get(field) for field in PROFILE_FIELDS}
+
+
 def normalize_profile_update(body: dict) -> tuple[dict, dict]:
     """Return a PostgREST-safe profile patch and stable field errors."""
     updates: dict = {}
@@ -1351,33 +1535,43 @@ def normalize_profile_update(body: dict) -> tuple[dict, dict]:
     if "display_name" in body and display_name is not None:
         updates["display_name"] = display_name
 
-    for field, maximum in (("website_url", 2048),):
+    for field, maximum in (
+        ("website_url", 2048),
+        ("instagram_url", 2048),
+        ("linkedin_url", 2048),
+    ):
         value = text_value(field, maximum)
         if field not in body or value is None:
             continue
-        if value:
-            parsed = urlparse(value)
-            try:
-                port = parsed.port
-            except ValueError:
-                port = -1
-            if (
-                parsed.scheme != "https"
-                or not parsed.netloc
-                or parsed.username
-                or parsed.password
-                or "\\" in value
-                or any(ord(character) < 32 or ord(character) == 127 for character in value)
-                or not re.fullmatch(r"[A-Za-z0-9.-]+(?::[0-9]{1,5})?", parsed.netloc)
-                or port == -1
-            ):
-                field_errors[field] = "Use a complete HTTPS address."
-                continue
+        allowed_hosts = PROFILE_SOCIAL_HOSTS.get(field)
+        if value and not valid_profile_https_url(value, allowed_hosts=allowed_hosts):
+            field_errors[field] = (
+                f"Use an HTTPS {field.removesuffix('_url').title()} address."
+                if allowed_hosts
+                else "Use a complete HTTPS address."
+            )
+            continue
         updates[field] = value or None
 
     bio = text_value("bio", 1600)
     if "bio" in body and bio is not None:
         updates["bio"] = bio or None
+
+    for field, maximum in (
+        ("professional_headline", 160),
+        ("company", 160),
+        ("city", 120),
+    ):
+        value = text_value(field, maximum)
+        if field in body and value is not None:
+            updates[field] = value or None
+
+    availability_status = text_value("availability_status", 32, required=True)
+    if "availability_status" in body and availability_status is not None:
+        if availability_status not in PROFILE_AVAILABILITY_STATUSES:
+            field_errors["availability_status"] = "Choose an available work status."
+        else:
+            updates["availability_status"] = availability_status
 
     country_code = text_value("country_code", 2)
     if "country_code" in body and country_code is not None:
@@ -1414,6 +1608,23 @@ def normalize_profile_update(body: dict) -> tuple[dict, dict]:
             updates["default_license_preference"] = license_preference or None
 
     return updates, field_errors
+
+
+def normalize_profile_cover_update(body: dict) -> tuple[str | None, dict]:
+    field_errors: dict[str, str] = {}
+    for field in sorted(set(body) - {"asset_id"}):
+        field_errors[field] = "This field cannot be used for a profile cover."
+    if "asset_id" not in body:
+        field_errors["asset_id"] = "Choose a cover image or clear the current cover."
+        return None, field_errors
+    if body.get("asset_id") is None:
+        return None, field_errors
+    try:
+        asset_id = clean_uuid(body.get("asset_id"), "profile cover asset id")
+    except ValueError:
+        field_errors["asset_id"] = "Choose an available cover image."
+        return None, field_errors
+    return asset_id, field_errors
 
 
 def normalize_workspace_folder_name(value) -> tuple[str, dict]:
@@ -2727,9 +2938,10 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if status != HTTPStatus.OK or not isinstance(result, list) or len(result) != 1:
             return HTTPStatus.BAD_GATEWAY, auth_error("PROFILE_UNAVAILABLE", "Your profile could not be loaded.")
         profile = result[0]
-        if not isinstance(profile, dict):
+        profile = clean_profile_result(profile)
+        if profile is None:
             return HTTPStatus.BAD_GATEWAY, auth_error("PROFILE_UNAVAILABLE", "Your profile could not be loaded.")
-        return HTTPStatus.OK, {field: profile.get(field) for field in PROFILE_FIELDS}
+        return HTTPStatus.OK, profile
 
     def account_payload(self, user: dict, authorization: dict, profile: dict) -> dict:
         email_verified_at = user.get("email_confirmed_at") or user.get("confirmed_at")
@@ -2793,14 +3005,103 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 auth_error("PROFILE_UPDATE_FAILED", "Your profile could not be saved. Try again."),
             )
             return
-        profile = {field: result.get(field) for field in PROFILE_FIELDS}
-        if not profile.get("display_name"):
+        profile = clean_profile_result(result)
+        if profile is None:
             self.send_json(
                 HTTPStatus.BAD_GATEWAY,
                 auth_error("PROFILE_UPDATE_FAILED", "Your profile could not be saved. Try again."),
             )
             return
         self.send_auth_json(HTTPStatus.OK, {"profile": profile, "saved": True})
+
+    def handle_profile_cover_get(self) -> None:
+        user, authorization = self.require_account_session()
+        if not user or not authorization:
+            return
+        status, result = supabase_rest_request(
+            "rpc/get_my_profile_cover",
+            self.current_access_token(user),
+            {},
+        )
+        if status != HTTPStatus.OK or not isinstance(result, dict):
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("PROFILE_COVER_PROVIDER_FAILED", "Profile cover options could not be loaded. Try again."),
+            )
+            return
+        clean_result = clean_profile_cover_result(result, include_candidates=True)
+        if clean_result is None:
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("PROFILE_COVER_PROVIDER_FAILED", "Profile cover options could not be verified. Try again."),
+            )
+            return
+        response = self.sign_profile_cover_result(user, clean_result, include_candidates=True)
+        if response is not None:
+            self.send_auth_json(HTTPStatus.OK, response)
+
+    def handle_profile_cover_update(self) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        asset_id, field_errors = normalize_profile_cover_update(body)
+        if field_errors:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("PROFILE_COVER_VALIDATION_FAILED", "Choose an available cover image.", field_errors),
+            )
+            return
+        user, authorization = self.require_account_session()
+        if not user or not authorization:
+            return
+        status, result = supabase_rest_request(
+            "rpc/set_my_profile_cover",
+            self.current_access_token(user),
+            {"target_asset_id": asset_id},
+        )
+        if status != HTTPStatus.OK or not isinstance(result, dict):
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("PROFILE_COVER_UPDATE_FAILED", "Your profile cover could not be saved. Try again."),
+            )
+            return
+        provider_error = result.get("error")
+        if isinstance(provider_error, dict):
+            if provider_error.get("code") == "PROFILE_COVER_NOT_AVAILABLE":
+                self.send_json(
+                    HTTPStatus.UNPROCESSABLE_ENTITY,
+                    auth_error(
+                        "PROFILE_COVER_NOT_AVAILABLE",
+                        "Choose one of your current scanner-approved image assets.",
+                        {"asset_id": "This image is no longer available as a profile cover."},
+                    ),
+                )
+            else:
+                self.send_json(
+                    HTTPStatus.BAD_GATEWAY,
+                    auth_error("PROFILE_COVER_UPDATE_FAILED", "Your profile cover could not be saved. Try again."),
+                )
+            return
+        clean_result = clean_profile_cover_result(result, include_candidates=False)
+        if clean_result is None:
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("PROFILE_COVER_UPDATE_FAILED", "Your saved profile cover could not be verified. Try again."),
+            )
+            return
+        response = self.sign_profile_cover_result(
+            user,
+            clean_result,
+            include_candidates=False,
+            send_error=False,
+        )
+        if response is None:
+            # The RPC has already committed. Keep the response truthful when a
+            # transient Storage signing failure prevents an immediate preview.
+            self.send_auth_json(HTTPStatus.OK, {"cover": None, "saved": True})
+            return
+        response["saved"] = True
+        self.send_auth_json(HTTPStatus.OK, response)
 
     def handle_sessions_get(self) -> None:
         user, authorization = self.require_account_session()
@@ -3072,6 +3373,98 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             "signed_url": signed_url,
             "expires_in": 10 * 60,
         }
+
+    def sign_profile_cover_asset(
+        self,
+        user: dict,
+        asset: dict,
+        *,
+        send_error: bool = True,
+    ) -> dict | None:
+        bucket = asset.get("storage_bucket")
+        storage_key = asset.get("storage_key")
+        try:
+            expected_owner = clean_uuid(user.get("id"), "profile cover owner id")
+        except ValueError:
+            expected_owner = ""
+        key_parts = storage_key.split("/") if isinstance(storage_key, str) else []
+        if (
+            not expected_owner
+            or bucket != PROFILE_COVER_ASSET_BUCKETS.get(asset.get("kind"))
+            or not key_parts
+            or key_parts[0] != expected_owner
+            or any(part in {"", ".", ".."} for part in key_parts)
+        ):
+            if send_error:
+                self.send_json(
+                    HTTPStatus.BAD_GATEWAY,
+                    auth_error("PROFILE_COVER_ASSET_UNAVAILABLE", "A private profile cover could not be loaded. Try again."),
+                )
+            return None
+
+        endpoint = f"object/sign/{quote(bucket, safe='')}/{quote(storage_key, safe='/')}"
+        status, signed = supabase_storage_request(
+            endpoint,
+            self.current_access_token(user),
+            {"expiresIn": 10 * 60},
+        )
+        signed_value = ""
+        if isinstance(signed, dict):
+            signed_value = signed.get("signedURL") or signed.get("signedUrl") or ""
+        signed_url = self.absolute_storage_url(signed_value)
+        if status != HTTPStatus.OK or not signed_url:
+            if send_error:
+                self.send_json(
+                    HTTPStatus.BAD_GATEWAY,
+                    auth_error("PROFILE_COVER_ASSET_UNAVAILABLE", "A private profile cover could not be loaded. Try again."),
+                )
+            return None
+        return {
+            "id": asset["id"],
+            "image_id": asset["image_id"],
+            "title": asset["title"],
+            "kind": asset["kind"],
+            "mime_type": asset["mime_type"],
+            "width": asset["width"],
+            "height": asset["height"],
+            "signed_url": signed_url,
+            "expires_in": 10 * 60,
+        }
+
+    def sign_profile_cover_result(
+        self,
+        user: dict,
+        result: dict,
+        *,
+        include_candidates: bool,
+        send_error: bool = True,
+    ) -> dict | None:
+        signed_by_id: dict[str, dict] = {}
+
+        def signed_asset(asset: dict | None) -> dict | None:
+            if asset is None:
+                return None
+            asset_id = asset["id"]
+            if asset_id not in signed_by_id:
+                signed = self.sign_profile_cover_asset(user, asset, send_error=send_error)
+                if signed is None:
+                    return None
+                signed_by_id[asset_id] = signed
+            return dict(signed_by_id[asset_id])
+
+        cover = signed_asset(result.get("cover_asset"))
+        if result.get("cover_asset") is not None and cover is None:
+            return None
+        response = {"cover": cover}
+        if include_candidates:
+            candidates = []
+            for candidate in result.get("candidates") or []:
+                signed = signed_asset(candidate)
+                if signed is None:
+                    return None
+                candidates.append(signed)
+            response["candidates"] = candidates
+        return response
 
     def handle_review_submissions_get(self, parsed) -> None:
         query = parse_qs(parsed.query)
@@ -4597,6 +4990,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/me/profile":
             self.handle_profile_get()
             return
+        if parsed.path == "/api/me/profile/cover":
+            self.handle_profile_cover_get()
+            return
         if parsed.path == "/api/me/sessions":
             self.handle_sessions_get()
             return
@@ -4880,6 +5276,11 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             if not self.require_csrf():
                 return
             self.handle_profile_update()
+            return
+        if parsed.path == "/api/me/profile/cover":
+            if not self.require_csrf():
+                return
+            self.handle_profile_cover_update()
             return
         if len(parts) == 3 and parts[:2] == ["api", "folders"]:
             if not self.require_csrf():

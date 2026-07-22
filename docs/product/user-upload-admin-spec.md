@@ -6,7 +6,7 @@
 - 设计语言：本文档使用中文；页面可见 UI、代码、数据库字段、API、事件名和开发注释使用英文。
 - 需求优先级：本文档是用户系统、上传工作台和管理员平台的唯一主规格；需求冲突时以本文为准。
 - 明确取消：目标产品不需要公开 `Series` 功能；`collections.html`、`collections.js`、`series-data.js` 在后续实施中应从导航和运行时移除，不在本轮文档阶段直接删除代码。
-- 当前实现基线（2026-07-22）：Supabase Auth/Account、owner-scoped Upload Workspace、Draft autosave/CAS、Trash/Restore、五项 server-authoritative readiness、idempotent Submit transaction、trusted asset scanner、User Dashboard aggregate，以及独立的 Supabase Admin Review Queue/Detail/decision 已实现并部署 development。Reviewer 只能领取不属于自己的公共 Submitted 或处理自己的 open non-self assignment，任何角色都不能 self-review；Admin/Super Admin 必须达到 AAL2 才能查看完整授权历史。决定使用 current `lock_version` 和 UUID idempotency key，并把首次完整结果保存为 immutable replay snapshot，同时写 notification/audit；rollback-only 真实数据库测试已覆盖角色/AAL/RLS/Storage/CAS/幂等与审计，六个独立 `psql` 会话的三组 Start/decision 双会话 race 也已通过，每组使用不同 backend PID 且 fixture 已清理。真实 disposable 多身份浏览器验收已通过 Reviewer A claim、Reviewer B 越权拒绝、Request Changes、Admin AAL2 Approve、private original/display/thumbnail、responsive/focus/console 和 fixture cleanup。Dashboard/Trash 真库验收的 9 个 marker 全部通过：helper `dashboard_image_json(uuid)` 仅 `postgres` owner 可执行，`get_my_dashboard()` 与 `workspace_list_trashed_drafts()` 仅 `postgres + authenticated`。Review asset 只允许 current scan policy 的 clean object 获得短时签名；真实 asset 仍以 `scan_status=pending` 创建，production 常驻 Scanner Worker 与监控尚未交付。公开 Works 和 legacy `manage.html` 继续读取 SQLite，公开 derivative delivery、Works 数据源迁移与公开 creator profile/editor 尚未完成，因而浏览器暂不显示 Approve and Publish，也不宣称 Approve 已公开。
+- 当前实现基线（2026-07-22）：Supabase Auth/Account、owner-scoped Upload Workspace、Draft autosave/CAS、Trash/Restore、五项 server-authoritative readiness、idempotent Submit transaction、trusted asset scanner、full-width protected creator profile/Dashboard，以及独立的 Supabase Admin Review Queue/Detail/decision 已实现。Reviewer 只能领取不属于自己的公共 Submitted 或处理自己的 open non-self assignment，任何角色都不能 self-review；Admin/Super Admin 必须达到 AAL2 才能查看完整授权历史。决定使用 current `lock_version` 和 UUID idempotency key，并把首次完整结果保存为 immutable replay snapshot，同时写 notification/audit；rollback-only 真实数据库测试已覆盖角色/AAL/RLS/Storage/CAS/幂等与审计，六个独立 `psql` 会话的三组 Start/decision 双会话 race 也已通过，每组使用不同 backend PID 且 fixture 已清理。真实 disposable 多身份浏览器验收已通过 Reviewer A claim、Reviewer B 越权拒绝、Request Changes、Admin AAL2 Approve、private original/display/thumbnail、responsive/focus/console 和 fixture cleanup。Dashboard/Trash/creator-profile 真库门禁现在要求十二个 marker：三个 helper 仅 `postgres` owner 可执行，五个 exposed RPC 仅 `postgres + authenticated`，并覆盖 profile field/social host、cover owner/current-clean/bucket-kind、identity guard、rollback 和 fixture absence。Review 与 profile cover asset 都只允许 current scan policy 的 clean private object 获得短时签名；真实 asset 仍以 `scan_status=pending` 创建，production 常驻 Scanner Worker 与监控尚未交付。公开 Works 和 legacy `manage.html` 继续读取 SQLite，公开 derivative delivery、Works 数据源迁移与 public creator portfolio/delivery 尚未完成，因而浏览器暂不显示 Approve and Publish，也不宣称 protected profile 已公开。
 
 ## 2. 产品目标
 
@@ -114,17 +114,17 @@ Register / Sign in
 | `Sign In` | `/auth/sign-in` | 登录入口 |
 | `Create Account` | `/auth/register` | 用户注册 |
 
-公开导航建议：`Works / About / Contact / Sign In`。登录后 Sign In 替换为 initials 头像，点击直接进入 `/settings/account#profile`；内部页面同样以头像进入个人信息，并用相邻独立菜单按钮进入 `Dashboard`、`Workspace`、`Account Settings` 和有权限时的 `Review`。
+公开导航建议：`Works / About / Contact / Sign In`。登录后 Sign In 替换为 initials 头像，点击进入受保护 `/dashboard` personal profile；内部页面同样以头像进入个人资料，再用资料页的 Edit personal information 进入 `/settings/account#profile`。相邻独立菜单按钮进入 `Dashboard`、`Workspace`、`Account Settings` 和有权限时的 `Review`。
 
 ### 5.2 用户工作区
 
 | Page | Route | 职责 |
 | --- | --- | --- |
-| `Dashboard` | `/dashboard` | 用户作品状态和最近活动总览；`/workspace` 规范化到此路由 |
+| `Personal Profile / Dashboard` | `/dashboard` | 无左侧 rail 的受保护封面/身份资料、Overview/My works 和用户作品状态；`/workspace` 规范化到此路由 |
 | `Upload Workspace` | `/workspace/images` | 上传、文件夹、草稿、图片信息编辑 |
 | `Image Editor` | `/workspace/images/{id}` | 单张图片完整文案和权利信息 |
 | `Notifications` | `/workspace/notifications` | 审核、失败和下架通知 |
-| `Account Settings` | `/settings/account` | 资料、安全、会话和账号操作 |
+| `Account Settings` | `/settings/account` | 五组十字段 creator 资料、偏好、安全、会话和账号操作 |
 
 当前静态阶段可以继续使用 `upload-studio.html` 作为 Upload Workspace 原型，但生产实现应使用受保护路由。
 
@@ -250,15 +250,26 @@ Submit registration
 
 - `display_name`
 - `avatar_url`
+- `professional_headline`
+- `company`
+- `availability_status`：`open`、`limited`、`unavailable`
 - `bio`
 - `website_url`
+- `instagram_url`
+- `linkedin_url`
 - `country_code`
+- `city`
 - `preferred_locale`
 - `timezone`
 - `copyright_name`
 - `default_license_preference`
+- `cover_asset_id`
 
-公开 Works 只能读取明确公开的 profile 字段。
+受保护 Profile editor 的十个 creator fields 按 Identity、Work、Location、About、Links 分组；`avatar_url`、偏好与 `cover_asset_id` 不伪装成同一表单字段。`website_url` 只接受 HTTPS，Instagram/LinkedIn 还必须使用对应官方 host。
+
+Cover chooser 只允许选择或移除当前 owner 的 current、non-deleted、ready image 资产，每张 image 优先 current-policy scanner-clean private display、缺失时回退 clean thumbnail。`GET/PATCH /api/me/profile/cover` 只返回固定 DTO 与可用时的短期 signed URL；不能返回 bucket/key/owner/scan internals，mutation 要求 CSRF，并拒绝 recovery、inactive、Admin/Super Admin AAL1、跨 owner 与 bucket-kind mismatch。若数据库保存已提交但即时预览签名失败，PATCH 返回 HTTP 200 `{cover:null,saved:true}`，UI 明确显示保存成功但预览暂不可用，不得引导用户重复提交。
+
+公开 Works 只能读取明确公开的 profile 字段；当前尚无 public creator profile DTO 或公开 cover URL，不能把 protected `/api/me/profile*` 直接复用为 public delivery。
 
 ### 7.5 账号状态
 
@@ -510,10 +521,12 @@ Submit 后：
 
 ### 页面目标
 
-让用户快速知道“需要我做什么”，而不是重复展示全部图片网格。
+先建立当前用户的受保护 creator identity，再让用户快速知道“需要我做什么”，而不是重复展示全部图片网格。
 
 ### 页面内容
 
+- Cover + Identity：当前合格作品封面或 fallback、avatar/initials、creator details、Edit personal information、Upload work。
+- Profile facts：completion、availability、professional/company、location/timezone、website/social，以稳定六项事实区呈现。
 - Status summary：Drafts、Submitted、Changes Requested、Published、Unpublished。
 - `Needs Attention`：上传失败、Changes Requested、账号/配额问题。
 - Recent Images：最近编辑的 6-10 张。
@@ -527,7 +540,8 @@ Submit 后：
 - Changes Requested 永远优先于普通 recent activity。
 - 空账号只显示 Import Images 和基础账号完成提示。
 - Dashboard 不承担图片完整编辑。
-- 当前实现通过 authenticated-only `get_my_dashboard()` 聚合以上状态；浏览器只读取稳定 DTO 和短期签名 thumbnail。尚未配置的 storage quota 与尚未接通的 public delivery 必须显示为 unavailable，不能伪造数字或公开 Portfolio。
+- Dashboard 不显示左侧 rail，Overview/My works 使用 keyboard-accessible tabs；桌面事实区稳定 3x2，窄屏逐步降为 2 列/1 列，不允许横向溢出。
+- 当前实现通过 authenticated-only `get_my_dashboard()` 聚合工作状态，通过 protected `/api/me/profile` 与 `/api/me/profile/cover` 读取 identity/cover；浏览器只读取稳定 DTO 和短期签名 display/thumbnail。尚未配置的 storage quota 与尚未接通的 public delivery 必须显示为 unavailable，不能伪造数字或公开 Portfolio。
 
 ## 10. Admin Platform 详细设计
 

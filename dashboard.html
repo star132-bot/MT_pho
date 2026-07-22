@@ -6,7 +6,7 @@
     <title>Dashboard | MT Presence</title>
     <meta name="description" content="Your MT Presence profile, works, and review activity." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260722-avatar-nav" />
+    <link rel="stylesheet" href="/styles.css?v=20260722-profile-dashboard" />
   </head>
   <body class="dashboard-page">
     <a class="auth-skip" href="#dashboard-content">Skip to Dashboard</a>
@@ -22,39 +22,16 @@
       <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5" /><path d="M4 17v-5h5" /><path d="M6.1 8.2A7 7 0 0 1 18.8 10M5.2 14A7 7 0 0 0 17.9 15.8" /></symbol>
       <symbol id="icon-alert" viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4z" /><path d="M12 9v5" /><path d="M12 17h.01" /></symbol>
       <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></symbol>
+      <symbol id="icon-location" viewBox="0 0 24 24"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.4" /></symbol>
+      <symbol id="icon-link" viewBox="0 0 24 24"><path d="m10 13.8-1.4 1.4a3.7 3.7 0 0 1-5.2-5.2l3-3a3.7 3.7 0 0 1 5.2 0" /><path d="m14 10.2 1.4-1.4a3.7 3.7 0 0 1 5.2 5.2l-3 3a3.7 3.7 0 0 1-5.2 0" /><path d="m8.8 15.2 6.4-6.4" /></symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12.5 4.2 4.2L19 7" /></symbol>
+      <symbol id="icon-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></symbol>
     </svg>
 
-    <aside class="archive-rail dashboard-rail" aria-label="Artist workspace navigation">
-      <a class="archive-rail-brand" href="/" aria-label="Back to MT Presence home">MT</a>
-      <nav class="archive-rail-nav" aria-label="Workspace navigation">
-        <a class="archive-rail-button is-active" href="/dashboard" aria-label="Dashboard" aria-current="page">
-          <svg class="ui-icon" aria-hidden="true"><use href="#icon-home"></use></svg>
-          <span class="archive-rail-copy">Dashboard</span>
-        </a>
-        <a class="archive-rail-button" href="/works.html" aria-label="Works Archive">
-          <svg class="ui-icon" aria-hidden="true"><use href="#icon-photo"></use></svg>
-          <span class="archive-rail-copy">Works</span>
-        </a>
-        <a class="archive-rail-button" href="/workspace/images" aria-label="Upload Studio">
-          <svg class="ui-icon" aria-hidden="true"><use href="#icon-folder"></use></svg>
-          <span class="archive-rail-copy">Upload</span>
-        </a>
-        <a class="archive-rail-button" href="/admin/reviews" aria-label="Review Center" data-admin-only hidden>
-          <svg class="ui-icon" aria-hidden="true"><use href="#icon-pen"></use></svg>
-          <span class="archive-rail-copy">Review</span>
-        </a>
-      </nav>
-      <div class="archive-rail-footer">
-        <a class="archive-rail-button" href="/settings/account" aria-label="Account settings">
-          <svg class="ui-icon" aria-hidden="true"><use href="#icon-user"></use></svg>
-          <span class="archive-rail-copy">Account</span>
-        </a>
-      </div>
-    </aside>
-
-    <header class="site-header dashboard-header" aria-label="Artist workspace navigation">
-      <a class="brand-mark" href="/dashboard" aria-label="Dashboard home"><span>MT</span><span>Artist Dashboard</span></a>
-      <nav class="site-nav" aria-label="Workflow navigation">
+    <header class="site-header dashboard-header" aria-label="Profile navigation">
+      <a class="brand-mark" href="/dashboard" aria-label="Profile home"><span>MT</span><span>Presence Profile</span></a>
+      <nav class="site-nav" aria-label="Profile navigation">
+        <a href="/">Home</a>
         <a href="/works.html">Works</a>
         <a href="/workspace/images">Upload</a>
       </nav>
@@ -62,32 +39,85 @@
 
     <main class="dashboard-shell" id="dashboard-content" tabindex="-1">
       <section class="dashboard-cover" aria-label="Profile cover">
-        <img src="/assets/art/concrete-02.jpg" alt="" />
+        <img src="/assets/art/hero-concrete.jpg" alt="" data-dashboard-cover-image />
+        <div class="dashboard-cover-copy" aria-hidden="true">
+          <span>Artist profile</span>
+          <strong data-dashboard-cover-name>MT Presence</strong>
+        </div>
+        <div class="dashboard-cover-tools">
+          <button class="dashboard-cover-button" type="button" data-dashboard-cover-open aria-haspopup="dialog" aria-label="Change profile cover" title="Change cover">
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-photo"></use></svg>
+            <span>Change cover</span>
+          </button>
+          <p class="dashboard-cover-status" role="status" aria-live="polite" tabindex="-1" data-dashboard-cover-status hidden></p>
+        </div>
       </section>
 
       <section class="dashboard-identity" aria-labelledby="dashboard-name">
-        <a class="dashboard-avatar" href="/settings/account#profile" aria-label="Open personal information" data-dashboard-initials>MT</a>
+        <div class="dashboard-avatar" aria-label="Profile image" data-dashboard-avatar>
+          <img alt="" data-dashboard-avatar-image hidden />
+          <span data-dashboard-initials>MT</span>
+        </div>
         <div class="dashboard-identity-copy">
-          <p class="section-kicker">Photographer Profile</p>
+          <p class="section-kicker" data-dashboard-headline>Artist profile</p>
           <h1 id="dashboard-name" data-dashboard-name>Loading profile</h1>
+          <div class="dashboard-location-line">
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-location"></use></svg>
+            <span data-dashboard-location>Location not set</span>
+          </div>
+        </div>
+        <div class="dashboard-commands" aria-label="Profile commands">
+          <a class="button button-secondary" href="/settings/account#profile">Edit personal information</a>
+          <a class="button button-primary" href="/workspace/images?folder=inbox">
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-upload-cloud"></use></svg>
+            Upload work
+          </a>
+        </div>
+        <div class="dashboard-profile-copy">
+          <p class="dashboard-bio" data-dashboard-bio>Loading profile details...</p>
           <p class="dashboard-email" data-dashboard-email></p>
           <div class="dashboard-account-state" aria-label="Account status">
             <span data-dashboard-account-status>Checking account</span>
             <span data-dashboard-verification>Checking verification</span>
           </div>
         </div>
-        <div class="dashboard-commands" aria-label="Profile commands">
-          <a class="button button-secondary" href="/settings/account">Edit profile</a>
-          <a class="button button-primary" href="/workspace/images?folder=inbox">
-            <svg class="ui-icon" aria-hidden="true"><use href="#icon-upload-cloud"></use></svg>
-            Upload images
-          </a>
-          <a class="dashboard-workspace-link" href="/workspace/images">
-            View workspace
-            <svg class="ui-icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
-          </a>
+      </section>
+
+      <section class="dashboard-profile-facts" aria-label="Profile information">
+        <div class="dashboard-profile-completion">
+          <div>
+            <span>Profile completion</span>
+            <strong data-dashboard-completion-value>0%</strong>
+          </div>
+          <div class="dashboard-completion-track" role="progressbar" aria-label="Profile completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-dashboard-completion>
+            <span></span>
+          </div>
+          <small data-dashboard-completion-note>Checking your profile</small>
         </div>
-        <p class="dashboard-bio" data-dashboard-bio>Loading profile details...</p>
+        <div class="dashboard-profile-fact">
+          <span>Availability</span>
+          <strong data-dashboard-availability>Not set</strong>
+        </div>
+        <div class="dashboard-profile-fact">
+          <span>Website</span>
+          <a href="/settings/account#profile" data-dashboard-website>Add website</a>
+        </div>
+        <div class="dashboard-profile-fact">
+          <span>Professional</span>
+          <strong data-dashboard-professional>Headline not set</strong>
+          <small data-dashboard-company>Company not set</small>
+        </div>
+        <div class="dashboard-profile-fact">
+          <span>Location</span>
+          <strong data-dashboard-region>Not set</strong>
+          <small data-dashboard-timezone>Timezone not set</small>
+        </div>
+        <div class="dashboard-profile-fact">
+          <span>Social</span>
+          <div class="dashboard-social-links" data-dashboard-social-links>
+            <a href="/settings/account#profile">Add social links</a>
+          </div>
+        </div>
       </section>
 
       <nav class="dashboard-tabs" role="tablist" aria-label="Dashboard views">
@@ -173,8 +203,42 @@
       </div>
     </main>
 
+    <dialog class="dashboard-cover-dialog" aria-labelledby="dashboard-cover-dialog-title" data-dashboard-cover-dialog>
+      <div class="dashboard-cover-dialog-shell">
+        <header>
+          <div>
+            <p class="section-kicker">Profile appearance</p>
+            <h2 id="dashboard-cover-dialog-title">Choose a cover image</h2>
+          </div>
+          <button class="dashboard-cover-dialog-close" type="button" aria-label="Close cover chooser" title="Close" data-dashboard-cover-close>
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-close"></use></svg>
+          </button>
+        </header>
+
+        <div class="dashboard-cover-dialog-state" role="status" aria-live="polite" tabindex="-1" data-dashboard-cover-dialog-state>
+          Loading available work...
+        </div>
+
+        <div class="dashboard-cover-empty" data-dashboard-cover-empty hidden>
+          <strong>No eligible images yet</strong>
+          <p>No scanned work is currently available for your cover.</p>
+          <a class="button button-primary" href="/workspace/images?folder=inbox">Upload work</a>
+        </div>
+
+        <div class="dashboard-cover-candidates" role="group" aria-label="Available cover images" data-dashboard-cover-candidates hidden></div>
+
+        <footer data-dashboard-cover-actions hidden>
+          <button class="dashboard-cover-remove" type="button" data-dashboard-cover-remove>Remove current cover</button>
+          <div>
+            <button class="button button-secondary" type="button" data-dashboard-cover-cancel>Cancel</button>
+            <button class="button button-primary" type="button" data-dashboard-cover-save disabled>Save cover</button>
+          </div>
+        </footer>
+      </div>
+    </dialog>
+
     <div class="visually-hidden" role="status" aria-live="polite" aria-atomic="true" data-dashboard-live></div>
-    <script src="/account-menu.js?v=20260722-avatar-nav"></script>
-    <script src="/dashboard.js?v=20260722-user-dashboard"></script>
+    <script src="/account-menu.js?v=20260722-creator-profile"></script>
+    <script src="/dashboard.js?v=20260722-profile-dashboard"></script>
   </body>
 </html>

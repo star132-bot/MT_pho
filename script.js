@@ -330,10 +330,10 @@ if (homeAccountEntry) {
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase() || "")
       .join("") || "MT";
-    homeAccountEntry.href = "/settings/account#profile";
+    homeAccountEntry.href = "/dashboard";
     homeAccountEntry.textContent = avatarText;
     homeAccountEntry.classList.add("is-avatar");
-    homeAccountEntry.setAttribute("aria-label", `Open personal information for ${displayName}`);
-    homeAccountEntry.title = "Personal information";
+    homeAccountEntry.setAttribute("aria-label", `Open personal profile for ${displayName}`);
+    homeAccountEntry.title = "Personal profile";
   }).catch(() => {});
 }

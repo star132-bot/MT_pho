@@ -31,11 +31,15 @@ python3 scripts/validate_auth_foundation.py
 python3 scripts/validate_supabase_phase1_rls.py
 python3 scripts/validate_workspace_phase2.py
 python3 scripts/validate_workspace_asset_scanner.py
+python3 scripts/validate_user_dashboard.py
 python3 scripts/test_auth_security_boundary.py
 python3 scripts/test_workspace_phase2_boundary.py
 python3 scripts/test_workspace_asset_scanner.py
+python3 scripts/test_user_dashboard_boundary.py
 python3 scripts/test_supabase_deploy_script.py
 node --check upload-studio.js
+node --check dashboard.js
+node --check account-settings.js
 ```
 
 With `agent-browser` installed, run `python3 scripts/test_workspace_trash_browser.py` for the 1440px/390px Trash/Restore visual and interaction acceptance.
@@ -90,14 +94,27 @@ MT_APPLY_PHASE1_BASELINE=no MT_DEPLOY_ENVIRONMENT=development bash scripts/deplo
 - cancel/cleanup 两个新增 RPC 不向响应泄露 intended asset keys；
 - 每个业务用户有一个 active system Inbox；
 - Storage owner insert/select/delete policies 均存在，且 owner delete policy 排除已登记到 `image_assets` 的对象。
+- `user_profiles` 包含 creator profile 扩展字段与 nullable `cover_asset_id`；`update_my_profile(jsonb)`、`get_my_profile_cover()`、`set_my_profile_cover(uuid)` 只授予 authenticated，两个 creator helper 不授予 authenticated/anon/service_role。
+- Cover candidate 必须为当前 owner 的 non-deleted ready image，每张 image 优先 current-policy scanner-clean display、缺失时回退 thumbnail；asset/scan-job bucket-kind、key、MIME、size、dimensions 与 checksum 必须一致。
 
-Dashboard 与 Trash migration 部署后运行聚焦的真实数据库门禁。脚本只允许显式 development 环境，使用固定 UUID 和事务级 advisory lock，在同一事务内创建两名 owner、inactive、recovery 与 stacked Admin fixture，最后固定 `ROLLBACK`，再用独立连接确认 fixture 不存在：
+Dashboard、Trash 与 protected creator profile migration 部署后运行聚焦的真实数据库门禁。脚本只允许显式 development 环境，使用固定 UUID 和事务级 advisory lock，在同一事务内创建两名 owner、inactive、recovery 与 stacked Admin fixture，以及互相隔离的 ready/pending/mismatched cover assets；最后固定 `ROLLBACK`，再用独立连接确认 fixture 不存在：
 
 ```bash
 MT_TEST_ENVIRONMENT=development python3 scripts/test_user_dashboard_database.py
 ```
 
-成功必须打印 `dashboard_database_pg_proc_security=yes`、`dashboard_database_acl_boundary=yes`、`dashboard_database_owner_isolation=yes`、`dashboard_database_identity_guards=yes`、`workspace_trash_database_owner_filter=yes`、`workspace_trash_database_state_filter=yes`、`dashboard_database_fixtures_rolled_back=yes` 和 `dashboard_database_fixtures_absent=yes`。不得在 production 或设置了 `MT_ALLOW_PRODUCTION=yes` 时运行；脚本从 Git ignored `.env` 读取 `PG*`，不输出 credential 或业务 payload。
+成功必须打印十二个 marker：`dashboard_database_pg_proc_security=yes`、`dashboard_database_acl_boundary=yes`、`dashboard_database_aggregate=yes`、`dashboard_database_owner_isolation=yes`、`dashboard_database_identity_guards=yes`、`workspace_trash_database_owner_filter=yes`、`workspace_trash_database_state_filter=yes`、`creator_profile_database_fields=yes`、`creator_profile_database_cover_owner=yes`、`creator_profile_database_identity_guards=yes`、`dashboard_database_fixtures_rolled_back=yes` 和 `dashboard_database_fixtures_absent=yes`。不得在 production 或设置了 `MT_ALLOW_PRODUCTION=yes` 时运行；脚本从 Git ignored `.env` 读取 `PG*`，不输出 credential 或业务 payload。
+
+`scripts/test_user_dashboard_boundary.py` 使用 secret-free loopback fake Auth/REST/Storage provider 覆盖 protected creator profile：
+
+- signed-in Home 与内部 avatar 目的地为 `/dashboard`，Account menu 保持独立；
+- `/api/me/profile` 十字段读取/更新、输入归一化、unknown field/invalid URL 拒绝；
+- `GET /api/me/profile/cover` 的严格 `{cover,candidates}` DTO、同一 asset 签名复用和 provider/internal field 清洗；
+- `PATCH /api/me/profile/cover` 的 JSON/CSRF、选择、移除、过期候选、跨 owner path 与 bucket-kind mismatch fail-closed；另覆盖 RPC 已提交但 Storage 签名失败时仍返回 HTTP 200 `{cover:null,saved:true}`，页面提示“已保存、预览暂不可用”，不得误报保存失败或自动重复 mutation；
+- anonymous、recovery、inactive 和 Admin/Super Admin AAL1 不能读取或修改受保护 creator profile；
+- `/dashboard` 仍只读取聚合 DTO，不遍历 `/api/images` 计算统计，也不把 private Storage coordinates 写入浏览器。
+
+浏览器验收应在 1440x900 与 390x844 检查：Dashboard 无左侧 rail，cover 与六项 profile facts 稳定；Overview/My works tab、cover dialog Escape/Cancel/focus restoration、选择/移除后 reload persistence 正常；Edit personal information 进入 `/settings/account#profile`；五个 fieldset 和十个 creator fields 无溢出。该验收只证明 protected personal profile，可见 UI 不得宣称 public creator portfolio 已交付。
 
 development 至少有三个 queued job 时，可运行真实数据库状态机测试。它会在单个事务内验证 disjoint claim、same-token idempotency/conflict、旧 token 拒绝、lease reclaim 和 attempt exhaustion，最后固定执行 `ROLLBACK`，不会保存 verdict：
 
@@ -266,7 +283,7 @@ Submit body 必须精确是 `{"confirmation":"submit-for-review","expected_versi
 
 ### Draft 不出现在 `manage.html` 或 `works.html`
 
-Editable Draft 与成功 submitted record 都不会进入 legacy `manage.html` 或公开 Works。Phase 2E 已创建 Supabase submission，但 Admin Review Queue/decision/Publish 与 public delivery 尚未接入；不要用 legacy `/api/archive/images` 复制记录来绕过工作流。
+Editable Draft 与成功 submitted record 都不会进入 legacy `manage.html` 或公开 Works。Phase 2E 已创建 Supabase submission，独立 Supabase Review Queue/decision 已接入，但 published-only DTO、derivative public delivery 与公开 Works 数据迁移仍未完成；不要用 legacy `/api/archive/images` 复制记录来绕过工作流。
 
 ### Review Center 未修改却提示离开
 

@@ -6,7 +6,7 @@
     <title>Account Settings | MT Presence</title>
     <meta name="description" content="Manage your MT Presence profile, authorship preferences, and secure sessions." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260722-avatar-nav" />
+    <link rel="stylesheet" href="/styles.css?v=20260722-profile-editor" />
   </head>
   <body class="account-settings-page">
     <a class="auth-skip" href="#account-content">Skip to account settings</a>
@@ -89,11 +89,15 @@
       <header class="account-settings-intro">
         <div>
           <p class="section-kicker">Personal Account</p>
-          <h1>Account settings</h1>
-          <p>Manage the identity, authorship defaults, and secure sessions connected to your work.</p>
+          <h1>Edit your profile</h1>
+          <p>Manage your creator identity, professional details, and account access in one place.</p>
+          <a class="account-return-profile" href="/dashboard">
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-home"></use></svg>
+            Return to profile
+          </a>
         </div>
         <div class="account-identity-summary" data-account-summary hidden>
-          <a class="account-avatar" href="#profile" aria-label="Open personal information" data-account-initials>MT</a>
+          <a class="account-avatar" href="/dashboard" aria-label="Return to personal profile" data-account-initials>MT</a>
           <span class="account-identity-copy">
             <strong data-account-display-name>Member</strong>
             <small data-account-email></small>
@@ -121,33 +125,97 @@
             <div class="account-section-heading">
               <div>
                 <p>01 / Identity</p>
-                <h2 id="profile-title">Profile</h2>
+                <h2 id="profile-title">Profile information</h2>
               </div>
-              <p>Your working identity inside MT Presence. Avatar uploads will use private managed storage in a later media slice.</p>
+              <p>Your identity, professional details, location, biography, and links.</p>
             </div>
-            <form class="account-form" data-profile-form novalidate>
-              <label class="account-field account-field-wide" for="account-display-name">
-                <span>Display name</span>
-                <input id="account-display-name" name="display_name" type="text" autocomplete="name" required maxlength="120" aria-describedby="account-display-name-error" />
-                <small id="account-display-name-error" data-field-error="display_name"></small>
-              </label>
-              <label class="account-field account-field-wide" for="account-bio">
-                <span>Bio</span>
-                <textarea id="account-bio" name="bio" rows="5" maxlength="1600" aria-describedby="account-bio-hint account-bio-error"></textarea>
-                <em id="account-bio-hint">A concise note about your photographic practice. Maximum 1,600 characters.</em>
-                <small id="account-bio-error" data-field-error="bio"></small>
-              </label>
-              <label class="account-field account-field-wide" for="account-website">
-                <span>Website</span>
-                <input id="account-website" name="website_url" type="url" inputmode="url" autocomplete="url" maxlength="2048" placeholder="https://" aria-describedby="account-website-hint account-website-error" />
-                <em id="account-website-hint">Only complete HTTPS addresses are accepted.</em>
-                <small id="account-website-error" data-field-error="website_url"></small>
-              </label>
-              <label class="account-field" for="account-country">
-                <span>Country code</span>
-                <input id="account-country" name="country_code" type="text" inputmode="text" maxlength="2" autocomplete="country" placeholder="CN" aria-describedby="account-country-error" />
-                <small id="account-country-error" data-field-error="country_code"></small>
-              </label>
+            <form class="account-form account-profile-form" data-profile-form novalidate>
+              <fieldset class="account-profile-group account-profile-group-identity">
+                <legend>Identity</legend>
+                <div class="account-profile-grid">
+                  <label class="account-field" for="account-display-name">
+                    <span>Display name</span>
+                    <input id="account-display-name" name="display_name" type="text" autocomplete="name" required maxlength="120" aria-describedby="account-display-name-error" />
+                    <small id="account-display-name-error" data-field-error="display_name"></small>
+                  </label>
+                  <label class="account-field" for="account-headline">
+                    <span>Professional headline</span>
+                    <input id="account-headline" name="professional_headline" type="text" autocomplete="organization-title" maxlength="160" placeholder="Photographer, artist, creative director" aria-describedby="account-headline-error" />
+                    <small id="account-headline-error" data-field-error="professional_headline"></small>
+                  </label>
+                </div>
+              </fieldset>
+
+              <fieldset class="account-profile-group account-profile-group-work">
+                <legend>Work</legend>
+                <div class="account-profile-grid">
+                  <label class="account-field" for="account-company">
+                    <span>Company or studio</span>
+                    <input id="account-company" name="company" type="text" autocomplete="organization" maxlength="160" aria-describedby="account-company-error" />
+                    <small id="account-company-error" data-field-error="company"></small>
+                  </label>
+                  <label class="account-field" for="account-availability">
+                    <span>Availability</span>
+                    <select id="account-availability" name="availability_status" aria-describedby="account-availability-error">
+                      <option value="open">Open to work</option>
+                      <option value="limited">Limited availability</option>
+                      <option value="unavailable">Not available</option>
+                    </select>
+                    <small id="account-availability-error" data-field-error="availability_status"></small>
+                  </label>
+                </div>
+              </fieldset>
+
+              <fieldset class="account-profile-group account-profile-group-location">
+                <legend>Location</legend>
+                <div class="account-profile-grid">
+                  <label class="account-field" for="account-country">
+                    <span>Country / region code</span>
+                    <input id="account-country" name="country_code" type="text" inputmode="text" maxlength="2" autocomplete="country" placeholder="CN" aria-describedby="account-country-error" />
+                    <small id="account-country-error" data-field-error="country_code"></small>
+                  </label>
+                  <label class="account-field" for="account-city">
+                    <span>City</span>
+                    <input id="account-city" name="city" type="text" autocomplete="address-level2" maxlength="120" aria-describedby="account-city-error" />
+                    <small id="account-city-error" data-field-error="city"></small>
+                  </label>
+                </div>
+              </fieldset>
+
+              <fieldset class="account-profile-group account-profile-group-about">
+                <legend>About</legend>
+                <div class="account-profile-grid">
+                  <label class="account-field account-field-wide" for="account-bio">
+                    <span>Biography</span>
+                    <textarea id="account-bio" name="bio" rows="6" maxlength="1600" aria-describedby="account-bio-hint account-bio-error"></textarea>
+                    <em id="account-bio-hint">Maximum 1,600 characters.</em>
+                    <small id="account-bio-error" data-field-error="bio"></small>
+                  </label>
+                </div>
+              </fieldset>
+
+              <fieldset class="account-profile-group account-profile-group-links">
+                <legend>Links</legend>
+                <div class="account-profile-grid">
+                  <label class="account-field account-field-wide" for="account-website">
+                    <span>Portfolio or website</span>
+                    <input id="account-website" name="website_url" type="url" inputmode="url" autocomplete="url" maxlength="2048" placeholder="https://your-site.com" aria-describedby="account-website-hint account-website-error" />
+                    <em id="account-website-hint">HTTPS addresses only.</em>
+                    <small id="account-website-error" data-field-error="website_url"></small>
+                  </label>
+                  <label class="account-field" for="account-instagram">
+                    <span>Instagram</span>
+                    <input id="account-instagram" name="instagram_url" type="url" inputmode="url" maxlength="2048" placeholder="https://instagram.com/your-name" aria-describedby="account-instagram-error" />
+                    <small id="account-instagram-error" data-field-error="instagram_url"></small>
+                  </label>
+                  <label class="account-field" for="account-linkedin">
+                    <span>LinkedIn</span>
+                    <input id="account-linkedin" name="linkedin_url" type="url" inputmode="url" maxlength="2048" placeholder="https://linkedin.com/in/your-name" aria-describedby="account-linkedin-error" />
+                    <small id="account-linkedin-error" data-field-error="linkedin_url"></small>
+                  </label>
+                </div>
+              </fieldset>
+
               <div class="account-form-actions account-field-wide">
                 <p data-profile-save-state aria-live="polite">No unsaved profile changes.</p>
                 <button class="button button-primary" type="submit" data-profile-submit disabled>Save profile</button>
@@ -278,7 +346,7 @@
       </form>
     </dialog>
 
-    <script src="/account-menu.js?v=20260722-avatar-nav"></script>
-    <script src="/account-settings.js?v=20260722-account-menu"></script>
+    <script src="/account-menu.js?v=20260722-creator-profile"></script>
+    <script src="/account-settings.js?v=20260722-profile-editor"></script>
   </body>
 </html>

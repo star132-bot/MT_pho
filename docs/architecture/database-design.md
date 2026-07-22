@@ -2,9 +2,9 @@
 
 ## 当前状态
 
-Phase 2A-2G 已把账户 owner-scoped Folder、Upload Intent、Draft、Version、Asset metadata、可靠取消/清理、private Supabase Storage、权威 readiness、Submit transaction、可信 asset scanner 与 Trash/Restore 接入当前 development boundary，并新增 authenticated-only User Dashboard 聚合。Phase 3 Supabase Review Queue/Detail/decision migration 与 Web 边界已部署到 development；rollback-only 角色/AAL/RLS/Storage/CAS/幂等/通知/审计、三组双会话并发，以及 2026-07-22 真实 disposable Reviewer/Admin 多身份浏览器验收全部通过。Dashboard/Trash rollback-only 真库验收的 9 个 marker 同样通过：`dashboard_image_json(uuid)` 精确为 `postgres` owner-only，`get_my_dashboard()` 与 `workspace_list_trashed_drafts()` 精确为 `postgres + authenticated`。公开 Works 与 legacy Review Center 仍使用本地 SQLite/sample；不要下载 MySQL，也不要执行历史 `database/schema.sql` 作为当前 production baseline。
+Phase 2A-2G 已把账户 owner-scoped Folder、Upload Intent、Draft、Version、Asset metadata、可靠取消/清理、private Supabase Storage、权威 readiness、Submit transaction、可信 asset scanner 与 Trash/Restore 接入当前 development boundary，并新增 authenticated-only User Dashboard 聚合和受保护 creator profile/editor。Phase 3 Supabase Review Queue/Detail/decision migration 与 Web 边界已部署到 development；rollback-only 角色/AAL/RLS/Storage/CAS/幂等/通知/审计、三组双会话并发，以及 2026-07-22 真实 disposable Reviewer/Admin 多身份浏览器验收全部通过。Dashboard/Trash/creator-profile rollback-only 真库门禁现在要求十二个 marker，覆盖八个函数的精确 ACL、双 owner 资料/封面隔离、current-clean cover eligibility、身份拒绝、回滚和 fixture absence。公开 Works 与 legacy Review Center 仍使用本地 SQLite/sample；受保护个人资料不是 public creator portfolio。不要下载 MySQL，也不要执行历史 `database/schema.sql` 作为当前 production baseline。
 
-`server.py` 同时维护三条明确分离的边界：`/api/folders`、`/api/uploads/*`、`/api/images*` 是 Supabase Workspace/Submit；`/api/admin/review-submissions*` 是 scoped Supabase Review Queue/Detail/assignment/start/decision；`/api/archive/images*` 是 Admin+AAL2 legacy SQLite Review/public prototype。`admin-reviews.html` 只使用第二条边界，`manage.html` 仍不读取 Supabase `review_submissions`。Contact 页面使用 `mailto:`，不保存本地消息。
+`server.py` 同时维护四条明确分离的边界：`/api/me/profile*` 是受保护 owner profile/cover；`/api/folders`、`/api/uploads/*`、`/api/images*` 是 Supabase Workspace/Submit；`/api/admin/review-submissions*` 是 scoped Supabase Review Queue/Detail/assignment/start/decision；`/api/archive/images*` 是 Admin+AAL2 legacy SQLite Review/public prototype。`admin-reviews.html` 只使用第三条边界，`manage.html` 仍不读取 Supabase `review_submissions`。Contact 页面使用 `mailto:`，不保存本地消息。
 
 当前新增了一个本地 SQLite 验证库，不作为生产后端，也不改变页面数据源：
 
@@ -32,9 +32,19 @@ python3 scripts/validate_local_archive_db.py
 
 验收脚本不会覆盖现有 `data/archive.db`，默认使用临时数据库；如需保留结果可使用 `--keep-db`，如需指定新文件可使用 `--db path/to/archive.db`。
 
+## Protected creator profile boundary
+
+- `database/migrations/20260722_z_creator_profile.sql` 以 transaction-wrapped migration 为 `user_profiles` 增加 `professional_headline`、`company`、`city`、`availability_status`、`instagram_url`、`linkedin_url` 与 nullable `cover_asset_id`；与既有 `display_name`、`bio`、`website_url`、`country_code` 合成页面的十字段 creator editor，偏好字段继续保留在同一 owner row。
+- `update_my_profile(jsonb)` 只允许固定字段，拒绝空 patch、未知 key、非法长度/enum/country/locale/timezone/license、非 HTTPS URL，以及非 Instagram/LinkedIn 官方 host 的 social URL。普通 active authenticated user 可执行；recovery、inactive 和 Admin/Super Admin AAL1 失败关闭。
+- `get_my_profile_cover()` 按当前 owner 的 image 选择最多 24 个候选：image 必须 non-deleted、`processing_status=ready` 且引用 current version；每个 image 优先 current-policy scanner-clean private `display`，缺失时回退 `thumbnail`。Asset 与 scan job 的 bucket-kind、key、MIME、size、dimensions、checksum 和 clean verdict 必须一致。
+- `set_my_profile_cover(uuid|null)` 只接受上述候选或显式移除；拒绝跨 owner、original、pending/flagged、旧 scan policy、deleted image 和 bucket-kind mismatch，失败不改变已保存 cover。
+- `require_creator_profile_user()` 与 `creator_profile_cover_asset_json(uuid,uuid)` 是 `SECURITY DEFINER`、空 `search_path` 的 owner-only helper；`update_my_profile(jsonb)`、`get_my_profile_cover()`、`set_my_profile_cover(uuid)` 只授予 `postgres + authenticated`，不授予 public/anon/service_role。
+- Web 的 `GET/PATCH /api/me/profile/cover` 只返回 `{cover,candidates}` 或 `{cover,saved}` 的固定 DTO。每个非空 cover DTO 仅含 `id,image_id,title,kind,mime_type,width,height,signed_url,expires_in`；bucket、key、owner、scan internals 与 provider payload 不离开服务端，PATCH 还要求 same-origin CSRF。若 `set_my_profile_cover` 已提交但随后 Storage 临时签名失败，PATCH 必须如实返回 HTTP 200 `{cover:null,saved:true}`，客户端显示“已保存、预览暂不可用”并允许后续重新加载；不能把已提交 mutation 误报成保存失败。
+- 这是受保护的个人账户边界。它不创建公开 profile slug、published-only creator DTO 或 public cover URL，也不改变公开 Works 当前的 SQLite/sample 数据源。
+
 ## 目标
 
-当前 Supabase 已保存私人 Draft，能权威计算 readiness、创建 immutable submission snapshots、锁定 submitted workflow，并由已部署的独立 Review Queue 边界执行 assignment/start/decision；数据库、并发和真实多身份浏览器验收均已通过。下一条真实未完成链路是 public derivative delivery、公开 Works 数据源迁移，以及公开 creator profile/editor；之后再把 sample/import 和首页精选迁移到同一 production boundary。关系数据库保存 metadata、状态和对象 key，真实图片文件保存在 Supabase Storage。
+当前 Supabase 已保存私人 Draft，能权威计算 readiness、创建 immutable submission snapshots、锁定 submitted workflow，并由已部署的独立 Review Queue 边界执行 assignment/start/decision；受保护 creator profile/editor 与 owner-scoped cover selector 也已接入同一账户边界。下一条真实未完成链路是 public derivative delivery、公开 Works 数据源迁移，以及 public creator portfolio/delivery；之后再把 sample/import 和首页精选迁移到同一 production boundary。关系数据库保存 metadata、状态和对象 key，真实图片文件保存在 Supabase Storage。
 
 核心要求：
 
@@ -79,7 +89,8 @@ Archive 页面展示时读取 `archive_image_view.image_url`。该字段优先�
 - `database/migrations/20260717_review_queue.sql`：Phase 3 增量；新增 scoped list/detail、atomic assignment/start 与 versioned/idempotent decision RPC，禁止 self-review，收紧 role-stacking RLS、current-clean private Storage bucket-kind/lifecycle、direct table/函数 ACL，并在事务内保存非空 expected version/result snapshot、notification 与覆盖 assignment/workflow/asset visibility 的真实 before/after audit。
 - `database/migrations/20260722_user_dashboard.sql`：User Dashboard 聚合读模型；`dashboard_image_json(uuid)` 仅供 `postgres` owner 内部调用，`get_my_dashboard()` 仅授权 `postgres + authenticated`，拒绝 recovery session 并返回 owner-scoped counts/attention/recent/review/storage/capabilities。
 - `database/migrations/20260722_workspace_trash_restore.sql`：Phase 2G owner-scoped Trash 列表；`workspace_list_trashed_drafts()` 仅授权 `postgres + authenticated`，拒绝 recovery session，只返回当前 owner 的 soft-deleted editable Draft。
-- `scripts/test_user_dashboard_database.py`：development-only、rollback-only Dashboard/Trash 真库验收；9 个 marker 覆盖三个函数的安全元数据与精确 ACL、聚合结果、owner 隔离、identity guards、Trash owner/state filter、事务回滚和独立 fixture absence。
+- `database/migrations/20260722_z_creator_profile.sql`：Protected creator profile 增量；扩展十字段编辑合同与 availability enum，安装 strict profile update、cover eligibility helper，以及 authenticated-only owner cover read/write RPC。
+- `scripts/test_user_dashboard_database.py`：development-only、rollback-only Dashboard/Trash/creator-profile 真库验收；十二个 marker 覆盖八个函数的安全元数据与精确 ACL、聚合结果、扩展字段、social host、owner 隔离、current-clean cover 与 bucket-kind filter、identity guards、Trash owner/state filter、事务回滚和独立 fixture absence。
 - `scripts/validate_review_queue_phase3.py` / `scripts/test_review_queue_boundary.py`：Review SQL/UI/API/CI 静态合同和 secret-free fake-provider HTTP 回归。
 - `scripts/test_review_queue_database.sql`：development-only、rollback-only 数据库验收；真实覆盖 User/Reviewer/stacked Admin AAL1/Admin AAL2、self-review、direct RLS、current-scan Storage 生命周期、CAS、Approve 后 Publish 仍稳定的 same-payload replay、冲突重放、notification 与 audit。
 - `scripts/test_review_queue_concurrency.py`：development-only committed-fixture 双会话验收；启动六个独立 `psql` 会话并确保每组竞争使用不同 backend PID，覆盖 Start/claim、不同 key CAS 和 same-key replay 竞争，并在运行前后清理 fixture。
@@ -333,7 +344,7 @@ Supabase 当前规则：
 1. 当前已完成本地读取连接：`server.py` 读取 `data/archive.db`，`works.html` / `archive.js` 优先消费 `/api/archive/images`。
 2. 当前已完成本地既有作品 metadata/tag 写入连接：`manage.js` 保存 seed 作品时调用 `PATCH /api/archive/images/{id}`。
 3. 已完成 `database/product_schema.sql` + Phase 1 RLS/Auth + Phase 2A-2G ordered Workspace migrations 的当前 development boundary。
-4. 已完成 owner-scoped signed upload、Folder、Draft edit/list、soft-delete Trash/Restore、双并发 Retry/Cancel/Remove、partial-object cleanup、五项 readiness、idempotent Submit transaction、User Dashboard aggregate，以及独立 trusted scanner 的 leased/retry/clean/flagged/failed 代码与数据库状态机；Dashboard/Trash 真库 9-marker 验收通过。development scanner 已具备隔离 secret 与 ClamAV 运行条件，production 常驻 Worker、监控与告警仍需交付。
+4. 已完成 owner-scoped signed upload、Folder、Draft edit/list、soft-delete Trash/Restore、双并发 Retry/Cancel/Remove、partial-object cleanup、五项 readiness、idempotent Submit transaction、User Dashboard aggregate、受保护 creator profile/cover，以及独立 trusted scanner 的 leased/retry/clean/flagged/failed 代码与数据库状态机；Dashboard/Trash/creator-profile 真库门禁使用十二个 marker。development scanner 已具备隔离 secret 与 ClamAV 运行条件，production 常驻 Worker、监控与告警仍需交付。
 5. `/admin/reviews` 的 scoped Queue/Detail、原子 assignment/start、versioned/idempotent decisions、notification/audit 与 private signed asset 边界已部署 development；rollback-only、双会话并发和真实 disposable 多身份浏览器验收均通过。
-6. 后续先实现 published-only production DTO、derivative public delivery 和公开 Works 数据源迁移，再向浏览器开放真实的 Admin+AAL2 Approve and Publish；同时补公开 creator profile/editor，legacy `manage.html` 在迁移完成前保持 SQLite 原型。
+6. 后续先实现 published-only production DTO、derivative public delivery 和公开 Works 数据源迁移，再向浏览器开放真实的 Admin+AAL2 Approve and Publish；public creator portfolio/delivery 需要另建只读 published-only 边界，不能直接暴露当前 protected profile DTO，legacy `manage.html` 在迁移完成前保持 SQLite 原型。
 7. 再补 scheduled orphan repair、user quota/rate limit、TUS、Withdraw/Escalate/Quarantine 与运营筛选，最后迁移 `sampleItems`、首页精选、真实 AI 分析和仍被产品确认需要的 square slice/tag 能力。

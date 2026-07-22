@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Development-only, rollback-only Dashboard and Workspace Trash DB acceptance."""
+"""Development-only, rollback-only Dashboard, Trash, and creator profile acceptance."""
 
 from __future__ import annotations
 
@@ -41,6 +41,9 @@ EXPECTED_MARKERS = (
     "dashboard_database_identity_guards=yes",
     "workspace_trash_database_owner_filter=yes",
     "workspace_trash_database_state_filter=yes",
+    "creator_profile_database_fields=yes",
+    "creator_profile_database_cover_owner=yes",
+    "creator_profile_database_identity_guards=yes",
     "dashboard_database_fixtures_rolled_back=yes",
 )
 
@@ -71,13 +74,21 @@ begin
       p.proconfig,
       p.oid in (
         'public.get_my_dashboard()'::regprocedure,
-        'public.workspace_list_trashed_drafts()'::regprocedure
+        'public.workspace_list_trashed_drafts()'::regprocedure,
+        'public.update_my_profile(jsonb)'::regprocedure,
+        'public.get_my_profile_cover()'::regprocedure,
+        'public.set_my_profile_cover(uuid)'::regprocedure
       ) as allow_authenticated
     from pg_proc p
     where p.oid in (
       'public.dashboard_image_json(uuid)'::regprocedure,
       'public.get_my_dashboard()'::regprocedure,
-      'public.workspace_list_trashed_drafts()'::regprocedure
+      'public.workspace_list_trashed_drafts()'::regprocedure,
+      'public.require_creator_profile_user()'::regprocedure,
+      'public.update_my_profile(jsonb)'::regprocedure,
+      'public.creator_profile_cover_asset_json(uuid,uuid)'::regprocedure,
+      'public.get_my_profile_cover()'::regprocedure,
+      'public.set_my_profile_cover(uuid)'::regprocedure
     )
   loop
     if not proc_row.prosecdef then
@@ -113,9 +124,17 @@ begin
   if (select count(*) from pg_proc p where p.oid in (
     'public.dashboard_image_json(uuid)'::regprocedure,
     'public.get_my_dashboard()'::regprocedure,
-    'public.workspace_list_trashed_drafts()'::regprocedure
-  )) <> 3 then
-    raise exception 'Dashboard/Trash function metadata is incomplete';
+    'public.workspace_list_trashed_drafts()'::regprocedure,
+    'public.require_creator_profile_user()'::regprocedure,
+    'public.update_my_profile(jsonb)'::regprocedure,
+    'public.creator_profile_cover_asset_json(uuid,uuid)'::regprocedure,
+    'public.get_my_profile_cover()'::regprocedure,
+    'public.set_my_profile_cover(uuid)'::regprocedure
+  )) <> 8 then
+    raise exception 'Dashboard/Trash/creator profile function metadata is incomplete';
+  end if;
+  if has_table_privilege('authenticated', 'public.user_profiles', 'UPDATE') then
+    raise exception 'authenticated retains generic user_profiles UPDATE';
   end if;
 end
 $$;
@@ -135,6 +154,24 @@ begin
     perform public.workspace_list_trashed_drafts();
     raise exception 'anon executed workspace_list_trashed_drafts';
   exception when insufficient_privilege then
+      null;
+  end;
+  begin
+    perform public.get_my_profile_cover();
+    raise exception 'anon executed get_my_profile_cover';
+  exception when insufficient_privilege then
+    null;
+  end;
+  begin
+    perform public.set_my_profile_cover(null);
+    raise exception 'anon executed set_my_profile_cover';
+  exception when insufficient_privilege then
+    null;
+  end;
+  begin
+    perform public.update_my_profile('{"city":"Anon"}'::jsonb);
+    raise exception 'anon executed update_my_profile';
+  exception when insufficient_privilege then
     null;
   end;
 end
@@ -153,6 +190,24 @@ begin
   begin
     perform public.workspace_list_trashed_drafts();
     raise exception 'service_role executed workspace_list_trashed_drafts';
+  exception when insufficient_privilege then
+      null;
+  end;
+  begin
+    perform public.get_my_profile_cover();
+    raise exception 'service_role executed get_my_profile_cover';
+  exception when insufficient_privilege then
+    null;
+  end;
+  begin
+    perform public.set_my_profile_cover(null);
+    raise exception 'service_role executed set_my_profile_cover';
+  exception when insufficient_privilege then
+    null;
+  end;
+  begin
+    perform public.update_my_profile('{"city":"Service"}'::jsonb);
+    raise exception 'service_role executed update_my_profile';
   exception when insufficient_privilege then
     null;
   end;
@@ -299,8 +354,21 @@ insert into public.image_assets (
 ) values
   ('00000000-0000-4000-8000-00000000f541', '00000000-0000-4000-8000-00000000f511', '00000000-0000-4000-8000-00000000f501', 'thumbnail', '00000000-0000-4000-8000-00000000f501/dashboard/thumbnail.jpg', 'image/jpeg', 300, 400, 300, repeat('6', 64), 'clean', 'clean', now(), 'mt-asset-scan-2026-07-v1', 'private'),
   ('00000000-0000-4000-8000-00000000f542', '00000000-0000-4000-8000-00000000f511', '00000000-0000-4000-8000-00000000f501', 'original', '00000000-0000-4000-8000-00000000f501/dashboard/original.jpg', 'image/jpeg', 700, 1600, 1200, repeat('7', 64), 'pending', null, null, null, 'private'),
-  ('00000000-0000-4000-8000-00000000f543', '00000000-0000-4000-8000-00000000f518', '00000000-0000-4000-8000-00000000f502', 'thumbnail', '00000000-0000-4000-8000-00000000f502/dashboard/thumbnail.jpg', 'image/jpeg', 200, 300, 400, repeat('8', 64), 'clean', 'clean', now(), 'mt-asset-scan-2026-07-v1', 'private');
+  ('00000000-0000-4000-8000-00000000f543', '00000000-0000-4000-8000-00000000f518', '00000000-0000-4000-8000-00000000f502', 'thumbnail', '00000000-0000-4000-8000-00000000f502/dashboard/thumbnail.jpg', 'image/jpeg', 200, 300, 400, repeat('8', 64), 'clean', 'clean', now(), 'mt-asset-scan-2026-07-v1', 'private'),
+  ('00000000-0000-4000-8000-00000000f544', '00000000-0000-4000-8000-00000000f513', '00000000-0000-4000-8000-00000000f501', 'thumbnail', '00000000-0000-4000-8000-00000000f501/mismatch/thumbnail.jpg', 'image/jpeg', 100, 200, 200, repeat('9', 64), 'clean', 'clean', now(), 'mt-asset-scan-2026-07-v1', 'private'),
+  ('00000000-0000-4000-8000-00000000f545', '00000000-0000-4000-8000-00000000f511', '00000000-0000-4000-8000-00000000f501', 'display', '00000000-0000-4000-8000-00000000f501/dashboard/display.jpg', 'image/jpeg', 500, 1200, 480, repeat('a', 64), 'clean', 'clean', now(), 'mt-asset-scan-2026-07-v1', 'private');
 alter table public.image_assets enable trigger image_assets_enqueue_scan_job;
+
+insert into public.asset_scan_jobs (
+  id, asset_id, status, attempt_count, max_attempts, storage_bucket,
+  storage_key, mime_type, byte_size, width, height, checksum_sha256,
+  scan_policy_version, scanner_version, engine_name, engine_version,
+  result_code, completed_at
+) values
+  ('00000000-0000-4000-8000-00000000f561', '00000000-0000-4000-8000-00000000f541', 'clean', 1, 5, 'image-thumbnails', '00000000-0000-4000-8000-00000000f501/dashboard/thumbnail.jpg', 'image/jpeg', 300, 400, 300, repeat('6', 64), 'mt-asset-scan-2026-07-v1', 'fixture-scanner', 'fixture-engine', '1', 'clean', now()),
+  ('00000000-0000-4000-8000-00000000f563', '00000000-0000-4000-8000-00000000f543', 'clean', 1, 5, 'image-thumbnails', '00000000-0000-4000-8000-00000000f502/dashboard/thumbnail.jpg', 'image/jpeg', 200, 300, 400, repeat('8', 64), 'mt-asset-scan-2026-07-v1', 'fixture-scanner', 'fixture-engine', '1', 'clean', now()),
+  ('00000000-0000-4000-8000-00000000f564', '00000000-0000-4000-8000-00000000f544', 'clean', 1, 5, 'image-display', '00000000-0000-4000-8000-00000000f501/mismatch/thumbnail.jpg', 'image/jpeg', 100, 200, 200, repeat('9', 64), 'mt-asset-scan-2026-07-v1', 'fixture-scanner', 'fixture-engine', '1', 'clean', now()),
+  ('00000000-0000-4000-8000-00000000f565', '00000000-0000-4000-8000-00000000f545', 'clean', 1, 5, 'image-display', '00000000-0000-4000-8000-00000000f501/dashboard/display.jpg', 'image/jpeg', 500, 1200, 480, repeat('a', 64), 'mt-asset-scan-2026-07-v1', 'fixture-scanner', 'fixture-engine', '1', 'clean', now());
 
 insert into public.review_submissions (
   id, image_id, image_version_id, submitted_by_user_id, idempotency_key,
@@ -316,6 +384,10 @@ declare
   dashboard jsonb;
   trash jsonb;
   image jsonb;
+  profile jsonb;
+  cover_data jsonb;
+  cover_result jsonb;
+  stored_cover uuid;
 begin
   dashboard := public.get_my_dashboard();
   if dashboard #>> '{status_counts,drafts}' <> '1'
@@ -336,9 +408,9 @@ begin
      or dashboard #>> '{review_activity,0,submission_id}' <> '00000000-0000-4000-8000-00000000f531' then
     raise exception 'Owner A Dashboard list aggregates are incorrect';
   end if;
-  if dashboard #>> '{storage_usage,used_bytes}' <> '1000'
-     or dashboard #>> '{storage_usage,asset_count}' <> '2'
-     or dashboard #>> '{storage_usage,image_count}' <> '1' then
+  if dashboard #>> '{storage_usage,used_bytes}' <> '1600'
+     or dashboard #>> '{storage_usage,asset_count}' <> '4'
+     or dashboard #>> '{storage_usage,image_count}' <> '2' then
     raise exception 'Owner A Dashboard storage aggregate is incorrect';
   end if;
   select entry into image
@@ -375,12 +447,72 @@ begin
      or trash::text like '%00000000-0000-4000-8000-00000000f519%' then
     raise exception 'Owner A Trash included submitted or cross-owner data';
   end if;
+
+  profile := public.update_my_profile(jsonb_build_object(
+    'professional_headline', 'Editorial photographer',
+    'company', 'Field Notes Studio',
+    'city', ' Hangzhou ',
+    'availability_status', 'limited',
+    'instagram_url', 'https://Instagram.com/Field.Notes',
+    'linkedin_url', 'https://WWW.LinkedIn.com/in/field-notes'
+  ));
+  if profile ->> 'professional_headline' <> 'Editorial photographer'
+     or profile ->> 'company' <> 'Field Notes Studio'
+     or profile ->> 'city' <> 'Hangzhou'
+     or profile ->> 'availability_status' <> 'limited'
+     or profile ->> 'instagram_url' <> 'https://Instagram.com/Field.Notes'
+     or profile ->> 'linkedin_url' <> 'https://WWW.LinkedIn.com/in/field-notes' then
+    raise exception 'Creator profile extended fields were not normalized';
+  end if;
+  begin
+    perform public.update_my_profile(
+      '{"instagram_url":"https://example.test/not-instagram"}'::jsonb
+    );
+    raise exception 'Creator profile accepted an off-domain Instagram URL';
+  exception when sqlstate '22023' then
+    null;
+  end;
+
+  cover_data := public.get_my_profile_cover();
+  if cover_data -> 'cover_asset' <> 'null'::jsonb
+     or jsonb_array_length(cover_data -> 'candidates') <> 1
+     or cover_data #>> '{candidates,0,id}' <> '00000000-0000-4000-8000-00000000f545'
+     or cover_data #>> '{candidates,0,storage_bucket}' <> 'image-display'
+     or cover_data #>> '{candidates,0,scan_status}' <> 'clean' then
+    raise exception 'Owner A creator cover candidates are not current-clean and owner scoped';
+  end if;
+
+  cover_result := public.set_my_profile_cover('00000000-0000-4000-8000-00000000f545');
+  if cover_result ->> 'saved' <> 'true'
+     or cover_result #>> '{cover_asset,id}' <> '00000000-0000-4000-8000-00000000f545' then
+    raise exception 'Owner A could not select its clean cover asset';
+  end if;
+  cover_result := public.set_my_profile_cover('00000000-0000-4000-8000-00000000f543');
+  if cover_result #>> '{error,code}' <> 'PROFILE_COVER_NOT_AVAILABLE' then
+    raise exception 'Owner A selected Owner B cover asset';
+  end if;
+  cover_result := public.set_my_profile_cover('00000000-0000-4000-8000-00000000f542');
+  if cover_result #>> '{error,code}' <> 'PROFILE_COVER_NOT_AVAILABLE' then
+    raise exception 'Owner A selected a pending original as profile cover';
+  end if;
+  cover_result := public.set_my_profile_cover('00000000-0000-4000-8000-00000000f544');
+  if cover_result #>> '{error,code}' <> 'PROFILE_COVER_NOT_AVAILABLE' then
+    raise exception 'Owner A selected a scanner job with a mismatched Storage bucket';
+  end if;
+  select p.cover_asset_id into stored_cover
+  from public.user_profiles p
+  where p.user_id = '00000000-0000-4000-8000-00000000f501';
+  if stored_cover <> '00000000-0000-4000-8000-00000000f545'::uuid then
+    raise exception 'Rejected cover selection changed the persisted cover';
+  end if;
 end
 $$;
 reset role;
 
 select 'dashboard_database_aggregate=yes';
 select 'workspace_trash_database_state_filter=yes';
+select 'creator_profile_database_fields=yes';
+select 'creator_profile_database_cover_owner=yes';
 
 select pg_temp.set_dashboard_claims('00000000-0000-4000-8000-00000000f502');
 set local role authenticated;
@@ -388,6 +520,8 @@ do $$
 declare
   dashboard jsonb;
   trash jsonb;
+  cover_data jsonb;
+  cover_result jsonb;
 begin
   dashboard := public.get_my_dashboard();
   if dashboard #>> '{status_counts,drafts}' <> '1'
@@ -407,6 +541,17 @@ begin
      or nullif(trash #>> '{images,0,deleted_at}', '') is null
      or trash::text like '%00000000-0000-4000-8000-00000000f515%' then
     raise exception 'Owner B Trash is not owner isolated';
+  end if;
+  cover_data := public.get_my_profile_cover();
+  if jsonb_array_length(cover_data -> 'candidates') <> 1
+     or cover_data #>> '{candidates,0,id}' <> '00000000-0000-4000-8000-00000000f543'
+     or cover_data::text like '%00000000-0000-4000-8000-00000000f541%'
+     or cover_data::text like '%00000000-0000-4000-8000-00000000f545%' then
+    raise exception 'Owner B creator cover candidates are not owner isolated';
+  end if;
+  cover_result := public.set_my_profile_cover('00000000-0000-4000-8000-00000000f541');
+  if cover_result #>> '{error,code}' <> 'PROFILE_COVER_NOT_AVAILABLE' then
+    raise exception 'Owner B selected Owner A cover asset';
   end if;
 end
 $$;
@@ -431,6 +576,24 @@ begin
   exception when sqlstate '42501' then
     null;
   end;
+  begin
+    perform public.get_my_profile_cover();
+    raise exception 'inactive account opened creator cover settings';
+  exception when sqlstate '42501' then
+    null;
+  end;
+  begin
+    perform public.set_my_profile_cover(null);
+    raise exception 'inactive account changed creator cover';
+  exception when sqlstate '42501' then
+    null;
+  end;
+  begin
+    perform public.update_my_profile('{"city":"Inactive"}'::jsonb);
+    raise exception 'inactive account changed creator profile';
+  exception when sqlstate '42501' then
+    null;
+  end;
 end
 $$;
 reset role;
@@ -448,6 +611,24 @@ begin
   begin
     perform public.workspace_list_trashed_drafts();
     raise exception 'recovery session opened Workspace Trash';
+  exception when sqlstate '42501' then
+    null;
+  end;
+  begin
+    perform public.get_my_profile_cover();
+    raise exception 'recovery session opened creator cover settings';
+  exception when sqlstate '42501' then
+    null;
+  end;
+  begin
+    perform public.set_my_profile_cover(null);
+    raise exception 'recovery session changed creator cover';
+  exception when sqlstate '42501' then
+    null;
+  end;
+  begin
+    perform public.update_my_profile('{"city":"Recovery"}'::jsonb);
+    raise exception 'recovery session changed creator profile';
   exception when sqlstate '42501' then
     null;
   end;
@@ -471,6 +652,24 @@ begin
   exception when sqlstate '42501' then
     null;
   end;
+  begin
+    perform public.get_my_profile_cover();
+    raise exception 'stacked Admin AAL1 opened creator cover settings';
+  exception when sqlstate '42501' then
+    null;
+  end;
+  begin
+    perform public.set_my_profile_cover(null);
+    raise exception 'stacked Admin AAL1 changed creator cover';
+  exception when sqlstate '42501' then
+    null;
+  end;
+  begin
+    perform public.update_my_profile('{"city":"Admin AAL1"}'::jsonb);
+    raise exception 'stacked Admin AAL1 changed creator profile';
+  exception when sqlstate '42501' then
+    null;
+  end;
 end
 $$;
 reset role;
@@ -481,6 +680,8 @@ do $$
 declare
   dashboard jsonb;
   trash jsonb;
+  profile jsonb;
+  cover_data jsonb;
 begin
   dashboard := public.get_my_dashboard();
   trash := public.workspace_list_trashed_drafts();
@@ -491,11 +692,22 @@ begin
      or jsonb_array_length(trash -> 'images') <> 0 then
     raise exception 'Admin AAL2 did not receive only its owner-scoped Dashboard/Trash data';
   end if;
+  profile := public.update_my_profile(jsonb_build_object(
+    'professional_headline', 'Platform administrator',
+    'availability_status', 'unavailable'
+  ));
+  cover_data := public.get_my_profile_cover();
+  if profile ->> 'professional_headline' <> 'Platform administrator'
+     or profile ->> 'availability_status' <> 'unavailable'
+     or jsonb_array_length(cover_data -> 'candidates') <> 0 then
+    raise exception 'Admin AAL2 creator profile access was not owner scoped';
+  end if;
 end
 $$;
 reset role;
 
 select 'dashboard_database_identity_guards=yes';
+select 'creator_profile_database_identity_guards=yes';
 
 rollback;
 select 'dashboard_database_fixtures_rolled_back=yes';
@@ -605,6 +817,9 @@ def assert_fixtures_absent() -> None:
              where image_id in ({sql_values(IMAGE_IDS)}))
           + (select count(*) from public.image_assets
              where image_id in ({sql_values(IMAGE_IDS)}))
+          + (select count(*) from public.asset_scan_jobs
+             where asset_id between '00000000-0000-4000-8000-00000000f541'::uuid
+               and '00000000-0000-4000-8000-00000000f545'::uuid)
           + (select count(*) from public.review_submissions
              where image_id in ({sql_values(IMAGE_IDS)}))
         );

@@ -6,8 +6,8 @@ MT Presence is a fine art photography portfolio and image-workflow prototype. Ve
 
 - Version: `1.0.0`
 - Release label: `v1.0.0`
-- Status: public frontend, server-managed Supabase Auth/Account, protected user Dashboard, Phase 2A-2G private Workspace, and the development-deployed Phase 3 Review Queue slice
-- Database: Phase 0/1, Phase 2A-2G Workspace, and Phase 3 Review Queue are deployed to development. Review rollback-only role/AAL/RLS/Storage/CAS/idempotency/audit verification, three two-session races, secret-free browser checks, and the real disposable Reviewer/Admin multi-identity browser acceptance all pass. The Dashboard/Trash rollback-only PostgreSQL acceptance also passes all nine markers with exact function ACLs. Public Works plus the legacy Review Center still read SQLite; public derivative delivery, the Works data migration, and public creator profile/editor remain unfinished
+- Status: public frontend, server-managed Supabase Auth/Account, protected cover-led personal profile, Phase 2A-2G private Workspace, and the development-deployed Phase 3 Review Queue slice
+- Database: Phase 0/1, Phase 2A-2G Workspace, and Phase 3 Review Queue are deployed to development; the ordered creator-profile migration extends the protected account boundary with ten creator fields and an owner-scoped cover selector. Review rollback-only role/AAL/RLS/Storage/CAS/idempotency/audit verification, three two-session races, secret-free browser checks, and the real disposable Reviewer/Admin multi-identity browser acceptance all pass. The Dashboard/Trash/creator-profile PostgreSQL acceptance covers exact function ACLs, owner isolation, identity guards, eligible cover assets, rollback, and fixture cleanup. Public Works plus the legacy Review Center still read SQLite; public derivative delivery, the Works data migration, and a public creator portfolio remain unfinished
 
 ## Features
 
@@ -28,9 +28,9 @@ MT Presence is a fine art photography portfolio and image-workflow prototype. Ve
 - Independent trusted asset scanner with restricted leased jobs, private Storage streaming, SHA-256/magic/MIME checks, ClamAV malware detection, isolated Pillow full decoding, bounded retries, append-only scan events, and fail-closed current-policy readiness updates.
 - Contact Artist page linked from the homepage and Works Archive page.
 - Supabase Register/Verify/Sign In/Sign Out/Forgot/Reset flow with HttpOnly session cookies, CSRF protection, owner isolation, and Admin MFA guards.
-- Protected Account Settings for profile/authorship preferences, verified account state, current-session description, and provider-supported bulk session revocation.
-- Protected user Dashboard with a real server aggregate for work status, Changes Requested/processing attention, recent signed private previews, review activity, storage usage, editable Drafts, and truthful unavailable states for quota/public delivery.
-- Signed-in avatars open `/settings/account#profile` directly on Home, Dashboard, Upload, Review, and Account. Internal headers keep a separate account-menu button with identity, permission-aware Review entry, keyboard navigation, outside/Escape closing, focus restoration, and CSRF-protected sign out.
+- Protected Account Settings with five creator-profile groups and ten editable identity/work/location/about/link fields, plus authorship preferences, verified account state, current-session description, and provider-supported bulk session revocation.
+- Full-width protected personal profile at `/dashboard`, led by an editable photography cover and identity summary, with Overview/My works tabs backed by the real server aggregate for work status, Changes Requested/processing attention, recent signed private previews, review activity, storage usage, editable Drafts, and truthful unavailable states for quota/public delivery.
+- Signed-in avatars open the protected personal profile at `/dashboard` on Home, Dashboard, Upload, Review, and Account. The profile provides an explicit `Edit personal information` action to `/settings/account#profile`; internal headers keep a separate account-menu button with identity, permission-aware Review entry, keyboard navigation, outside/Escape closing, focus restoration, and CSRF-protected sign out.
 - Protected Supabase Admin Review Queue with scoped Reviewer claims, Admin+AAL2 history access, image-first submitted-version inspection, checklist decisions, optimistic concurrency, idempotent mutation keys, private signed assets, and immutable decision/audit evidence. The browser intentionally exposes Request Changes, Reject, and Approve only until public delivery is connected.
 - Local SQLite archive seed, Archive read/write metadata API, and automated validation workflow for checking image metadata, assets, grouped tags, collections, and Archive view output before backend integration.
 
@@ -177,9 +177,10 @@ The Dashboard reads one owner-scoped server aggregate and never walks all image 
 ```text
 GET                    /api/dashboard
 GET                    /api/me/profile
+GET|PATCH              /api/me/profile/cover
 ```
 
-`database/migrations/20260722_user_dashboard.sql` installs authenticated-only `get_my_dashboard()`. The Web server projects its result through a fixed allowlist and replaces current-clean private thumbnail coordinates with short-lived signed URLs. Storage quota and public portfolio remain explicitly unavailable until those backend capabilities exist.
+`database/migrations/20260722_user_dashboard.sql` installs authenticated-only `get_my_dashboard()`. `database/migrations/20260722_z_creator_profile.sql` extends the owner profile with `professional_headline`, `company`, `city`, `availability_status`, `instagram_url`, `linkedin_url`, and `cover_asset_id`, retains the existing creator fields, and exposes authenticated-only cover read/update RPCs. The cover chooser can select or remove only a current, ready, non-deleted image owned by the signed-in user; it requires a scanner-clean private display asset under the current policy, with a clean thumbnail fallback. The Web server projects both aggregate and cover results through fixed allowlists and replaces private Storage coordinates with short-lived signed URLs. Storage quota and public creator delivery remain explicitly unavailable until those backend capabilities exist.
 
 The browser prepares `original`, `display`, and `thumbnail` assets, processes at most two tasks concurrently, requests owner-namespaced signed destinations, uploads directly to private Supabase Storage, and completes one server Draft transaction. A task may be canceled while queued or in flight, retried without losing its local preview, or removed after failure/cancellation. Server cancellation records the terminal state and removes any partial objects through the Storage API.
 
@@ -211,13 +212,13 @@ POST   http://127.0.0.1:8131/api/images/{id}/restore
 
 Trash is a soft delete and uses the same `expected_version` compare-and-swap contract as Draft PATCH. Submitted images are locked and cannot be moved directly to Trash. The read-only Trash view exposes only Restore; a successful restore returns the Draft to its original active Folder or falls back to Inbox when that Folder was deleted. Quota policy, public delivery, and end-to-end Publish visibility remain later slices.
 
-Run the development-only, rollback-only Dashboard/Trash database acceptance with development `PG*` variables loaded:
+Run the development-only, rollback-only Dashboard/Trash/creator-profile database acceptance with development `PG*` variables loaded:
 
 ```bash
 MT_TEST_ENVIRONMENT=development python3 scripts/test_user_dashboard_database.py
 ```
 
-The 2026-07-22 run passed all nine markers: `dashboard_image_json(uuid)` is executable only by its `postgres` owner, while `get_my_dashboard()` and `workspace_list_trashed_drafts()` are executable only by `postgres` and `authenticated`. The test also covers owner isolation, aggregate/state filtering, inactive/recovery/AAL guards, rollback, and an independent fixture-absence check.
+The rollback-only test now requires twelve success markers. `dashboard_image_json(uuid)`, `require_creator_profile_user()`, and `creator_profile_cover_asset_json(uuid,uuid)` remain owner-only helpers; `get_my_dashboard()`, `workspace_list_trashed_drafts()`, `update_my_profile(jsonb)`, `get_my_profile_cover()`, and `set_my_profile_cover(uuid)` are executable only by `postgres` and `authenticated`. The test covers aggregate/state filtering, extended profile normalization, official-host social URLs, owner-isolated current-clean cover eligibility, bucket-kind mismatch rejection, inactive/recovery/AAL guards, rollback, and an independent fixture-absence check.
 
 Validate the local archive database workflow:
 
@@ -242,10 +243,10 @@ The contact form opens the visitor's email app with a prepared draft. There is n
 - `about.html`: public artist practice and availability page.
 - `lightbox.html`: browser-local visitor selection and inquiry handoff.
 - `public-archive.js`: shared public archive loading and Lightbox storage migration.
-- `dashboard.html` / `dashboard.js`: protected `/dashboard` identity and operational overview, consuming only the aggregate Dashboard DTO plus the current profile and rendering complete loading/empty/error/permission states.
+- `dashboard.html` / `dashboard.js`: full-width protected `/dashboard` personal profile with editable cover, identity details, Overview/My works tabs, aggregate Dashboard DTO consumption, and complete loading/empty/error/permission states.
 - `account-menu.js`: shared signed-in profile avatar link plus a separate role-aware account menu, keyboard/focus behavior, and CSRF-protected sign out.
 - `upload-studio.html`: protected `/workspace/images` document for personal image import, folder assignment, grouped work/accessibility/rights metadata editing, five-check readiness, confirmed Submit for Review, and read-only Trash/Restore views.
-- `account-settings.html` / `account-settings.js`: protected `/settings/account` profile, authorship preferences, account-security summary, current-session view, dirty state, and bulk session revocation UI.
+- `account-settings.html` / `account-settings.js`: protected `/settings/account` editor with ten creator fields grouped into Identity, Work, Location, About, and Links, plus authorship preferences, account-security summary, current-session view, dirty state, and bulk session revocation UI.
 - `admin-reviews.html` / `admin-reviews.js`: protected `/admin/reviews` queue/detail workspace with status/assignment filters, atomic Reviewer start, submitted-version evidence, review checklist, conflict recovery, and Request Changes/Reject/Approve decisions; it does not claim that approval is already visible in public Works.
 - `manage.html`: Review Center for Works metadata, approval, visibility, and homepage content editing.
 - `styles.css`: site styling and responsive layout.
@@ -260,10 +261,11 @@ The contact form opens the visitor's email app with a prepared draft. There is n
 - `manage.js`: legacy Review Center metadata editor, local SQLite metadata sync, homepage settings editor, editable-field-only dirty signatures, grouped tag editing, and IndexedDB save/revert fallback; it does not consume Supabase `review_submissions` yet.
 - `contact.html`: Contact Artist page and inquiry form.
 - `contact.js`: structured inquiry validation, Work/Series/Lightbox context, mail draft generation, and toast feedback.
-- `server.py`: local static server; Supabase Auth/Profile/Session boundary with HttpOnly sessions and CSRF protection; protected Dashboard aggregate and signed-preview projection; Workspace Folder/Draft/readiness/submission/signed-upload APIs; scoped Supabase Review Queue/detail/assignment/start/decision proxy with strict DTO projection; public published Archive reads plus Admin+AAL2 legacy Archive mutations backed by `data/archive.db`.
+- `server.py`: local static server; Supabase Auth/Profile/Session boundary with HttpOnly sessions and CSRF protection; protected Dashboard aggregate, creator-profile cover selection, and signed-asset projection; Workspace Folder/Draft/readiness/submission/signed-upload APIs; scoped Supabase Review Queue/detail/assignment/start/decision proxy with strict DTO projection; public published Archive reads plus Admin+AAL2 legacy Archive mutations backed by `data/archive.db`.
 - `database/migrations/20260722_user_dashboard.sql`: authenticated owner-scoped Dashboard read model with server-side counts, attention ordering, recent work/review activity, storage usage, and explicit capability flags.
-- `scripts/validate_user_dashboard.py` / `scripts/test_user_dashboard_boundary.py`: static Dashboard contract plus secret-free loopback route/RPC/DTO/signing integration.
-- `scripts/test_user_dashboard_database.py`: development-only, rollback-only PostgreSQL acceptance for Dashboard/Trash security metadata, exact ACLs, owner isolation, state filters, identity guards, and fixture cleanup.
+- `database/migrations/20260722_z_creator_profile.sql`: transaction-wrapped protected creator-profile extension, strict field RPC, owner-scoped cover eligibility helpers, and authenticated-only cover read/update RPCs.
+- `scripts/validate_user_dashboard.py` / `scripts/test_user_dashboard_boundary.py`: static Dashboard/creator-profile contract plus secret-free loopback route/RPC/DTO/signing and cover mutation integration.
+- `scripts/test_user_dashboard_database.py`: development-only, rollback-only PostgreSQL acceptance for Dashboard/Trash/creator-profile security metadata, exact ACLs, owner isolation, state filters, field validation, cover eligibility, identity guards, and fixture cleanup.
 - `database/migrations/20260717_review_queue.sql`: transaction-wrapped Phase 3 Review Queue/RLS/Storage/RPC boundary for scoped list/detail, atomic assignment/start, versioned idempotent decisions, notifications, publication state, and append-only audit evidence.
 - `scripts/validate_review_queue_phase3.py`: static Review Queue contract validator for SQL permissions, server/UI boundary, project documentation, and CI wiring.
 - `scripts/test_review_queue_boundary.py`: secret-free fake-provider HTTP integration for identity/MFA/CSRF, queue/detail scopes, DTO allowlists, conflicts, idempotency, and Admin publish prechecks.

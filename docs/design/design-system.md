@@ -144,12 +144,13 @@ Rail 功能设计方向：
 
 ### User Dashboard And Account Menu
 
-- Dashboard 是已登录摄影作者的安静工作首页，不是营销 Hero 或通用统计卡片墙。第一视口用真实摄影 cover、initials avatar、名称/邮箱/账户状态/bio 和 Edit Profile、Import Images、View Workspace 三个明确动作建立身份。
-- Overview 依次呈现服务端聚合 Status、Changes Requested 优先的 Needs Attention、Recent Images、Review Activity 与 Storage；My works 只列最近可编辑 Draft。区块使用白底、细线和留白，只有重复 Draft 可以使用 6px 边框卡片。
+- Dashboard 是已登录摄影作者的受保护个人资料，不是营销 Hero、通用统计卡片墙或 public creator portfolio。页面使用全宽顶部导航且不显示左侧 rail；第一视口用真实摄影 cover、avatar/initials、名称/headline/location/availability/bio/links/account context 和 Edit personal information、Upload work 两个明确动作建立身份。
+- Overview 依次呈现服务端聚合 Status、Changes Requested 优先的 Needs Attention、Recent Images、Review Activity 与 Storage；My works 只列最近可编辑 Draft。页面允许用 charcoal、forest、teal、rust 与浅色面组织身份事实，但不得退化成单一色相或卡片套卡片；重复 Draft 可以使用不超过 8px 的边框卡片。
 - Status 数字来自单一 aggregate DTO；loading、空账号、provider error、permission denied 和 retry 都保留稳定尺寸。未实现的 storage quota/public portfolio 用明确 unavailable 文案，不显示虚假进度条、剩余容量或公开作品入口。
-- Dashboard cover 可使用本地摄影图，但 private work 预览只加载当前 clean thumbnail 的短期签名 URL；没有缩略图时显示固定尺寸图标占位，不能请求 original 替代列表图。
+- Dashboard cover chooser 只显示当前 owner 的 non-deleted、ready image，并按 image 去重、优先 current-policy scanner-clean display、缺失时回退 clean thumbnail。候选和当前 cover 只加载服务端短期 signed URL，不能读取 original、Storage key 或跨 owner asset；无候选时使用稳定摄影 fallback。Dialog 支持 loading/empty/error/success、Remove current cover、Escape/Cancel 和 trigger focus restoration。
 - Dashboard 提供 Overview/My works tablist，ArrowLeft/ArrowRight/Home/End 可切换并同步 `aria-selected`、`tabindex` 与 panel visibility；移动端把统计改为两列、内容改为单列，不允许横向溢出。
-- Home 登录态与内部 Dashboard、Upload、Review、Account 顶栏共用 initials profile avatar；点击头像直接进入 `/settings/account#profile`。内部顶栏在头像旁提供独立账户菜单按钮，菜单显示当前身份、Dashboard、Workspace、Account Settings、权限允许时的 Review 和 Sign out；ArrowUp/ArrowDown/Home/End 导航，Escape 关闭并恢复菜单按钮焦点，点击外部或焦点离开时关闭。
+- Account Settings 的 Profile 表单使用 Identity、Work、Location、About、Links 五个并列清晰的 fieldset，每组使用克制而不同的浅色边界/底色，十个字段在桌面稳定两列、窄屏单列；不留下大块无意义空白，也不把 fieldset 放进装饰卡片。
+- Home 登录态与内部 Dashboard、Upload、Review、Account 顶栏共用 initials profile avatar；点击头像直接进入 `/dashboard` personal profile，再由 Edit personal information 进入 `/settings/account#profile`。内部顶栏在头像旁提供独立账户菜单按钮，菜单显示当前身份、Dashboard、Workspace、Account Settings、权限允许时的 Review 和 Sign out；ArrowUp/ArrowDown/Home/End 导航，Escape 关闭并恢复菜单按钮焦点，点击外部或焦点离开时关闭。
 - Avatar menu 最大 8px 圆角，不使用阴影堆叠或彩色身份 chip；Sign out 通过 same-origin CSRF 执行，失败留在当前页并把可读错误聚焦宣告。
 
 ## 推荐技术选型
@@ -338,7 +339,7 @@ Statement：
 
 - 桌面端 `archive-rail` 统一使用 78px 极简短标题侧栏。入口只包含 icon 和一个短标题，不放说明句、不放常驻分组标题。
 - Home 不显示左侧 public rail，使用全宽摄影首屏和顶部 Works/About/Contact/Lightbox/Account 导航；Works、About、Contact、Lightbox 继续使用同一 public rail，顺序固定为 Home、Works、Upload、Lightbox、About，Contact 固定在底部。
-- 作者工作区使用 Dashboard、Works、Upload、Review、Account，Review 按权限显示；`/dashboard` 是登录后的 canonical 总览，公开 rail 的 Upload 始终进入受保护 `/workspace/images`，不直接暴露 Draft 数据。
+- 作者工作区使用 Dashboard、Works、Upload、Review、Account，Review 按权限显示；`/dashboard` 是登录后的 canonical personal profile/overview 且保持无左侧 rail，公开 rail 的 Upload 始终进入受保护 `/workspace/images`，不直接暴露 Draft 数据。
 - 侧栏 active 状态使用轻色底、细边界和品牌色，不使用大面积黑块；所有入口保持 8px 圆角、细线、低对比 hover。
 - 移动端隐藏侧栏，顶部导航保留主要入口；不要为了塞满功能把窄屏顶栏做成过多小字按钮。
 - 不再添加 `Your Studio` 或 `user-manage.html`；账户与云端 Draft 统一进入现有受保护 Upload/Account 边界。
