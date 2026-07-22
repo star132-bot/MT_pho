@@ -9,6 +9,7 @@ import hmac
 import hashlib
 import json
 import os
+import posixpath
 import secrets
 import shutil
 import sqlite3
@@ -26,7 +27,7 @@ from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, quote, urlencode, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
@@ -206,6 +207,65 @@ WORKSPACE_READINESS_FIELD_KEYS = {
     "security_scan",
     "submission_state",
 }
+
+REVIEW_STATUSES = {
+    "submitted",
+    "in_review",
+    "changes_requested",
+    "rejected",
+    "approved",
+    "withdrawn",
+    "escalated",
+}
+REVIEW_OPEN_STATUSES = {"submitted", "in_review", "escalated"}
+REVIEW_FILTER_STATUSES = REVIEW_STATUSES.union({"open", "all", "completed"})
+REVIEW_DECISIONS = {"request_changes", "reject", "approve", "approve_and_publish"}
+REVIEW_ASSET_SCAN_POLICY_VERSION = "mt-asset-scan-2026-07-v1"
+REVIEW_REASON_CODES = {
+    "request_changes": {"missing_rights", "missing_metadata", "privacy_review", "release_required"},
+    "reject": {"content_policy", "rights_unverified", "privacy_risk", "misleading_metadata"},
+    "approve": {"policy_complete"},
+    "approve_and_publish": {"policy_complete"},
+}
+REVIEW_CHECKLIST_CODES = {
+    "file_integrity",
+    "rights",
+    "privacy",
+    "minors",
+    "sensitive_content",
+    "hate_illegal",
+    "property_release",
+    "third_party_ip",
+    "ai_disclosure",
+    "public_metadata",
+}
+REVIEW_REASON_CODE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{1,79}$")
+REVIEW_ERROR_STATUS = {
+    "REVIEW_FILTER_INVALID": HTTPStatus.UNPROCESSABLE_ENTITY,
+    "REVIEW_SUBMISSION_NOT_FOUND": HTTPStatus.NOT_FOUND,
+    "REVIEW_VERSION_REQUIRED": HTTPStatus.UNPROCESSABLE_ENTITY,
+    "REVIEW_VERSION_CONFLICT": HTTPStatus.CONFLICT,
+    "REVIEW_ALREADY_ASSIGNED": HTTPStatus.CONFLICT,
+    "REVIEW_ASSIGNMENT_REQUIRED": HTTPStatus.CONFLICT,
+    "REVIEW_SELF_REVIEW_FORBIDDEN": HTTPStatus.FORBIDDEN,
+    "REVIEW_STATE_CONFLICT": HTTPStatus.CONFLICT,
+    "REVIEW_ASSETS_NOT_READY": HTTPStatus.CONFLICT,
+    "REVIEW_ALREADY_PUBLISHED": HTTPStatus.CONFLICT,
+    "REVIEW_DECISION_INVALID": HTTPStatus.UNPROCESSABLE_ENTITY,
+    "REVIEW_CHECKLIST_INCOMPLETE": HTTPStatus.UNPROCESSABLE_ENTITY,
+    "REVIEW_IDEMPOTENCY_REQUIRED": HTTPStatus.UNPROCESSABLE_ENTITY,
+    "REVIEW_IDEMPOTENCY_CONFLICT": HTTPStatus.CONFLICT,
+    "REVIEW_PUBLISH_ADMIN_REQUIRED": HTTPStatus.FORBIDDEN,
+    "REVIEW_ACCESS_REVOKED": HTTPStatus.FORBIDDEN,
+}
+
+
+def canonical_url_path(value: str) -> str:
+    """Match SimpleHTTPRequestHandler path normalization for protected aliases."""
+    # Request targets are origin-form paths. urlparse("//file") treats `file`
+    # as a host, while SimpleHTTPRequestHandler treats it as a path alias.
+    decoded = unquote(value.split("?", 1)[0].split("#", 1)[0])
+    return posixpath.normpath(f"/{decoded.lstrip('/')}")
 
 
 def auth_configured() -> bool:
@@ -574,6 +634,514 @@ def clean_workspace_submission_result(value, expected_image_id: str) -> dict | N
             "lock_version": lock_version,
         },
     }
+
+
+def clean_review_person(value, *, required: bool = True) -> dict | None:
+    if value is None and not required:
+        return None
+    if not isinstance(value, dict):
+        return None
+    try:
+        person_id = clean_uuid(value.get("id"), "person id")
+    except ValueError:
+        return None
+    display_name = clean_text(value.get("display_name"), 120) or "Member"
+    return {"id": person_id, "display_name": display_name}
+
+
+def clean_review_principal(user: dict, authorization: dict) -> tuple[str, set[str]] | None:
+    try:
+        user_id = clean_uuid(user.get("id"), "review actor id")
+        authorization_user_id = clean_uuid(authorization.get("user_id"), "authorization user id")
+    except ValueError:
+        return None
+    raw_roles = authorization.get("roles")
+    if user_id != authorization_user_id or not isinstance(raw_roles, list):
+        return None
+    roles = {
+        clean_text(role, 40)
+        for role in raw_roles
+        if isinstance(role, str)
+    }.intersection({"reviewer", "admin", "super_admin"})
+    if not roles:
+        return None
+    return user_id, roles
+
+
+def clean_review_actor(
+    value,
+    *,
+    expected_actor_id: str = "",
+    expected_roles: set[str] | None = None,
+) -> dict | None:
+    if not isinstance(value, dict):
+        return None
+    try:
+        actor_id = clean_uuid(value.get("id"), "review actor id")
+    except ValueError:
+        return None
+    raw_roles = value.get("roles")
+    if not isinstance(raw_roles, list):
+        return None
+    roles = sorted({clean_text(role, 40) for role in raw_roles}.intersection({"reviewer", "admin", "super_admin"}))
+    if (
+        not roles
+        or (expected_actor_id and actor_id != expected_actor_id)
+        or (expected_roles is not None and set(roles) != expected_roles)
+    ):
+        return None
+    return {
+        "id": actor_id,
+        "roles": roles,
+        "can_publish": bool(set(roles).intersection({"admin", "super_admin"})),
+    }
+
+
+def clean_review_asset(value) -> dict | None:
+    """Keep private Storage coordinates server-side until a signed URL exists."""
+    if not isinstance(value, dict):
+        return None
+    try:
+        asset_id = clean_uuid(value.get("id"), "review asset id")
+    except ValueError:
+        return None
+    kind = clean_text(value.get("kind"), 32)
+    bucket = clean_text(value.get("storage_bucket"), 80)
+    expected_bucket = {
+        "original": "image-originals",
+        "display": "image-display",
+        "thumbnail": "image-thumbnails",
+    }.get(kind)
+    storage_key = clean_text(value.get("storage_key"), 1024)
+    mime_type = clean_text(value.get("mime_type"), 120).lower()
+    width = value.get("width")
+    height = value.get("height")
+    if (
+        not expected_bucket
+        or bucket != expected_bucket
+        or not storage_key
+        or any(ord(character) < 32 or ord(character) == 127 for character in storage_key)
+        or mime_type not in WORKSPACE_IMAGE_MIME_TYPES
+        or isinstance(width, bool)
+        or not isinstance(width, int)
+        or width < 1
+        or isinstance(height, bool)
+        or not isinstance(height, int)
+        or height < 1
+    ):
+        return None
+    result = {
+        "id": asset_id,
+        "kind": kind,
+        "storage_bucket": bucket,
+        "storage_key": storage_key,
+        "mime_type": mime_type,
+        "width": width,
+        "height": height,
+    }
+    byte_size = value.get("byte_size")
+    if isinstance(byte_size, int) and not isinstance(byte_size, bool) and byte_size > 0:
+        result["byte_size"] = byte_size
+    checksum = clean_text(value.get("checksum_sha256"), 64).lower()
+    if re.fullmatch(r"[0-9a-f]{64}", checksum):
+        result["checksum_sha256"] = checksum
+    scan_status = clean_text(value.get("scan_status"), 20)
+    if scan_status in {"pending", "clean", "flagged", "failed"}:
+        result["scan_status"] = scan_status
+    for key, maximum in (("scan_result_code", 120), ("scan_policy_version", 120)):
+        text = clean_text(value.get(key), maximum)
+        if text:
+            result[key] = text
+    if (
+        result.get("scan_status") != "clean"
+        or result.get("scan_policy_version") != REVIEW_ASSET_SCAN_POLICY_VERSION
+    ):
+        return None
+    return result
+
+
+def clean_review_submission_summary(value) -> dict | None:
+    if not isinstance(value, dict):
+        return None
+    try:
+        submission_id = clean_uuid(value.get("id"), "review submission id")
+    except ValueError:
+        return None
+    status = clean_text(value.get("status"), 40)
+    lock_version = value.get("lock_version")
+    owner = clean_review_person(value.get("owner"))
+    assigned = clean_review_person(value.get("assigned_reviewer"), required=False)
+    image = value.get("image")
+    if (
+        status not in REVIEW_STATUSES
+        or isinstance(lock_version, bool)
+        or not isinstance(lock_version, int)
+        or lock_version < 1
+        or owner is None
+        or not isinstance(image, dict)
+    ):
+        return None
+    try:
+        image_id = clean_uuid(image.get("id"), "review image id")
+    except ValueError:
+        return None
+    rights = image.get("rights") if isinstance(image.get("rights"), dict) else {}
+    thumbnail = None
+    if image.get("thumbnail_asset") is not None:
+        thumbnail = clean_review_asset(image.get("thumbnail_asset"))
+        if thumbnail is None or thumbnail["kind"] != "thumbnail":
+            return None
+    publication_status = clean_text(image.get("publication_status"), 40)
+    if publication_status not in {"never_published", "published", "unpublished", "quarantined", "archived", "deleted"}:
+        return None
+    return {
+        "id": submission_id,
+        "status": status,
+        "lock_version": lock_version,
+        "submitted_at": clean_text(value.get("submitted_at"), 80),
+        "review_started_at": clean_text(value.get("review_started_at"), 80) or None,
+        "completed_at": clean_text(value.get("completed_at"), 80) or None,
+        "policy_version": clean_text(value.get("policy_version"), 120),
+        "assigned_reviewer": assigned,
+        "owner": owner,
+        "image": {
+            "id": image_id,
+            "title": clean_text(image.get("title"), 180),
+            "original_filename": clean_text(image.get("original_filename"), 512),
+            "content_category": clean_text(image.get("content_category"), 80) or None,
+            "publication_status": publication_status,
+            "rights": {
+                "declared": rights.get("declared") is True,
+                "recognizable_people": rights.get("recognizable_people") if isinstance(rights.get("recognizable_people"), bool) else None,
+                "model_release_status": clean_text(rights.get("model_release_status"), 40) or None,
+                "property_release_status": clean_text(rights.get("property_release_status"), 40) or None,
+            },
+            "thumbnail_asset": thumbnail,
+        },
+    }
+
+
+def clean_review_list_result(
+    value,
+    *,
+    expected_actor_id: str = "",
+    expected_roles: set[str] | None = None,
+) -> dict | None:
+    if not isinstance(value, dict):
+        return None
+    actor = clean_review_actor(
+        value.get("actor"),
+        expected_actor_id=expected_actor_id,
+        expected_roles=expected_roles,
+    )
+    raw_items = value.get("items")
+    raw_counts = value.get("counts")
+    raw_pagination = value.get("pagination")
+    if actor is None or not isinstance(raw_items, list) or len(raw_items) > 50:
+        return None
+    items = []
+    for raw_item in raw_items:
+        item = clean_review_submission_summary(raw_item)
+        if item is None:
+            return None
+        items.append(item)
+    privileged = bool(set(actor["roles"]).intersection({"admin", "super_admin"}))
+    if not privileged:
+        for item in items:
+            if item["owner"]["id"] == actor["id"]:
+                return None
+            assigned = item.get("assigned_reviewer")
+            is_public_waiting = item["status"] == "submitted" and assigned is None
+            is_owned_open = (
+                isinstance(assigned, dict)
+                and assigned.get("id") == actor["id"]
+                and item["status"] in REVIEW_OPEN_STATUSES
+            )
+            if not (is_public_waiting or is_owned_open):
+                return None
+    if not isinstance(raw_counts, dict) or not isinstance(raw_pagination, dict):
+        return None
+    counts = {}
+    for key in ("open", "submitted", "in_review", "completed"):
+        count = raw_counts.get(key)
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            return None
+        counts[key] = count
+    pagination = {}
+    for key in ("offset", "limit", "total"):
+        number = raw_pagination.get(key)
+        if isinstance(number, bool) or not isinstance(number, int) or number < 0:
+            return None
+        pagination[key] = number
+    pagination["has_more"] = raw_pagination.get("has_more") is True
+    return {"actor": actor, "items": items, "counts": counts, "pagination": pagination}
+
+
+def review_item_matches_filters(item: dict, status_filter: str, assignment_filter: str, actor_id: str) -> bool:
+    status = item.get("status")
+    assigned_id = (item.get("assigned_reviewer") or {}).get("id")
+    status_matches = (
+        status_filter == "all"
+        or status_filter == status
+        or (status_filter == "open" and status in REVIEW_OPEN_STATUSES)
+        or (
+            status_filter == "completed"
+            and status in {"changes_requested", "rejected", "approved", "withdrawn"}
+        )
+    )
+    assignment_matches = (
+        assignment_filter == "all"
+        or (assignment_filter == "unassigned" and assigned_id is None)
+        or (assignment_filter == "mine" and assigned_id == actor_id)
+    )
+    return status_matches and assignment_matches
+
+
+def clean_review_detail_result(
+    value,
+    expected_submission_id: str,
+    *,
+    expected_actor_id: str = "",
+    expected_roles: set[str] | None = None,
+) -> dict | None:
+    if not isinstance(value, dict):
+        return None
+    actor = clean_review_actor(
+        value.get("actor"),
+        expected_actor_id=expected_actor_id,
+        expected_roles=expected_roles,
+    )
+    submission = value.get("submission")
+    image = value.get("image")
+    owner = value.get("owner")
+    if actor is None or not isinstance(submission, dict) or not isinstance(image, dict) or not isinstance(owner, dict):
+        return None
+    try:
+        submission_id = clean_uuid(submission.get("id"), "review submission id")
+        owner_id = clean_uuid(owner.get("id"), "owner id")
+        image_id = clean_uuid(image.get("id"), "image id")
+    except ValueError:
+        return None
+    if submission_id != expected_submission_id:
+        return None
+    status = clean_text(submission.get("status"), 40)
+    lock_version = submission.get("lock_version")
+    assigned = clean_review_person(submission.get("assigned_reviewer"), required=False)
+    version = image.get("version")
+    if (
+        status not in REVIEW_STATUSES
+        or isinstance(lock_version, bool)
+        or not isinstance(lock_version, int)
+        or lock_version < 1
+        or not isinstance(version, dict)
+    ):
+        return None
+    privileged = bool(set(actor["roles"]).intersection({"admin", "super_admin"}))
+    if not privileged and (
+        owner_id == actor["id"]
+        or assigned is None
+        or assigned.get("id") != actor["id"]
+        or status not in REVIEW_OPEN_STATUSES
+    ):
+        return None
+    try:
+        version_id = clean_uuid(version.get("id"), "image version id")
+    except ValueError:
+        return None
+    version_number = version.get("version_number")
+    if isinstance(version_number, bool) or not isinstance(version_number, int) or version_number < 1:
+        return None
+
+    raw_assets = value.get("assets")
+    if not isinstance(raw_assets, list) or len(raw_assets) != 3:
+        return None
+    assets = []
+    for raw_asset in raw_assets:
+        asset = clean_review_asset(raw_asset)
+        if asset is None:
+            return None
+        assets.append(asset)
+    if {asset["kind"] for asset in assets} != WORKSPACE_ASSET_KINDS:
+        return None
+
+    tags = version.get("tags")
+    if not isinstance(tags, list):
+        tags = []
+    tags = [clean_text(tag, 80) for tag in tags if isinstance(tag, str) and clean_text(tag, 80)][:40]
+    public_exif = version.get("public_exif") if isinstance(version.get("public_exif"), dict) else {}
+    public_exif = {
+        key: public_exif[key]
+        for key in ("camera", "lens", "exposure", "aperture", "iso", "focal_length")
+        if key in public_exif and isinstance(public_exif[key], (str, int, float)) and not isinstance(public_exif[key], bool)
+    }
+    readiness = clean_workspace_submit_readiness(submission.get("readiness_snapshot"))
+    if readiness is None or readiness["image_id"] != image_id:
+        return None
+
+    decisions = []
+    raw_decisions = value.get("decisions")
+    if not isinstance(raw_decisions, list):
+        return None
+    for raw_decision in raw_decisions:
+        if not isinstance(raw_decision, dict):
+            return None
+        try:
+            decision_id = clean_uuid(raw_decision.get("id"), "review decision id")
+        except ValueError:
+            return None
+        decision_code = clean_text(raw_decision.get("decision"), 40)
+        reviewer = clean_review_person(raw_decision.get("reviewer"))
+        reason_codes = raw_decision.get("reason_codes")
+        if decision_code not in REVIEW_DECISIONS.union({"escalate", "quarantine"}) or reviewer is None or not isinstance(reason_codes, list):
+            return None
+        internal_note = clean_text(raw_decision.get("internal_note"), 2000) or None
+        if not privileged and reviewer["id"] != actor["id"] and internal_note is not None:
+            return None
+        decisions.append({
+            "id": decision_id,
+            "decision": decision_code,
+            "reason_codes": [clean_text(code, 80) for code in reason_codes if isinstance(code, str)][:8],
+            "user_message": clean_text(raw_decision.get("user_message"), 1000),
+            "internal_note": internal_note,
+            "policy_version": clean_text(raw_decision.get("policy_version"), 120),
+            "created_at": clean_text(raw_decision.get("created_at"), 80),
+            "reviewer": reviewer,
+        })
+
+    workflow_status = clean_text(image.get("workflow_status"), 40)
+    publication_status = clean_text(image.get("publication_status"), 40)
+    processing_status = clean_text(image.get("processing_status"), 40)
+    if workflow_status not in {"submitted", "in_review", "changes_requested", "rejected", "approved"}:
+        return None
+    if publication_status not in {"never_published", "published", "unpublished", "quarantined", "archived", "deleted"}:
+        return None
+    if processing_status not in {"pending", "uploading", "processing", "ready", "failed", "canceled"}:
+        return None
+    return {
+        "actor": actor,
+        "submission": {
+            "id": submission_id,
+            "status": status,
+            "lock_version": lock_version,
+            "policy_version": clean_text(submission.get("policy_version"), 120),
+            "submitted_at": clean_text(submission.get("submitted_at"), 80),
+            "review_started_at": clean_text(submission.get("review_started_at"), 80) or None,
+            "completed_at": clean_text(submission.get("completed_at"), 80) or None,
+            "assigned_reviewer": assigned,
+            "readiness": readiness,
+        },
+        "owner": {
+            "id": owner_id,
+            "display_name": clean_text(owner.get("display_name"), 120) or "Member",
+            "account_status": clean_text(owner.get("account_status"), 40),
+            "created_at": clean_text(owner.get("created_at"), 80),
+        },
+        "image": {
+            "id": image_id,
+            "workflow_status": workflow_status,
+            "publication_status": publication_status,
+            "processing_status": processing_status,
+            "published_at": clean_text(image.get("published_at"), 80) or None,
+            "original_filename": clean_text(image.get("original_filename"), 512),
+            "original_width": image.get("original_width") if isinstance(image.get("original_width"), int) and not isinstance(image.get("original_width"), bool) else None,
+            "original_height": image.get("original_height") if isinstance(image.get("original_height"), int) and not isinstance(image.get("original_height"), bool) else None,
+            "version": {
+                "id": version_id,
+                "version_number": version_number,
+                "title": clean_text(version.get("title"), 180),
+                "caption": clean_text(version.get("caption"), 500),
+                "description": clean_text(version.get("description"), 6000),
+                "alt_text": clean_text(version.get("alt_text"), 500),
+                "tags": tags,
+                "content_category": clean_text(version.get("content_category"), 80) or None,
+                "captured_at": clean_text(version.get("captured_at"), 80) or None,
+                "location_name": clean_text(version.get("location_name"), 240) or None,
+                "public_exif": public_exif,
+                "copyright_holder": clean_text(version.get("copyright_holder"), 160) or None,
+                "copyright_year": version.get("copyright_year") if isinstance(version.get("copyright_year"), int) and not isinstance(version.get("copyright_year"), bool) else None,
+                "contains_recognizable_people": version.get("contains_recognizable_people") if isinstance(version.get("contains_recognizable_people"), bool) else None,
+                "model_release_status": clean_text(version.get("model_release_status"), 40) or None,
+                "property_release_status": clean_text(version.get("property_release_status"), 40) or None,
+                "rights_declared": version.get("rights_declared") is True,
+                "ai_disclosure": clean_text(version.get("ai_disclosure"), 40) or None,
+                "sensitive_content_disclosure": clean_text(version.get("sensitive_content_disclosure"), 80) or None,
+            },
+        },
+        "assets": assets,
+        "decisions": decisions,
+    }
+
+
+def clean_review_mutation_result(value, expected_submission_id: str) -> dict | None:
+    if not isinstance(value, dict) or not isinstance(value.get("submission"), dict):
+        return None
+    submission = value["submission"]
+    try:
+        submission_id = clean_uuid(submission.get("id"), "review submission id")
+    except ValueError:
+        return None
+    status = clean_text(submission.get("status"), 40)
+    lock_version = submission.get("lock_version")
+    if (
+        submission_id != expected_submission_id
+        or status not in REVIEW_STATUSES
+        or isinstance(lock_version, bool)
+        or not isinstance(lock_version, int)
+        or lock_version < 1
+    ):
+        return None
+    result = {
+        "submission": {
+            "id": submission_id,
+            "status": status,
+            "lock_version": lock_version,
+            "review_started_at": clean_text(submission.get("review_started_at"), 80) or None,
+            "completed_at": clean_text(submission.get("completed_at"), 80) or None,
+        }
+    }
+    assigned_id = submission.get("assigned_reviewer_id")
+    if assigned_id:
+        try:
+            result["submission"]["assigned_reviewer_id"] = clean_uuid(assigned_id, "assigned reviewer id")
+        except ValueError:
+            return None
+    decision = value.get("decision")
+    if decision is not None:
+        if not isinstance(decision, dict):
+            return None
+        try:
+            decision_id = clean_uuid(decision.get("id"), "review decision id")
+        except ValueError:
+            return None
+        decision_code = clean_text(decision.get("decision"), 40)
+        if decision_code not in REVIEW_DECISIONS:
+            return None
+        result["decision"] = {
+            "id": decision_id,
+            "decision": decision_code,
+            "created_at": clean_text(decision.get("created_at"), 80) or None,
+        }
+    image = value.get("image")
+    if image is not None:
+        if not isinstance(image, dict):
+            return None
+        try:
+            image_id = clean_uuid(image.get("id"), "review image id")
+        except ValueError:
+            return None
+        workflow_status = clean_text(image.get("workflow_status"), 40)
+        publication_status = clean_text(image.get("publication_status"), 40)
+        if workflow_status not in {"submitted", "in_review", "changes_requested", "rejected", "approved"}:
+            return None
+        if publication_status not in {"never_published", "published", "unpublished", "quarantined", "archived", "deleted"}:
+            return None
+        result["image"] = {
+            "id": image_id,
+            "workflow_status": workflow_status,
+            "publication_status": publication_status,
+            "published_at": clean_text(image.get("published_at"), 80) or None,
+        }
+    return result
 
 
 def normalize_profile_update(body: dict) -> tuple[dict, dict]:
@@ -1365,17 +1933,45 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             str(size),
         )
 
+    def do_HEAD(self) -> None:
+        """Never let inherited static HEAD bypass private or authenticated routes."""
+        canonical_path = canonical_url_path(self.path)
+        protected_route = (
+            canonical_path.startswith("/api/")
+            or canonical_path.startswith("/admin/reviews")
+            or canonical_path == "/assets/uploads"
+            or canonical_path.startswith("/assets/uploads/")
+            or canonical_path in {
+                "/admin-reviews.html",
+                "/admin-reviews.js",
+                "/settings/account",
+                "/workspace",
+                "/workspace/images",
+            }
+            or is_private_static_path(canonical_path)
+        )
+        if protected_route:
+            self.send_response(HTTPStatus.NOT_FOUND)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self.path = canonical_path
+        super().do_HEAD()
+
     def end_headers(self) -> None:
         for cookie in getattr(self, "_pending_response_cookies", []):
             self.send_header("Set-Cookie", cookie)
         self._pending_response_cookies = []
-        if urlparse(self.path).path in {
+        if canonical_url_path(self.path) in {
             "/auth.html",
             "/auth.js",
             "/mfa.html",
             "/mfa.js",
             "/account-settings.html",
             "/account-settings.js",
+            "/admin-reviews.html",
+            "/admin-reviews.js",
         }:
             self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
@@ -2156,6 +2752,447 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return None, None
         return user, result
 
+    def send_review_error(self, error: dict) -> None:
+        code = clean_text(error.get("code"), 80) or "REVIEW_REQUEST_FAILED"
+        if code not in REVIEW_ERROR_STATUS:
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("REVIEW_PROVIDER_FAILED", "The review provider returned an unsupported error."),
+            )
+            return
+        message = clean_text(error.get("message"), 500) or "Unable to complete this review request."
+        self.send_json(REVIEW_ERROR_STATUS[code], auth_error(code, message))
+
+    def send_review_provider_error(self, status: int) -> None:
+        if status == HTTPStatus.UNAUTHORIZED:
+            self.send_auth_json(HTTPStatus.UNAUTHORIZED, auth_error("AUTH_REQUIRED", "Sign in to continue."))
+            return
+        if status == HTTPStatus.FORBIDDEN:
+            self.send_auth_json(
+                HTTPStatus.FORBIDDEN,
+                auth_error("REVIEW_ACCESS_REVOKED", "Review access is no longer available. Sign in again or contact an administrator."),
+            )
+            return
+        if status in {
+            HTTPStatus.REQUEST_TIMEOUT,
+            HTTPStatus.TOO_MANY_REQUESTS,
+            HTTPStatus.INTERNAL_SERVER_ERROR,
+            HTTPStatus.BAD_GATEWAY,
+            HTTPStatus.SERVICE_UNAVAILABLE,
+            HTTPStatus.GATEWAY_TIMEOUT,
+        }:
+            self.send_auth_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("REVIEW_PROVIDER_UNAVAILABLE", "Review services are temporarily unavailable. Try again."),
+            )
+            return
+        self.send_auth_json(
+            HTTPStatus.BAD_GATEWAY,
+            auth_error("REVIEW_PROVIDER_FAILED", "The review provider could not complete this request."),
+        )
+
+    def review_rpc(
+        self,
+        name: str,
+        payload: dict | None = None,
+        *,
+        principal: tuple[dict, dict] | None = None,
+    ) -> tuple[dict | None, dict | None, dict | None]:
+        if principal is None:
+            allowed, user, authorization = self.require_reviewer()
+            if not allowed or not user or not authorization:
+                return None, None, None
+        else:
+            user, authorization = principal
+        status, result = supabase_rest_request(
+            f"rpc/{name}",
+            self.current_access_token(user),
+            payload or {},
+        )
+        if status != HTTPStatus.OK:
+            self.send_review_provider_error(status)
+            return None, None, None
+        if not isinstance(result, dict):
+            self.send_auth_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("REVIEW_PROVIDER_FAILED", "The review provider response was invalid."),
+            )
+            return None, None, None
+        if isinstance(result.get("error"), dict):
+            self.send_review_error(result["error"])
+            return None, None, None
+        return user, authorization, result
+
+    def sign_review_asset(self, user: dict, asset: dict) -> dict | None:
+        bucket = asset.get("storage_bucket")
+        storage_key = asset.get("storage_key")
+        endpoint = f"object/sign/{quote(bucket, safe='')}/{quote(storage_key, safe='/')}"
+        status, signed = supabase_storage_request(
+            endpoint,
+            self.current_access_token(user),
+            {"expiresIn": 10 * 60},
+        )
+        signed_value = ""
+        if isinstance(signed, dict):
+            signed_value = signed.get("signedURL") or signed.get("signedUrl") or ""
+        signed_url = self.absolute_storage_url(signed_value)
+        if status != HTTPStatus.OK or not signed_url:
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("REVIEW_ASSET_UNAVAILABLE", "A private review asset could not be loaded. Try again."),
+            )
+            return None
+        safe_asset = {
+            key: value
+            for key, value in asset.items()
+            if key not in {"storage_bucket", "storage_key"}
+        }
+        safe_asset["signed_url"] = signed_url
+        safe_asset["expires_in"] = 10 * 60
+        return safe_asset
+
+    def handle_review_submissions_get(self, parsed) -> None:
+        query = parse_qs(parsed.query)
+        status_filter = single_query_value(query, "status") or "open"
+        assignment_filter = single_query_value(query, "assignment") or "all"
+        try:
+            page_size = int(single_query_value(query, "limit") or "30")
+            page_offset = int(single_query_value(query, "offset") or "0")
+        except ValueError:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("REVIEW_FILTER_INVALID", "Review pagination values must be integers."),
+            )
+            return
+        if (
+            status_filter not in REVIEW_FILTER_STATUSES
+            or assignment_filter not in {"all", "unassigned", "mine"}
+            or page_size < 1
+            or page_size > 50
+            or page_offset < 0
+        ):
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("REVIEW_FILTER_INVALID", "Choose supported review filters."),
+            )
+            return
+        user, authorization, result = self.review_rpc(
+            "review_list_submissions",
+            {
+                "status_filter": status_filter,
+                "assignment_filter": assignment_filter,
+                "page_size": page_size,
+                "page_offset": page_offset,
+            },
+        )
+        if not user or authorization is None or result is None:
+            return
+        principal = clean_review_principal(user, authorization)
+        response = clean_review_list_result(
+            result,
+            expected_actor_id=principal[0] if principal else "",
+            expected_roles=principal[1] if principal else set(),
+        ) if principal else None
+        if response is None:
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("REVIEW_PROVIDER_FAILED", "The review queue response was invalid."),
+            )
+            return
+        if any(
+            not review_item_matches_filters(item, status_filter, assignment_filter, response["actor"]["id"])
+            for item in response["items"]
+        ):
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("REVIEW_PROVIDER_FAILED", "The review queue filters were inconsistent."),
+            )
+            return
+        expected_has_more = (
+            response["pagination"]["offset"] + len(response["items"])
+            < response["pagination"]["total"]
+        )
+        if response["pagination"]["has_more"] != expected_has_more:
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("REVIEW_PROVIDER_FAILED", "The review queue pagination was inconsistent."),
+            )
+            return
+        if assignment_filter == "all":
+            expected_total = {
+                "open": response["counts"]["open"],
+                "submitted": response["counts"]["submitted"],
+                "in_review": response["counts"]["in_review"],
+                "completed": response["counts"]["completed"],
+                "all": response["counts"]["open"] + response["counts"]["completed"],
+            }.get(status_filter)
+            if expected_total is not None and response["pagination"]["total"] != expected_total:
+                self.send_json(
+                    HTTPStatus.BAD_GATEWAY,
+                    auth_error("REVIEW_PROVIDER_FAILED", "The review queue counts were inconsistent."),
+                )
+                return
+        for item in response["items"]:
+            thumbnail = item["image"].pop("thumbnail_asset")
+            if thumbnail and (
+                thumbnail.get("scan_status") != "clean"
+                or thumbnail.get("scan_policy_version") != REVIEW_ASSET_SCAN_POLICY_VERSION
+            ):
+                self.send_json(
+                    HTTPStatus.BAD_GATEWAY,
+                    auth_error("REVIEW_PROVIDER_FAILED", "The review queue returned an unsafe preview asset."),
+                )
+                return
+            item["image"]["thumbnail"] = self.sign_review_asset(user, thumbnail) if thumbnail else None
+            if thumbnail and item["image"]["thumbnail"] is None:
+                return
+        self.send_auth_json(HTTPStatus.OK, response)
+
+    def handle_review_submission_get(self, submission_id: str) -> None:
+        try:
+            submission_id = clean_uuid(submission_id, "review submission id")
+        except ValueError:
+            self.send_json(
+                HTTPStatus.NOT_FOUND,
+                auth_error("REVIEW_SUBMISSION_NOT_FOUND", "The review submission is unavailable."),
+            )
+            return
+        user, authorization, result = self.review_rpc("review_get_submission", {"submission_id": submission_id})
+        if not user or authorization is None or result is None:
+            return
+        principal = clean_review_principal(user, authorization)
+        response = clean_review_detail_result(
+            result,
+            submission_id,
+            expected_actor_id=principal[0] if principal else "",
+            expected_roles=principal[1] if principal else set(),
+        ) if principal else None
+        if response is None:
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("REVIEW_PROVIDER_FAILED", "The review detail response was invalid."),
+            )
+            return
+        if any(
+            asset.get("scan_status") != "clean"
+            or asset.get("scan_policy_version") != REVIEW_ASSET_SCAN_POLICY_VERSION
+            for asset in response["assets"]
+        ):
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("REVIEW_PROVIDER_FAILED", "The review detail returned an unsafe private asset."),
+            )
+            return
+        signed_assets = []
+        for asset in response["assets"]:
+            signed = self.sign_review_asset(user, asset)
+            if signed is None:
+                return
+            signed_assets.append(signed)
+        response["assets"] = signed_assets
+        self.send_auth_json(HTTPStatus.OK, response)
+
+    def handle_review_assignment(self, submission_id: str) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        try:
+            submission_id = clean_uuid(submission_id, "review submission id")
+        except ValueError:
+            self.send_json(HTTPStatus.NOT_FOUND, auth_error("REVIEW_SUBMISSION_NOT_FOUND", "The review submission is unavailable."))
+            return
+        expected_version = body.get("expected_version")
+        if (
+            set(body) != {"confirmation", "expected_version"}
+            or body.get("confirmation") != "assign-to-me"
+            or isinstance(expected_version, bool)
+            or not isinstance(expected_version, int)
+            or expected_version < 1
+        ):
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("REVIEW_VERSION_REQUIRED", "Confirm the current submission version before assigning it."),
+            )
+            return
+        user, authorization, result = self.review_rpc(
+            "review_assign_submission",
+            {"submission_id": submission_id, "expected_lock_version": expected_version},
+        )
+        if not user or authorization is None or result is None:
+            return
+        response = clean_review_mutation_result(result, submission_id)
+        principal = clean_review_principal(user, authorization)
+        if (
+            response is None
+            or principal is None
+            or response["submission"].get("assigned_reviewer_id") != principal[0]
+            or response["submission"].get("status") != "submitted"
+        ):
+            self.send_json(HTTPStatus.BAD_GATEWAY, auth_error("REVIEW_PROVIDER_FAILED", "The assignment result was invalid."))
+            return
+        self.send_auth_json(HTTPStatus.OK, response)
+
+    def handle_review_start(self, submission_id: str) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        try:
+            submission_id = clean_uuid(submission_id, "review submission id")
+        except ValueError:
+            self.send_json(HTTPStatus.NOT_FOUND, auth_error("REVIEW_SUBMISSION_NOT_FOUND", "The review submission is unavailable."))
+            return
+        expected_version = body.get("expected_version")
+        if (
+            set(body) != {"confirmation", "expected_version"}
+            or body.get("confirmation") != "start-review"
+            or isinstance(expected_version, bool)
+            or not isinstance(expected_version, int)
+            or expected_version < 1
+        ):
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("REVIEW_VERSION_REQUIRED", "Confirm the current submission version before starting review."),
+            )
+            return
+        user, authorization, result = self.review_rpc(
+            "review_start_submission",
+            {"submission_id": submission_id, "expected_lock_version": expected_version},
+        )
+        if not user or authorization is None or result is None:
+            return
+        response = clean_review_mutation_result(result, submission_id)
+        principal = clean_review_principal(user, authorization)
+        if (
+            response is None
+            or principal is None
+            or response["submission"].get("assigned_reviewer_id") != principal[0]
+            or response["submission"].get("status") != "in_review"
+        ):
+            self.send_json(HTTPStatus.BAD_GATEWAY, auth_error("REVIEW_PROVIDER_FAILED", "The start-review result was invalid."))
+            return
+        self.send_auth_json(HTTPStatus.OK, response)
+
+    def handle_review_decision(self, submission_id: str, action: str) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        decision = {
+            "request-changes": "request_changes",
+            "reject": "reject",
+            "approve": "approve",
+            "approve-and-publish": "approve_and_publish",
+        }.get(action)
+        try:
+            submission_id = clean_uuid(submission_id, "review submission id")
+        except ValueError:
+            self.send_json(
+                HTTPStatus.NOT_FOUND,
+                auth_error("REVIEW_SUBMISSION_NOT_FOUND", "The review submission is unavailable."),
+            )
+            return
+        try:
+            idempotency_key = clean_uuid(body.get("idempotency_key"), "review idempotency key")
+        except ValueError:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("REVIEW_IDEMPOTENCY_REQUIRED", "Use a valid decision request identifier."),
+            )
+            return
+        expected_fields = {
+            "confirmation",
+            "expected_version",
+            "idempotency_key",
+            "reason_codes",
+            "user_message",
+            "internal_note",
+            "checklist_result",
+        }
+        expected_version = body.get("expected_version")
+        raw_reason_codes = body.get("reason_codes")
+        user_message = body.get("user_message")
+        internal_note = body.get("internal_note")
+        checklist = body.get("checklist_result")
+        reason_codes = []
+        if isinstance(raw_reason_codes, list):
+            reason_codes = [code.strip() for code in raw_reason_codes if isinstance(code, str)]
+        valid_checklist = (
+            isinstance(checklist, dict)
+            and set(checklist) == REVIEW_CHECKLIST_CODES
+            and all(value is True for value in checklist.values())
+        )
+        if (
+            decision is None
+            or set(body) != expected_fields
+            or body.get("confirmation") != f"review-{action}"
+            or isinstance(expected_version, bool)
+            or not isinstance(expected_version, int)
+            or expected_version < 1
+            or not isinstance(raw_reason_codes, list)
+            or not 1 <= len(reason_codes) <= 8
+            or len(reason_codes) != len(raw_reason_codes)
+            or any(not 2 <= len(code) <= 80 or not REVIEW_REASON_CODE_PATTERN.fullmatch(code) for code in reason_codes)
+            or len(set(reason_codes)) != len(reason_codes)
+            or any(code not in REVIEW_REASON_CODES.get(decision or "", set()) for code in reason_codes)
+            or not isinstance(user_message, str)
+            or not 5 <= len(user_message.strip()) <= 1000
+            or not isinstance(internal_note, str)
+            or len(internal_note.strip()) > 2000
+            or not valid_checklist
+        ):
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("REVIEW_DECISION_INVALID", "Complete the checklist, reason, and decision message."),
+            )
+            return
+        allowed, user, authorization = self.require_reviewer()
+        if not allowed or not user or authorization is None:
+            return
+        roles = set(authorization.get("roles") or [])
+        if decision == "approve_and_publish" and not roles.intersection({"admin", "super_admin"}):
+            self.send_json(
+                HTTPStatus.FORBIDDEN,
+                auth_error("REVIEW_PUBLISH_ADMIN_REQUIRED", "Administrator approval is required to publish."),
+            )
+            return
+        _, _, result = self.review_rpc(
+            "review_decide_submission",
+            {
+                "submission_id": submission_id,
+                "expected_lock_version": expected_version,
+                "decision": decision,
+                "reason_codes": reason_codes,
+                "user_message": user_message.strip(),
+                "internal_note": internal_note.strip(),
+                "checklist_result": checklist,
+                "idempotency_key": idempotency_key,
+            },
+            principal=(user, authorization),
+        )
+        if result is None:
+            return
+        response = clean_review_mutation_result(result, submission_id)
+        expected_status = {
+            "request_changes": "changes_requested",
+            "reject": "rejected",
+            "approve": "approved",
+            "approve_and_publish": "approved",
+        }[decision]
+        if (
+            response is None
+            or not isinstance(response.get("decision"), dict)
+            or not isinstance(response.get("image"), dict)
+            or response.get("decision", {}).get("decision") != decision
+            or response.get("submission", {}).get("status") != expected_status
+            or response.get("image", {}).get("workflow_status") != expected_status
+            or (
+                decision == "approve_and_publish"
+                and response.get("image", {}).get("publication_status") != "published"
+            )
+        ):
+            self.send_json(HTTPStatus.BAD_GATEWAY, auth_error("REVIEW_PROVIDER_FAILED", "The review decision result was invalid."))
+            return
+        self.send_auth_json(HTTPStatus.OK, response)
+
     def absolute_storage_url(self, value: str) -> str:
         path = clean_text(value, 4096)
         if path.startswith("/"):
@@ -2750,6 +3787,92 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return False, authorization
         return True, authorization
 
+    def require_reviewer(self) -> tuple[bool, dict | None, dict | None]:
+        status, user = self.current_auth_user()
+        if status != HTTPStatus.OK:
+            self.send_current_user_error(status, user)
+            return False, None, None
+        access_token = self.current_access_token(user)
+        if session_has_auth_method({"access_token": access_token}, "recovery"):
+            self.send_json(
+                HTTPStatus.FORBIDDEN,
+                auth_error("RECOVERY_SESSION_RESTRICTED", "Finish resetting your password before opening review tools."),
+            )
+            return False, user, None
+        status, authorization = self.current_authorization(user)
+        if status != HTTPStatus.OK or not isinstance(authorization, dict):
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("AUTHORIZATION_FAILED", "Unable to verify review access. Try again."),
+            )
+            return False, user, None
+        if authorization.get("account_status") != "active":
+            self.send_json(
+                HTTPStatus.FORBIDDEN,
+                auth_error("ACCOUNT_RESTRICTED", "This account cannot access review tools."),
+            )
+            return False, user, authorization
+        roles = set(authorization.get("roles") or [])
+        if not roles.intersection({"reviewer", "admin", "super_admin"}):
+            self.send_json(
+                HTTPStatus.FORBIDDEN,
+                auth_error("REVIEWER_REQUIRED", "You do not have access to the Review Queue."),
+            )
+            return False, user, authorization
+        if clean_review_principal(user, authorization) is None:
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("AUTHORIZATION_FAILED", "Unable to verify review identity. Try again."),
+            )
+            return False, user, None
+        if roles.intersection({"admin", "super_admin"}) and authorization.get("aal") != "aal2":
+            self.send_json(
+                HTTPStatus.FORBIDDEN,
+                auth_error("MFA_REQUIRED", "Complete multi-factor authentication to continue."),
+            )
+            return False, user, authorization
+        return True, user, authorization
+
+    def serve_review_page(self, next_path: str = "/admin/reviews") -> None:
+        status, user = self.current_auth_user()
+        if status != HTTPStatus.OK:
+            if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+                self.send_current_user_error(status, user)
+                return
+            self.send_response(HTTPStatus.SEE_OTHER)
+            self.send_header("Location", f"/auth/sign-in?{urlencode({'next': next_path})}")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            return
+        if session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery"):
+            self.send_response(HTTPStatus.SEE_OTHER)
+            self.send_header("Location", "/auth/reset-password")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            return
+        authz_status, authorization = self.current_authorization(user)
+        if authz_status != HTTPStatus.OK or not isinstance(authorization, dict):
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("AUTHORIZATION_FAILED", "Unable to verify review access. Try again."),
+            )
+            return
+        roles = set(authorization.get("roles") or [])
+        if authorization.get("account_status") != "active" or not roles.intersection({"reviewer", "admin", "super_admin"}):
+            self.send_json(
+                HTTPStatus.FORBIDDEN,
+                auth_error("REVIEWER_REQUIRED", "You do not have access to the Review Queue."),
+            )
+            return
+        if roles.intersection({"admin", "super_admin"}) and authorization.get("aal") != "aal2":
+            self.send_response(HTTPStatus.SEE_OTHER)
+            self.send_header("Location", f"/auth/mfa?{urlencode({'next': next_path})}")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            return
+        self.path = "/admin-reviews.html"
+        super().do_GET()
+
     def has_admin_access_silently(self) -> bool:
         status, user = self.current_auth_user()
         if status != HTTPStatus.OK:
@@ -2998,7 +4121,42 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
+        canonical_path = canonical_url_path(self.path)
+        if canonical_path == "/admin-reviews.html" and parsed.path != canonical_path:
+            self.send_response(HTTPStatus.SEE_OTHER)
+            self.send_header("Location", "/admin/reviews")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            return
+        if canonical_path == "/admin-reviews.js" and parsed.path != canonical_path:
+            self.path = "/admin-reviews.js"
+            super().do_GET()
+            return
+        # Route and protect the same normalized path that the static handler
+        # will eventually translate. Encoded dotfiles/private directories and
+        # encoded legacy upload paths must never fall through as public files.
+        parsed = parsed._replace(path=canonical_path, netloc="")
         parts = [part for part in parsed.path.split("/") if part]
+        if parsed.path in {"/admin/reviews", "/admin/reviews/"}:
+            self.serve_review_page()
+            return
+        if len(parts) == 3 and parts[:2] == ["admin", "reviews"]:
+            try:
+                submission_id = clean_uuid(parts[2], "review submission id")
+            except ValueError:
+                self.send_json(
+                    HTTPStatus.NOT_FOUND,
+                    auth_error("REVIEW_SUBMISSION_NOT_FOUND", "The review submission is unavailable."),
+                )
+                return
+            self.serve_review_page(f"/admin/reviews/{submission_id}")
+            return
+        if parsed.path == "/admin-reviews.html":
+            self.send_response(HTTPStatus.SEE_OTHER)
+            self.send_header("Location", "/admin/reviews")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            return
         if parsed.path in {
             "/auth/sign-in",
             "/auth/register",
@@ -3142,6 +4300,12 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/auth/mfa/factors":
             self.handle_mfa_factors()
             return
+        if parsed.path == "/api/admin/review-submissions":
+            self.handle_review_submissions_get(parsed)
+            return
+        if len(parts) == 4 and parts[:3] == ["api", "admin", "review-submissions"]:
+            self.handle_review_submission_get(parts[3])
+            return
         if parsed.path == "/api/admin/access-check":
             allowed, authorization = self.require_admin()
             if allowed:
@@ -3156,7 +4320,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.handle_archive_images(parsed)
             return
 
-        if parsed.path.startswith("/assets/uploads/"):
+        if canonical_path == "/assets/uploads" or canonical_path.startswith("/assets/uploads/"):
             asset_path = Path(self.translate_path(parsed.path))
             if parsed.path.endswith("/") or asset_path.is_dir():
                 self.send_json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
@@ -3183,7 +4347,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_json(HTTPStatus.NOT_FOUND, {"error": "API endpoint not found."})
             return
 
-        if is_private_static_path(parsed.path):
+        if is_private_static_path(canonical_path):
             self.send_json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
             return
 
@@ -3369,6 +4533,20 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 return
             self.handle_workspace_draft_submit(parts[2])
             return
+        if len(parts) == 5 and parts[:3] == ["api", "admin", "review-submissions"]:
+            if not self.require_csrf():
+                return
+            submission_id = parts[3]
+            action = parts[4]
+            if action == "assign":
+                self.handle_review_assignment(submission_id)
+                return
+            if action == "start":
+                self.handle_review_start(submission_id)
+                return
+            if action in {"request-changes", "reject", "approve", "approve-and-publish"}:
+                self.handle_review_decision(submission_id, action)
+                return
         if parsed.path == "/api/archive/images":
             if not self.require_csrf(require_json=False):
                 return

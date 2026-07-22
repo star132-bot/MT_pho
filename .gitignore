@@ -21,6 +21,7 @@ tmp/
 shots/
 assets/uploads/
 .browser-profiles/
+.scanner-runtime/
 project-development-guardrails/
 skills/
 image.png

@@ -100,11 +100,14 @@ Scanner 与 Web server 必须使用不同环境。使用 Python 3.11 创建 scan
 ```bash
 python3 -m venv .venv-scanner
 .venv-scanner/bin/python -m pip install --require-hashes -r requirements-scanner.txt
+python3 scripts/configure_development_scanner.py
 set -a
 source .env.worker
 set +a
 .venv-scanner/bin/python workers/image_scanner.py --once
 ```
+
+`configure_development_scanner.py` 从 `.env` 继承 `SUPABASE_URL`，通过隐藏输入读取 current `sb_secret_` key；非交互环境只从进程环境读取 current secret 或 legacy service-role JWT，不提供会进入 shell history/process arguments 的 secret 参数。脚本会用空文件执行真实 ClamAV preflight，保留已有稳定 Worker ID，并在全部检查通过后才以原子替换和 `0600` 权限写入 Git ignored `.env.worker`。失败不会覆盖上一份有效配置，也不会输出 credential。
 
 连续运行使用：
 
@@ -116,7 +119,7 @@ set +a
 
 - `SUPABASE_URL` 指向 development project；优先配置 current `SUPABASE_SECRET_KEY`，仅在兼容旧项目时使用 `SUPABASE_SERVICE_ROLE_KEY`；
 - `MT_SCANNER_ID` 是稳定、非敏感 worker 标识；租约必须 30-900 秒；
-- `MT_SCANNER_CLAMAV_COMMAND` 指向可用 `clamdscan --fdpass --no-summary` 或等价受控命令；ClamD 正在运行，签名数据库持续更新；
+- `MT_SCANNER_CLAMAV_COMMAND` 指向可用 `clamdscan --fdpass --no-summary` 或等价受控命令；使用 `clamdscan` 时 ClamD 正在运行，所有模式的签名数据库持续更新；
 - 下载、像素、最长边、HTTP/download/scan/decode timeout 与 decode memory 维持 `.env.worker.example` 的 fail-closed 上限；下载 + 扫描 + 解码 + 三次 provider request + 30 秒余量必须不大于 lease；
 - private temp root 及每个 worker 子目录必须为 `0700`，任务文件为 `0600`；启动会清理同目录的遗留 `mt-scan-*.bin`；
 - Provider redirect 一律拒绝；ClamAV 使用最小环境，Pillow 在 `-I` 无凭据子进程中运行并应用 timeout、CPU/core/NOFILE 以及操作系统支持时的内存上限；生产仍应配合无出站网络的容器/进程隔离；

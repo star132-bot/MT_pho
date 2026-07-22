@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Review Queue | MT Presence</title>
+    <meta name="description" content="Protected review queue for MT Presence submissions." />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css?v=20260720-review-queue-ui" />
+  </head>
+  <body class="admin-review-page">
+    <a class="admin-review-skip" href="#admin-review-main">Skip to review workspace</a>
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-photo" viewBox="0 0 24 24">
+        <rect x="3" y="5" width="18" height="14" rx="1.5" />
+        <path d="m7 15 3.2-3.2a1.3 1.3 0 0 1 1.8 0L16 16" />
+        <path d="m14 14 1.1-1.1a1.3 1.3 0 0 1 1.8 0L21 17" />
+        <circle cx="8.5" cy="9.2" r="1.2" />
+      </symbol>
+      <symbol id="icon-folder" viewBox="0 0 24 24">
+        <path d="M3 6.8h6l2 2.4h10v8.6a1.7 1.7 0 0 1-1.7 1.7H4.7A1.7 1.7 0 0 1 3 17.8z" />
+        <path d="M3 8.8v-3a1.3 1.3 0 0 1 1.3-1.3h5.1l2 2.2" />
+      </symbol>
+      <symbol id="icon-pen" viewBox="0 0 24 24">
+        <path d="m4 20 4.3-1.1 10.4-10.4a2.1 2.1 0 0 0-3-3L5.3 15.9z" />
+        <path d="m14 6 4 4" />
+      </symbol>
+      <symbol id="icon-user" viewBox="0 0 24 24">
+        <circle cx="12" cy="8" r="3.5" />
+        <path d="M5 20a7 7 0 0 1 14 0" />
+      </symbol>
+      <symbol id="icon-refresh" viewBox="0 0 24 24">
+        <path d="M20 7v5h-5" />
+        <path d="M4 17v-5h5" />
+        <path d="M6.1 8.2A7 7 0 0 1 18.8 10M5.2 14A7 7 0 0 0 17.9 15.8" />
+      </symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></symbol>
+      <symbol id="icon-clock" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+      </symbol>
+      <symbol id="icon-shield" viewBox="0 0 24 24">
+        <path d="M12 3 5 6v5c0 4.5 2.7 7.8 7 10 4.3-2.2 7-5.5 7-10V6z" /><path d="m9 12 2 2 4-5" />
+      </symbol>
+      <symbol id="icon-expand" viewBox="0 0 24 24">
+        <path d="M8 3H3v5M16 3h5v5M21 16v5h-5M3 16v5h5" />
+      </symbol>
+      <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" /></symbol>
+    </svg>
+
+    <aside class="archive-rail admin-review-rail" aria-label="Admin platform navigation">
+      <a class="archive-rail-brand" href="/" aria-label="Back to MT Presence home">MT</a>
+      <nav class="archive-rail-nav" aria-label="Review workflow navigation">
+        <a class="archive-rail-button" href="/works.html" aria-label="Works Archive">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-photo"></use></svg>
+          <span class="archive-rail-copy">Works</span>
+        </a>
+        <a class="archive-rail-button" href="/workspace/images" aria-label="Upload Studio">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-folder"></use></svg>
+          <span class="archive-rail-copy">Upload</span>
+        </a>
+        <a class="archive-rail-button is-active" href="/admin/reviews" aria-label="Review Queue" aria-current="page">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-pen"></use></svg>
+          <span class="archive-rail-copy">Review</span>
+        </a>
+      </nav>
+      <div class="archive-rail-footer">
+        <a class="archive-rail-button" href="/settings/account" aria-label="Account settings">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-user"></use></svg>
+          <span class="archive-rail-copy">Account</span>
+        </a>
+      </div>
+    </aside>
+
+    <header class="site-header admin-review-header" aria-label="Review workspace navigation">
+      <a class="brand-mark" href="/" aria-label="Back to home"><span>MT</span><span>Admin Platform</span></a>
+      <nav class="site-nav" aria-label="Workflow navigation">
+        <a href="/workspace/images">Upload</a>
+        <a href="/admin/reviews" aria-current="page">Review</a>
+        <a href="/settings/account">Account</a>
+      </nav>
+    </header>
+
+    <main class="admin-review-shell" id="admin-review-main" tabindex="-1">
+      <header class="admin-review-command">
+        <div>
+          <p class="section-kicker">Admin Platform</p>
+          <h1>Review Queue</h1>
+        </div>
+        <button class="admin-review-icon-button" type="button" data-review-refresh title="Refresh queue" aria-label="Refresh queue">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg>
+        </button>
+      </header>
+
+      <section class="admin-review-metrics" aria-label="Queue summary">
+        <button type="button" data-status-filter="open" aria-pressed="true">
+          <span>Open</span><strong data-review-count="open">0</strong>
+        </button>
+        <button type="button" data-status-filter="submitted" aria-pressed="false">
+          <span>Waiting</span><strong data-review-count="submitted">0</strong>
+        </button>
+        <button type="button" data-status-filter="in_review" aria-pressed="false">
+          <span>In review</span><strong data-review-count="in_review">0</strong>
+        </button>
+        <button type="button" data-status-filter="completed" aria-pressed="false">
+          <span>Completed</span><strong data-review-count="completed">0</strong>
+        </button>
+      </section>
+
+      <form class="admin-review-filters" data-review-filters>
+        <label>
+          <span>Assignment</span>
+          <select name="assignment">
+            <option value="all">All assignments</option>
+            <option value="unassigned">Unassigned</option>
+            <option value="mine">Assigned to me</option>
+          </select>
+        </label>
+        <p data-review-filter-summary aria-live="polite">Loading queue</p>
+      </form>
+
+      <section class="admin-review-workspace" aria-label="Review submissions">
+        <aside class="admin-review-queue" aria-labelledby="review-list-title" aria-busy="true" data-review-queue>
+          <header>
+            <h2 id="review-list-title">Submissions</h2>
+            <span data-review-list-count>0</span>
+          </header>
+          <div class="admin-review-list-state" data-review-list-state role="status" aria-atomic="true">
+            <span data-review-list-state-message>Loading submissions</span>
+            <button type="button" data-review-list-retry hidden>Retry</button>
+          </div>
+          <ol class="admin-review-list" data-review-list></ol>
+          <button class="admin-review-load-more" type="button" data-review-load-more hidden>Load more</button>
+        </aside>
+
+        <section class="admin-review-detail" aria-label="Review detail" aria-busy="false" data-review-detail-region>
+          <div class="admin-review-detail-state" data-review-detail-state role="status" aria-atomic="true">
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-pen"></use></svg>
+            <h2 data-review-detail-state-title tabindex="-1">Select a submission</h2>
+            <p data-review-detail-state-message>Choose a queue item to inspect its immutable submission evidence.</p>
+            <button type="button" data-review-detail-retry hidden>Retry</button>
+          </div>
+
+          <div class="admin-review-detail-content" id="review-detail-content" data-review-detail hidden>
+            <header class="admin-review-detail-header">
+              <div>
+                <div class="admin-review-status-line">
+                  <span class="admin-review-status" data-review-status></span>
+                  <span data-review-waiting-time></span>
+                </div>
+                <h2 id="review-detail-title" data-review-title tabindex="-1">Untitled Work</h2>
+                <p data-review-identity></p>
+              </div>
+              <div class="admin-review-assignment-actions" data-review-assignment-actions></div>
+            </header>
+
+            <div class="admin-review-conflict" data-review-conflict role="alert" hidden>
+              <p data-review-conflict-message></p>
+              <button type="button" data-review-conflict-reload>Reload submission</button>
+            </div>
+
+            <div class="admin-review-detail-grid">
+              <section class="admin-review-media" aria-label="Submitted image assets">
+                <div class="admin-review-image-stage" data-review-image-stage>
+                  <img src="" alt="" decoding="async" data-review-image />
+                  <div class="admin-review-image-error" data-review-image-error role="status" hidden>
+                    <p>The private preview expired or could not be loaded.</p>
+                    <button type="button" data-review-image-retry>Reload asset</button>
+                  </div>
+                  <button class="admin-review-icon-button" type="button" data-review-size-toggle title="Show actual size" aria-label="Show image at actual size" aria-pressed="false">
+                    <svg class="ui-icon" aria-hidden="true"><use href="#icon-expand"></use></svg>
+                  </button>
+                </div>
+                <div class="admin-review-asset-switcher" data-review-asset-switcher aria-label="Asset variant"></div>
+                <dl class="admin-review-asset-meta" data-review-asset-meta></dl>
+              </section>
+
+              <aside class="admin-review-inspector">
+                <section aria-labelledby="review-context-title">
+                  <h3 id="review-context-title">Review Context</h3>
+                  <dl class="admin-review-definition-list admin-review-definition-grid" data-review-context></dl>
+                </section>
+
+                <section aria-labelledby="review-copy-title">
+                  <h3 id="review-copy-title">Submitted Copy</h3>
+                  <dl class="admin-review-definition-list" data-review-copy></dl>
+                </section>
+
+                <section aria-labelledby="review-rights-title">
+                  <h3 id="review-rights-title">Rights &amp; Disclosures</h3>
+                  <dl class="admin-review-definition-list admin-review-definition-grid" data-review-rights></dl>
+                </section>
+
+                <section aria-labelledby="review-readiness-title">
+                  <h3 id="review-readiness-title">Submission Evidence</h3>
+                  <ul class="admin-review-readiness" data-review-readiness></ul>
+                </section>
+
+                <section aria-labelledby="review-history-title">
+                  <h3 id="review-history-title">Decision History</h3>
+                  <ol class="admin-review-history" data-review-history></ol>
+                </section>
+
+                <form class="admin-review-decision" data-review-decision-form hidden novalidate>
+                  <fieldset>
+                    <legend>Policy Checklist</legend>
+                    <div class="admin-review-checklist" data-review-checklist></div>
+                  </fieldset>
+                  <div class="admin-review-decision-grid">
+                    <label>
+                      <span>Decision</span>
+                      <select name="decision" data-review-decision required></select>
+                    </label>
+                    <label>
+                      <span>Reason</span>
+                      <select name="reason_code" data-review-reason required></select>
+                    </label>
+                  </div>
+                  <label>
+                    <span>Message to user</span>
+                    <textarea name="user_message" rows="4" minlength="5" maxlength="1000" required></textarea>
+                  </label>
+                  <label>
+                    <span>Internal note</span>
+                    <textarea name="internal_note" rows="3" maxlength="2000"></textarea>
+                  </label>
+                  <p class="admin-review-form-notice" data-review-form-notice aria-live="polite"></p>
+                  <button class="button button-primary" type="submit" data-review-decision-submit>Submit Decision</button>
+                </form>
+
+              </aside>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <dialog class="admin-review-dialog" data-review-dialog aria-labelledby="review-dialog-title" aria-describedby="review-dialog-message">
+      <form method="dialog">
+        <p class="section-kicker">Review Decision</p>
+        <h2 id="review-dialog-title" data-review-dialog-title>Confirm decision</h2>
+        <p id="review-dialog-message" data-review-dialog-message></p>
+        <div class="admin-review-dialog-actions">
+          <button class="button button-secondary" type="button" data-review-dialog-cancel>Cancel</button>
+          <button class="button button-primary" type="button" data-review-dialog-confirm>Confirm</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="contact-toast" role="status" aria-live="polite" aria-atomic="true" data-review-live></div>
+    <script src="/admin-reviews.js?v=20260720-review-queue-ui"></script>
+  </body>
+</html>

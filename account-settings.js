@@ -30,19 +30,30 @@ let accountData = null;
 let sessionAction = "";
 let dialogTrigger = null;
 let dialogBusy = false;
+let suppressBeforeUnload = false;
 const formSnapshots = new WeakMap();
+
+function navigateWithoutDirtyPrompt(path, hideAccount = false) {
+  suppressBeforeUnload = true;
+  if (hideAccount) {
+    accountSummary.hidden = true;
+    pageContent.hidden = true;
+    pageLoading.hidden = false;
+  }
+  window.location.assign(path);
+}
 
 function redirectForAuth(error) {
   if (error.status === 401) {
-    window.location.assign("/auth/sign-in?next=%2Fsettings%2Faccount");
+    navigateWithoutDirtyPrompt("/auth/sign-in?next=%2Fsettings%2Faccount", true);
     return true;
   }
   if (error.status === 403 && error.code === "MFA_REQUIRED") {
-    window.location.assign("/auth/mfa?next=%2Fsettings%2Faccount");
+    navigateWithoutDirtyPrompt("/auth/mfa?next=%2Fsettings%2Faccount", true);
     return true;
   }
   if (error.status === 403 && error.code === "RECOVERY_SESSION_RESTRICTED") {
-    window.location.assign("/auth/reset-password");
+    navigateWithoutDirtyPrompt("/auth/reset-password", true);
     return true;
   }
   return false;
@@ -60,6 +71,9 @@ async function csrfToken(force = false) {
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result.csrf_token) throw new Error("Unable to initialize security verification.");
       return result.csrf_token;
+    }).catch((error) => {
+      csrfTokenPromise = null;
+      throw error;
     });
   }
   return csrfTokenPromise;
@@ -174,14 +188,24 @@ function populateAccount(result) {
   rememberForm(preferencesForm, PREFERENCE_NAMES);
 }
 
-function formPayload(form, names) {
+function normalizeFieldValue(name, value) {
+  let normalized = String(value ?? "").trim();
+  if (name === "country_code") normalized = normalized.toUpperCase();
+  return normalized;
+}
+
+function valuesPayload(values, names) {
   const payload = {};
   names.forEach((name) => {
-    let value = form.elements[name].value.trim();
-    if (name === "country_code") value = value.toUpperCase();
-    payload[name] = value;
+    payload[name] = normalizeFieldValue(name, values?.[name]);
   });
   return payload;
+}
+
+function formPayload(form, names) {
+  const values = {};
+  names.forEach((name) => { values[name] = form.elements[name].value; });
+  return valuesPayload(values, names);
 }
 
 function signature(form, names) {
@@ -230,8 +254,10 @@ function applyFieldErrors(form, fieldErrors) {
 
 async function saveForm(form) {
   const { names, submit, status, label } = formStateElements(form);
+  if (form.getAttribute("aria-busy") === "true") return;
   clearFieldErrors(form);
   if (!form.reportValidity()) return;
+  const submittedPayload = formPayload(form, names);
   submit.disabled = true;
   submit.textContent = "Saving…";
   form.setAttribute("aria-busy", "true");
@@ -241,16 +267,24 @@ async function saveForm(form) {
   try {
     const result = await accountRequest("/api/me/profile", {
       method: "PATCH",
-      body: JSON.stringify(formPayload(form, names)),
+      body: JSON.stringify(submittedPayload),
     });
     accountData.profile = { ...accountData.profile, ...(result.profile || {}) };
+    const currentPayload = formPayload(form, names);
+    const savedPayload = valuesPayload(accountData.profile, names);
     names.forEach((name) => {
-      form.elements[name].value = accountData.profile[name] || "";
+      if (currentPayload[name] === submittedPayload[name]) {
+        form.elements[name].value = savedPayload[name];
+      }
     });
     renderAccountChrome(accountData);
-    rememberForm(form, names);
+    formSnapshots.set(form, JSON.stringify(savedPayload));
     saved = true;
-    announce(`${label === "profile" ? "Profile" : "Preferences"} saved.`);
+    announce(
+      isFormDirty(form)
+        ? `${label === "profile" ? "Profile" : "Preferences"} saved. Newer edits remain unsaved.`
+        : `${label === "profile" ? "Profile" : "Preferences"} saved.`,
+    );
   } catch (error) {
     if (redirectForAuth(error)) return;
     applyFieldErrors(form, error.fieldErrors);
@@ -260,7 +294,11 @@ async function saveForm(form) {
     form.removeAttribute("aria-busy");
     submit.textContent = label === "profile" ? "Save profile" : "Save preferences";
     updateFormDirtyState(form);
-    if (saved) status.textContent = "Saved just now.";
+    if (saved) {
+      status.textContent = isFormDirty(form)
+        ? "Saved submitted changes. New edits remain unsaved."
+        : "Saved just now.";
+    }
   }
 }
 
@@ -389,7 +427,7 @@ async function revokeSessions() {
     });
     dialog.close();
     if (result.signed_out) {
-      window.location.assign("/auth/sign-in");
+      navigateWithoutDirtyPrompt("/auth/sign-in", true);
       return;
     }
     showNotice(result.message || "Other device sessions were revoked.", "success");
@@ -399,7 +437,7 @@ async function revokeSessions() {
     if (redirectForAuth(error)) return;
     dialogNotice.textContent = error.message;
     dialogNotice.hidden = false;
-    dialogNotice.focus?.();
+    dialogNotice.focus();
   } finally {
     dialogBusy = false;
     dialogCancel.disabled = false;
@@ -432,12 +470,19 @@ document.querySelectorAll("[data-session-action]").forEach((button) => {
 });
 
 signOutCurrent.addEventListener("click", async () => {
+  const originalLabel = signOutCurrent.textContent;
   signOutCurrent.disabled = true;
   signOutCurrent.textContent = "Signing out…";
+  hideNotice();
   try {
     await accountRequest("/api/auth/sign-out", { method: "POST", body: JSON.stringify({}) });
-  } finally {
-    window.location.assign("/auth/sign-in");
+    navigateWithoutDirtyPrompt("/auth/sign-in", true);
+  } catch (error) {
+    if (redirectForAuth(error)) return;
+    signOutCurrent.disabled = false;
+    signOutCurrent.textContent = originalLabel;
+    showNotice(error.message || "This device could not be signed out. Please retry.");
+    announce("Sign out failed. Your session remains active.");
   }
 });
 
@@ -469,6 +514,7 @@ document.querySelectorAll(".account-settings-index a").forEach((link) => {
 });
 
 window.addEventListener("beforeunload", (event) => {
+  if (suppressBeforeUnload) return;
   if (!isFormDirty(profileForm) && !isFormDirty(preferencesForm)) return;
   event.preventDefault();
   event.returnValue = "";

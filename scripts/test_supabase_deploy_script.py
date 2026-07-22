@@ -71,6 +71,8 @@ def main() -> None:
         result = run_deploy(fake_bin, incremental_log, "no")
         if result.returncode != 0:
             raise RuntimeError(f"Incremental deployment path failed: {result.stderr.strip()}")
+        if "Phase 3 Review Queue static contracts validated." not in result.stdout:
+            raise RuntimeError("Incremental deployment skipped the Phase 3 Review Queue validator")
         incremental_files = logged_files(incremental_log)
         expected_migrations = sorted(path.name for path in (ROOT / "database" / "migrations").glob("*.sql"))
         if incremental_files != expected_migrations:
@@ -117,6 +119,7 @@ def main() -> None:
     print("supabase_fresh_baseline_atomic=yes")
     print("supabase_baseline_failure_stops=yes")
     print("supabase_invalid_mode_fails_closed=yes")
+    print("supabase_phase3_validation_gate=yes")
 
 
 if __name__ == "__main__":

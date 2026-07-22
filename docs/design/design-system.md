@@ -130,6 +130,17 @@ Rail 功能设计方向：
 - `Reload Server Draft` 只在 Conflict 中出现，不作为常驻主按钮；桌面与移动端都必须与 Save/status 保持稳定间距，长状态文案可换行但不得覆盖输入区或操作按钮。
 - Draft PATCH 成功只更新 metadata 状态，现有预览图保持不变；保存状态不依赖再次获取 signed asset URL，避免写入已成功却显示 Error。
 
+### Admin Review Queue
+
+- Review Queue 是高密度编辑工作台，不使用 Dashboard 卡片墙。顶部只保留紧凑标题、可操作 queue counts、Assignment filter 和 Refresh；统计必须能直接改变队列。
+- 桌面采用稳定的 Queue + Detail 结构：队列保持窄而可扫描，详情以提交图片为视觉主角，右侧 inspector 用细分隔线组织 Copy、Rights、Evidence、History 和 Decision；图片始终 `object-fit: contain`，Actual size 只改变查看方式，不裁切作品。
+- 列表至少显示作品名、短 Submission ID、作者、等待时间、category、rights、assignment 和状态；长文件名与用户文案必须换行或省略，不能挤压状态和缩略图。
+- Reviewer 打开可领取的 Submitted 项时先执行原子 Start/Claim，再加载 Original/Display；未领取队列只暴露 thumbnail。Admin+AAL2 可以查看完整历史，但角色叠加不能绕过 MFA。
+- Decision 使用完整 checklist、reason 和 user message；提交期间所有相关控件 disabled，冲突保留当前输入并提供 Reload。确认 dialog 首焦点放在 Cancel，关闭后恢复触发控件，错误必须聚焦或通过 `role="alert"` 宣告。
+- Request Changes、Reject 和 Approve 是当前浏览器动作；在 Supabase public DTO、derivative delivery 和公开 Works 数据源接通前，不显示会虚假承诺公开结果的 Approve and Publish。
+- 1024px 以下 Queue 与 Detail 改为上下布局；760px 以下隐藏桌面 rail、使用 68px 单行顶栏，筛选与指标可横向滚动但页面本身不得横向溢出；选中详情后移动端优先呈现作品和决定，而不是压缩桌面多列。
+- Loading、empty、error、permission、busy、success、conflict 都使用固定布局和可读文字；状态颜色只作为辅助，小字号文字与 gallery-white 背景至少满足 WCAG AA。
+
 ## 推荐技术选型
 
 ### 1. 静态首版

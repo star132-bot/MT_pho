@@ -10,8 +10,9 @@
 4. [数据库设计](architecture/database-design.md)：当前 Supabase Workspace、legacy SQLite 公开/Review 层和后续生产迁移边界。
 5. [设计系统](design/design-system.md)：视觉、组件、响应式和交互规则。
 6. [上传测试](operations/upload-testing.md)：Phase 2A-2F signed Upload、private Draft、Folder、Trash、readiness/Submit 与 trusted scanner 验收步骤。
-7. [企业级交付工作流](operations/enterprise-delivery-workflow.md)：规定提示词、阶段门禁、设计/开发/安全/发布验收与发布评分。
-8. [图片来源](design/image-sources.md)：临时图片来源、授权和正式替换要求。
+7. [审核队列测试](operations/review-testing.md)：Phase 3 Reviewer/Admin 权限矩阵、队列/详情/决定验收、开发部署与数据库发布门禁。
+8. [企业级交付工作流](operations/enterprise-delivery-workflow.md)：规定提示词、阶段门禁、设计/开发、安全、发布验收与发布评分。
+9. [图片来源](design/image-sources.md)：临时图片来源、授权和正式替换要求。
 
 ## 文档分类
 
@@ -33,6 +34,7 @@
 ### Operations
 
 - `operations/upload-testing.md`：本地上传与数据库联调手册。
+- `operations/review-testing.md`：Supabase Admin Review Queue 的权限、并发、幂等、浏览器和开发数据库验收手册。
 - `operations/enterprise-delivery-workflow.md`：所有 Web、产品、工程和发布任务必须遵循的企业级交付流程与主提示词。
 
 ## 根目录文档

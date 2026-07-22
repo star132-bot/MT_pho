@@ -47,6 +47,7 @@ jobs:
           python3 scripts/validate_supabase_phase1_rls.py
           python3 scripts/validate_workspace_phase2.py
           python3 scripts/validate_workspace_asset_scanner.py
+          python3 scripts/validate_review_queue_phase3.py
 
       - name: Validate protected browser script syntax
         run: |
@@ -54,11 +55,14 @@ jobs:
           node --check mfa.js
           node --check account-settings.js
           node --check upload-studio.js
+          node --check admin-reviews.js
           node --check manage.js
 
       - name: Exercise local Auth security boundary
         run: |
           python3 scripts/test_auth_security_boundary.py
           python3 scripts/test_workspace_phase2_boundary.py
+          python3 scripts/test_configure_development_scanner.py
           python3 scripts/test_workspace_asset_scanner.py
+          python3 scripts/test_review_queue_boundary.py
           python3 scripts/test_supabase_deploy_script.py

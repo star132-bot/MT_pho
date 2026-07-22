@@ -17,11 +17,12 @@
 - `archive-upload.js`：共享浏览器导入管线；读取上传图尺寸、checksum、基础 EXIF，生成 `original` / `display` / `thumbnail` / `square_slice` 资产记录，供 Upload Studio 等内部工具复用。
 - `manage.html`：内部 Archive Review 审核中心；作为本地作者 Publish 工作流入口出现在功能侧栏中，用紧凑操作栏和筛选 pill 审核作品 metadata、筛选待处理/未发布/已发布记录、一键发布，以及编辑首页 hero/Statement 图片和文字；Upload 链接统一进入受保护 `/workspace/images`，legacy Archive 非公开读取与 mutation 仅允许 Admin+AAL2。
 - `upload-studio.html`：受保护 `/workspace/images` 承载的渐进式 Upload Workspace；Loading/空状态只显示 Folder + 主导入区，选中 Draft 后展开编辑器；提供双并发队列、Cancel/Retry/Remove、分组 metadata、900ms 自动/手工保存、冲突 Reload、五项 Submission readiness、确认式 Submit for Review 和 versioned Trash；不含 Review decision 或 Publish 控件。
+- `admin-reviews.html`：受保护 `/admin/reviews` 与 `/admin/reviews/{submissionId}` 的 Supabase Review Queue/Detail 工作台；以紧凑 status/assignment queue、image-first submitted snapshot、rights/evidence/history inspector、policy checklist 和 decision dialog 承载审核；当前只显示 Request Changes、Reject、Approve，不在 public delivery 接通前显示虚假的 Publish 能力。
 - `contact.html`：联系作者独立页面；使用全站统一公开 rail，承载英文联系说明、作品图和结构化邮件草稿表单，可接收 Work、Series 或 Lightbox 上下文。
 - `auth.html` / `auth.js`：Phase 1 统一用户入口；同一可访问 editorial shell 按 `/auth/sign-in`、`/auth/register`、`/auth/forgot-password`、`/auth/reset-password`、`/auth/verify-email` 的配置呈现字段、loading、invalid/expired、field error、success 与下一步；Forgot 使用防枚举成功文案；Reset/Verify 同时兼容 fragment `token_hash` 和 Supabase 默认 implicit fragment，先把敏感 fragment 读入函数内存并立即清除 URL，再由 same-origin 服务端换成 `HttpOnly` Cookie，禁止 local/session storage；所有 mutation 先获取 HttpOnly double-submit CSRF token，并校验 Origin；登录 200 后仍以 no-store `/api/me` 确认 Cookie，再执行 Admin MFA 或 `/workspace/images` 跳转。
 - `mfa.html` / `mfa.js`：Admin TOTP enrollment 与登录 challenge 页面；复用 editorial Auth shell，覆盖 factors loading、首次 QR/手工 secret、已有 factor、6 位验证码、provider error、invalid/expired code、success、sign-out 与移动端布局；发现旧的 unverified TOTP factor 时由受保护 enrollment API 自动重置并生成新的 QR/secret；QR data URI 兼容 `<svg>` 与带 XML declaration 的 Supabase SVG；MFA mutation 同样使用 Origin + CSRF token，所有 token 仍只存在于服务端 HttpOnly session。
-- `account-settings.html` / `account-settings.js`：受保护 `/settings/account` 账户页面；提供 Profile、Authorship Preferences、Security 和 Sessions 四段信息架构，维护表单 dirty/disabled/saving/error/success 状态，使用 `/api/me/profile` 读写服务端 profile，并通过 provider 支持的 `others` / `all` scope 撤销会话；不伪造 Supabase 无法提供的远程设备列表或位置历史。
-- `styles.css`：全站视觉系统和响应式布局；定义纯白 gallery palette 色彩 token、`--ui-*` 组件状态/动效 token、字体、间距、按钮、导航、SVG 图标、双层首页图片覆盖过渡、四段图文 Statement、Infinite Marquee Gallery、全部主要公开页与 Upload/Review/Account 共用的 78px rail、顶部搜索与 tabs、masonry 图片墙、图标式 hover 操作层、沉浸式作品查看器、Upload 渐进式布局/Loading/Queue/readiness/提交确认/移动端状态、联系页、Account Settings 表单/会话/确认弹窗、统一 focus-visible、gallery stagger reveal 和移动端规则。
+- `account-settings.html` / `account-settings.js`：受保护 `/settings/account` 账户页面；提供 Profile、Authorship Preferences、Security 和 Sessions 四段信息架构，维护表单 dirty/disabled/saving/error/success 状态，保留请求期间产生的更新输入，以显式安全导航避免成功注销被 dirty prompt 截断，使用 `/api/me/profile` 读写服务端 profile，并通过 provider 支持的 `others` / `all` scope 撤销会话；不伪造 Supabase 无法提供的远程设备列表或位置历史。
+- `styles.css`：全站视觉系统和响应式布局；定义纯白 gallery palette 色彩 token、`--ui-*` 组件状态/动效 token、字体、间距、按钮、导航、SVG 图标、双层首页图片覆盖过渡、四段图文 Statement、Infinite Marquee Gallery、全部主要公开页与 Upload/Review/Account 共用的 78px rail、顶部搜索与 tabs、masonry 图片墙、图标式 hover 操作层、沉浸式作品查看器、Upload 渐进式布局、Supabase Review Queue/Detail/decision 状态、联系页、Account Settings 表单/会话/确认弹窗及 68px 移动端单行顶栏、统一 focus-visible、gallery stagger reveal 和移动端规则。
 - `script.js`：首页滚动过渡、IndexedDB 首页设置读取和应用、Statement 标题和每个图文 moment 的入场显影、锚点点击平滑滚动逻辑；不再维护作品分类或比例筛选状态。
 - `public-archive.js`：Series、Lightbox、Contact 共用的公开作品读取层；统一 API/sample/IndexedDB published fallback、数据归一化、比例样式和 `mt-presence-lightbox-v1` 读写，并兼容迁移旧 Saved/Collection keys。
 - `contact.js`：结构化咨询表单逻辑；负责必填校验、条件 Budget 字段、Work/Series/Lightbox 上下文读取与移除、`mailto:` 草稿生成、loading 和 toast。
@@ -30,11 +31,14 @@
 - `lightbox.js`：读取公开作品和 `mt-presence-lightbox-v1`，渲染个人选择、移除/清空、空态和咨询入口。
 - `manage.js`：内部 legacy Archive Review 审核逻辑；同步 SQLite metadata/tag，保留 IndexedDB fallback，并维护筛选、checklist、Approve & Publish、Homepage 编辑与离开提示；Homepage dirty signature 只比较可编辑字段，`beforeunload` 只读取既有 dirty 状态，未修改页面不再被派生 `database_shape` 误判。当前不读取 Supabase `review_submissions`。
 - `upload-studio.js`：Phase 2A-2F Upload Workspace 客户端；双 worker 上传三类 private asset，900ms 串行 autosave 和手工 Save 共享 `expected_version`，409 保留本地表单；从服务端读取五项 readiness，仅在 pending 时 5 秒轮询，提交前 flush、重新检查并确认，使用每张 Draft 稳定的 UUID idempotency key；提交期间禁用 mutation，成功后清理 cache/preview 并从 Draft list 移除；IndexedDB 仅为离线只读缓存，浏览器不能写 scan verdict。
-- `server.py`：Python 标准库本地开发服务器；提供静态文件与 legacy SQLite Archive API；Supabase 边界覆盖 Auth/MFA/Profile/Session 和 Workspace 路由保护；Workspace 提供 Folder、signed upload、Draft、readiness 与 Submit API，所有 mutation 先做 CSRF/session/active account/Admin AAL2/输入 allowlist；Readiness 与 Submit response 都做严格字段投影，Submit 要求 confirmation、`expected_version` 和 UUID idempotency key；legacy Archive 非公开读取与 mutation 继续仅允许 Admin+AAL2。
+- `admin-reviews.js`：Phase 3 Review Queue 客户端；维护 URL/deep-link queue state、latest-wins list/detail fetch、Reviewer 原子 Start claim、signed preview、Actual size、提交 busy/conflict recovery、CSRF retry、dialog focus restoration 和 Request Changes/Reject/Approve 决定；不把 Storage key 写进 DOM 或浏览器存储。
+- `server.py`：Python 标准库本地开发服务器；提供静态文件与 legacy SQLite Archive API；Supabase 边界覆盖 Auth/MFA/Profile/Session、Workspace 与 Review Queue 路由保护；Review API 对 User/recovery/Admin AAL1 fail closed，按纯 Reviewer 与 Admin+AAL2 投影 queue/detail/asset/decision DTO，mutation 要求 CSRF、current version 与 UUID idempotency key；legacy Archive 非公开读取与 mutation 继续仅允许 Admin+AAL2。
 - `workers/scan_adapters.py`：Phase 2F scanner I/O 边界；当前实现只调用三条 scanner RPC，使用隔离 secret 流式读取 private Storage，拒绝 redirect，限制字节并核对 SHA-256/magic/MIME；ClamAV 使用无凭据最小环境，临时文件为 `0600` 且完成后删除。
 - `workers/image_scanner.py`：Phase 2F 独立扫描进程与 CLI；执行单任务或持续轮询，把确定性文件问题落为 failed、恶意命中落为 flagged、依赖/网络问题落为 retry；校验 download/scan/decode/request 总预算不超过 lease，使用每 Worker `0700` 临时目录并启动清理，结构化日志仅允许非敏感字段；不得被 `server.py` 导入或共享 secret。
 - `workers/image_probe.py`：无凭据 Pillow 子进程；以 JPEG/PNG/WebP allowlist 完整 decode，处理 EXIF-oriented dimensions、多帧与 decompression bomb，并应用 timeout、CPU/core/NOFILE 及操作系统支持时的内存限制。
 - `requirements-scanner.txt` / `.env.worker.example`：为 Python 3.11 hash-lock Pillow scanner 依赖并定义独立的 Supabase secret、ClamAV、租约、下载/扫描/解码超时和资源限制环境变量；真实 `.env.worker` 被 Git 忽略。
+- `scripts/configure_development_scanner.py`：development Scanner 本地配置入口；从 Web `.env` 复用 Supabase URL，只通过隐藏输入或进程环境接收 privileged credential，拒绝 publishable/placeholder key 和 secret CLI 参数，以真实空文件扫描校验 ClamAV，保留稳定 Worker ID，并在全部检查通过后原子写入权限 `0600` 的 Git ignored `.env.worker`。
+- `scripts/test_configure_development_scanner.py`：secret-free Scanner 配置回归；使用假 current/legacy credential 与假 ClamAV，验证密钥不进入日志、publishable key 和 ClamAV failure fail closed、旧配置不被覆盖、Worker ID 稳定及文件权限为 `0600`。
 - `README.md`：GitHub 项目首页说明；记录版本、功能、运行方式、静态浏览和联系页邮件草稿行为。
 - `CHANGELOG.md`：版本记录；当前第一版为 `v1.0.0`，`Unreleased` 记录联系作者功能。
 - `VERSION`：当前项目版本号。
@@ -43,6 +47,7 @@
 - `docs/README.md`：项目文档统一索引；定义 Product、Architecture、Design、Operations 分类和维护规则。
 - `docs/architecture/database-design.md`：后期数据库接入设计说明；记录作品档案表、上传入库流程、前端字段映射、Archive 查询、权限建议，以及本地 SQLite 作品库验证流程。
 - `docs/operations/upload-testing.md`：上传功能联调和手工验证说明；记录启动方式、数据库检查、公开页回读、故障排查和相关 API 示例。
+- `docs/operations/review-testing.md`：Phase 3 Review Queue 权限矩阵、local contract、浏览器、真实 development RLS/Storage/并发与发布门禁验收说明。
 - `docs/operations/enterprise-delivery-workflow.md`：项目统一交付门禁；定义需求进入、UI 参考研究、页面提示词、垂直切片、状态设计、自动化/浏览器/安全验收、发布观察与复盘，并提供可复制的企业级摄影网站主提示词和发布评分表。
 - `database/schema.sql`：PostgreSQL/Supabase 兼容数据库预留 schema；当前不作为本地运行库，项目完工后再用于创建作品、资产、比例分类、AI 分析记录、1:1 切片、标签和精选集合。
 - `database/product_schema.sql`：Phase 0 目标产品 schema；定义用户/角色、所有权、文件夹、三类图片状态、不可变版本与审核、通知、下架案件和 append-only 审计，并以 `public_works` 统一公开读取源。
@@ -54,6 +59,7 @@
 - `database/migrations/20260716_workspace_folder_integrity.sql`：Phase 2D Folder 归属完整性 migration；以 owner-scoped transaction advisory lock 串行化 Folder 删除与 `images` / `upload_intents` 的 Folder assignment，防止并发写入 soft-deleted Folder；上传完成时若原 Folder 已被并发删除，触发器把记录落入 active Inbox；恢复 Trash Draft 时若原 Folder 已失效，同样回退到 Inbox。
 - `database/migrations/20260716_workspace_submit_readiness.sql`：Phase 2E transaction-wrapped migration；新增五项 owner-scoped readiness 与 versioned/idempotent Submit RPC，为 submission 保存 UUID、readiness/asset snapshots，锁定 image version 并保护 submission snapshot，不允许 authenticated 直接写 submission；同一事务更新 workflow/version、创建 notification 与 append-only audit，并禁止 owner 直接删除已登记到 `image_assets` 的 Storage object。
 - `database/migrations/20260717_workspace_asset_scanner.sql`：Phase 2F transaction-wrapped migration；创建 inaccessible `asset_scan_jobs` 与 append-only events，自动 enqueue 新 asset，提供仅 service_role 可执行的 SKIP LOCKED claim、token-bound retry/complete RPC，验证真实 Storage object 和观察值，处理租约过期/attempt 上限，并把最终状态投影到 `image_assets` readiness。
+- `database/migrations/20260717_review_queue.sql`：Phase 3 transaction-wrapped migration；提供 scoped queue/detail、non-self atomic assignment/start、versioned/idempotent decisions、非空 expected version/immutable result snapshot、notification/audit 与 Admin publish boundary；重写 Reviewer/Admin+AAL2 RLS 和 current-clean private Storage bucket-kind/lifecycle scope，并撤销 direct decision/submission writes/truncate。
 - `scripts/validate_product_phase0.py`：Phase 0 契约检查；验证目标 schema 核心表/状态/append-only 规则，并检查公开页面不再链接 Series/Collections。
 - `scripts/validate_auth_foundation.py`：Phase 1 Auth/Account 契约检查；验证认证与 Account Settings 页面/API、Cookie/CSRF、Profile/Session client、增量部署入口和可访问性钩子，并禁止 token 使用 localStorage/sessionStorage/IndexedDB。
 - `scripts/validate_supabase_phase1_rls.py`：Phase 1 数据权限契约检查；验证 auth user trigger、全部私有表 RLS、owner isolation、Reviewer/Admin 角色、Admin AAL2、Profile RPC baseline/增量 migration、Published-only 公开读取、Storage 用户目录与角色禁止直写规则。
@@ -61,8 +67,11 @@
 - `scripts/test_workspace_phase2_boundary.py`：secret-free loopback fake-provider 集成；除 Folder/upload/Draft/CAS 外，覆盖 readiness blocked/pending/ready、Submit CSRF、stale 409、DRAFT_NOT_READY、安全 details 清洗、201 严格 response allowlist、同 key 幂等、submitted 后 update/Trash 423、snapshot 不变与 Draft list 移除。
 - `scripts/validate_workspace_asset_scanner.py`：Phase 2F 静态契约检查；验证 job/event 隔离、lease/token/attempt、RPC grant 与 result allowlist、Storage 二次校验、Pillow/ClamAV fail-closed 路径、scanner-only 环境和日志字段白名单。
 - `scripts/test_workspace_asset_scanner.py`：secret-free loopback scanner 集成；以真实 Pillow fixture 和 fake ClamAV 覆盖当前 secret key/legacy service-role header、redirect 拒绝、子进程 credential 隔离、JPEG/PNG/WebP/EXIF、多帧/像素限制、clean/failed/flagged/retry、Storage failure、临时文件与敏感日志排除。
+- `scripts/validate_review_queue_phase3.py`：Phase 3 静态契约检查；验证 migration transaction、RPC/ACL、completed filter、role-stacking+AAL2、non-self Reviewer scope、current-clean Storage bucket-kind、并发幂等、真实 audit snapshot、发布前 asset/version 状态及 Web/UI/CI/docs wiring；静态检查不替代真实 PostgreSQL apply。
+- `scripts/test_review_queue_boundary.py`：secret-free fake-provider HTTP integration；覆盖 Review route/auth/MFA/CSRF、status filter、DTO allowlist、Reviewer cross-assignment、atomic start、stale CAS、decision idempotency 和 Admin publish precheck。
+- `scripts/test_review_queue_database.sql`：development-only、rollback-only Phase 3 数据库验收；用事务级 advisory lock 和完整 Workspace fixture 真实覆盖 role/AAL/role stacking、self-review、direct RLS、current-scan Storage 生命周期、stale CAS、Approve + Admin Publish 后仍稳定的 replay snapshot、冲突重放、notification/audit，并恢复临时禁用的 scanner insert trigger 后回滚全部数据。
 - `scripts/test_workspace_asset_scanner_database.sql`：development-only、rollback-only 数据库状态机测试；覆盖三个 disjoint claim、token replay/conflict、retry、lease reclaim、old-token 拒绝和 attempt exhaustion，不保存 verdict。
-- `scripts/deploy_supabase_phase1.sh`：Phase 0/1 Supabase 数据库部署入口；使用 libpq `PG*` 环境变量避免密码出现在进程参数，fresh database 默认执行 baseline 后按文件名顺序执行 `database/migrations/*.sql`；已有数据库使用 `MT_APPLY_PHASE1_BASELINE=no` 只执行幂等增量 migration；默认拒绝未确认的 production 部署。
+- `scripts/deploy_supabase_phase1.sh`：Phase 0/1 Supabase 数据库部署入口；执行 Phase 0-3 静态 migration contract 门禁，使用 libpq `PG*` 环境变量避免密码出现在进程参数，fresh database 默认执行 baseline 后按文件名顺序执行 `database/migrations/*.sql`；已有数据库使用 `MT_APPLY_PHASE1_BASELINE=no` 只执行幂等增量 migration；默认拒绝未确认的 production 部署。
 - `scripts/test_supabase_phase1_isolation.py`：只读远程集成测试；使用两个已验证开发用户的普通 access token，验证双方只能读取自己的 user/profile/role，以及 `current_authorization` 与身份一致，不使用会绕过 RLS 的 service-role key。
 - `scripts/test_supabase_admin_mfa.py`：可逆的真实 Supabase TOTP/AAL2 集成测试；临时复用明确 disposable 的开发用户并恢复其 hash/roles/factors/sessions，验证 Admin+AAL1 denied、真实 TOTP enrollment/verify、Admin+AAL2 allowed 与 non-Admin+AAL2 denied，且不输出凭据、secret 或 token。
 - `scripts/test_local_auth_session_refresh.py`：本地 Auth 实时回归；使用 gitignored development Admin 建立独立 AAL1 session，故意破坏 access Cookie 后通过 refresh Cookie 触发轮换，断言 `/api/me` 回写两枚新 Cookie 且 `/auth/mfa` 不发生回登录页的 303；输出只含状态，不打印凭据或 token，并尽力撤销测试 session。
@@ -300,7 +309,7 @@
 - `database/migrations/20260717_workspace_asset_scanner.sql` 与 `workers/`：服务端不可见 job/event、租约 RPC、private object 内容校验、ClamAV/Pillow verdict 与 scanner-only secret 边界；Web server/browser 无 service-role 凭据。
 - `styles.css`：新增 `.upload-studio-*` 三栏工作台、文件夹列表、drop zone、上传卡片、编辑器、readiness、Submit/确认状态和移动端单列降级样式。
 - `works.html`：公开作品只读取 published；rail 的 Upload 入口进入独立的受保护 Workspace，不把 Draft 暴露到公开作品流。
-- `manage.html`：仍是 legacy SQLite Review/Publish 原型；Phase 2E 可以创建 Supabase `review_submissions`，但该页面尚未读取它，Admin Review Queue 是下一切片。
+- `manage.html`：仍是 legacy SQLite Review/Publish 原型；Phase 2E 创建的 Supabase `review_submissions` 由独立 `/admin/reviews` 消费，该页面不与新 Review Queue 混用。
 
 ### 页面内部结构
 
@@ -311,7 +320,7 @@
 - Import：选择或拖入 JPEG/PNG/WebP 后执行读取、压缩/缩略图、checksum、三类 signed upload 和 complete RPC；只有 complete transaction 成功才创建 `images` / `image_versions` / `image_assets`。
 - 状态：Folder/Draft 权威数据在 Supabase PostgreSQL，asset 在 private Storage；编辑器呈现 Saving/Saved/Error/Conflict 和 readiness checking/pending/blocked/ready/submitting；409 不覆盖本地输入；IndexedDB 只保存最近成功 hydrate 的只读 cache，离线和 submission in-flight 禁用 mutation。
 - 安全：authenticated 通用业务表写权限为 0，direct submission INSERT/UPDATE/DELETE 已撤销；RPC 重新校验 owner、account/AAL、metadata、三类 private assets、Storage object、clean scan、workflow 与 expected version。Submit 事务锁住 image/version/assets/objects，保存 snapshots，更新 workflow/version，并创建 notification/audit；已登记 asset 的 Storage object 不允许 owner 直接删除。
-- 测试：Web validator/fake provider 覆盖 Draft/CAS、readiness 三态、CSRF、DRAFT_NOT_READY details 清洗、stale Submit、严格 success allowlist、同 key 幂等和 submitted lock；scanner validator/loopback provider 覆盖 secret header、leased claim、clean/failed/flagged/retry 与日志脱敏。真实 upload 仍从 `pending` 开始，只有独立 worker 明确完成三个 clean 才启用 Submit；本切片没有 user quota/capacity policy。Supabase Review Queue、quota/rate limit 和 Trash restore UI 留待后续。
+- 测试：Web validator/fake provider 覆盖 Draft/CAS、readiness 三态、CSRF、DRAFT_NOT_READY details 清洗、stale Submit、严格 success allowlist、同 key 幂等和 submitted lock；scanner validator/loopback provider 覆盖 secret header、leased claim、clean/failed/flagged/retry 与日志脱敏。真实 upload 仍从 `pending` 开始，只有独立 worker 明确完成三个 clean 才启用 Submit；本切片没有 user quota/capacity policy。Review Queue 已由独立 Phase 3 工作台接入，quota/rate limit 和 Trash restore UI 留待后续。
 
 ## 8. 联系作者
 
@@ -348,11 +357,11 @@
 
 ### 功能说明
 
-- Phase 2A-2F 已把用户 Folder、Draft、Version、三类 Asset metadata、private Storage、可信扫描、自动保存、乐观并发、readiness 与 Submit transaction 接入 Workspace；Admin Review Queue/decision、Publish、公开 delivery 与 sample migration 尚未接入同一生产链路。
+- Phase 2A-2F 已把用户 Folder、Draft、Version、三类 Asset metadata、private Storage、可信扫描、自动保存、乐观并发、readiness 与 Submit transaction 接入 Workspace；Phase 3 Review Queue/Detail/decision 已部署 development 并通过 rollback-only 数据库验收，公开 delivery 与 sample migration 仍未接入同一生产链路。
 - 当前 `works.html` 优先读取 `server.py` 的本地 SQLite API；当 `data/archive.db` 不存在、API 失败或无 published 数据时，继续使用本地样例图和浏览器 IndexedDB fallback；不需要安装 MySQL，也不需要现在执行 PostgreSQL 目标 schema。
 - 当前 `manage.html` 保存 legacy seed/upload 作品 metadata 时仍同步写入 `data/archive.db`；这些 Admin+AAL2 Archive API 仅为旧 Review/public prototype 服务。`upload-studio.html` 已不调用 legacy multipart/PATCH/DELETE API，也不写本地 `assets/uploads/`。
 - 本地开发可执行 `python3 scripts/seed_local_archive_db.py` 生成 `data/archive.db`，用于验证图片 metadata、资产表、标签分组、图-标签关联和 collection 设计。
-- 后续生产切片先让 Admin Review Queue/Detail 读取 Phase 2E 的 `review_submissions`，再实现 decision/Publish 与 published-only delivery；之后迁移 `works.html`、sample metadata、首页精选和需要保留的标签/切片能力。
+- Phase 3 双会话 race 与 secret-free fake-provider 桌面/移动浏览器验收已通过；后续先完成真实 disposable Reviewer/Admin 多身份浏览器验收，再实现 published-only DTO 与 derivative public delivery。只有公开 `works.html` 迁移到该数据源后，才向浏览器开放 Admin Approve and Publish，随后迁移 sample metadata、首页精选和需要保留的标签/切片能力。
 - 图片二进制文件不直接进入关系表；数据库只保存对象存储 bucket/path/url、尺寸、MIME、checksum 和分类元数据。
 - 首页精选作品和未来专题作品通过 `collections` 与 `collection_images` 表管理，不再依赖硬编码图片列表。
 
@@ -379,8 +388,9 @@
 - Phase 2D 保存：字段输入停顿 900ms -> 客户端串行 PATCH 并发送当前 `lock_version` 作为 `expected_version` -> versioned RPC 行锁核对并递增 `images.version` -> 服务端直接返回不含 assets 的规范 Draft metadata；若服务器版本已变化则返回 409，保留本地表单并等待用户 Reload。Trash 使用同一 CAS；dirty Draft 会先保存再以最新 version Trash；Folder 删除、Draft 移动和上传 Folder assignment 使用同一 owner transaction lock，删除 Folder 导致 Draft 移入 Inbox 时也递增 version。
 - Phase 2E 提交：客户端 GET 五项 readiness -> pending 时轮询、blocked 时显示安全 field guidance -> ready 后确认并 POST current `expected_version` + UUID key -> RPC 在同一事务锁定当前 image version、保存 review/readiness/asset snapshots、workflow 变 submitted、version +1、写 notification/audit -> 客户端移除 Draft。同 key retry 返回原 submission；submitted 后 Draft update/Trash 被锁定。
 - Phase 2F 扫描：asset INSERT 自动 enqueue restricted job -> 独立 worker 通过 service_role-granted RPC + SKIP LOCKED 领取租约 -> private Storage 拒绝 redirect 后流式下载并核对 size/checksum/magic -> 无凭据 ClamAV verdict -> 非恶意文件由隔离 Pillow allowlist 完整解码并核对 EXIF-oriented dimensions -> token-bound complete/retry 更新 job/event/audit 与 `image_assets.scan_status`；依赖不可用、旧 token、不满足当前 policy 或不确定结果都不能 clean。service-role credential 本身仍是广泛高权限，不因 Worker 只调用三条 RPC 而变成 capability-limited key。
+- Phase 3 审核：Reviewer/Admin 打开 `/admin/reviews` -> server 以用户 access token 调用 scoped list RPC -> Reviewer 点击不属于自己的公共 Submitted 时先原子 Start/Claim -> detail RPC 只向自己的 open non-self assignment 返回 submitted snapshot 和三类 current-clean private asset -> 决定发送 current lock version + UUID key + checklist/reason/message -> RPC 行锁、CAS、same-payload replay、notification 与 append-only audit 在同一事务完成；所有角色禁止 self-review，Admin/Super Admin 的完整 history 与 publish boundary 始终要求 AAL2。
 - 后续处理：derivative worker、EXIF/public metadata 策略、AI 分析、square slice、user quota/rate limit、orphan cleanup 与 TUS 尚未完成；真实 asset 初始 `pending`，不会被 readiness 当成 capacity 或 clean。
-- 后续展示：Admin Review Queue/decision/Publish 通过后把 approved display/thumbnail 发布到 public delivery，再让公开 Works 只读取 `publication_status = published` 的稳定 DTO；原图保持 private。
+- 后续展示：把 approved display/thumbnail 发布到 public delivery，再让公开 Works 只读取 `publication_status = published` 的稳定 DTO；完成前 Review 浏览器只提供 Approve，不承诺公开，原图始终保持 private。
 - 后期精选：首页 Selected Works 读取 `collections.slug = 'homepage-selected'` 对应的 `collection_images` 排序结果。
 
 ## 10. 用户认证与账户设置
@@ -414,7 +424,36 @@
 - 部署：fresh database 运行完整 baseline；已有数据库设置 `MT_APPLY_PHASE1_BASELINE=no`，只按文件名顺序执行 transaction-wrapped 增量 migrations。
 - 测试：CI 静态验证 Auth/RLS/Profile SQL 契约和受保护浏览器脚本语法，并运行 recovery、普通用户 Profile、Admin AAL1、Session revoke、Cookie 清理和部署顺序集成回归。
 
-## 11. 本地企业级开发护栏 Skill
+## 11. Supabase Admin Review Queue
+
+### 功能说明
+
+- 为已提交的 immutable submission snapshot 提供独立的企业级摄影审核工作台，不复用 legacy `manage.html` 或 SQLite visibility。
+- canonical 入口为 `/admin/reviews`，deep link 为 `/admin/reviews/{submissionId}`；未登录进入 Sign In，recovery/普通 User 拒绝，Admin/Super Admin AAL1 进入 MFA。
+- 纯 Reviewer 只看到未分配的 Submitted queue 与自己的 open assignment；未领取项只使用 thumbnail，打开时必须先原子 Start/Claim，再读取 Original/Display。Admin/Super Admin 达到 AAL2 后可查看完整授权历史。
+- 当前浏览器动作是 Request Changes、Reject、Approve；数据库/API 保留 Admin+AAL2-only publish boundary，但公开 Works 仍读 SQLite，因此不在 UI 中显示或宣称真实 Publish。
+
+### 相关文件
+
+- `admin-reviews.html` / `admin-reviews.js`：Queue + Detail、status/assignment filters、deep link、latest-wins fetch、Reviewer claim、Actual size、evidence/history、checklist、decision confirmation、busy/conflict/retry 与可访问性状态。
+- `styles.css`：`.admin-review-*` gallery-white 高密度布局；桌面 Queue/Detail、1024px 上下折叠、760px 单行顶栏和 390px 无横向溢出规则。
+- `server.py`：保护页面与 Review API，执行 identity/active account/role/AAL/CSRF/JSON/version/idempotency 边界，把 PostgREST/provider 响应投影为不泄露 bucket/key/internal note 的稳定 DTO，并为允许的 asset 生成短时签名 URL。
+- `database/migrations/20260717_review_queue.sql`：scoped list/detail、assignment/start/decision RPC，Reviewer/Admin+AAL2 RLS、private Storage 生命周期与 bucket-kind 绑定、CAS、immutable result replay、notification、publication boundary 和 immutable audit。
+- `scripts/validate_review_queue_phase3.py` / `scripts/test_review_queue_boundary.py`：静态 SQL/UI/API/CI contract 与 secret-free fake-provider HTTP integration。
+- `scripts/test_review_queue_database.sql`：rollback-only development 数据库角色/AAL/RLS/Storage/CAS/幂等/通知/审计验收。
+- `scripts/test_review_queue_concurrency.py`：development-only 双会话真实并发验收；用 process-level advisory run lock 和 shared start gate 同步独立 PostgreSQL backend，覆盖 Start/claim 竞争、不同 key decision CAS 竞争、same-key replay 单副作用，并在前置与 `finally` 清理 committed fixture。
+- `docs/operations/review-testing.md`：本地、浏览器、真实 development database、双会话并发、RLS/Storage 和发布前验收手册。
+
+### 页面内部结构
+
+- Queue header：紧凑标题、可点击 counts、Status 与 Assignment filter、Refresh，不使用 Dashboard 卡片墙。
+- Queue list：thumbnail、title、短 Submission ID、owner、waiting time、category、rights、assignment 与 status；分页与选中项同步 URL。
+- Review Detail：submitted image 为视觉主角，Inspector 依次显示 copy、rights、asset evidence、readiness、history 与 decision；图片只用签名 URL，Actual size 不裁切原作。
+- Mutation：Start 与 decision 在请求中禁用相关控件；409/assignment conflict 保留本地输入并提供 Reload；dialog 首焦点、Escape、关闭后焦点恢复和 alert 宣告都有明确合同。
+- 安全：角色叠加不能让 Admin+AAL1 借 Reviewer policy 绕过 MFA；Reviewer 完成/失去 assignment 后 private detail/asset 权限立即失效；same-key/same-payload 返回首次完整结果，不同 payload 冲突。
+- 待发布门禁：migration 已部署 development，rollback-only User/Reviewer/stacked Admin AAL1/Admin AAL2 的 RLS/Storage/CAS/幂等/通知/审计验收通过；六个独立 `psql` 会话完成三组双会话 Start/decision race，每组 backend PID 不同且 fixture 已清理。剩余门禁是真实浏览器多身份验收。public DTO、derivative delivery、Works migration、Escalate/Quarantine/Withdraw、bulk/risk filters 不属于本切片。
+
+## 12. 本地企业级开发护栏 Skill
 
 ### 功能说明
 
@@ -437,6 +476,13 @@
 
 ## 修改记录
 
+- 2026-07-20：补齐 development Scanner 安全配置与本机运行前置：新增 `configure_development_scanner.py` 及 secret-free 回归，拒绝 publishable/placeholder key 和 secret CLI 参数，以真实空文件扫描校验 ClamAV，并只在成功后原子写入 `0600` 的 `.env.worker`；CI、README 与上传运维手册同步。已创建 Python 3.11/Pillow 12.3.0 隔离 venv，ClamAV 1.5.3 与当日官方签名真实 preflight 通过；远程仍为 3 pending/3 queued/0 leased/0 clean，因服务端 secret 尚未 provision，Worker 未启动。
+- 2026-07-20：完成 Phase 3 真实双会话数据库并发门禁：新增 development-only `scripts/test_review_queue_concurrency.py`，以 process-level run lock 与 shared advisory gate 同步六个独立 `psql` 会话，并确保每组竞争使用不同 backend PID；验证双 Reviewer Start/claim 一胜一冲突、不同 key decision 一胜一 CAS 冲突、same-key/same-payload 并发返回同一 immutable result 且 decision/notification/audit 各一，所有 committed fixture 已清理。真实 disposable Reviewer/Admin 浏览器验收仍为门禁；本机 Scanner venv/ClamAV 后续同日已就绪，服务端 secret 与 `.env.worker` 仍待 provision，常驻 Scanner 未启动。
+- 2026-07-20：Phase 3 migration 已部署 development；修复 decision 虽声明 `expected_lock_version` / `result_snapshot` 却未写入导致重放读取 live state 的缺陷，将两列收紧为非空并在首次 decision insert 中保存完整 immutable result。新增 rollback-only 数据库验收，真实覆盖 role stacking/AAL、自审拒绝、direct RLS/current-scan Storage 生命周期、stale CAS、Approve 后 Admin Publish、跨后续状态稳定重放、冲突重放、notification 与精确 audit before/after，所有 fixture 已回滚；后续同日已完成双会话 race，真实浏览器验收仍为门禁。
+- 2026-07-20：完成 Phase 3 secret-free fake-provider 浏览器验收：1440x1000 Queue/Detail 与 390x844 移动 Detail/decision 均无横向溢出，签名图片正常；required message/checklist 聚焦、确认弹窗 Cancel 首焦点、Escape 关闭和 opener 焦点恢复通过，console/page error 为空。真实 disposable Reviewer/Admin 多身份浏览器验收仍是门禁。
+- 2026-07-20：收紧本地发布门禁与静态文件保护：Supabase 部署入口在执行 migration 前新增 Phase 3 Review Queue contract validation；规范化 URL 后同时保护 `/assets/uploads` 根目录及其子路径，GET/HEAD 均不能退回公开目录列表，并由 Auth boundary integration 覆盖。
+- 2026-07-20：完成 Phase 3 Supabase Admin Review Queue 本地垂直切片：新增 protected `/admin/reviews` 与 deep-link Queue/Detail 工作台、status/assignment filters、Reviewer 原子 Start/Claim、submitted snapshot/rights/asset/history inspector、Actual size 和 Request Changes/Reject/Approve；服务端对 User/recovery/Admin AAL1 fail closed，按纯 Reviewer 与 Admin+AAL2 严格投影 DTO/签名资产并执行 CSRF/CAS/idempotency；transaction-wrapped migration 收紧 role-stacking RLS/Storage、bucket-kind/lifecycle、direct ACL，提供 atomic assignment/start、stable same-payload replay、真实 before/after audit、notification 与 Admin-only future publish boundary。浏览器刻意不显示 Approve and Publish，因为 public Works 仍读取 SQLite。静态合同和 secret-free fake-provider 集成进入 CI；后续同日已完成 development 部署、rollback-only 数据库验收与双会话并发，真实浏览器验收仍是发布门禁。
+- 2026-07-20：完成 Account Settings 最终浏览器验收；390px 下用账户页专属单行顶栏覆盖全局双行移动导航，确保固定顶栏实际高度与吸附式 Profile/Preferences/Security/Sessions 目录的 68px 偏移一致，滚动后目录不再被顶栏遮挡；保存响应不再覆盖请求期间的新输入，成功注销可安全越过 dirty prompt，失败时恢复当前设备退出控件，CSRF 初始化失败可在当前页重试且 Session 错误可聚焦宣告，小字号辅助文字达到 WCAG AA；桌面与移动端均无横向溢出，表单 dirty 状态及 Session 确认弹窗焦点恢复通过。
 - 2026-07-17：完成并向 development 部署 Phase 2F Trusted Asset Scanner 的代码与数据库状态机：restricted leased job、append-only event、SKIP LOCKED claim、token/idempotent complete、retry/backoff/attempt exhaustion、current-policy readiness 与 Storage metadata/observation 双重校验；独立 Python 3.11 Worker 拒绝 credential redirect，以无凭据 ClamAV/Pillow 子进程执行 SHA-256/magic/MIME/full decode/EXIF/multi-frame/decompression-bomb 检查，并约束 lease budget、私有临时目录与资源上限。loopback integration 与 rollback-only development DB test 均通过；后者真实覆盖 claim/complete/retry/expiry/exhaustion 后完整回滚。远程最终核对 scanner RLS 2/2、通用 table grant 0、service RPC 3/3、client RPC 0、constraints 2、trigger object 3、queued jobs/events 3/3、terminal job 0、invalid prerequisites 0，资产仍为 3 pending。Web server/browser/解析子进程不持有 scanner secret；development 尚未 provision 常驻 ClamAV Worker，所以自动消费未启动，也未伪造 clean。Admin Review Queue 仍是下一生产切片。
 - 2026-07-16：完成 Phase 2E Submit Readiness / Submit for Review 垂直切片：数据库以固定五项检查权威计算 metadata、rights/disclosures、三类 asset/Storage、security scan 和 submission state；GET readiness 与 POST submit 使用 owner/session/CSRF 边界，Submit 要求 current `expected_version`、显式确认和 UUID idempotency key；事务创建 immutable image version/review/readiness/asset snapshots，将 workflow 锁到 submitted，并原子写入 notification 与 append-only audit；撤销 direct submission mutation，registered Storage object 不允许 owner 直删。Upload Studio 增加 readiness 状态、pending 轮询、确认 dialog、提交 in-flight 禁用和成功移除 Draft。真实 asset 仍从 `scan_status=pending` 开始，没有可信 scanner 时 Submit 保持 disabled；没有 user quota/capacity policy，legacy `manage.html` 尚未读取 Supabase submission，Admin Review Queue 是下一切片。同轮修复 legacy Review Homepage false-dirty：签名只比较可编辑字段，离站不再重新序列化 clean form。
 - 2026-07-16：实现并在 development 部署 Phase 2D Draft Autosave / Optimistic Concurrency 垂直切片：Upload Studio 在字段停顿 900ms 后串行自动保存，同时保留手工 Save，并明确呈现 Saving/Saved/Error/Conflict；Draft DTO 暴露 `lock_version`，PATCH/Trash 发送 `expected_version`，stale mutation 返回 409 且保留本地表单，用户可用 Reload Server Draft 主动加载服务器版本；PATCH 提交后不再二次签名且 response 不含 assets；`20260716_workspace_draft_versioning.sql` 新增 versioned update/trash RPC、撤销旧 RPC authenticated execute，并在 Folder delete 移动 Draft 时递增 image version；`20260716_workspace_folder_integrity.sql` 串行化 Folder 删除与 image/upload-intent assignment。只读核对 versioned RPC authenticated=true、旧 RPC authenticated=false、anon=false、Folder guard trigger=2。该切片当时不含 Submit；现已由 Phase 2E 补齐，Review Queue/scanner/quota/Trash restore UI 仍在后续。

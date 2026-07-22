@@ -2,9 +2,9 @@
 
 ## 当前状态
 
-Phase 2A-2F 已把账户 owner-scoped Folder、Upload Intent、Draft、Version、Asset metadata、可靠取消/清理、private Supabase Storage、权威 readiness、Submit transaction 与可信 asset scanner 接入当前 development boundary。公开 Works 与 legacy Review Center 仍使用本地 SQLite/sample；不要下载 MySQL，也不要执行历史 `database/schema.sql` 作为当前 production baseline。
+Phase 2A-2F 已把账户 owner-scoped Folder、Upload Intent、Draft、Version、Asset metadata、可靠取消/清理、private Supabase Storage、权威 readiness、Submit transaction 与可信 asset scanner 接入当前 development boundary。Phase 3 Supabase Review Queue/Detail/decision migration 与 Web 边界已部署到 development，并通过 rollback-only 角色/AAL/RLS/Storage/CAS/幂等/通知/审计验收及三组双会话并发验收；真实浏览器多身份验收仍是发布门禁。公开 Works 与 legacy Review Center 仍使用本地 SQLite/sample；不要下载 MySQL，也不要执行历史 `database/schema.sql` 作为当前 production baseline。
 
-`server.py` 同时维护两条明确分离的边界：`/api/folders`、`/api/uploads/*`、`/api/images*` 是 Supabase Workspace/Submit；`/api/archive/images*` 是 Admin+AAL2 legacy SQLite Review/public prototype。Upload Studio 只使用前者；`manage.html` 尚未读取 Supabase `review_submissions`。Contact 页面使用 `mailto:`，不保存本地消息。
+`server.py` 同时维护三条明确分离的边界：`/api/folders`、`/api/uploads/*`、`/api/images*` 是 Supabase Workspace/Submit；`/api/admin/review-submissions*` 是 scoped Supabase Review Queue/Detail/assignment/start/decision；`/api/archive/images*` 是 Admin+AAL2 legacy SQLite Review/public prototype。`admin-reviews.html` 只使用第二条边界，`manage.html` 仍不读取 Supabase `review_submissions`。Contact 页面使用 `mailto:`，不保存本地消息。
 
 当前新增了一个本地 SQLite 验证库，不作为生产后端，也不改变页面数据源：
 
@@ -34,7 +34,7 @@ python3 scripts/validate_local_archive_db.py
 
 ## 目标
 
-当前 Supabase 已保存私人 Draft，并能权威计算 readiness、创建 immutable submission snapshots 和锁定 submitted workflow；剩余目标是把 Admin Review Queue/decision、Publish、公开 Works、sample/import 和首页精选迁移到同一 production boundary。关系数据库保存 metadata、状态和对象 key，真实图片文件保存在 Supabase Storage。
+当前 Supabase 已保存私人 Draft，能权威计算 readiness、创建 immutable submission snapshots、锁定 submitted workflow，并由已部署的独立 Review Queue 边界执行 assignment/start/decision；双会话并发已通过，剩余门禁是真实浏览器多身份验收，之后再把 public delivery、公开 Works、sample/import 和首页精选迁移到同一 production boundary。关系数据库保存 metadata、状态和对象 key，真实图片文件保存在 Supabase Storage。
 
 核心要求：
 
@@ -59,7 +59,7 @@ python3 scripts/validate_local_archive_db.py
 
 Archive 页面展示时读取 `archive_image_view.image_url`。该字段优先使用 `display` 的 URL，没有 `display` 时才 fallback 到 `original`。`thumbnail` 只用于列表和后台，不作为作品主展示图。`images.original_width` / `images.original_height` 永远来自 `original`，不能被压缩后的 `display` 尺寸覆盖。
 
-当前 Upload Studio 在浏览器生成 `original`、`display`、`thumbnail`，服务端创建 `{auth.uid}/{image_id}/{kind}.{ext}` signed destination，浏览器直传 private Storage，再由 complete RPC 创建 Draft/version/asset rows。Folder/Draft/readiness/Submit 以 PostgreSQL 为 authority，IndexedDB 只缓存最近成功响应。上传永远不会直接 published；成功 Submit 只进入 `submitted`，Admin Review/Publish 尚未接入。真实 asset 初始 `scan_status=pending`，Phase 2F 独立 worker 通过仅授予 service_role 的 leased RPC 读取并验证 private object，只有三个资产都以当前 policy 明确 `clean` 才允许 Submit；当前没有 user quota/capacity policy。Trash 是 soft delete，restore RPC/API 已有而页面待实现。
+当前 Upload Studio 在浏览器生成 `original`、`display`、`thumbnail`，服务端创建 `{auth.uid}/{image_id}/{kind}.{ext}` signed destination，浏览器直传 private Storage，再由 complete RPC 创建 Draft/version/asset rows。Folder/Draft/readiness/Submit 以 PostgreSQL 为 authority，IndexedDB 只缓存最近成功响应。上传永远不会直接 published；成功 Submit 只进入 `submitted`，之后由独立 Supabase Review Queue 领取并决定。真实 asset 初始 `scan_status=pending`，Phase 2F 独立 worker 通过仅授予 service_role 的 leased RPC 读取并验证 private object，只有三个资产都以当前 policy 明确 `clean` 才允许 Submit；当前没有 user quota/capacity policy。Trash 是 soft delete，restore RPC/API 已有而页面待实现。公开 Works 仍未消费 Supabase publication DTO，所以浏览器不提供 Approve and Publish。
 
 ## 文件
 
@@ -70,11 +70,16 @@ Archive 页面展示时读取 `archive_image_view.image_url`。该字段优先�
 - `.github/workflows/database.yml`：数据库检查工作流；安装 Python 3.11 和 Node 20 后执行 `python3 scripts/validate_local_archive_db.py`。
 - `archive-upload.js`：当前内部上传的本地处理管线，输出可迁移到 `images`、`image_assets` 和 `image_square_slices` 的对象。
 - `upload-studio.js`：当前个人 Draft/Submit 客户端；signed upload、Folder、Draft、readiness、Submit、Trash 走 Supabase API，IndexedDB 仅为离线只读 cache。
+- `admin-reviews.html` / `admin-reviews.js`：独立 Phase 3 Supabase Review Queue/Detail 客户端；通过服务端稳定 DTO 执行筛选、原子 claim/start、submitted snapshot inspection 与 versioned/idempotent decisions，不直接读取表或拼接 Storage key。
 - `manage.js`：当前 legacy Review Center metadata 写入来源；已有 seed 作品保存到本地 SQLite，首页设置保存在 IndexedDB；尚未读取 Supabase `review_submissions`。
 - `archive.js`：当前公开 Works 读取模型来源；优先读取本地只读 API 的 published 作品，失败时使用 sample/IndexedDB fallback，写入仍停留在浏览器本地过渡层。
-- `server.py`：本地静态服务器；除 legacy Archive API 外，提供受保护的 Supabase Folder/upload/Draft/readiness/Submit 边界，对 readiness/error/submission response 做 allowlist 清洗；不提供消息 API。
+- `server.py`：本地静态服务器；除 legacy Archive API 外，提供受保护的 Supabase Folder/upload/Draft/readiness/Submit 和 scoped Review Queue/Detail/assignment/start/decision 边界，对 provider/error/DTO/signed asset 做 allowlist 清洗；不提供消息 API。
 - `database/migrations/20260716_workspace_submit_readiness.sql`：Phase 2E 增量；增加 submission UUID/readiness/asset snapshots 和 immutability guards，安装五项 readiness 与 versioned Submit RPC，收紧 submission table/Storage delete 权限，并把 workflow、notification、audit 写入同一事务。
 - `database/migrations/20260717_workspace_asset_scanner.sql`：Phase 2F 增量；新增 restricted leased jobs、append-only events、INSERT enqueue trigger、SKIP LOCKED claim、token-bound retry/complete、attempt exhaustion、Storage object/观察值校验、scan notification/audit，并只向 service_role 授予三条 RPC 的 EXECUTE。
+- `database/migrations/20260717_review_queue.sql`：Phase 3 增量；新增 scoped list/detail、atomic assignment/start 与 versioned/idempotent decision RPC，禁止 self-review，收紧 role-stacking RLS、current-clean private Storage bucket-kind/lifecycle、direct table/函数 ACL，并在事务内保存非空 expected version/result snapshot、notification 与覆盖 assignment/workflow/asset visibility 的真实 before/after audit。
+- `scripts/validate_review_queue_phase3.py` / `scripts/test_review_queue_boundary.py`：Review SQL/UI/API/CI 静态合同和 secret-free fake-provider HTTP 回归。
+- `scripts/test_review_queue_database.sql`：development-only、rollback-only 数据库验收；真实覆盖 User/Reviewer/stacked Admin AAL1/Admin AAL2、self-review、direct RLS、current-scan Storage 生命周期、CAS、Approve 后 Publish 仍稳定的 same-payload replay、冲突重放、notification 与 audit。
+- `scripts/test_review_queue_concurrency.py`：development-only committed-fixture 双会话验收；启动六个独立 `psql` 会话并确保每组竞争使用不同 backend PID，覆盖 Start/claim、不同 key CAS 和 same-key replay 竞争，并在运行前后清理 fixture。
 - `workers/scan_adapters.py` / `workers/image_scanner.py` / `workers/image_probe.py`：不进入 Web 进程的 trusted scanner；使用隔离的高权限 secret 下载 private object，拒绝 redirect 并核对 size/checksum/magic；ClamAV 与 Pillow 在无凭据子进程中执行，完整 decode/EXIF-oriented dimensions 受 time/resource limit 约束，明确区分 terminal failure 与 transient retry。
 
 ## 数据表
@@ -325,6 +330,6 @@ Supabase 当前规则：
 2. 当前已完成本地既有作品 metadata/tag 写入连接：`manage.js` 保存 seed 作品时调用 `PATCH /api/archive/images/{id}`。
 3. 已完成 `database/product_schema.sql` + Phase 1 RLS/Auth + Phase 2A-2F ordered Workspace migrations 的当前 development boundary。
 4. 已完成 owner-scoped signed upload、Folder、Draft edit/list、soft-delete Trash、双并发 Retry/Cancel/Remove、partial-object cleanup、五项 readiness、idempotent Submit transaction，以及独立 trusted scanner 的 leased/retry/clean/flagged/failed 代码与数据库状态机；development 常驻 Worker 仍需 provision scanner secret 与 ClamAV 后才会自动消费当前 queued jobs。
-5. 下一步把 legacy `manage.html` 拆出的 Admin Review Queue/Detail 接到 Supabase `review_submissions`，让真实 submitted record 可以被领取、查看和决策。
-6. 后续补 scheduled orphan repair、user quota/rate limit 与 TUS，再实现 Review decisions/Publish 和 published-only production DTO/public delivery。
-7. 最后迁移 `sampleItems`、首页精选、真实 AI 分析与仍被产品确认需要的 square slice/tag 能力。
+5. `/admin/reviews` 的 scoped Queue/Detail、原子 assignment/start、versioned/idempotent decisions、notification/audit 与 private signed asset 边界已部署 development；rollback-only 与双会话真实数据库验收均通过，下一门禁是真实浏览器多身份验收。
+6. 后续先实现 published-only production DTO、derivative public delivery 和公开 Works 数据源迁移，再向浏览器开放真实的 Admin+AAL2 Approve and Publish；legacy `manage.html` 在迁移完成前保持 SQLite 原型。
+7. 再补 scheduled orphan repair、user quota/rate limit、TUS、Withdraw/Escalate/Quarantine 与运营筛选，最后迁移 `sampleItems`、首页精选、真实 AI 分析和仍被产品确认需要的 square slice/tag 能力。

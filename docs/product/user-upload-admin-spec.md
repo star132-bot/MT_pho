@@ -6,7 +6,7 @@
 - 设计语言：本文档使用中文；页面可见 UI、代码、数据库字段、API、事件名和开发注释使用英文。
 - 需求优先级：本文档是用户系统、上传工作台和管理员平台的唯一主规格；需求冲突时以本文为准。
 - 明确取消：目标产品不需要公开 `Series` 功能；`collections.html`、`collections.js`、`series-data.js` 在后续实施中应从导航和运行时移除，不在本轮文档阶段直接删除代码。
-- 当前实现基线（2026-07-17）：Supabase Auth/Account、owner-scoped Upload Workspace、Draft autosave/CAS、五项 server-authoritative readiness、idempotent Submit transaction，以及 trusted asset scanner 的代码与数据库状态机已实现；Submit 会创建 immutable version/review/readiness/asset snapshots、notification 和 audit。真实 asset 仍以 `scan_status=pending` 创建，只有隔离 Worker 通过 ClamAV/Pillow 与当前扫描策略后才能改为 clean/flagged/failed；development 尚未运行常驻 Worker，所以现有任务保持 queued。没有 user quota/capacity policy。`manage.html` 仍是 legacy SQLite Review Center，尚未读取 Supabase `review_submissions`。
+- 当前实现基线（2026-07-20）：Supabase Auth/Account、owner-scoped Upload Workspace、Draft autosave/CAS、五项 server-authoritative readiness、idempotent Submit transaction、trusted asset scanner，以及独立的 Supabase Admin Review Queue/Detail/decision 已实现并部署 development。Reviewer 只能领取不属于自己的公共 Submitted 或处理自己的 open non-self assignment，任何角色都不能 self-review；Admin/Super Admin 必须达到 AAL2 才能查看完整授权历史。决定使用 current `lock_version` 和 UUID idempotency key，并把首次完整结果保存为 immutable replay snapshot，同时写 notification/audit；rollback-only 真实数据库测试已覆盖角色/AAL/RLS/Storage/CAS/幂等与审计，六个独立 `psql` 会话的三组 Start/decision 双会话 race 也已通过，每组使用不同 backend PID 且 fixture 已清理，真实浏览器多身份验收仍是门禁。Review asset 只允许 current scan policy 的 clean object 获得短时签名。真实 asset 仍以 `scan_status=pending` 创建，development 尚未运行常驻 Scanner Worker。公开 Works 和 legacy `manage.html` 继续读取 SQLite，因而浏览器暂不显示 Approve and Publish，也不宣称 Approve 已公开。
 
 ## 2. 产品目标
 
@@ -443,7 +443,7 @@ Submit 后：
 
 用户可以在管理员尚未 `Start Review` 前撤回，撤回生成新审计事件并回到 Draft。
 
-当前 Phase 2E-2F 实现边界：
+当前 Phase 2E-Phase 3 实现边界：
 
 - `GET /api/images/{imageId}/readiness` 由服务端固定返回 Work details、Rights & disclosures、Image assets、Security scan、Submission state 五项检查；客户端只展示/轮询结果，不能替代提交事务内的再次校验。
 - `POST /api/images/{imageId}/submit` 要求显式 `submit-for-review` confirmation、current `expected_version` 和 UUID `idempotency_key`；同 key retry 返回首次成功结果，stale version 返回 conflict。
@@ -451,7 +451,9 @@ Submit 后：
 - Upload Studio 展示 blocked/pending/ready/checking/error/submitting，pending 时轮询，提交前保存并再次检查，确认后提交，成功后从 Draft list 移除；submitted 后 Draft update/Trash 拒绝。
 - 当前真实上传的三个 asset 均从 `scan_status=pending` 开始；INSERT 自动 enqueue restricted job，独立 worker 以 SKIP LOCKED lease 领取，校验 private Storage bytes/checksum/magic，ClamAV clean 后再由 Pillow 完整解码并核对 EXIF-oriented dimensions。只有三个 token-bound completion 都为 `clean` 才能启用 Submit；malware 为 flagged，确定性损坏为 failed，依赖/网络不确定性 retry 且绝不 clean。
 - Browser、普通 authenticated user 与 `server.py` 都不能读写 scan job/event 或 verdict，也不持有 Supabase secret/service-role key。Phase 2F 不实现或宣称 user quota/submission capacity。
-- `manage.html` 尚未接 Supabase submission；Admin Review Queue/Detail、assignment、review decisions、Withdraw 与 Publish 是后续切片。
+- `/admin/reviews` 与 `/admin/reviews/{submissionId}` 已通过服务端 DTO 接入 Supabase submission snapshot，支持 status/assignment queue、原子 claim/start、submitted-version Detail、checklist，以及 Request Changes/Reject/Approve；Reviewer 的 detail/private asset 权限只在自己的 open non-self assignment 内有效，Admin/Super Admin 仍要求 AAL2，所有角色的 mutation 都拒绝 self-review。
+- 决定 mutation 要求 current `expected_version`、UUID idempotency key 和 action-specific fields；same-key/same-payload 返回首次完整结果，same-key/different-payload、stale version 或 reviewer conflict 必须拒绝，历史 decision 与 audit 不可覆盖。
+- 数据库/API 保留 Admin+AAL2-only `approve_and_publish` 边界，但浏览器不暴露。Supabase published-only DTO、derivative public delivery、公开 Works 数据源迁移、Withdraw、Escalate、Quarantine 和风险/批量筛选仍是后续切片；legacy `manage.html` 保持独立 SQLite 原型。
 
 ### 8.9 删除、回收站与下架
 
@@ -1000,6 +1002,8 @@ POST   /api/admin/review-submissions/{submissionId}/approve
 POST   /api/admin/review-submissions/{submissionId}/approve-and-publish
 ```
 
+当前 Phase 3 本地边界已实现上述 queue/detail/assign/start/decision routes；list 使用 `status` / `assignment` / bounded `limit` / `offset`，所有 mutation 要求 same-origin CSRF。纯 Reviewer 只能处理自己的 open assignment，Admin/Super Admin 的完整范围和 `approve-and-publish` 都要求 AAL2。`approve-and-publish` 暂不出现在浏览器 UI；在 public DTO、derivative delivery 与公开 Works 迁移完成前只作为受保护的未来服务边界保留。
+
 ### 13.5 Admin Images and Users
 
 ```text
@@ -1244,9 +1248,10 @@ SQLite + 静态页面适合本地原型，不适合作为多用户生产系统�
 ### Phase 3：Submit + Review Queue
 
 - 已完成 Phase 2E：server-authoritative readiness、immutable image version/submission snapshots、expected-version + UUID idempotency、notification/audit transaction 和 Upload Studio Submit UI。
-- 下一切片：Supabase Review Queue、assignment、Review Detail、checklist；legacy `manage.html` 尚未连接。
-- Request Changes、Reject、Approve、Approve and Publish。
-- Review 侧通知和 activity。
+- 已完成并向 development 部署 Supabase Review Queue、status/assignment filter、atomic assignment/start、image-first Review Detail、checklist，以及 Request Changes、Reject、Approve；Reviewer 与 Admin+AAL2 使用不同的最小权限范围。
+- 决定采用 current-version compare-and-swap、same-payload immutable result replay、immutable decision、Review notification 和 append-only audit；migration 已部署 development，rollback-only 数据库验收、三组双会话并发 race，以及 secret-free fake-provider 桌面/移动浏览器验收均已通过。剩余发布门禁是真实 disposable Reviewer/Admin 多身份浏览器验收。
+- `approve_and_publish` 仅保留在 Admin+AAL2 数据库/API 边界，浏览器不显示；必须先完成 Supabase public DTO、derivative delivery 和公开 Works 数据源迁移，才能把该动作作为真实用户能力开放。
+- Escalate、Quarantine、Withdraw、批量分配、风险/日期/类别/release filters 与生产 SLA/通知投递保留给后续切片。
 
 验收：审核历史不可覆盖；并发 reviewer 不冲突；只有 approved/published 进入 Works。
 

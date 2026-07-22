@@ -16,6 +16,8 @@ WORKER_PATH = ROOT / "workers" / "image_scanner.py"
 PROBE_PATH = ROOT / "workers" / "image_probe.py"
 TEST_PATH = ROOT / "scripts" / "test_workspace_asset_scanner.py"
 DATABASE_TEST_PATH = ROOT / "scripts" / "test_workspace_asset_scanner_database.sql"
+CONFIGURE_PATH = ROOT / "scripts" / "configure_development_scanner.py"
+CONFIGURE_TEST_PATH = ROOT / "scripts" / "test_configure_development_scanner.py"
 REQUIREMENTS_PATH = ROOT / "requirements-scanner.txt"
 WORKER_ENV_PATH = ROOT / ".env.worker.example"
 WEB_ENV_PATH = ROOT / ".env.example"
@@ -681,9 +683,33 @@ def validate_delivery_contracts(
         'test "$MT_SCANNER_CLAMAV_COMMAND" = "clamdscan --fdpass --no-summary"',
         "python3 scripts/validate_workspace_asset_scanner.py",
         "python3 scripts/test_workspace_asset_scanner.py",
+        "python3 scripts/test_configure_development_scanner.py",
     ])
     require_tokens("scanner deployment preflight", deploy, [
         'python3 "$root/scripts/validate_workspace_asset_scanner.py"',
+    ])
+
+
+def validate_development_configurator(configurator: str, configurator_test: str) -> None:
+    require_tokens("scanner development configurator", configurator, [
+        "getpass.getpass",
+        "scanner_secret_missing",
+        "scanner_secret_invalid",
+        "sb_publishable_",
+        "--clamav-command",
+        "preflight_clamav(command)",
+        "os.fchmod(descriptor, stat.S_IRUSR | stat.S_IWUSR)",
+        "os.replace(temporary_name, path)",
+        "credentials_logged=no",
+    ])
+    if '"--secret"' in configurator or "'--secret'" in configurator:
+        raise RuntimeError("Scanner configurator must not accept credentials as command arguments")
+    require_tokens("scanner development configurator test", configurator_test, [
+        "sb_publishable_not_a_scanner_secret",
+        "scanner_configuration_mode_0600=yes",
+        "scanner_configuration_invalid_key_fails_closed=yes",
+        "scanner_configuration_clamav_preflight=yes",
+        "scanner_configuration_secret_logged=no",
     ])
 
 
@@ -695,6 +721,8 @@ def main() -> None:
     probe = read_required(PROBE_PATH)
     integration_test = read_required(TEST_PATH)
     database_test = read_required(DATABASE_TEST_PATH)
+    configurator = read_required(CONFIGURE_PATH)
+    configurator_test = read_required(CONFIGURE_TEST_PATH)
     requirements = read_required(REQUIREMENTS_PATH)
     worker_env = read_required(WORKER_ENV_PATH)
     web_env = read_required(WEB_ENV_PATH)
@@ -712,6 +740,7 @@ def main() -> None:
     validate_no_sensitive_logging([ADAPTER_PATH, WORKER_PATH, PROBE_PATH])
     validate_dynamic_test(integration_test)
     validate_database_state_machine_test(database_test)
+    validate_development_configurator(configurator, configurator_test)
     validate_delivery_contracts(
         requirements,
         worker_env,
@@ -732,6 +761,7 @@ def main() -> None:
     print("workspace_asset_scanner_sensitive_logging=no")
     print("workspace_asset_scanner_product_schema_synced=yes")
     print("workspace_asset_scanner_database_test_contract=yes")
+    print("workspace_asset_scanner_configuration_boundary=yes")
 
 
 if __name__ == "__main__":

@@ -51,7 +51,7 @@
           <svg class="ui-icon" aria-hidden="true"><use href="#icon-folder"></use></svg>
           <span class="archive-rail-copy">Upload</span>
         </a>
-        <a class="archive-rail-button" href="/manage.html" aria-label="Review Center" data-admin-only hidden>
+        <a class="archive-rail-button" href="/admin/reviews" aria-label="Review Center" data-admin-only hidden>
           <svg class="ui-icon" aria-hidden="true"><use href="#icon-pen"></use></svg>
           <span class="archive-rail-copy">Review</span>
         </a>
@@ -71,7 +71,7 @@
       </a>
       <nav class="site-nav" aria-label="Workspace navigation">
         <a href="/workspace/images">Upload</a>
-        <a href="/manage.html" data-admin-only hidden>Review</a>
+        <a href="/admin/reviews" data-admin-only hidden>Review</a>
         <a href="/settings/account" aria-current="page">Account</a>
       </nav>
     </header>
@@ -261,7 +261,7 @@
         <p class="section-kicker">Session Security</p>
         <h2 id="account-confirm-title" tabindex="-1" data-dialog-title>Sign out other devices?</h2>
         <p id="account-confirm-description" data-dialog-description></p>
-        <div class="account-dialog-notice" role="alert" data-dialog-notice hidden></div>
+        <div class="account-dialog-notice" role="alert" tabindex="-1" data-dialog-notice hidden></div>
         <div class="account-dialog-actions">
           <button class="button button-secondary" type="button" data-dialog-cancel>Cancel</button>
           <button class="button button-danger" type="submit" value="confirm" data-dialog-confirm>Confirm</button>

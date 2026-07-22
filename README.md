@@ -6,8 +6,8 @@ MT Presence is a fine art photography portfolio and image-workflow prototype. Ve
 
 - Version: `1.0.0`
 - Release label: `v1.0.0`
-- Status: public frontend, server-managed Supabase Auth/Account, and Phase 2A-2F private Workspace slices
-- Database: Phase 0/1 plus the Phase 2A-2F Workspace migrations form the development boundary; public Works and the legacy Review Center still read SQLite while the Supabase Review Queue/Publish path remains the next slice
+- Status: public frontend, server-managed Supabase Auth/Account, Phase 2A-2F private Workspace, and the development-deployed Phase 3 Review Queue slice
+- Database: Phase 0/1, Phase 2A-2F Workspace, and Phase 3 Review Queue are deployed to development; rollback-only role/AAL/RLS/Storage/CAS/idempotency/audit verification, three two-session concurrency races, and secret-free fake-provider desktop/mobile browser acceptance pass. Real disposable Reviewer/Admin multi-identity browser acceptance remains the Phase 3 release gate. Public Works plus the legacy Review Center still read SQLite
 
 ## Features
 
@@ -29,6 +29,7 @@ MT Presence is a fine art photography portfolio and image-workflow prototype. Ve
 - Contact Artist page linked from the homepage and Works Archive page.
 - Supabase Register/Verify/Sign In/Sign Out/Forgot/Reset flow with HttpOnly session cookies, CSRF protection, owner isolation, and Admin MFA guards.
 - Protected Account Settings for profile/authorship preferences, verified account state, current-session description, and provider-supported bulk session revocation.
+- Protected Supabase Admin Review Queue with scoped Reviewer claims, Admin+AAL2 history access, image-first submitted-version inspection, checklist decisions, optimistic concurrency, idempotent mutation keys, private signed assets, and immutable decision/audit evidence. The browser intentionally exposes Request Changes, Reject, and Approve only until public delivery is connected.
 - Local SQLite archive seed, Archive read/write metadata API, and automated validation workflow for checking image metadata, assets, grouped tags, collections, and Archive view output before backend integration.
 
 ## Run Locally
@@ -87,6 +88,13 @@ Protected account settings:
 http://127.0.0.1:8131/settings/account
 ```
 
+Protected Supabase Review Queue:
+
+```text
+http://127.0.0.1:8131/admin/reviews
+http://127.0.0.1:8131/admin/reviews/{submissionId}
+```
+
 Copy `.env.example` values into your local environment before starting the server. Set `MT_PUBLIC_BASE_URL` to the exact browser origin and add `/auth/verify-email` plus `/auth/reset-password` to the Supabase Auth redirect allowlist. The auth routes use Supabase Auth through the server, keep access/refresh tokens in `HttpOnly` cookies, require a same-origin CSRF token for mutations, and never use browser storage for credentials. `/workspace/images` is protected, direct `/upload-studio.html` requests canonicalize to it, and Admin/Super Admin sessions require AAL2 before opening or mutating the Workspace.
 
 For a fresh development database, apply the Phase 0/1 baseline and all incremental migrations:
@@ -106,13 +114,14 @@ Run the trusted scanner in its own environment; never source scanner secrets int
 ```bash
 python3 -m venv .venv-scanner
 .venv-scanner/bin/python -m pip install --require-hashes -r requirements-scanner.txt
+python3 scripts/configure_development_scanner.py
 set -a
 source .env.worker
 set +a
 .venv-scanner/bin/python workers/image_scanner.py --once
 ```
 
-`SUPABASE_SECRET_KEY` is preferred; a legacy `SUPABASE_SERVICE_ROLE_KEY` remains supported. Both are broadly privileged server credentials and must remain isolated even though this worker implementation calls only the three scanner RPCs. ClamAV must be installed, running, and using current signatures. Missing credentials, unavailable ClamAV, provider errors, expired leases, and decode uncertainty never produce `clean`.
+The configurator reads the project URL from `.env`, accepts a current secret through a hidden prompt (or either supported credential from the process environment), verifies ClamAV with a real empty-file scan, preserves a stable worker ID, and atomically writes only the Git-ignored `.env.worker` with mode `0600`. It never accepts the secret as a command argument. `SUPABASE_SECRET_KEY` is preferred; a legacy `SUPABASE_SERVICE_ROLE_KEY` remains supported. Both are broadly privileged server credentials and must remain isolated even though this worker implementation calls only the three scanner RPCs. ClamAV must be installed with current signatures; `clamdscan` also requires a running ClamD. Missing credentials, unavailable ClamAV, provider errors, expired leases, and decode uncertainty never produce `clean`.
 
 The Phase 2F code and database boundary are deployed to development, but no persistent development worker is active until an isolated scanner secret and ClamAV runtime are provisioned. The existing three assets therefore remain truthfully `pending` with three `queued` jobs; no development fallback marks them clean.
 
@@ -165,7 +174,15 @@ Phase 2E adds server-authoritative readiness for Work details, Rights & disclosu
 
 The Upload Studio polls only pending readiness, requires a confirmation before Submit, disables mutations while submitting, and removes a successfully submitted item from the Draft list. Uploaded assets are created with `scan_status=pending`; the independent Phase 2F worker is the only application runtime that claims scan jobs and moves them to `clean`, `flagged`, or `failed`. All three assets must be `clean` under the current scan policy before readiness becomes Ready. There is no user-level quota/capacity policy in this slice.
 
-The legacy Archive endpoints and `manage.html` remain the existing Admin+AAL2 SQLite Review/public prototype. Submitted Supabase records do not yet appear in that Review Center or public Works; the Supabase Review Queue and review decisions are the next vertical slice.
+The protected `/admin/reviews` workspace now reads Supabase submission snapshots through the dedicated Review Queue API. A pure Reviewer can see non-self waiting work and their own open non-self assignments, but private detail assets require an atomic claim/start and a current clean scan; all roles are forbidden from self-review. Admin and Super Admin sessions require AAL2 and can inspect the full authorized history. Mutations use CSRF, current `lock_version`, and UUID idempotency keys. The separate legacy Archive endpoints and `manage.html` still operate on SQLite, and public Works has not moved to the Supabase publication DTO. For that reason the browser does not expose Approve and Publish, even though the database/API boundary retains an Admin-only guarded action for the future delivery slice.
+
+```text
+GET    /api/admin/review-submissions?status=&assignment=&limit=&offset=
+GET    /api/admin/review-submissions/{submissionId}
+POST   /api/admin/review-submissions/{submissionId}/assign
+POST   /api/admin/review-submissions/{submissionId}/start
+POST   /api/admin/review-submissions/{submissionId}/{request-changes|reject|approve}
+```
 
 Drafts are moved to Trash through:
 
@@ -173,7 +190,7 @@ Drafts are moved to Trash through:
 DELETE http://127.0.0.1:8131/api/images/{id}
 ```
 
-This is a soft delete and uses the same `expected_version` compare-and-swap contract as Draft PATCH. Submitted images are locked and cannot be moved directly to Trash. The restore RPC/API boundary exists, while the Trash browser view, quota policy, Supabase Review Queue, and Publish decisions remain later slices.
+This is a soft delete and uses the same `expected_version` compare-and-swap contract as Draft PATCH. Submitted images are locked and cannot be moved directly to Trash. The restore RPC/API boundary exists, while the Trash browser view, quota policy, public delivery, and end-to-end Publish visibility remain later slices.
 
 Validate the local archive database workflow:
 
@@ -200,6 +217,7 @@ The contact form opens the visitor's email app with a prepared draft. There is n
 - `public-archive.js`: shared public archive loading and Lightbox storage migration.
 - `upload-studio.html`: protected `/workspace/images` document for personal image import, folder assignment, grouped work/accessibility/rights metadata editing, five-check readiness, confirmed Submit for Review, and moving editable Drafts to Trash.
 - `account-settings.html` / `account-settings.js`: protected `/settings/account` profile, authorship preferences, account-security summary, current-session view, dirty state, and bulk session revocation UI.
+- `admin-reviews.html` / `admin-reviews.js`: protected `/admin/reviews` queue/detail workspace with status/assignment filters, atomic Reviewer start, submitted-version evidence, review checklist, conflict recovery, and Request Changes/Reject/Approve decisions; it does not claim that approval is already visible in public Works.
 - `manage.html`: Review Center for Works metadata, approval, visibility, and homepage content editing.
 - `styles.css`: site styling and responsive layout.
 - `script.js`: homepage navigation scroll state, editable homepage settings hydration, and Statement section activation.
@@ -211,7 +229,12 @@ The contact form opens the visitor's email app with a prepared draft. There is n
 - `manage.js`: legacy Review Center metadata editor, local SQLite metadata sync, homepage settings editor, editable-field-only dirty signatures, grouped tag editing, and IndexedDB save/revert fallback; it does not consume Supabase `review_submissions` yet.
 - `contact.html`: Contact Artist page and inquiry form.
 - `contact.js`: structured inquiry validation, Work/Series/Lightbox context, mail draft generation, and toast feedback.
-- `server.py`: local static server; Supabase Auth/Profile/Session boundary with HttpOnly sessions and CSRF protection; protected Workspace Folder/Draft/readiness/submission/signed-upload APIs; strict readiness/submission response projection; public published Archive reads plus Admin+AAL2 legacy Archive mutations backed by `data/archive.db`.
+- `server.py`: local static server; Supabase Auth/Profile/Session boundary with HttpOnly sessions and CSRF protection; protected Workspace Folder/Draft/readiness/submission/signed-upload APIs; scoped Supabase Review Queue/detail/assignment/start/decision proxy with strict DTO projection; public published Archive reads plus Admin+AAL2 legacy Archive mutations backed by `data/archive.db`.
+- `database/migrations/20260717_review_queue.sql`: transaction-wrapped Phase 3 Review Queue/RLS/Storage/RPC boundary for scoped list/detail, atomic assignment/start, versioned idempotent decisions, notifications, publication state, and append-only audit evidence.
+- `scripts/validate_review_queue_phase3.py`: static Review Queue contract validator for SQL permissions, server/UI boundary, project documentation, and CI wiring.
+- `scripts/test_review_queue_boundary.py`: secret-free fake-provider HTTP integration for identity/MFA/CSRF, queue/detail scopes, DTO allowlists, conflicts, idempotency, and Admin publish prechecks.
+- `scripts/test_review_queue_database.sql`: development-only, rollback-only Review authorization/state test covering role stacking, self-review, direct RLS, current-scan Storage lifecycle, CAS, immutable replay snapshots across later Publish, notification, and audit evidence.
+- `scripts/test_review_queue_concurrency.py`: development-only committed-fixture test that synchronizes independent PostgreSQL sessions for Start/claim, decision CAS, and same-key replay races, then removes all fixtures.
 - `database/local_archive_schema.sql`: SQLite schema for local Works Archive database verification.
 - `scripts/seed_local_archive_db.py`: seeds `data/archive.db` from `archive-data.js`.
 - `scripts/validate_local_archive_db.py`: validates the local SQLite archive workflow in a temporary database.

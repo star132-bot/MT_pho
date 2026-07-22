@@ -44,7 +44,8 @@ def main() -> None:
         'session_has_auth_method(session, "recovery")', 'request_id',
         'session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery")',
         'parsed.path == "/upload-studio.html"', '"/workspace/images"',
-        'legacy_upload_asset_access', 'is_public_derivative', 'parsed.path.startswith("/assets/uploads/")',
+        'legacy_upload_asset_access', 'is_public_derivative', 'canonical_path == "/assets/uploads"',
+        'canonical_path.startswith("/assets/uploads/")',
         '"/settings/account"', '"/api/me/profile"', '"/api/me/sessions"',
         'normalize_profile_update', 'rpc/update_my_profile', 'handle_session_revoke',
     }, "server auth boundary")
@@ -82,20 +83,31 @@ def main() -> None:
     require(account_html, {
         'data-profile-form', 'data-preferences-form', 'data-session-list',
         'data-session-action="others"', 'data-session-action="all"',
-        'role="status"', 'aria-live="polite"', 'src="/account-settings.js',
+        'role="status"', 'aria-live="polite"', 'data-dialog-notice',
+        'tabindex="-1"', 'src="/account-settings.js',
     }, "Account Settings page")
     require(account_js, {
         'credentials: "same-origin"', 'cache: "no-store"', '/api/me/profile',
         '/api/me/sessions', 'method: "PATCH"', 'method: "DELETE"',
         '/api/auth/csrf', 'X-CSRF-Token', 'form.reportValidity()',
         'RECOVERY_SESSION_RESTRICTED', 'MFA_REQUIRED', 'beforeunload',
+        'submittedPayload', 'currentPayload[name] === submittedPayload[name]',
+        'Newer edits remain unsaved.', 'suppressBeforeUnload',
+        'navigateWithoutDirtyPrompt', 'Sign out failed. Your session remains active.',
+        '}).catch((error) => {', 'dialogNotice.focus();',
     }, "Account Settings client")
     require(deploy_script, {
         'MT_APPLY_PHASE1_BASELINE', 'database/migrations/*.sql',
         'Skipping the Phase 0/1 baseline for an existing database',
     }, "Phase 1 incremental deployment")
 
-    require(upload_html, {'href="/workspace/images"', 'src="/upload-studio.js'}, "protected Workspace links")
+    require(upload_html, {
+        'href="/workspace/images"', 'href="/admin/reviews"', 'src="/upload-studio.js',
+    }, "protected Workspace links")
+    require(account_html, {'href="/admin/reviews"'}, "protected Account Review links")
+    for label, source in (("Upload Studio", upload_html), ("Account Settings", account_html)):
+        if source.count('href="/admin/reviews"') != 2 or 'href="/manage.html"' in source:
+            raise RuntimeError(f"{label} must route both protected Review links to /admin/reviews")
     require(upload_js + manage_js, {'archiveMutationFetch', '/api/auth/csrf', 'X-CSRF-Token'}, "legacy Archive CSRF client")
 
     if "retry with a fresh administrator test account" in mfa_js:
