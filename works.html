@@ -9,7 +9,7 @@
       content="A quiet photography works archive for MT Presence, arranged by image type and ratio."
     />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="styles.css?v=20260716-universal-rail" />
+    <link rel="stylesheet" href="styles.css?v=20260722-public-shell" />
   </head>
   <body class="archive-page">
     <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -129,50 +129,31 @@
         <path d="m4.5 7 7.5 6 7.5-6" />
       </symbol>
     </svg>
-    <aside class="archive-rail public-site-rail" aria-label="Public photography navigation">
-      <a class="archive-rail-brand" href="index.html" aria-label="Back to MT Presence home">MT</a>
-      <nav class="archive-rail-nav" aria-label="Photography navigation">
-        <a class="archive-rail-button" href="index.html" aria-label="Home">
-          <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-home"></use></svg>
-          <span class="archive-rail-copy">Home</span>
-        </a>
-        <a class="archive-rail-button is-active" href="works.html" aria-label="Works Archive" aria-current="page">
-          <svg class="ui-icon" aria-hidden="true" focusable="false">
-            <use href="#icon-photo"></use>
-          </svg>
-          <span class="archive-rail-copy">Works</span>
-        </a>
-        <a class="archive-rail-button" href="/workspace/images" aria-label="Upload images">
-          <svg class="ui-icon" aria-hidden="true" focusable="false">
-            <use href="#icon-folder"></use>
-          </svg>
-          <span class="archive-rail-copy">Upload</span>
-        </a>
-        <a class="archive-rail-button" href="lightbox.html" aria-label="Open lightbox">
-          <svg class="ui-icon" aria-hidden="true" focusable="false">
-            <use href="#icon-bookmark"></use>
-          </svg>
-          <span class="archive-rail-copy">Lightbox <span data-lightbox-count>0</span></span>
-        </a>
-        <a class="archive-rail-button" href="about.html" aria-label="About the artist">
-          <svg class="ui-icon" aria-hidden="true" focusable="false">
-            <use href="#icon-user"></use>
-          </svg>
-          <span class="archive-rail-copy">About</span>
-        </a>
+    <header class="site-header archive-header public-site-header" aria-label="Primary navigation" data-public-header>
+      <a class="brand-mark" href="/" aria-label="MT Presence home"><span>MT</span><span>Presence</span></a>
+      <nav id="public-site-navigation" class="site-nav public-site-nav" aria-label="Primary" data-public-nav>
+        <a href="/">Home</a>
+        <a href="/works.html" aria-current="page">Works</a>
+        <a href="/about.html">About</a>
+        <a href="/lightbox.html">Lightbox <span data-lightbox-count>0</span></a>
+        <a href="/contact.html">Contact</a>
       </nav>
-      <div class="archive-rail-footer">
-        <a class="archive-rail-button" href="contact.html" aria-label="Contact artist">
-          <svg class="ui-icon" aria-hidden="true" focusable="false">
-            <use href="#icon-mail"></use>
-          </svg>
-          <span class="archive-rail-copy">Contact</span>
-        </a>
-      </div>
-    </aside>
+      <a class="home-account-entry" href="/auth/sign-in" data-home-account-entry data-public-sign-in>Sign In</a>
+      <button
+        class="public-nav-toggle"
+        type="button"
+        aria-label="Open navigation"
+        aria-controls="public-site-navigation"
+        aria-expanded="false"
+        title="Open navigation"
+        data-public-nav-toggle
+      >
+        <span class="public-nav-toggle-icon" aria-hidden="true"><span></span><span></span><span></span></span>
+      </button>
+    </header>
 
     <main class="archive-main">
-      <header class="archive-topbar" aria-label="Archive header">
+      <section class="archive-topbar" aria-label="Search the works archive">
         <div class="archive-search-group">
           <label class="visually-hidden" for="archive-search-input">Search works</label>
           <div class="archive-search-control">
@@ -192,13 +173,7 @@
             <button class="archive-clear-search" type="button" aria-label="Clear search" data-clear-search hidden>Clear</button>
           </div>
         </div>
-        <nav class="archive-top-actions" aria-label="Site actions">
-          <a href="index.html">Home</a>
-          <a href="about.html">About</a>
-          <a href="lightbox.html">Lightbox</a>
-          <a href="contact.html">Contact</a>
-        </nav>
-      </header>
+      </section>
 
       <section class="archive-controls" aria-label="Archive filters">
         <div class="archive-discovery-bar">
@@ -224,16 +199,16 @@
               <button class="filter-button" type="button" data-filter-ratio="Panorama" aria-pressed="false">Panorama</button>
             </div>
           </div>
-          <div class="archive-toolbar">
-            <div class="archive-count" data-archive-count aria-live="polite"></div>
-          </div>
         </div>
       </section>
 
       <section class="archive-gallery-section" aria-labelledby="gallery-title">
         <div class="archive-gallery-heading">
           <h1 id="gallery-title">Works Archive</h1>
-          <p class="archive-data-status" data-archive-data-status role="status" aria-live="polite">Loading archive.</p>
+          <div class="archive-gallery-meta">
+            <div class="archive-count" data-archive-count aria-live="polite"></div>
+            <p class="archive-data-status" data-archive-data-status role="status" aria-live="polite">Loading archive.</p>
+          </div>
         </div>
         <p class="archive-empty-state" data-archive-empty hidden>No works match this search.</p>
         <div class="archive-gallery" data-archive-gallery></div>
@@ -330,5 +305,7 @@
     <script src="archive-data.js?v=20260610-works-viewer-editor"></script>
     <script src="public-archive.js?v=20260713-public-architecture"></script>
     <script src="archive.js?v=20260713-public-architecture"></script>
+    <script src="/account-menu.js?v=20260722-public-shell"></script>
+    <script src="/public-navigation.js?v=20260722-public-shell"></script>
   </body>
 </html>

@@ -105,9 +105,13 @@ def main() -> None:
         'href="/workspace/images"', 'href="/admin/reviews"', 'src="/upload-studio.js',
     }, "protected Workspace links")
     require(account_html, {'href="/admin/reviews"'}, "protected Account Review links")
-    for label, source in (("Upload Studio", upload_html), ("Account Settings", account_html)):
-        if source.count('href="/admin/reviews"') != 2 or 'href="/manage.html"' in source:
-            raise RuntimeError(f"{label} must route both protected Review links to /admin/reviews")
+    protected_review_links = (
+        ("Upload Studio", upload_html, 2),
+        ("Account Settings", account_html, 1),
+    )
+    for label, source, expected_count in protected_review_links:
+        if source.count('href="/admin/reviews"') != expected_count or 'href="/manage.html"' in source:
+            raise RuntimeError(f"{label} must route its protected Review links to /admin/reviews")
     require(upload_js + manage_js, {'archiveMutationFetch', '/api/auth/csrf', 'X-CSRF-Token'}, "legacy Archive CSRF client")
 
     if "retry with a fresh administrator test account" in mfa_js:

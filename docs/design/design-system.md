@@ -45,17 +45,16 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 
 当前项目是静态站点，没有 React/Vue/Next 依赖。首版先使用自建轻量组件系统：
 
-- `site-header`：品牌与导航。
+- `site-header` / `public-site-header`：Home、Works、About、Lightbox、Contact 和 Creator Profile 共用的固定品牌顶栏。
+- `public-site-nav` / `public-nav-toggle`：桌面文字导航与移动展开菜单；移动状态由 `public-navigation.js` 同步 ARIA、`inert` 和焦点。
 - `hero`：主视觉、品牌名、核心宣言、主按钮。
 - `button`：统一按钮样式。
 - `about-section`：品牌介绍长文案。
 - `marquee-gallery`：精选作品无限横向滚动带。
 - `marquee-item`：单张作品展示容器，统一高度、自然宽度。
 - `ui-icon`：作品档案页功能图标，使用单色细线 SVG symbol。
-- `archive-controls`：作品档案页索引区，内部拆分浏览用 `archive-filter-bar` 和管理用 `archive-toolbar`。
-- `archive-arrange-actions`：作品档案页排序入口、保存和退出操作。
-- `archive-icon-button`：Arrange 模式中的拖动、上移和下移图标按钮。
-- `archive-gallery`：作者作品横向多行档案墙。
+- `archive-controls`：公开作品档案页的 Type/Ratio 文本 tabs；桌面可吸附、移动端分组横向滚动。
+- `archive-gallery`：全宽自然比例 masonry；公开页不挂载 Arrange 控件。
 - `contact-section`：联系作者。
 - `contact-page`：联系作者独立页面和表单。
 - `manage-workspace`：内部作者维护工作区，当前用于 Works Viewer metadata 编辑。
@@ -80,29 +79,51 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 
 后续如果迁移到 Next.js，可把这些 token 和状态命名直接映射到 Tailwind theme、shadcn/ui variants 和 Radix state attributes。
 
-### 2026-07-04 Viewer 和 Rail 修正
+### 2026-07-04 Viewer 与内部 Rail 修正
 
 作品查看器不使用大面积黑色影棚底。参考馆藏/摄影作品页的处理方式，图片区域使用 gallery white / stone surface，黑色只用于文字和少量 hover/active 强调：
 
-- `.work-viewer-media` 使用浅色 gallery surface、细分割线和低透明阴影承托作品。
-- 图片自身用浅边框和轻阴影聚焦，不让背景比作品更抢眼。
-- 左侧 `archive-rail-button.is-active` 不再使用黑色块，改为轻色底、品牌酒红图标和细内边界。
+- `.work-viewer-media` 使用浅色 gallery surface 和细分割线承托作品，不使用厚阴影。
+- 图片自身保持浅边框与自然比例，不让背景或装饰比作品更抢眼。
+- `archive-rail-button.is-active` 只适用于 Upload/Review 等内部工作区，不再用于任何公开页面；active 状态使用轻色底、细边界和低声量强调色。
 - 详情层默认是全屏图片优先，不显示右侧信息栏；`Info` 图标打开展签、metadata、tags 和 related works 抽屉；图片本身的点击不再切换局部 zoom，避免把“全屏查看”误做成“单图放大”。
 - 作品卡片 hover 只显示 `MT` 角标和 Save / Collect / Download 图标按钮；不再显示底部标题说明和大号 Download 文案按钮，避免遮挡图片。
 - 图标按钮必须有 `aria-label` 和 `data-tooltip`，鼠标 hover 或键盘 focus 时显示统一黑底提示；不要只依赖浏览器原生 `title`。
 
-Rail 功能设计方向：
+内部 Rail 功能边界：
 
-- Works：当前作品档案入口，保持主入口 active。
-- Manage：内部 Archive Review 审核入口，后续应加权限/内部模式提示，避免公开访客误入。
-- Sets：进入 `collections.html`，只负责浏览当前浏览器保存/策展的作品集合，不承担上传或审核。
-- Upload Studio：个人上传入口，提供文件夹、上传队列、点击图片编辑 Draft、保存，以及 Drafts/Trash 分段视图；Trash 卡片只读并只提供 Restore，不提供 hard delete 或 Publish。
+- 公开 Home、Works、About、Lightbox、Contact 与 Dashboard 不显示 rail，也不保留 rail 宽度；只使用统一顶部导航。
+- Upload/Review 等密集作者工作区可以保留 78px 内部 rail，提供 Dashboard、Works、Upload、权限允许的 Review 和 Account destinations；active 只表达当前位置。
+- Account Settings 使用单一全局顶栏和本地章节导航，不再叠加桌面 rail。
+- Upload Studio 提供文件夹、上传队列、点击图片编辑 Draft、保存，以及 Drafts/Trash 分段视图；Trash 卡片只读并只提供 Restore，不提供 hard delete 或 Publish。
 - Draft editor 使用无卡片的 Work details 与 Accessibility/Rights 分组；Alt Text 和长文案跨两列，版权/枚举字段维持双列，Recognizable People=Yes 时才显示 Model Release。桌面 editor 可独立纵向滚动，1180px 以下回到普通页面流，移动端严格单列。字段编辑停顿 900ms 后自动保存，同时保留明确的手工 Save 命令。
-- Download Visible：下载当前筛选视图第一张作品；后续可升级为打开下载设置菜单。
-- Saved：切换只看已保存作品，保留 `aria-pressed` 状态。
-- Notifications：建议改成“Activity / Sync status”，展示上传、保存、数据库同步和失败重试状态。
-- Avatar：进入联系作者或作者信息；如果未来有登录态，可改成 account menu。
-- More：建议改为更多菜单，放入 Help、Keyboard shortcuts、Display density、About archive 等低频项。
+
+### 2026-07-22 Unified Public Presentation
+
+视觉方向是 “professional creator profile + contemporary photography archive”。公共界面使用接近白色 canvas、接近黑色正文、中性灰辅助文字、1px 分隔线和少量深森林绿强调；不使用渐变、发光、装饰色块、多层阴影或超过 8px 的卡片圆角。正文使用中性无衬线，创作者姓名和编辑式标题使用 Georgia/系统衬线，图片始终比控件突出。
+
+统一顶部导航：
+
+- 桌面固定 64px：左侧 MT Presence，右侧 Home、Works、About、Lightbox、Contact 和 Sign In/账户身份。当前路由只用文字颜色和 2px 下划线表示。
+- 移动固定 56px：品牌保持单行，右侧只容纳 Sign In 或头像/账户按钮和 40px 菜单按钮；主链接在下方展开，不在顶栏内压缩成两行。
+- 菜单按钮必须有 `aria-label`、`title`、`aria-expanded` 和 `aria-controls`；展开状态同步 `aria-hidden`/`inert`，ArrowDown 可进入首项，Escape 关闭并恢复触发器焦点，外部点击与焦点离开关闭。
+- `account-menu.js` 负责 Sign In/登录态身份切换，`public-navigation.js` 只负责移动导航；两者不得复制登录或 Sign out 数据流。
+
+Works Archive：
+
+- 信息顺序固定为全局顶栏、Search、Type/Ratio tabs、标题/数量/数据状态、全宽作品区，不能出现第二套导航或 public rail 空位。
+- Search 高 42px；Type 与 Ratio 用文字 tabs 和细下划线，桌面筛选层可吸附在顶栏下，移动端回到普通流并在各分组内横向滚动、隐藏滚动条。
+- Gallery 在 `>=1180px` 四列、`761-1179px` 三列、`520-760px` 两列、`<520px` 单列，间距约 16-18px。图片保留自然比例、无厚阴影和大圆角；收藏/下载等操作只在 hover、focus 或已选中时出现。
+- Viewer、Search/Type/Ratio URL、Count、数据来源状态、Lightbox 与 Download 行为都属于既有合同，视觉重构不能改变。
+
+Creator Profile：
+
+- 固定顶栏之后先显示 200px 横向 cover；Change cover 位于右上角。桌面 112px avatar 与 cover 底边重叠，主体使用 300px identity/facts 侧列加弹性 Works/Account 主列。
+- 姓名、headline、地点、简介、Edit profile、Upload work、资料完整度、职业、可用性、网站与社交链接使用留白和细线建立层级；禁止把事实做成不同底色的 dashboard tiles。
+- Overview/My works 保留键盘 tablist 与服务端聚合状态；loading、empty、permission、error、retry、quota unavailable 和 public delivery unavailable 都保持真实语义。
+- `<=760px` cover 为 152px、avatar 为 84px，主体改单列，Status 两列、Draft 单列；`<520px` 主操作也改单列。
+
+响应式视觉验收必须覆盖 1440x900、1024x768、390x844：无公开 rail 或占位、无重复导航、无横向溢出，固定顶栏不遮挡内容，菜单不换行失控，封面/头像构图稳定，文字/按钮/图片互不遮挡，并检查 hover、focus、Viewer、筛选、Lightbox、封面 chooser 与账户菜单没有功能回归。
 
 ### Upload Queue
 
@@ -144,13 +165,13 @@ Rail 功能设计方向：
 
 ### User Dashboard And Account Menu
 
-- Dashboard 是已登录摄影作者的受保护个人资料，不是营销 Hero、通用统计卡片墙或 public creator portfolio。页面使用全宽顶部导航且不显示左侧 rail；第一视口用真实摄影 cover、avatar/initials、名称/headline/location/availability/bio/links/account context 和 Edit personal information、Upload work 两个明确动作建立身份。
-- Overview 依次呈现服务端聚合 Status、Changes Requested 优先的 Needs Attention、Recent Images、Review Activity 与 Storage；My works 只列最近可编辑 Draft。页面允许用 charcoal、forest、teal、rust 与浅色面组织身份事实，但不得退化成单一色相或卡片套卡片；重复 Draft 可以使用不超过 8px 的边框卡片。
+- Dashboard 是已登录摄影作者的受保护个人资料，不是营销 Hero、通用统计卡片墙或 public creator portfolio。页面复用统一全宽顶部导航且不显示左侧 rail；第一视口用真实摄影 cover、重叠 avatar/initials、名称/headline/location/availability/bio/links/account context 和 Edit profile、Upload work 两个明确动作建立身份。
+- Overview 依次呈现服务端聚合 Status、Changes Requested 优先的 Needs Attention、Recent Images、Review Activity 与 Storage；My works 只列最近可编辑 Draft。身份事实和资料完整度必须使用白底、留白与 1px 中性分隔线，深森林绿只用于动作/active/focus，danger 色只用于真实异常；不得使用不同底色的 dashboard blocks 或卡片套卡片，重复 Draft 可使用不超过 8px 的细边框卡片。
 - Status 数字来自单一 aggregate DTO；loading、空账号、provider error、permission denied 和 retry 都保留稳定尺寸。未实现的 storage quota/public portfolio 用明确 unavailable 文案，不显示虚假进度条、剩余容量或公开作品入口。
 - Dashboard cover chooser 只显示当前 owner 的 non-deleted、ready image，并按 image 去重、优先 current-policy scanner-clean display、缺失时回退 clean thumbnail。候选和当前 cover 只加载服务端短期 signed URL，不能读取 original、Storage key 或跨 owner asset；无候选时使用稳定摄影 fallback。Dialog 支持 loading/empty/error/success、Remove current cover、Escape/Cancel 和 trigger focus restoration。
 - Dashboard 提供 Overview/My works tablist，ArrowLeft/ArrowRight/Home/End 可切换并同步 `aria-selected`、`tabindex` 与 panel visibility；移动端把统计改为两列、内容改为单列，不允许横向溢出。
-- Account Settings 的 Profile 表单使用 Identity、Work、Location、About、Links 五个并列清晰的 fieldset，每组使用克制而不同的浅色边界/底色，十个字段在桌面稳定两列、窄屏单列；不留下大块无意义空白，也不把 fieldset 放进装饰卡片。
-- Home 登录态与内部 Dashboard、Upload、Review、Account 顶栏共用 initials profile avatar；点击头像直接进入 `/dashboard` personal profile，再由 Edit personal information 进入 `/settings/account#profile`。内部顶栏在头像旁提供独立账户菜单按钮，菜单显示当前身份、Dashboard、Workspace、Account Settings、权限允许时的 Review 和 Sign out；ArrowUp/ArrowDown/Home/End 导航，Escape 关闭并恢复菜单按钮焦点，点击外部或焦点离开时关闭。
+- Account Settings 是紧凑的填写型设置界面：全局顶栏之后使用短标题栏、桌面 sticky 本地导航和一块连续白色内容面板。Profile 的 Identity、Work、Location、About、Links 五组只用留白与 1px 中性分隔线组织，不使用彩色底或独立卡片；十个字段在桌面稳定两列、窄屏单列，输入框统一为中性细边框。Identity 顶部可展示 initials 头像摘要，但在没有后端上传能力时不得提供虚假上传操作。
+- Home 与其他公开页及内部 Dashboard、Upload、Review、Account 顶栏共用 initials profile avatar；点击头像直接进入 `/dashboard` personal profile，再由 Edit profile 进入 `/settings/account#profile`。顶栏在头像旁提供独立账户菜单按钮，菜单显示当前身份、Dashboard、Workspace、Account Settings、权限允许时的 Review 和 Sign out；ArrowUp/ArrowDown/Home/End 导航，Escape 关闭并恢复菜单按钮焦点，点击外部或焦点离开时关闭。
 - Avatar menu 最大 8px 圆角，不使用阴影堆叠或彩色身份 chip；Sign out 通过 same-origin CSRF 执行，失败留在当前页并把可读错误聚焦宣告。
 
 ## 推荐技术选型
@@ -243,15 +264,15 @@ Rail 功能设计方向：
 
 ### 字体
 
-- 中文正文优先使用宋体或衬线字体，形成画册感。
-- 英文小标题使用无衬线字体，作为信息标签。
+- 正文、导航、按钮、表单和 metadata 使用中性系统无衬线字体，保证扫描与对比度。
+- 创作者姓名、作品档案标题和编辑式 section heading 使用 Georgia 或系统衬线，形成画册感；紧凑 panel 内不使用 hero 级字号。
 - 不使用负字距。
 - 不随视口宽度线性缩放正文字号。
 
 当前建议：
 
-- 品牌名：衬线，大字号，低字重。
-- 正文：17-23px，行高 1.8-2。
+- 品牌名：衬线与无衬线组合，固定尺寸、低字重。
+- 正文：13-18px，长文行高 1.6-1.8。
 - 导航和按钮：13-14px，无衬线。
 - 小标签：12px，无衬线。
 
@@ -260,18 +281,19 @@ Rail 功能设计方向：
 当前色彩系统：
 
 - Gallery white 背景：`#ffffff`
-- 主文字：`#111111`
-- 次文字：`#62666d`
-- 低对比分割线：`rgba(17, 17, 17, 0.12)`
-- 冷中性面板：`#f5f6f7`
-- 深蓝灰强调：`#2f5f7f`
-- 深中性暗色区：`#171b20`
+- 近白 canvas：`#fafaf8`
+- 主文字：`#151715`
+- 次文字：`#626761`
+- 1px 分割线：`#dfe1dd`
+- 中性面板：`#f4f5f2`
+- 深森林绿强调：`#244f45`，hover 为 `#193b34`
+- Danger：`#93483f`，只用于真实错误或破坏性状态
 - 主内容表面：`#ffffff`
 
 规则：
 
 - 页面背景必须接近纯白现代摄影画廊：以 `#fff`、冷中性浅灰和细线为主，不能偏淡黄色、奶油黄或旧纸色。
-- 页面不能变成单一冷灰，需要通过图片、黑白强对比、细线层级和少量深蓝灰强调建立品牌温度。
+- 页面不能变成单一冷灰，需要通过图片、黑白强对比、细线层级和少量深森林绿强调建立品牌温度。
 - 强调色只用于标签、强调、hover/focus/error/dirty 等局部状态，不大面积铺满。
 - 图片区域不加复杂边框和卡片阴影，避免破坏作品气质。
 
@@ -309,7 +331,7 @@ Statement：
 档案页：
 
 - `Enter Works` 进入独立作品档案页，而不是在首页展开复杂筛选器。
-- 档案页用于作者上传和管理作品展示，应更安静、信息密度更高。
+- 公开档案页用于浏览已发布作品；上传、Draft 编辑和排序管理留在受保护工作区，不在公开 Works 暴露。
 - 上传图片后读取原始尺寸并自动分类到 `1:1`、`4:3`、`4:5`、`2:3`、`3:2`、`16:9`、`Panorama`。
 - 展示比例使用分类后的标准比例，不使用原始尺寸中的微小偏差；原始宽高只作为 metadata 显示和数据库记录。
 - 上传图不是 `1:1` 时，应自动生成 `1:1` 方形切片用于后续归档/发布工作；展示层仍保持原图比例，不裁切用户看到的原图。
@@ -318,30 +340,28 @@ Statement：
 - 上传图片压缩采用多版本资产思路：`original` 不压缩、不改尺寸，只归档；`display` 最长边约 2300px、质量约 0.86，用于 Works Archive 和前台展示；`thumbnail` 最长边约 640px、质量约 0.78，用于列表和后台快速预览；`square_slice` 输出边长限制约 1400px，并记录原图 source 坐标。
 - 上传状态必须逐图显示读取中、压缩中、切片中、分析中、保存中、完成或失败；多图上传时一个失败不能影响其他图片继续保存。
 - 前台作品图优先使用 `display` 版本；没有 `display` 时才 fallback 到 `original`。`thumbnail` 不能替代作品展示图。
-- Gallery 在 `All` 模式使用协调的 masonry 图墙，让不同尺寸图片自然错落并保持整体平衡。选择具体比例时切换为比例专用网格，按该比例组缩放图片并铺满行宽。不裁切、不拉伸、不加黑边。
-- Works 和工具页不再使用“大标题 + 说明 + 内容”的通用模板。除首页外，页面首屏必须优先呈现紧凑操作栏、搜索/筛选、结果网格或工作队列；标题只作为 18-20px 模块标签出现。
-- Works 顶部按素材库/图库索引组织：导航、Search/Type/Ratio 筛选、Count/Arrange 管理动作和作品网格。公开 Works 页不显示 Add Works，不再提供 `Your Studio` / `user-manage.html` 入口；上传入口进入 `upload-studio.html`。
-- 过滤器包含 Search、Type 和 Ratio，放在 `archive-filter-bar` 中，像档案索引而不是后台 toolbar；搜索输入使用小字号 label、细线输入框和轻量 Clear Search 按钮。
+- Gallery 使用全宽 masonry 图墙，让不同尺寸图片自然错落并保持整体平衡；任何筛选态都应保留图片自然比例，不裁切、不拉伸、不加黑边。
+- Works 和工具页不使用营销式“大标题 + 说明 + 内容”模板。首屏优先呈现搜索/筛选、结果网格或工作队列；`Works Archive` 可使用约 32px 的编辑式衬线页标题，内部紧凑模块标题保持 18-24px。
+- Works 顶部按摄影档案索引组织：统一全局导航、Search、Type/Ratio 筛选、标题/Count/数据状态和作品网格。公开 Works 页不显示 Add Works、Arrange 或 Upload 常驻入口，不再提供 `Your Studio` / `user-manage.html`。
+- 过滤器包含 Search、Type 和 Ratio：Search 独占一行，Type/Ratio 放在 `archive-controls` 的 `archive-discovery-bar` 中，像档案索引而不是后台 toolbar；搜索输入使用隐藏可访问 label、细线焦点边界和轻量 Clear 按钮。
 - Search、Type、Ratio 必须叠加生效；搜索匹配 title、series、description、curatorial note、artist statement、tags、tag groups、content type/type、ratio/ratio label、source/original filename，并支持 `1:1`、`4:3`、`4:5`、`2:3`、`3:2`、`16:9`、`panorama`、`vertical`、`horizontal` 等比例关键词。
 - 搜索结果数量必须通过 Count 更新并使用 `aria-live`；无结果时显示 `No works match this search.`，移动端筛选区不能横向溢出。
-- Count、Arrange、Save Order 和 Done 放在 `archive-toolbar` 中，与筛选视觉分组，避免把浏览行为和管理行为挤在一起。
-- 排列功能只在用户点击 Arrange 后出现卡片级控件；桌面支持拖拽，所有设备都保留上/下箭头移动按钮和 Save Order，避免依赖触控拖拽。
-- 作品图片默认不加圆角；Arrange 模式下卡片允许 4px 细边框和图片 2px 圆角，用来提示正在编辑，退出后恢复无框展示。
-- 内部 Add Works、Arrange、Save Order、Done、拖动柄和上/下移动使用单色细线图标，尺寸保持 16-18px，图标按钮必须保留 `aria-label`。
-- 作品放大鉴赏层和标签可视化已作为 Works Archive 的核心浏览入口：普通模式点击作品打开，Arrange 模式点击不打开；动效只使用低声量 fade、slight scale 和 blur reveal，保持当前静态站结构，不引入 Magic UI / Aceternity UI 运行时依赖。
+- Count 和数据来源状态与 Works Archive 标题同层，使用 12px 中性文字和 `aria-live`；公开 DOM 不挂载 Arrange、Save Order、Done、拖动柄或移动控件。
+- 作品图片默认不加圆角；hover/focus 只允许极轻微 scale 和半透明操作层，不能永久遮挡作品主体。
+- 作品放大鉴赏层和标签可视化是 Works Archive 的核心浏览入口：点击作品打开，公开页面没有 Arrange 状态；动效只使用低声量 fade、slight scale 和 blur reveal，保持当前静态站结构，不引入 Magic UI / Aceternity UI 运行时依赖。
 - 鉴赏层桌面使用两栏式：左侧大图优先占面积，右侧是展签式信息；平板和手机改为上下结构，首屏优先看到作品本身。
 - 鉴赏层图片优先使用 `display` 资产或 `archive_image_view.image_url`，没有 display 时才 fallback 到 original；图片始终 `object-fit: contain`，不裁切、不拉伸、不加黑边。
 - 鉴赏层信息区可显示标题、策展说明、Type、Ratio、Size、Captured、Display、Series、Artist Statement/Description 和标签分组；标题用衬线，metadata 和标签用小号无衬线。
 - 标签分组服务作品理解，不做彩色 chip 墙；推荐使用 Subject、Mood、Material / Surface、Palette / Tone、Technique、Series / Collection、Place 等细线分组，标签以轻量行内文字和小点分隔。
 - 鉴赏层必须支持 Esc、遮罩、关闭按钮、左右按钮和 ArrowLeft/ArrowRight；打开后锁定背景滚动、焦点进入 dialog，关闭后恢复触发卡片焦点；`prefers-reduced-motion` 下取消 blur/scale 转场。
 
-功能侧栏：
+导航与内部侧栏：
 
-- 桌面端 `archive-rail` 统一使用 78px 极简短标题侧栏。入口只包含 icon 和一个短标题，不放说明句、不放常驻分组标题。
-- Home 不显示左侧 public rail，使用全宽摄影首屏和顶部 Works/About/Contact/Lightbox/Account 导航；Works、About、Contact、Lightbox 继续使用同一 public rail，顺序固定为 Home、Works、Upload、Lightbox、About，Contact 固定在底部。
-- 作者工作区使用 Dashboard、Works、Upload、Review、Account，Review 按权限显示；`/dashboard` 是登录后的 canonical personal profile/overview 且保持无左侧 rail，公开 rail 的 Upload 始终进入受保护 `/workspace/images`，不直接暴露 Draft 数据。
-- 侧栏 active 状态使用轻色底、细边界和品牌色，不使用大面积黑块；所有入口保持 8px 圆角、细线、低对比 hover。
-- 移动端隐藏侧栏，顶部导航保留主要入口；不要为了塞满功能把窄屏顶栏做成过多小字按钮。
+- Home、Works、About、Lightbox、Contact 与 Dashboard 的公开/资料外壳不使用 `archive-rail`；DOM、grid、margin 和 padding 都不得保留 public rail 占位。
+- 这些页面只使用统一全局顶栏，桌面显示完整文字 destinations，移动端显示品牌、Sign In/账户身份与菜单按钮，再在下方展开 destinations。
+- Upload/Review 等作者工作区可继续使用 78px `archive-rail`；入口只包含 icon 和短标题，不放说明句或常驻分组标题，并按权限显示 Review。
+- 内部侧栏 active 状态使用轻色底、细边界和品牌色，不使用大面积黑块；所有入口保持不超过 8px 圆角、细线、低对比 hover。
+- 移动端隐藏内部侧栏且不保留空白宽度；不要为了塞满功能把窄屏顶栏做成过多小字按钮。
 - 不再添加 `Your Studio` 或 `user-manage.html`；账户与云端 Draft 统一进入现有受保护 Upload/Account 边界。
 
 内部管理页：
@@ -386,14 +406,13 @@ Statement：
 
 ### Archive Gallery
 
-- 用于展示作者上传图片和精选样例图。
-- Type 过滤：`All`、`Abstract`、`Concrete`。
-- Ratio 过滤：`All`、`1:1`、`4:3`、`4:5`、`2:3`、`3:2`、`16:9`、`Panorama`。
+- 用于展示已发布作者图片和本地 fallback 样例图。
+- Type UI：`All Works`、`Abstract`、`Concrete`；内部 filter values 保持 `All`、`Abstract`、`Concrete`。
+- Ratio UI：`All Ratios`、`Square`、`Classic`、`Portrait`、`Vertical`、`Landscape`、`Cinema`、`Panorama`；内部 values 保持 `All`、`1:1`、`4:3`、`4:5`、`2:3`、`3:2`、`16:9`、`Panorama`。
 - 图片原始比例优先，metadata 辅助理解，不作为裁切依据。
-- 档案卡片不使用厚重边框和阴影；图片下方只放作品标题、Type 和 Ratio。
-- 作品标题使用衬线字体，metadata 使用 11px 左右无衬线小字。
-- Arrange 模式下每张卡片显示序号、六点拖拽手柄、上/下移动图标；未保存时显示明确状态，保存后刷新应保持顺序。
-- 移动端降低图片行高，保留横向优先的多行排列；过滤器不 sticky，避免遮挡内容。
+- 档案卡片不使用厚重边框、阴影或大圆角；公开图墙不常驻标题和 metadata，操作只在 hover/focus/selected 时出现。
+- 桌面四列、平板三至两列、窄手机单列；间距稳定，筛选改变数量时不改变图片裁切逻辑。
+- 公开页无 Arrange 模式；移动端过滤器不 sticky，各分组可横向滚动且不显示笨重滚动条。
 
 ### Work Viewer
 

@@ -21,6 +21,11 @@ const dialogDescription = document.querySelector("[data-dialog-description]");
 const dialogNotice = document.querySelector("[data-dialog-notice]");
 const dialogCancel = document.querySelector("[data-dialog-cancel]");
 const dialogConfirm = document.querySelector("[data-dialog-confirm]");
+const sectionIndex = document.querySelector(".account-settings-index");
+const sectionLinks = Array.from(document.querySelectorAll(".account-settings-index a"));
+const accountSections = sectionLinks
+  .map((link) => document.querySelector(link.getAttribute("href")))
+  .filter(Boolean);
 
 const PROFILE_NAMES = [
   "display_name",
@@ -156,8 +161,11 @@ function addSelectValue(select, value) {
 function renderAccountChrome(result) {
   const profile = result.profile || {};
   const account = result.account || {};
-  document.querySelector("[data-account-initials]").textContent = initials(profile.display_name);
+  const avatarInitials = initials(profile.display_name);
+  document.querySelectorAll("[data-account-initials], [data-profile-initials]")
+    .forEach((element) => { element.textContent = avatarInitials; });
   document.querySelector("[data-account-display-name]").textContent = profile.display_name || "Member";
+  document.querySelector("[data-profile-summary-name]").textContent = profile.display_name || "Member";
   document.querySelector("[data-account-email]").textContent = account.email || "";
   document.querySelector("[data-account-status]").textContent = `${String(account.account_status || "active").replaceAll("_", " ")} account`;
 
@@ -203,6 +211,7 @@ function populateAccount(result) {
   pageLoading.hidden = true;
   rememberForm(profileForm, PROFILE_NAMES);
   rememberForm(preferencesForm, PREFERENCE_NAMES);
+  scheduleSectionSync();
 }
 
 function normalizeFieldValue(name, value) {
@@ -246,11 +255,16 @@ function isFormDirty(form) {
   return snapshot !== undefined && signature(form, names) !== snapshot;
 }
 
+function setFormStatus(status, state, message) {
+  status.dataset.state = state;
+  status.textContent = message;
+}
+
 function updateFormDirtyState(form) {
   const { submit, status } = formStateElements(form);
   const dirty = isFormDirty(form);
   submit.disabled = !dirty;
-  status.textContent = dirty ? "Unsaved changes." : "No unsaved changes.";
+  setFormStatus(status, dirty ? "dirty" : "clean", dirty ? "Unsaved changes" : "No unsaved changes");
 }
 
 function clearFieldErrors(form) {
@@ -278,9 +292,10 @@ async function saveForm(form) {
   submit.disabled = true;
   submit.textContent = "Saving…";
   form.setAttribute("aria-busy", "true");
-  status.textContent = "Saving securely…";
+  setFormStatus(status, "saving", "Saving");
   hideNotice();
   let saved = false;
+  let failed = false;
   try {
     const result = await accountRequest("/api/me/profile", {
       method: "PATCH",
@@ -304,17 +319,21 @@ async function saveForm(form) {
     );
   } catch (error) {
     if (redirectForAuth(error)) return;
+    failed = true;
     applyFieldErrors(form, error.fieldErrors);
-    status.textContent = "Changes were not saved.";
     if (!Object.keys(error.fieldErrors || {}).length) showNotice(error.message);
   } finally {
     form.removeAttribute("aria-busy");
     submit.textContent = label === "profile" ? "Save profile" : "Save preferences";
     updateFormDirtyState(form);
     if (saved) {
-      status.textContent = isFormDirty(form)
-        ? "Saved submitted changes. New edits remain unsaved."
-        : "Saved just now.";
+      setFormStatus(
+        status,
+        isFormDirty(form) ? "dirty" : "saved",
+        isFormDirty(form) ? "Saved submitted changes. New edits remain unsaved." : "Saved just now",
+      );
+    } else if (failed) {
+      setFormStatus(status, "error", "Error. Changes were not saved");
     }
   }
 }
@@ -523,12 +542,44 @@ dialog.addEventListener("close", () => {
   if (trigger && document.contains(trigger)) trigger.focus();
 });
 
-document.querySelectorAll(".account-settings-index a").forEach((link) => {
-  link.addEventListener("click", () => {
-    document.querySelectorAll(".account-settings-index a").forEach((item) => item.removeAttribute("aria-current"));
-    link.setAttribute("aria-current", "location");
+let sectionSyncFrame = 0;
+
+function setActiveSection(sectionId) {
+  sectionLinks.forEach((link) => {
+    if (link.getAttribute("href") === `#${sectionId}`) link.setAttribute("aria-current", "location");
+    else link.removeAttribute("aria-current");
   });
+}
+
+function syncSectionIndex() {
+  sectionSyncFrame = 0;
+  if (!accountSections.length || pageContent.hidden) return;
+  const headerHeight = document.querySelector(".account-settings-header")?.getBoundingClientRect().height || 0;
+  const indexHeight = window.matchMedia("(max-width: 760px)").matches
+    ? sectionIndex.getBoundingClientRect().height
+    : 0;
+  const activationLine = headerHeight + indexHeight + 24;
+  let activeSection = accountSections[0];
+  accountSections.forEach((section) => {
+    if (section.getBoundingClientRect().top <= activationLine) activeSection = section;
+  });
+  const atPageEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+  if (atPageEnd) activeSection = accountSections.at(-1);
+  setActiveSection(activeSection.id);
+}
+
+function scheduleSectionSync() {
+  if (sectionSyncFrame) return;
+  sectionSyncFrame = window.requestAnimationFrame(syncSectionIndex);
+}
+
+sectionLinks.forEach((link) => {
+  link.addEventListener("click", () => setActiveSection(link.getAttribute("href").slice(1)));
 });
+
+window.addEventListener("scroll", scheduleSectionSync, { passive: true });
+window.addEventListener("resize", scheduleSectionSync);
+window.addEventListener("hashchange", scheduleSectionSync);
 
 window.addEventListener("beforeunload", (event) => {
   if (suppressBeforeUnload) return;

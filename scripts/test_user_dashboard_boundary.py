@@ -465,7 +465,7 @@ def main() -> None:
             or 'data-dashboard-status-grid' not in page
             or 'src="/account-menu.js' not in page
             or 'data-dashboard-cover-open' not in page
-            or 'href="/settings/account#profile">Edit personal information</a>' not in page
+            or 'href="/settings/account#profile">Edit profile</a>' not in page
         ):
             raise RuntimeError("Protected Dashboard page did not serve its complete UI shell")
 

@@ -6,36 +6,30 @@
     <title>Lightbox | MT Presence</title>
     <meta name="description" content="A private, browser-local lightbox of selected MT Presence works." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="styles.css?v=20260716-universal-rail" />
+    <link rel="stylesheet" href="styles.css?v=20260722-public-shell" />
   </head>
-  <body class="public-page public-rail-page lightbox-page">
-    <svg class="icon-sprite" aria-hidden="true" focusable="false">
-      <symbol id="icon-home" viewBox="0 0 24 24"><path d="m3 10.5 9-7.5 9 7.5" /><path d="M5 9v12h14V9" /><path d="M9 21v-7h6v7" /></symbol>
-      <symbol id="icon-photo" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1.5" /><path d="m7 15 3.2-3.2a1.3 1.3 0 0 1 1.8 0L16 16" /><path d="m14 14 1.1-1.1a1.3 1.3 0 0 1 1.8 0L21 17" /><circle cx="8.5" cy="9.2" r="1.2" /></symbol>
-      <symbol id="icon-folder" viewBox="0 0 24 24"><path d="M3 6.8h6l2 2.4h10v8.6a1.7 1.7 0 0 1-1.7 1.7H4.7A1.7 1.7 0 0 1 3 17.8z" /><path d="M3 8.8v-3a1.3 1.3 0 0 1 1.3-1.3h5.1l2 2.2" /></symbol>
-      <symbol id="icon-bookmark" viewBox="0 0 24 24"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.8L6 21z" /></symbol>
-      <symbol id="icon-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" /><path d="M4.5 21a7.5 7.5 0 0 1 15 0" /></symbol>
-      <symbol id="icon-mail" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13" rx="1.8" /><path d="m4.5 7 7.5 6 7.5-6" /></symbol>
-    </svg>
-    <aside class="archive-rail public-site-rail" aria-label="Site navigation">
-      <a class="archive-rail-brand" href="index.html" aria-label="MT Presence home">MT</a>
-      <nav class="archive-rail-nav" aria-label="Photography navigation">
-        <a class="archive-rail-button" href="index.html" aria-label="Home"><svg class="ui-icon" aria-hidden="true"><use href="#icon-home"></use></svg><span class="archive-rail-copy">Home</span></a>
-        <a class="archive-rail-button" href="works.html" aria-label="Works Archive"><svg class="ui-icon" aria-hidden="true"><use href="#icon-photo"></use></svg><span class="archive-rail-copy">Works</span></a>
-        <a class="archive-rail-button" href="/workspace/images" aria-label="Upload images"><svg class="ui-icon" aria-hidden="true"><use href="#icon-folder"></use></svg><span class="archive-rail-copy">Upload</span></a>
-        <a class="archive-rail-button is-active" href="lightbox.html" aria-label="Open lightbox" aria-current="page"><svg class="ui-icon" aria-hidden="true"><use href="#icon-bookmark"></use></svg><span class="archive-rail-copy">Lightbox</span></a>
-        <a class="archive-rail-button" href="about.html" aria-label="About the artist"><svg class="ui-icon" aria-hidden="true"><use href="#icon-user"></use></svg><span class="archive-rail-copy">About</span></a>
+  <body class="public-page lightbox-page">
+    <header class="site-header archive-header public-site-header" aria-label="Primary navigation" data-public-header>
+      <a class="brand-mark" href="/" aria-label="MT Presence home"><span>MT</span><span>Presence</span></a>
+      <nav id="public-site-navigation" class="site-nav public-site-nav" aria-label="Primary" data-public-nav>
+        <a href="/">Home</a>
+        <a href="/works.html">Works</a>
+        <a href="/about.html">About</a>
+        <a href="/lightbox.html" aria-current="page">Lightbox</a>
+        <a href="/contact.html">Contact</a>
       </nav>
-      <div class="archive-rail-footer"><a class="archive-rail-button" href="contact.html" aria-label="Contact artist"><svg class="ui-icon" aria-hidden="true"><use href="#icon-mail"></use></svg><span class="archive-rail-copy">Contact</span></a></div>
-    </aside>
-    <header class="site-header archive-header" aria-label="Primary navigation">
-      <a class="brand-mark" href="index.html" aria-label="Back to home"><span>MT</span><span>Presence</span></a>
-      <nav class="site-nav" aria-label="Page navigation">
-        <a href="works.html">Works</a>
-        <a href="about.html">About</a>
-        <a href="contact.html">Contact</a>
-        <a href="lightbox.html" aria-current="page">Lightbox</a>
-      </nav>
+      <a class="home-account-entry" href="/auth/sign-in" data-home-account-entry data-public-sign-in>Sign In</a>
+      <button
+        class="public-nav-toggle"
+        type="button"
+        aria-label="Open navigation"
+        aria-controls="public-site-navigation"
+        aria-expanded="false"
+        title="Open navigation"
+        data-public-nav-toggle
+      >
+        <span class="public-nav-toggle-icon" aria-hidden="true"><span></span><span></span><span></span></span>
+      </button>
     </header>
 
     <main class="public-shell lightbox-main">
@@ -64,5 +58,7 @@
     <script src="archive-data.js?v=20260610-works-viewer-editor"></script>
     <script src="public-archive.js?v=20260713-public-architecture"></script>
     <script src="lightbox.js?v=20260713-public-architecture"></script>
+    <script src="/account-menu.js?v=20260722-public-shell"></script>
+    <script src="/public-navigation.js?v=20260722-public-shell"></script>
   </body>
 </html>

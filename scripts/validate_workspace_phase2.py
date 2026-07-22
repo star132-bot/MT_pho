@@ -28,6 +28,7 @@ def main() -> None:
     upload_js = (ROOT / "upload-studio.js").read_text()
     manage_js = (ROOT / "manage.js").read_text()
     works_html = (ROOT / "works.html").read_text()
+    account_menu = (ROOT / "account-menu.js").read_text()
     workflow = (ROOT / ".github" / "workflows" / "database.yml").read_text()
 
     require(schema, {
@@ -216,9 +217,13 @@ def main() -> None:
         "error?.details", 'window.addEventListener("beforeunload"',
     }, "Phase 2 Upload Studio client")
     require(works_html, {
-        'href="/workspace/images" aria-label="Upload images"',
-        '<span class="archive-rail-copy">Upload</span>',
-    }, "Works Upload navigation")
+        "data-public-header",
+        "data-public-nav",
+        'src="/account-menu.js',
+    }, "Works public shell")
+    require(account_menu, {
+        'destination("Workspace", "/workspace/images")',
+    }, "authenticated Works Upload navigation")
     title_input = re.search(r'<input\b[^>]*\bname="title"[^>]*>', upload_html)
     if not title_input or re.search(r"\brequired\b", title_input.group(0)):
         raise RuntimeError("Phase 2 Draft title must remain optional")

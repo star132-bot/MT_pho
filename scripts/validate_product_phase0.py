@@ -31,26 +31,31 @@ def main() -> None:
         html = (ROOT / name).read_text()
         if 'href="collections.html' in html or 'href="/collections.html' in html:
             raise RuntimeError(f"{name} still exposes the removed Collections/Series route")
-        if name == "index.html":
-            if "public-site-rail" in html or "public-rail-page" in html:
-                raise RuntimeError("index.html must keep the homepage free of the left navigation rail")
-            require(html, {
-                'class="site-header"',
-                'href="/works.html"',
-                'href="/about.html"',
-                'href="/contact.html"',
-                'href="/lightbox.html"',
-                "data-home-account-entry",
-            }, "index.html top navigation")
-            continue
+        if any(token in html for token in ("public-site-rail", "public-rail-page", '<aside class="archive-rail')):
+            raise RuntimeError(f"{name} still exposes or reserves the retired public navigation rail")
         require(html, {
-            "public-site-rail",
-            'href="index.html" aria-label="Home"',
-            'href="/workspace/images" aria-label="Upload images"',
-            'href="lightbox.html"',
-            'href="about.html"',
-            'href="contact.html"',
-        }, f"{name} public navigation")
+            "data-public-header",
+            "data-public-nav",
+            "data-public-nav-toggle",
+            "data-public-sign-in",
+            'href="/"',
+            'href="/works.html"',
+            'href="/about.html"',
+            'href="/lightbox.html"',
+            'href="/contact.html"',
+            'src="/account-menu.js',
+            'src="/public-navigation.js',
+        }, f"{name} unified public navigation")
+
+    public_navigation = (ROOT / "public-navigation.js").read_text()
+    require(public_navigation, {
+        'window.matchMedia("(max-width: 760px)")',
+        'trigger.setAttribute("aria-expanded"',
+        'navigation.toggleAttribute("inert"',
+        'event.key !== "ArrowDown"',
+        'event.key !== "Escape"',
+        'setOpen(false, { restoreFocus: true })',
+    }, "responsive public navigation")
 
     upload_html = (ROOT / "upload-studio.html").read_text()
     if 'name="series"' in upload_html:

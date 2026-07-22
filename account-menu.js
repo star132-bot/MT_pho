@@ -2,9 +2,13 @@
   const header = document.querySelector(".site-header");
   if (!header || header.querySelector("[data-account-menu]")) return;
 
+  const isPublicHeader = header.hasAttribute("data-public-header");
+  const publicSignIn = header.querySelector("[data-public-sign-in]");
+
   const container = document.createElement("div");
   container.className = "account-menu";
   container.dataset.accountMenu = "";
+  if (isPublicHeader) container.hidden = true;
   const profileLink = document.createElement("a");
   profileLink.className = "account-profile-link";
   profileLink.href = "/dashboard";
@@ -155,6 +159,10 @@
       if (linkPath === currentPath) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     });
+    if (isPublicHeader) {
+      publicSignIn?.setAttribute("hidden", "");
+      container.hidden = false;
+    }
     window.dispatchEvent(new CustomEvent("mt:account-loaded", { detail: payload }));
   }
 
@@ -171,6 +179,10 @@
     } catch (_error) {
       container.querySelector("[data-account-menu-name]").textContent = "Account";
       container.querySelector("[data-account-menu-role]").textContent = "Identity unavailable";
+      if (isPublicHeader) {
+        container.hidden = true;
+        publicSignIn?.removeAttribute("hidden");
+      }
     }
   }
 

@@ -59,6 +59,7 @@ jobs:
           node --check admin-reviews.js
           node --check dashboard.js
           node --check account-menu.js
+          node --check public-navigation.js
           node --check manage.js
 
       - name: Exercise local Auth security boundary

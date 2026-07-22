@@ -11,10 +11,11 @@ MT Presence is a fine art photography portfolio and image-workflow prototype. Ve
 
 ## Features
 
+- Unified full-width public navigation across Home, Works, About, Lightbox, Contact, and the protected creator profile. Public pages have no left rail or reserved rail width; desktop uses one fixed text navigation, while mobile uses an accessible expandable menu with Sign In or the signed-in avatar/account menu.
 - Full-width, regular-flow homepage hero with no left rail, transitioning from abstract black-and-white scenery to concrete color scenery and revealing the start of Selected Works in the first viewport.
 - Infinite horizontal selected works gallery.
 - Four-moment image-led Statement section, placed after Selected Works, with one image per text passage and a final Enter Works call to action.
-- Works Archive page with read-only local SQLite API data when `data/archive.db` exists, with local photography sample fallback.
+- Full-width Works Archive page with read-only local SQLite API data when `data/archive.db` exists, local photography sample fallback, a full-width search field, underlined Type/Ratio text filters, live count/data status, and responsive four/three/two/one-column masonry that preserves image emphasis.
 - Works Archive work viewer with full-screen enlarged images, fit/actual-size zoom, catalog-style metadata, keyboard navigation, and grouped visual tags.
 - Internal Works Viewer Editor for importing works; maintaining the viewer title, series, notes, metadata, visibility, sort order, and grouped tags; and editing homepage hero images/text in the IndexedDB transition layer.
 - Upload flow that reads original image dimensions, checksum, and basic EXIF in the browser.
@@ -29,8 +30,8 @@ MT Presence is a fine art photography portfolio and image-workflow prototype. Ve
 - Contact Artist page linked from the homepage and Works Archive page.
 - Supabase Register/Verify/Sign In/Sign Out/Forgot/Reset flow with HttpOnly session cookies, CSRF protection, owner isolation, and Admin MFA guards.
 - Protected Account Settings with five creator-profile groups and ten editable identity/work/location/about/link fields, plus authorship preferences, verified account state, current-session description, and provider-supported bulk session revocation.
-- Full-width protected personal profile at `/dashboard`, led by an editable photography cover and identity summary, with Overview/My works tabs backed by the real server aggregate for work status, Changes Requested/processing attention, recent signed private previews, review activity, storage usage, editable Drafts, and truthful unavailable states for quota/public delivery.
-- Signed-in avatars open the protected personal profile at `/dashboard` on Home, Dashboard, Upload, Review, and Account. The profile provides an explicit `Edit personal information` action to `/settings/account#profile`; internal headers keep a separate account-menu button with identity, permission-aware Review entry, keyboard navigation, outside/Escape closing, focus restoration, and CSRF-protected sign out.
+- Full-width protected personal profile at `/dashboard`, led by an editable horizontal photography cover, overlapping avatar, restrained identity/actions and thin-line profile facts rather than colored dashboard blocks. Overview/My works remain backed by the real server aggregate for work status, Changes Requested/processing attention, recent signed private previews, review activity, storage usage, editable Drafts, and truthful unavailable states for quota/public delivery.
+- Signed-in avatars open the protected personal profile at `/dashboard` on public and internal pages. The profile provides an explicit `Edit profile` action to `/settings/account#profile`; headers keep a separate account-menu button with identity, permission-aware Review entry, keyboard navigation, outside/Escape closing, focus restoration, and CSRF-protected sign out.
 - Protected Supabase Admin Review Queue with scoped Reviewer claims, Admin+AAL2 history access, image-first submitted-version inspection, checklist decisions, optimistic concurrency, idempotent mutation keys, private signed assets, and immutable decision/audit evidence. The browser intentionally exposes Request Changes, Reject, and Approve only until public delivery is connected.
 - Local SQLite archive seed, Archive read/write metadata API, and automated validation workflow for checking image metadata, assets, grouped tags, collections, and Archive view output before backend integration.
 
@@ -239,17 +240,18 @@ The contact form opens the visitor's email app with a prepared draft. There is n
 ## Project Files
 
 - `index.html`: homepage; reads editable hero and Statement content from local homepage settings when available.
-- `works.html`: public Works Archive page.
-- `about.html`: public artist practice and availability page.
-- `lightbox.html`: browser-local visitor selection and inquiry handoff.
+- `works.html`: full-width public Works Archive with unified header, search, underlined Type/Ratio filters, live count/data state, responsive masonry, and the existing viewer/actions.
+- `about.html`: public artist practice and availability page using the unified header and no public rail.
+- `lightbox.html`: browser-local visitor selection and inquiry handoff using the unified header and no public rail.
 - `public-archive.js`: shared public archive loading and Lightbox storage migration.
-- `dashboard.html` / `dashboard.js`: full-width protected `/dashboard` personal profile with editable cover, identity details, Overview/My works tabs, aggregate Dashboard DTO consumption, and complete loading/empty/error/permission states.
-- `account-menu.js`: shared signed-in profile avatar link plus a separate role-aware account menu, keyboard/focus behavior, and CSRF-protected sign out.
+- `public-navigation.js`: mobile controller for the shared public/Profile header; synchronizes menu visibility, `aria-expanded`, `aria-hidden`, `inert`, ArrowDown/Escape focus behavior, outside closing, and breakpoint changes without owning authentication.
+- `dashboard.html` / `dashboard.js`: full-width protected `/dashboard` personal profile with editable horizontal cover, overlapping avatar, quiet identity/facts sidebar, Overview/My works tabs, aggregate Dashboard DTO consumption, and complete loading/empty/error/permission states.
+- `account-menu.js`: shared public/internal signed-in profile avatar link plus a separate role-aware account menu, public Sign In fallback, keyboard/focus behavior, and CSRF-protected sign out.
 - `upload-studio.html`: protected `/workspace/images` document for personal image import, folder assignment, grouped work/accessibility/rights metadata editing, five-check readiness, confirmed Submit for Review, and read-only Trash/Restore views.
 - `account-settings.html` / `account-settings.js`: protected `/settings/account` editor with ten creator fields grouped into Identity, Work, Location, About, and Links, plus authorship preferences, account-security summary, current-session view, dirty state, and bulk session revocation UI.
 - `admin-reviews.html` / `admin-reviews.js`: protected `/admin/reviews` queue/detail workspace with status/assignment filters, atomic Reviewer start, submitted-version evidence, review checklist, conflict recovery, and Request Changes/Reject/Approve decisions; it does not claim that approval is already visible in public Works.
 - `manage.html`: Review Center for Works metadata, approval, visibility, and homepage content editing.
-- `styles.css`: site styling and responsive layout.
+- `styles.css`: site styling and responsive layout, including the 64px/56px unified public header, zero public rail reservation, full-width Works masonry, and restrained cover-led creator profile.
 - `script.js`: homepage navigation scroll state, editable homepage settings hydration, and Statement section activation.
 - `archive-data.js`: shared Works Archive base sample data used by public Works and the internal editor.
 - `archive-upload.js`: shared browser-side work import pipeline for dimensions, EXIF, checksum, display/thumbnail, and square slice records.
@@ -259,7 +261,7 @@ The contact form opens the visitor's email app with a prepared draft. There is n
 - `database/migrations/20260722_workspace_trash_restore.sql`: authenticated owner-scoped trashed-Draft read model used by the Upload Studio Trash view.
 - `scripts/test_workspace_phase2_boundary.py` / `scripts/test_workspace_trash_browser.py`: secret-free API boundary plus 1440px/390px Trash/Restore browser acceptance and screenshots.
 - `manage.js`: legacy Review Center metadata editor, local SQLite metadata sync, homepage settings editor, editable-field-only dirty signatures, grouped tag editing, and IndexedDB save/revert fallback; it does not consume Supabase `review_submissions` yet.
-- `contact.html`: Contact Artist page and inquiry form.
+- `contact.html`: Contact Artist page and inquiry form using the unified header and no public rail.
 - `contact.js`: structured inquiry validation, Work/Series/Lightbox context, mail draft generation, and toast feedback.
 - `server.py`: local static server; Supabase Auth/Profile/Session boundary with HttpOnly sessions and CSRF protection; protected Dashboard aggregate, creator-profile cover selection, and signed-asset projection; Workspace Folder/Draft/readiness/submission/signed-upload APIs; scoped Supabase Review Queue/detail/assignment/start/decision proxy with strict DTO projection; public published Archive reads plus Admin+AAL2 legacy Archive mutations backed by `data/archive.db`.
 - `database/migrations/20260722_user_dashboard.sql`: authenticated owner-scoped Dashboard read model with server-side counts, attention ordering, recent work/review activity, storage usage, and explicit capability flags.
@@ -276,7 +278,7 @@ The contact form opens the visitor's email app with a prepared draft. There is n
 - `scripts/validate_local_archive_db.py`: validates the local SQLite archive workflow in a temporary database.
 - `scripts/test_auth_security_boundary.py`: secret-free local integration test for CSRF, account recovery, profile read/write, session revocation, Workspace/Account route guards, Admin MFA, and private legacy originals.
 - `scripts/test_workspace_phase2_boundary.py`: secret-free fake-provider integration test for Folder/upload/Draft boundaries plus readiness states, CSRF, stale Submit, idempotent success, immutable submitted state, response allowlists, and Admin AAL1 denial.
-- `scripts/validate_workspace_phase2.py`: static contract validator for the Phase 2A-2E schema, migrations, API routes, resilient browser queue, Draft autosave/conflict, readiness/Submit state machine, RPC permissions, and CI wiring.
+- `scripts/validate_workspace_phase2.py`: static contract validator for the Phase 2A-2E schema, migrations, API routes, resilient browser queue, Draft autosave/conflict, readiness/Submit state machine, RPC permissions, Works public shell/account-menu Workspace destination, and CI wiring.
 - `workers/scan_adapters.py` / `workers/image_scanner.py`: scanner-only provider, private Storage and ClamAV adapters plus the single-job/continuous polling CLI; redirects are rejected, subprocess environments are scrubbed, operation budgets must fit the lease, and no scanner secret enters the Web process.
 - `workers/image_probe.py`: credential-free isolated Pillow subprocess for allowlisted full decode, EXIF-oriented dimensions, multi-frame rejection, decompression-bomb handling, and OS resource limits where supported.
 - `requirements-scanner.txt` / `.env.worker.example`: pinned scanner dependency and secret-isolated runtime configuration contract.
@@ -294,7 +296,7 @@ The contact form opens the visitor's email app with a prepared draft. There is n
 - `database/product_schema.sql`: Phase 0 production target schema for users, ownership, folders, independent image states, immutable versions/reviews, takedowns, notifications, and append-only audit records.
 - `database/supabase_phase1_auth_rls.sql`: Phase 1 Supabase baseline for `auth.users` business-user synchronization, owner-scoped RLS, strict owner-only profile RPC, reviewer/admin policies, Admin AAL2 enforcement, public Works isolation, and private Storage namespaces.
 - `database/migrations/`: ordered, transaction-wrapped patches for existing environments, including Admin hardening, strict Account Settings, Phase 2A private Draft/Folders/Storage, Phase 2B cancellation/cleanup, Phase 2C compliance metadata, Phase 2D optimistic versioning/Folder integrity, Phase 2E authoritative readiness/submission snapshots, and Phase 2F trusted leased asset scanning.
-- `scripts/validate_product_phase0.py`: validates the Phase 0 schema contract and confirms public navigation no longer exposes Series/Collections.
+- `scripts/validate_product_phase0.py`: validates the Phase 0 schema contract and confirms public pages expose neither Series/Collections nor the retired public rail, and all load the unified public header/account/mobile-navigation contract.
 - `auth.html` / `auth.js`: Phase 1 Register and Sign In UI with field validation, verification/suspended-provider error boundaries, loading feedback, and no browser token storage.
 - `scripts/validate_auth_foundation.py`: checks Phase 1 Auth/Account routes, secure Cookie/CSRF contracts, Profile/Session clients, deployment mode, accessibility hooks, and browser-storage prohibition.
 - `scripts/validate_supabase_phase1_rls.py`: checks private-table RLS plus ownership, strict Profile RPC, role, MFA, public publication, and Storage policies.
