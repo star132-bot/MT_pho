@@ -208,6 +208,20 @@ WORKSPACE_READINESS_FIELD_KEYS = {
     "submission_state",
 }
 
+DASHBOARD_PROCESSING_STATUSES = {"pending", "uploading", "processing", "ready", "failed", "canceled"}
+DASHBOARD_WORKFLOW_STATUSES = {"draft", "submitted", "in_review", "changes_requested", "rejected", "approved"}
+DASHBOARD_PUBLICATION_STATUSES = {"never_published", "published", "unpublished", "quarantined", "archived", "deleted"}
+DASHBOARD_COUNT_KEYS = ("drafts", "submitted", "changes_requested", "published", "unpublished")
+DASHBOARD_ATTENTION_TYPES = {"changes_requested", "processing_failed"}
+DASHBOARD_REVIEW_DECISIONS = {
+    "request_changes",
+    "reject",
+    "approve",
+    "approve_and_publish",
+    "escalate",
+    "quarantine",
+}
+
 REVIEW_STATUSES = {
     "submitted",
     "in_review",
@@ -633,6 +647,169 @@ def clean_workspace_submission_result(value, expected_image_id: str) -> dict | N
             "workflow_status": "submitted",
             "lock_version": lock_version,
         },
+    }
+
+
+def clean_dashboard_image(value) -> dict | None:
+    if not isinstance(value, dict):
+        return None
+    try:
+        image_id = clean_uuid(value.get("id"), "dashboard image id")
+    except ValueError:
+        return None
+    processing_status = clean_text(value.get("processing_status"), 40)
+    workflow_status = clean_text(value.get("workflow_status"), 40)
+    publication_status = clean_text(value.get("publication_status"), 40)
+    updated_at = clean_text(value.get("updated_at"), 80)
+    if (
+        processing_status not in DASHBOARD_PROCESSING_STATUSES
+        or workflow_status not in DASHBOARD_WORKFLOW_STATUSES
+        or publication_status not in DASHBOARD_PUBLICATION_STATUSES
+        or not updated_at
+    ):
+        return None
+    thumbnail = None
+    if value.get("thumbnail_asset") is not None:
+        thumbnail = clean_review_asset(value.get("thumbnail_asset"))
+        if thumbnail is None or thumbnail.get("kind") != "thumbnail":
+            return None
+    return {
+        "id": image_id,
+        "title": clean_text(value.get("title"), 180) or "Untitled Work",
+        "original_filename": clean_text(value.get("original_filename"), 512),
+        "processing_status": processing_status,
+        "workflow_status": workflow_status,
+        "publication_status": publication_status,
+        "updated_at": updated_at,
+        "thumbnail_asset": thumbnail,
+    }
+
+
+def clean_dashboard_result(value) -> dict | None:
+    if not isinstance(value, dict):
+        return None
+    raw_counts = value.get("status_counts")
+    if not isinstance(raw_counts, dict):
+        return None
+    counts = {}
+    for key in DASHBOARD_COUNT_KEYS:
+        count = raw_counts.get(key)
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            return None
+        counts[key] = count
+
+    images_by_section = {}
+    for key, maximum in (("recent_images", 8), ("drafts", 12)):
+        raw_images = value.get(key)
+        if not isinstance(raw_images, list) or len(raw_images) > maximum:
+            return None
+        images = []
+        for raw_image in raw_images:
+            image = clean_dashboard_image(raw_image)
+            if image is None:
+                return None
+            images.append(image)
+        images_by_section[key] = images
+
+    raw_attention = value.get("needs_attention")
+    if not isinstance(raw_attention, list) or len(raw_attention) > 8:
+        return None
+    attention = []
+    for raw_item in raw_attention:
+        if not isinstance(raw_item, dict):
+            return None
+        try:
+            image_id = clean_uuid(raw_item.get("image_id"), "attention image id")
+        except ValueError:
+            return None
+        attention_type = clean_text(raw_item.get("type"), 40)
+        message = clean_text(raw_item.get("message"), 300)
+        updated_at = clean_text(raw_item.get("updated_at"), 80)
+        if (
+            attention_type not in DASHBOARD_ATTENTION_TYPES
+            or not message
+            or not updated_at
+            or raw_item.get("workspace_path") != "/workspace/images"
+        ):
+            return None
+        attention.append({
+            "type": attention_type,
+            "image_id": image_id,
+            "title": clean_text(raw_item.get("title"), 180) or "Untitled Work",
+            "message": message,
+            "updated_at": updated_at,
+            "workspace_path": "/workspace/images",
+        })
+
+    raw_activity = value.get("review_activity")
+    if not isinstance(raw_activity, list) or len(raw_activity) > 10:
+        return None
+    activity = []
+    for raw_item in raw_activity:
+        if not isinstance(raw_item, dict):
+            return None
+        try:
+            submission_id = clean_uuid(raw_item.get("submission_id"), "dashboard submission id")
+            image_id = clean_uuid(raw_item.get("image_id"), "dashboard activity image id")
+        except ValueError:
+            return None
+        status = clean_text(raw_item.get("status"), 40)
+        decision = clean_text(raw_item.get("decision"), 40) or None
+        occurred_at = clean_text(raw_item.get("occurred_at"), 80)
+        if (
+            status not in REVIEW_STATUSES
+            or (decision is not None and decision not in DASHBOARD_REVIEW_DECISIONS)
+            or not occurred_at
+        ):
+            return None
+        activity.append({
+            "submission_id": submission_id,
+            "image_id": image_id,
+            "title": clean_text(raw_item.get("title"), 180) or "Untitled Work",
+            "status": status,
+            "decision": decision,
+            "submitted_at": clean_text(raw_item.get("submitted_at"), 80) or None,
+            "review_started_at": clean_text(raw_item.get("review_started_at"), 80) or None,
+            "completed_at": clean_text(raw_item.get("completed_at"), 80) or None,
+            "occurred_at": occurred_at,
+        })
+
+    raw_storage = value.get("storage_usage")
+    if not isinstance(raw_storage, dict) or raw_storage.get("quota_bytes") is not None:
+        return None
+    storage = {"quota_bytes": None}
+    for key in ("used_bytes", "asset_count", "image_count"):
+        number = raw_storage.get(key)
+        if isinstance(number, bool) or not isinstance(number, int) or number < 0:
+            return None
+        storage[key] = number
+
+    raw_capabilities = value.get("capabilities")
+    if not isinstance(raw_capabilities, dict):
+        return None
+    capabilities = {}
+    expected_capabilities = {
+        "storage_quota": "not_configured",
+        "public_portfolio": "public_delivery_not_connected",
+    }
+    for key, reason in expected_capabilities.items():
+        capability = raw_capabilities.get(key)
+        if not isinstance(capability, dict) or capability.get("available") is not False or capability.get("reason") != reason:
+            return None
+        capabilities[key] = {"available": False, "reason": reason}
+
+    generated_at = clean_text(value.get("generated_at"), 80)
+    if not generated_at:
+        return None
+    return {
+        "status_counts": counts,
+        "needs_attention": attention,
+        "recent_images": images_by_section["recent_images"],
+        "drafts": images_by_section["drafts"],
+        "review_activity": activity,
+        "storage_usage": storage,
+        "capabilities": capabilities,
+        "generated_at": generated_at,
     }
 
 
@@ -1944,6 +2121,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             or canonical_path in {
                 "/admin-reviews.html",
                 "/admin-reviews.js",
+                "/dashboard",
+                "/dashboard.html",
+                "/dashboard.js",
                 "/settings/account",
                 "/workspace",
                 "/workspace/images",
@@ -1972,6 +2152,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             "/account-settings.js",
             "/admin-reviews.html",
             "/admin-reviews.js",
+            "/dashboard.html",
+            "/dashboard.js",
+            "/account-menu.js",
         }:
             self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
@@ -2851,6 +3034,45 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         safe_asset["expires_in"] = 10 * 60
         return safe_asset
 
+    def sign_dashboard_asset(self, user: dict, asset: dict) -> dict | None:
+        bucket = asset.get("storage_bucket")
+        storage_key = asset.get("storage_key")
+        try:
+            expected_owner = clean_uuid(user.get("id"), "Dashboard asset owner id")
+        except ValueError:
+            expected_owner = ""
+        if not expected_owner or not storage_key.startswith(f"{expected_owner}/"):
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("DASHBOARD_ASSET_UNAVAILABLE", "A private Dashboard preview could not be loaded. Try again."),
+            )
+            return None
+        endpoint = f"object/sign/{quote(bucket, safe='')}/{quote(storage_key, safe='/')}"
+        status, signed = supabase_storage_request(
+            endpoint,
+            self.current_access_token(user),
+            {"expiresIn": 10 * 60},
+        )
+        signed_value = ""
+        if isinstance(signed, dict):
+            signed_value = signed.get("signedURL") or signed.get("signedUrl") or ""
+        signed_url = self.absolute_storage_url(signed_value)
+        if status != HTTPStatus.OK or not signed_url:
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("DASHBOARD_ASSET_UNAVAILABLE", "A private Dashboard preview could not be loaded. Try again."),
+            )
+            return None
+        return {
+            "id": asset["id"],
+            "kind": "thumbnail",
+            "mime_type": asset["mime_type"],
+            "width": asset["width"],
+            "height": asset["height"],
+            "signed_url": signed_url,
+            "expires_in": 10 * 60,
+        }
+
     def handle_review_submissions_get(self, parsed) -> None:
         query = parse_qs(parsed.query)
         status_filter = single_query_value(query, "status") or "open"
@@ -3252,6 +3474,45 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 cleanup_succeeded = False
         return cleanup_succeeded
 
+    def handle_dashboard_get(self) -> None:
+        user, authorization = self.require_account_session()
+        if not user or not authorization:
+            return
+        status, result = supabase_rest_request(
+            "rpc/get_my_dashboard",
+            self.current_access_token(user),
+            {},
+        )
+        if status != HTTPStatus.OK or not isinstance(result, dict):
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("DASHBOARD_PROVIDER_FAILED", "Dashboard data could not be loaded. Try again."),
+            )
+            return
+        response = clean_dashboard_result(result)
+        if response is None:
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("DASHBOARD_PROVIDER_FAILED", "Dashboard data could not be verified. Try again."),
+            )
+            return
+
+        signed_assets = {}
+        for section in ("recent_images", "drafts"):
+            for image in response[section]:
+                asset = image.pop("thumbnail_asset")
+                if asset is None:
+                    image["thumbnail"] = None
+                    continue
+                asset_id = asset["id"]
+                if asset_id not in signed_assets:
+                    signed_asset = self.sign_dashboard_asset(user, asset)
+                    if signed_asset is None:
+                        return
+                    signed_assets[asset_id] = signed_asset
+                image["thumbnail"] = dict(signed_assets[asset_id])
+        self.send_auth_json(HTTPStatus.OK, response)
+
     def sign_workspace_draft(self, user: dict, draft: dict) -> dict | None:
         signed_assets = []
         for asset in draft.get("assets") or []:
@@ -3459,15 +3720,29 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         self.send_auth_json(HTTPStatus.OK if cleanup_complete else HTTPStatus.ACCEPTED, response)
 
     def handle_workspace_images_get(self, parsed) -> None:
-        query = parse_qs(parsed.query)
-        workflow_status = single_query_value(query, "workflow_status") or "draft"
-        if workflow_status != "draft":
+        query = parse_qs(parsed.query, keep_blank_values=True)
+        workflow_values = query.get("workflow_status")
+        if (
+            set(query) - {"workflow_status"}
+            or (workflow_values is not None and len(workflow_values) != 1)
+        ):
             self.send_json(
                 HTTPStatus.UNPROCESSABLE_ENTITY,
-                auth_error("IMAGE_FILTER_INVALID", "This Workspace slice currently supports Draft images only."),
+                auth_error("IMAGE_FILTER_INVALID", "Choose one Draft or Trash image filter."),
             )
             return
-        user, result = self.workspace_rpc("workspace_list_drafts")
+        workflow_status = workflow_values[0].strip() if workflow_values is not None else "draft"
+        rpc_name = {
+            "draft": "workspace_list_drafts",
+            "trashed": "workspace_list_trashed_drafts",
+        }.get(workflow_status)
+        if not rpc_name:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("IMAGE_FILTER_INVALID", "Choose Draft or Trash images."),
+            )
+            return
+        user, result = self.workspace_rpc(rpc_name)
         if not user or result is None:
             return
         signed_images = []
@@ -3634,10 +3909,19 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_auth_json(HTTPStatus.OK, result)
 
     def handle_workspace_draft_restore(self, image_id: str) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
         try:
             image_id = clean_uuid(image_id, "image id")
         except ValueError:
             self.send_json(HTTPStatus.NOT_FOUND, auth_error("DRAFT_NOT_FOUND", "The Draft is unavailable."))
+            return
+        if body:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("DRAFT_RESTORE_INVALID", "Restore does not accept request fields."),
+            )
             return
         user, result = self.workspace_rpc("workspace_restore_draft", {"image_id": image_id})
         if not user or result is None:
@@ -4181,6 +4465,12 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.path = "/mfa.html"
             super().do_GET()
             return
+        if parsed.path == "/dashboard.html":
+            self.send_response(HTTPStatus.SEE_OTHER)
+            self.send_header("Location", "/dashboard")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            return
         if parsed.path == "/upload-studio.html":
             self.send_response(HTTPStatus.SEE_OTHER)
             self.send_header("Location", "/workspace/images")
@@ -4233,14 +4523,21 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.path = "/account-settings.html"
             super().do_GET()
             return
-        if parsed.path in {"/workspace", "/workspace/", "/workspace/images", "/workspace/images/"}:
+        if parsed.path in {
+            "/dashboard",
+            "/dashboard/",
+            "/workspace",
+            "/workspace/",
+            "/workspace/images",
+            "/workspace/images/",
+        }:
             status, user = self.current_auth_user()
             if status != HTTPStatus.OK:
                 if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
                     self.send_current_user_error(status, user)
                     return
                 self.send_response(HTTPStatus.SEE_OTHER)
-                next_path = "/workspace/images"
+                next_path = "/workspace/images" if parsed.path.startswith("/workspace/images") else "/dashboard"
                 self.send_header("Location", f"/auth/sign-in?{urlencode({'next': next_path})}")
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
@@ -4261,11 +4558,26 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             if authorization.get("account_status") != "active":
                 self.send_json(HTTPStatus.FORBIDDEN, auth_error("ACCOUNT_RESTRICTED", "This account cannot access the Workspace."))
                 return
-            if parsed.path in {"/workspace", "/workspace/"}:
+            roles = set(authorization.get("roles") or [])
+            if (
+                parsed.path in {"/dashboard", "/dashboard/"}
+                and roles.intersection({"admin", "super_admin"})
+                and authorization.get("aal") != "aal2"
+            ):
                 self.send_response(HTTPStatus.SEE_OTHER)
-                self.send_header("Location", "/workspace/images")
+                self.send_header("Location", f"/auth/mfa?{urlencode({'next': '/dashboard'})}")
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
+                return
+            if parsed.path in {"/workspace", "/workspace/"}:
+                self.send_response(HTTPStatus.SEE_OTHER)
+                self.send_header("Location", "/dashboard")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                return
+            if parsed.path in {"/dashboard", "/dashboard/"}:
+                self.path = "/dashboard.html"
+                super().do_GET()
                 return
             self.path = "/upload-studio.html"
             super().do_GET()
@@ -4287,6 +4599,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/me/sessions":
             self.handle_sessions_get()
+            return
+        if parsed.path == "/api/dashboard":
+            self.handle_dashboard_get()
             return
         if parsed.path == "/api/folders":
             self.handle_workspace_folders_get()

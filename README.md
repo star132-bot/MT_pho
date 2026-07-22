@@ -6,12 +6,12 @@ MT Presence is a fine art photography portfolio and image-workflow prototype. Ve
 
 - Version: `1.0.0`
 - Release label: `v1.0.0`
-- Status: public frontend, server-managed Supabase Auth/Account, Phase 2A-2F private Workspace, and the development-deployed Phase 3 Review Queue slice
-- Database: Phase 0/1, Phase 2A-2F Workspace, and Phase 3 Review Queue are deployed to development; rollback-only role/AAL/RLS/Storage/CAS/idempotency/audit verification, three two-session concurrency races, and secret-free fake-provider desktop/mobile browser acceptance pass. Real disposable Reviewer/Admin multi-identity browser acceptance remains the Phase 3 release gate. Public Works plus the legacy Review Center still read SQLite
+- Status: public frontend, server-managed Supabase Auth/Account, protected user Dashboard, Phase 2A-2G private Workspace, and the development-deployed Phase 3 Review Queue slice
+- Database: Phase 0/1, Phase 2A-2G Workspace, and Phase 3 Review Queue are deployed to development. Review rollback-only role/AAL/RLS/Storage/CAS/idempotency/audit verification, three two-session races, secret-free browser checks, and the real disposable Reviewer/Admin multi-identity browser acceptance all pass. The Dashboard/Trash rollback-only PostgreSQL acceptance also passes all nine markers with exact function ACLs. Public Works plus the legacy Review Center still read SQLite; public derivative delivery, the Works data migration, and public creator profile/editor remain unfinished
 
 ## Features
 
-- Sticky homepage hero transition from abstract black-and-white scenery to concrete color scenery.
+- Full-width, regular-flow homepage hero with no left rail, transitioning from abstract black-and-white scenery to concrete color scenery and revealing the start of Selected Works in the first viewport.
 - Infinite horizontal selected works gallery.
 - Four-moment image-led Statement section, placed after Selected Works, with one image per text passage and a final Enter Works call to action.
 - Works Archive page with read-only local SQLite API data when `data/archive.db` exists, with local photography sample fallback.
@@ -24,11 +24,13 @@ MT Presence is a fine art photography portfolio and image-workflow prototype. Ve
 - Arrange mode for ordering Works Archive items, with drag controls, Earlier/Later buttons, and local order persistence.
 - Browser-local Lightbox for saving works and carrying a selection into a structured inquiry.
 - About page for the artist practice and availability.
-- Protected Upload Studio with server-authoritative Supabase Folders and Drafts, a two-worker upload queue, per-item Cancel/Retry/Remove controls, owner-scoped signed uploads to three private Storage buckets, canceled-object cleanup, 900 ms debounced Draft autosave, version-conflict recovery, five-check submission readiness, idempotent Submit for Review, soft-delete Trash actions, and read-only IndexedDB offline cache.
+- Protected Upload Studio with server-authoritative Supabase Folders and Drafts, a two-worker upload queue, per-item Cancel/Retry/Remove controls, owner-scoped signed uploads to three private Storage buckets, canceled-object cleanup, 900 ms debounced Draft autosave, version-conflict recovery, five-check submission readiness, idempotent Submit for Review, soft-delete Trash/Restore views, and read-only IndexedDB offline cache.
 - Independent trusted asset scanner with restricted leased jobs, private Storage streaming, SHA-256/magic/MIME checks, ClamAV malware detection, isolated Pillow full decoding, bounded retries, append-only scan events, and fail-closed current-policy readiness updates.
 - Contact Artist page linked from the homepage and Works Archive page.
 - Supabase Register/Verify/Sign In/Sign Out/Forgot/Reset flow with HttpOnly session cookies, CSRF protection, owner isolation, and Admin MFA guards.
 - Protected Account Settings for profile/authorship preferences, verified account state, current-session description, and provider-supported bulk session revocation.
+- Protected user Dashboard with a real server aggregate for work status, Changes Requested/processing attention, recent signed private previews, review activity, storage usage, editable Drafts, and truthful unavailable states for quota/public delivery.
+- Signed-in avatars open `/settings/account#profile` directly on Home, Dashboard, Upload, Review, and Account. Internal headers keep a separate account-menu button with identity, permission-aware Review entry, keyboard navigation, outside/Escape closing, focus restoration, and CSRF-protected sign out.
 - Protected Supabase Admin Review Queue with scoped Reviewer claims, Admin+AAL2 history access, image-first submitted-version inspection, checklist decisions, optimistic concurrency, idempotent mutation keys, private signed assets, and immutable decision/audit evidence. The browser intentionally exposes Request Changes, Reject, and Approve only until public delivery is connected.
 - Local SQLite archive seed, Archive read/write metadata API, and automated validation workflow for checking image metadata, assets, grouped tags, collections, and Archive view output before backend integration.
 
@@ -73,6 +75,12 @@ Personal Upload Studio:
 http://127.0.0.1:8131/workspace/images
 ```
 
+Protected user Dashboard:
+
+```text
+http://127.0.0.1:8131/dashboard
+```
+
 Authentication foundation:
 
 ```text
@@ -95,7 +103,7 @@ http://127.0.0.1:8131/admin/reviews
 http://127.0.0.1:8131/admin/reviews/{submissionId}
 ```
 
-Copy `.env.example` values into your local environment before starting the server. Set `MT_PUBLIC_BASE_URL` to the exact browser origin and add `/auth/verify-email` plus `/auth/reset-password` to the Supabase Auth redirect allowlist. The auth routes use Supabase Auth through the server, keep access/refresh tokens in `HttpOnly` cookies, require a same-origin CSRF token for mutations, and never use browser storage for credentials. `/workspace/images` is protected, direct `/upload-studio.html` requests canonicalize to it, and Admin/Super Admin sessions require AAL2 before opening or mutating the Workspace.
+Copy `.env.example` values into your local environment before starting the server. Set `MT_PUBLIC_BASE_URL` to the exact browser origin and add `/auth/verify-email` plus `/auth/reset-password` to the Supabase Auth redirect allowlist. The auth routes use Supabase Auth through the server, keep access/refresh tokens in `HttpOnly` cookies, require a same-origin CSRF token for mutations, and never use browser storage for credentials. `/dashboard` and `/workspace/images` are protected, `/workspace` canonicalizes to Dashboard, direct `/upload-studio.html` requests canonicalize to Upload Studio, and Admin/Super Admin sessions require AAL2 before opening these account surfaces.
 
 For a fresh development database, apply the Phase 0/1 baseline and all incremental migrations:
 
@@ -123,7 +131,7 @@ set +a
 
 The configurator reads the project URL from `.env`, accepts a current secret through a hidden prompt (or either supported credential from the process environment), verifies ClamAV with a real empty-file scan, preserves a stable worker ID, and atomically writes only the Git-ignored `.env.worker` with mode `0600`. It never accepts the secret as a command argument. `SUPABASE_SECRET_KEY` is preferred; a legacy `SUPABASE_SERVICE_ROLE_KEY` remains supported. Both are broadly privileged server credentials and must remain isolated even though this worker implementation calls only the three scanner RPCs. ClamAV must be installed with current signatures; `clamdscan` also requires a running ClamD. Missing credentials, unavailable ClamAV, provider errors, expired leases, and decode uncertainty never produce `clean`.
 
-The Phase 2F code and database boundary are deployed to development, but no persistent development worker is active until an isolated scanner secret and ClamAV runtime are provisioned. The existing three assets therefore remain truthfully `pending` with three `queued` jobs; no development fallback marks them clean.
+The Phase 2F code and database boundary are deployed to development, and the isolated development worker can run with the provisioned `.env.worker` and ClamAV runtime. Worker process state is operational rather than repository state, so verify it directly before relying on queued-job consumption. A production-persistent worker, monitoring, and alerting remain unfinished; no fallback may mark an asset `clean`.
 
 Seed the local archive database:
 
@@ -164,6 +172,15 @@ POST                   /api/images/{id}/submit
 DELETE                 /api/images/{id}
 ```
 
+The Dashboard reads one owner-scoped server aggregate and never walks all image rows in the browser:
+
+```text
+GET                    /api/dashboard
+GET                    /api/me/profile
+```
+
+`database/migrations/20260722_user_dashboard.sql` installs authenticated-only `get_my_dashboard()`. The Web server projects its result through a fixed allowlist and replaces current-clean private thumbnail coordinates with short-lived signed URLs. Storage quota and public portfolio remain explicitly unavailable until those backend capabilities exist.
+
 The browser prepares `original`, `display`, and `thumbnail` assets, processes at most two tasks concurrently, requests owner-namespaced signed destinations, uploads directly to private Supabase Storage, and completes one server Draft transaction. A task may be canceled while queued or in flight, retried without losing its local preview, or removed after failure/cancellation. Server cancellation records the terminal state and removes any partial objects through the Storage API.
 
 The Draft editor autosaves core copy, Alt Text, copyright, release, rights, AI, and sensitive-content disclosures after a 900 ms debounce while retaining the explicit Save command. The UI reports Saving, Saved, Error, and Conflict states. Each Draft response exposes a `lock_version`; Draft PATCH and Trash requests must send it as `expected_version`. The database compares the expected and current image versions atomically. A stale write returns HTTP 409, keeps the local form intact, stops autosave, and exposes `Reload Server Draft` so the author can deliberately replace local edits with current server data. A successful PATCH returns canonical Draft metadata without `assets` and does not perform a second signed-read step after committing the write. Folders and Draft metadata are authoritative in PostgreSQL. IndexedDB remains only a read-only offline cache; reconnect before changing data.
@@ -184,13 +201,23 @@ POST   /api/admin/review-submissions/{submissionId}/start
 POST   /api/admin/review-submissions/{submissionId}/{request-changes|reject|approve}
 ```
 
-Drafts are moved to Trash through:
+Drafts are listed, moved to Trash, and restored through:
 
 ```text
+GET    http://127.0.0.1:8131/api/images?workflow_status=trashed
 DELETE http://127.0.0.1:8131/api/images/{id}
+POST   http://127.0.0.1:8131/api/images/{id}/restore
 ```
 
-This is a soft delete and uses the same `expected_version` compare-and-swap contract as Draft PATCH. Submitted images are locked and cannot be moved directly to Trash. The restore RPC/API boundary exists, while the Trash browser view, quota policy, public delivery, and end-to-end Publish visibility remain later slices.
+Trash is a soft delete and uses the same `expected_version` compare-and-swap contract as Draft PATCH. Submitted images are locked and cannot be moved directly to Trash. The read-only Trash view exposes only Restore; a successful restore returns the Draft to its original active Folder or falls back to Inbox when that Folder was deleted. Quota policy, public delivery, and end-to-end Publish visibility remain later slices.
+
+Run the development-only, rollback-only Dashboard/Trash database acceptance with development `PG*` variables loaded:
+
+```bash
+MT_TEST_ENVIRONMENT=development python3 scripts/test_user_dashboard_database.py
+```
+
+The 2026-07-22 run passed all nine markers: `dashboard_image_json(uuid)` is executable only by its `postgres` owner, while `get_my_dashboard()` and `workspace_list_trashed_drafts()` are executable only by `postgres` and `authenticated`. The test also covers owner isolation, aggregate/state filtering, inactive/recovery/AAL guards, rollback, and an independent fixture-absence check.
 
 Validate the local archive database workflow:
 
@@ -215,7 +242,9 @@ The contact form opens the visitor's email app with a prepared draft. There is n
 - `about.html`: public artist practice and availability page.
 - `lightbox.html`: browser-local visitor selection and inquiry handoff.
 - `public-archive.js`: shared public archive loading and Lightbox storage migration.
-- `upload-studio.html`: protected `/workspace/images` document for personal image import, folder assignment, grouped work/accessibility/rights metadata editing, five-check readiness, confirmed Submit for Review, and moving editable Drafts to Trash.
+- `dashboard.html` / `dashboard.js`: protected `/dashboard` identity and operational overview, consuming only the aggregate Dashboard DTO plus the current profile and rendering complete loading/empty/error/permission states.
+- `account-menu.js`: shared signed-in profile avatar link plus a separate role-aware account menu, keyboard/focus behavior, and CSRF-protected sign out.
+- `upload-studio.html`: protected `/workspace/images` document for personal image import, folder assignment, grouped work/accessibility/rights metadata editing, five-check readiness, confirmed Submit for Review, and read-only Trash/Restore views.
 - `account-settings.html` / `account-settings.js`: protected `/settings/account` profile, authorship preferences, account-security summary, current-session view, dirty state, and bulk session revocation UI.
 - `admin-reviews.html` / `admin-reviews.js`: protected `/admin/reviews` queue/detail workspace with status/assignment filters, atomic Reviewer start, submitted-version evidence, review checklist, conflict recovery, and Request Changes/Reject/Approve decisions; it does not claim that approval is already visible in public Works.
 - `manage.html`: Review Center for Works metadata, approval, visibility, and homepage content editing.
@@ -225,11 +254,16 @@ The contact form opens the visitor's email app with a prepared draft. There is n
 - `archive-upload.js`: shared browser-side work import pipeline for dimensions, EXIF, checksum, display/thumbnail, and square slice records.
 - `archive.js`: public Works Archive API loading, local sample fallback, URL filters, work viewer, Lightbox/inquiry actions, published-record reading, and IndexedDB fallback.
 - `lightbox.js`: Lightbox rendering, remove/clear actions, and Contact handoff.
-- `upload-studio.js`: server-authoritative Folder/Draft flow, bounded upload workers, task Cancel/Retry/Remove, signed private Storage uploads, compliance metadata normalization, serialized autosave, optimistic-concurrency recovery, readiness polling, UUID-idempotent submission, versioned Trash, and read-only IndexedDB offline cache.
+- `upload-studio.js`: server-authoritative Folder/Draft/Trash flow, bounded upload workers, task Cancel/Retry/Remove, signed private Storage uploads, compliance metadata normalization, serialized autosave, optimistic-concurrency recovery, readiness polling, UUID-idempotent submission, versioned Trash/Restore states, and read-only IndexedDB offline cache.
+- `database/migrations/20260722_workspace_trash_restore.sql`: authenticated owner-scoped trashed-Draft read model used by the Upload Studio Trash view.
+- `scripts/test_workspace_phase2_boundary.py` / `scripts/test_workspace_trash_browser.py`: secret-free API boundary plus 1440px/390px Trash/Restore browser acceptance and screenshots.
 - `manage.js`: legacy Review Center metadata editor, local SQLite metadata sync, homepage settings editor, editable-field-only dirty signatures, grouped tag editing, and IndexedDB save/revert fallback; it does not consume Supabase `review_submissions` yet.
 - `contact.html`: Contact Artist page and inquiry form.
 - `contact.js`: structured inquiry validation, Work/Series/Lightbox context, mail draft generation, and toast feedback.
-- `server.py`: local static server; Supabase Auth/Profile/Session boundary with HttpOnly sessions and CSRF protection; protected Workspace Folder/Draft/readiness/submission/signed-upload APIs; scoped Supabase Review Queue/detail/assignment/start/decision proxy with strict DTO projection; public published Archive reads plus Admin+AAL2 legacy Archive mutations backed by `data/archive.db`.
+- `server.py`: local static server; Supabase Auth/Profile/Session boundary with HttpOnly sessions and CSRF protection; protected Dashboard aggregate and signed-preview projection; Workspace Folder/Draft/readiness/submission/signed-upload APIs; scoped Supabase Review Queue/detail/assignment/start/decision proxy with strict DTO projection; public published Archive reads plus Admin+AAL2 legacy Archive mutations backed by `data/archive.db`.
+- `database/migrations/20260722_user_dashboard.sql`: authenticated owner-scoped Dashboard read model with server-side counts, attention ordering, recent work/review activity, storage usage, and explicit capability flags.
+- `scripts/validate_user_dashboard.py` / `scripts/test_user_dashboard_boundary.py`: static Dashboard contract plus secret-free loopback route/RPC/DTO/signing integration.
+- `scripts/test_user_dashboard_database.py`: development-only, rollback-only PostgreSQL acceptance for Dashboard/Trash security metadata, exact ACLs, owner isolation, state filters, identity guards, and fixture cleanup.
 - `database/migrations/20260717_review_queue.sql`: transaction-wrapped Phase 3 Review Queue/RLS/Storage/RPC boundary for scoped list/detail, atomic assignment/start, versioned idempotent decisions, notifications, publication state, and append-only audit evidence.
 - `scripts/validate_review_queue_phase3.py`: static Review Queue contract validator for SQL permissions, server/UI boundary, project documentation, and CI wiring.
 - `scripts/test_review_queue_boundary.py`: secret-free fake-provider HTTP integration for identity/MFA/CSRF, queue/detail scopes, DTO allowlists, conflicts, idempotency, and Admin publish prechecks.

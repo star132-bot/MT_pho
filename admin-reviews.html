@@ -6,7 +6,7 @@
     <title>Review Queue | MT Presence</title>
     <meta name="description" content="Protected review queue for MT Presence submissions." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260720-review-queue-ui" />
+    <link rel="stylesheet" href="/styles.css?v=20260722-avatar-nav" />
   </head>
   <body class="admin-review-page">
     <a class="admin-review-skip" href="#admin-review-main">Skip to review workspace</a>
@@ -16,6 +16,11 @@
         <path d="m7 15 3.2-3.2a1.3 1.3 0 0 1 1.8 0L16 16" />
         <path d="m14 14 1.1-1.1a1.3 1.3 0 0 1 1.8 0L21 17" />
         <circle cx="8.5" cy="9.2" r="1.2" />
+      </symbol>
+      <symbol id="icon-home" viewBox="0 0 24 24">
+        <path d="m3 10.5 9-7.5 9 7.5" />
+        <path d="M5 9v12h14V9" />
+        <path d="M9 21v-7h6v7" />
       </symbol>
       <symbol id="icon-folder" viewBox="0 0 24 24">
         <path d="M3 6.8h6l2 2.4h10v8.6a1.7 1.7 0 0 1-1.7 1.7H4.7A1.7 1.7 0 0 1 3 17.8z" />
@@ -50,6 +55,10 @@
     <aside class="archive-rail admin-review-rail" aria-label="Admin platform navigation">
       <a class="archive-rail-brand" href="/" aria-label="Back to MT Presence home">MT</a>
       <nav class="archive-rail-nav" aria-label="Review workflow navigation">
+        <a class="archive-rail-button" href="/dashboard" aria-label="Dashboard">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-home"></use></svg>
+          <span class="archive-rail-copy">Dashboard</span>
+        </a>
         <a class="archive-rail-button" href="/works.html" aria-label="Works Archive">
           <svg class="ui-icon" aria-hidden="true"><use href="#icon-photo"></use></svg>
           <span class="archive-rail-copy">Works</span>
@@ -72,11 +81,11 @@
     </aside>
 
     <header class="site-header admin-review-header" aria-label="Review workspace navigation">
-      <a class="brand-mark" href="/" aria-label="Back to home"><span>MT</span><span>Admin Platform</span></a>
+      <a class="brand-mark" href="/dashboard" aria-label="Open Dashboard"><span>MT</span><span>Admin Platform</span></a>
       <nav class="site-nav" aria-label="Workflow navigation">
+        <a href="/dashboard">Dashboard</a>
         <a href="/workspace/images">Upload</a>
         <a href="/admin/reviews" aria-current="page">Review</a>
-        <a href="/settings/account">Account</a>
       </nav>
     </header>
 
@@ -118,7 +127,7 @@
         <p data-review-filter-summary aria-live="polite">Loading queue</p>
       </form>
 
-      <section class="admin-review-workspace" aria-label="Review submissions">
+      <section class="admin-review-workspace" aria-label="Review submissions" data-review-workspace data-mobile-view="queue">
         <aside class="admin-review-queue" aria-labelledby="review-list-title" aria-busy="true" data-review-queue>
           <header>
             <h2 id="review-list-title">Submissions</h2>
@@ -133,6 +142,12 @@
         </aside>
 
         <section class="admin-review-detail" aria-label="Review detail" aria-busy="false" data-review-detail-region>
+          <div class="admin-review-mobile-toolbar" aria-label="Review detail navigation">
+            <button type="button" data-review-back-to-queue>
+              <svg class="ui-icon" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+              <span>Back to queue</span>
+            </button>
+          </div>
           <div class="admin-review-detail-state" data-review-detail-state role="status" aria-atomic="true">
             <svg class="ui-icon" aria-hidden="true"><use href="#icon-pen"></use></svg>
             <h2 data-review-detail-state-title tabindex="-1">Select a submission</h2>
@@ -223,8 +238,10 @@
                     <span>Internal note</span>
                     <textarea name="internal_note" rows="3" maxlength="2000"></textarea>
                   </label>
-                  <p class="admin-review-form-notice" data-review-form-notice aria-live="polite"></p>
-                  <button class="button button-primary" type="submit" data-review-decision-submit>Submit Decision</button>
+                  <div class="admin-review-decision-footer">
+                    <p class="admin-review-form-notice" id="review-form-notice" data-review-form-notice role="alert" aria-live="assertive" aria-atomic="true"></p>
+                    <button class="button button-primary" type="submit" data-review-decision-submit>Submit Decision</button>
+                  </div>
                 </form>
 
               </aside>
@@ -247,6 +264,7 @@
     </dialog>
 
     <div class="contact-toast" role="status" aria-live="polite" aria-atomic="true" data-review-live></div>
-    <script src="/admin-reviews.js?v=20260720-review-queue-ui"></script>
+    <script src="/account-menu.js?v=20260722-avatar-nav"></script>
+    <script src="/admin-reviews.js?v=20260722-review-workflow-ui"></script>
   </body>
 </html>

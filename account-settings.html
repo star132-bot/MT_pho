@@ -6,7 +6,7 @@
     <title>Account Settings | MT Presence</title>
     <meta name="description" content="Manage your MT Presence profile, authorship preferences, and secure sessions." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260716-navigation-upload-ui" />
+    <link rel="stylesheet" href="/styles.css?v=20260722-avatar-nav" />
   </head>
   <body class="account-settings-page">
     <a class="auth-skip" href="#account-content">Skip to account settings</a>
@@ -15,6 +15,11 @@
       <symbol id="icon-folder" viewBox="0 0 24 24">
         <path d="M3 6.8h6l2 2.4h10v8.6a1.7 1.7 0 0 1-1.7 1.7H4.7A1.7 1.7 0 0 1 3 17.8z" />
         <path d="M3 8.8v-3a1.3 1.3 0 0 1 1.3-1.3h5.1l2 2.2" />
+      </symbol>
+      <symbol id="icon-home" viewBox="0 0 24 24">
+        <path d="m3 10.5 9-7.5 9 7.5" />
+        <path d="M5 9v12h14V9" />
+        <path d="M9 21v-7h6v7" />
       </symbol>
       <symbol id="icon-pen" viewBox="0 0 24 24">
         <path d="m4 20 4.3-1.1 10.4-10.4a2.1 2.1 0 0 0-3-3L5.3 15.9z" />
@@ -43,6 +48,10 @@
     <aside class="archive-rail account-settings-rail" aria-label="Workspace navigation">
       <a class="archive-rail-brand" href="/" aria-label="Back to MT Presence home">MT</a>
       <nav class="archive-rail-nav" aria-label="Workspace navigation">
+        <a class="archive-rail-button" href="/dashboard" aria-label="Dashboard">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-home"></use></svg>
+          <span class="archive-rail-copy">Dashboard</span>
+        </a>
         <a class="archive-rail-button" href="/works.html" aria-label="Works Archive">
           <svg class="ui-icon" aria-hidden="true"><use href="#icon-photo"></use></svg>
           <span class="archive-rail-copy">Works</span>
@@ -65,14 +74,14 @@
     </aside>
 
     <header class="site-header account-settings-header" aria-label="Workspace navigation">
-      <a class="brand-mark" href="/workspace/images" aria-label="Open images workspace">
+      <a class="brand-mark" href="/dashboard" aria-label="Open Dashboard">
         <span>MT</span>
         <span>Artist Workspace</span>
       </a>
       <nav class="site-nav" aria-label="Workspace navigation">
+        <a href="/dashboard">Dashboard</a>
         <a href="/workspace/images">Upload</a>
         <a href="/admin/reviews" data-admin-only hidden>Review</a>
-        <a href="/settings/account" aria-current="page">Account</a>
       </nav>
     </header>
 
@@ -84,7 +93,7 @@
           <p>Manage the identity, authorship defaults, and secure sessions connected to your work.</p>
         </div>
         <div class="account-identity-summary" data-account-summary hidden>
-          <span class="account-avatar" aria-hidden="true" data-account-initials>MT</span>
+          <a class="account-avatar" href="#profile" aria-label="Open personal information" data-account-initials>MT</a>
           <span class="account-identity-copy">
             <strong data-account-display-name>Member</strong>
             <small data-account-email></small>
@@ -269,6 +278,7 @@
       </form>
     </dialog>
 
-    <script src="/account-settings.js?v=20260714-account-settings"></script>
+    <script src="/account-menu.js?v=20260722-avatar-nav"></script>
+    <script src="/account-settings.js?v=20260722-account-menu"></script>
   </body>
 </html>

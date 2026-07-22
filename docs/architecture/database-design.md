@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-Phase 2A-2F 已把账户 owner-scoped Folder、Upload Intent、Draft、Version、Asset metadata、可靠取消/清理、private Supabase Storage、权威 readiness、Submit transaction 与可信 asset scanner 接入当前 development boundary。Phase 3 Supabase Review Queue/Detail/decision migration 与 Web 边界已部署到 development，并通过 rollback-only 角色/AAL/RLS/Storage/CAS/幂等/通知/审计验收及三组双会话并发验收；真实浏览器多身份验收仍是发布门禁。公开 Works 与 legacy Review Center 仍使用本地 SQLite/sample；不要下载 MySQL，也不要执行历史 `database/schema.sql` 作为当前 production baseline。
+Phase 2A-2G 已把账户 owner-scoped Folder、Upload Intent、Draft、Version、Asset metadata、可靠取消/清理、private Supabase Storage、权威 readiness、Submit transaction、可信 asset scanner 与 Trash/Restore 接入当前 development boundary，并新增 authenticated-only User Dashboard 聚合。Phase 3 Supabase Review Queue/Detail/decision migration 与 Web 边界已部署到 development；rollback-only 角色/AAL/RLS/Storage/CAS/幂等/通知/审计、三组双会话并发，以及 2026-07-22 真实 disposable Reviewer/Admin 多身份浏览器验收全部通过。Dashboard/Trash rollback-only 真库验收的 9 个 marker 同样通过：`dashboard_image_json(uuid)` 精确为 `postgres` owner-only，`get_my_dashboard()` 与 `workspace_list_trashed_drafts()` 精确为 `postgres + authenticated`。公开 Works 与 legacy Review Center 仍使用本地 SQLite/sample；不要下载 MySQL，也不要执行历史 `database/schema.sql` 作为当前 production baseline。
 
 `server.py` 同时维护三条明确分离的边界：`/api/folders`、`/api/uploads/*`、`/api/images*` 是 Supabase Workspace/Submit；`/api/admin/review-submissions*` 是 scoped Supabase Review Queue/Detail/assignment/start/decision；`/api/archive/images*` 是 Admin+AAL2 legacy SQLite Review/public prototype。`admin-reviews.html` 只使用第二条边界，`manage.html` 仍不读取 Supabase `review_submissions`。Contact 页面使用 `mailto:`，不保存本地消息。
 
@@ -34,7 +34,7 @@ python3 scripts/validate_local_archive_db.py
 
 ## 目标
 
-当前 Supabase 已保存私人 Draft，能权威计算 readiness、创建 immutable submission snapshots、锁定 submitted workflow，并由已部署的独立 Review Queue 边界执行 assignment/start/decision；双会话并发已通过，剩余门禁是真实浏览器多身份验收，之后再把 public delivery、公开 Works、sample/import 和首页精选迁移到同一 production boundary。关系数据库保存 metadata、状态和对象 key，真实图片文件保存在 Supabase Storage。
+当前 Supabase 已保存私人 Draft，能权威计算 readiness、创建 immutable submission snapshots、锁定 submitted workflow，并由已部署的独立 Review Queue 边界执行 assignment/start/decision；数据库、并发和真实多身份浏览器验收均已通过。下一条真实未完成链路是 public derivative delivery、公开 Works 数据源迁移，以及公开 creator profile/editor；之后再把 sample/import 和首页精选迁移到同一 production boundary。关系数据库保存 metadata、状态和对象 key，真实图片文件保存在 Supabase Storage。
 
 核心要求：
 
@@ -59,7 +59,7 @@ python3 scripts/validate_local_archive_db.py
 
 Archive 页面展示时读取 `archive_image_view.image_url`。该字段优先使用 `display` 的 URL，没有 `display` 时才 fallback 到 `original`。`thumbnail` 只用于列表和后台，不作为作品主展示图。`images.original_width` / `images.original_height` 永远来自 `original`，不能被压缩后的 `display` 尺寸覆盖。
 
-当前 Upload Studio 在浏览器生成 `original`、`display`、`thumbnail`，服务端创建 `{auth.uid}/{image_id}/{kind}.{ext}` signed destination，浏览器直传 private Storage，再由 complete RPC 创建 Draft/version/asset rows。Folder/Draft/readiness/Submit 以 PostgreSQL 为 authority，IndexedDB 只缓存最近成功响应。上传永远不会直接 published；成功 Submit 只进入 `submitted`，之后由独立 Supabase Review Queue 领取并决定。真实 asset 初始 `scan_status=pending`，Phase 2F 独立 worker 通过仅授予 service_role 的 leased RPC 读取并验证 private object，只有三个资产都以当前 policy 明确 `clean` 才允许 Submit；当前没有 user quota/capacity policy。Trash 是 soft delete，restore RPC/API 已有而页面待实现。公开 Works 仍未消费 Supabase publication DTO，所以浏览器不提供 Approve and Publish。
+当前 Upload Studio 在浏览器生成 `original`、`display`、`thumbnail`，服务端创建 `{auth.uid}/{image_id}/{kind}.{ext}` signed destination，浏览器直传 private Storage，再由 complete RPC 创建 Draft/version/asset rows。Folder/Draft/readiness/Submit 以 PostgreSQL 为 authority，IndexedDB 只缓存最近成功响应。上传永远不会直接 published；成功 Submit 只进入 `submitted`，之后由独立 Supabase Review Queue 领取并决定。真实 asset 初始 `scan_status=pending`，Phase 2F 独立 worker 通过仅授予 service_role 的 leased RPC 读取并验证 private object，只有三个资产都以当前 policy 明确 `clean` 才允许 Submit；当前没有 user quota/capacity policy。Trash 是 soft delete，owner-scoped Trash view 与 Restore/Inbox fallback 已实现并通过真库与浏览器验收。公开 Works 仍未消费 Supabase publication DTO，所以浏览器不提供 Approve and Publish。
 
 ## 文件
 
@@ -77,9 +77,13 @@ Archive 页面展示时读取 `archive_image_view.image_url`。该字段优先�
 - `database/migrations/20260716_workspace_submit_readiness.sql`：Phase 2E 增量；增加 submission UUID/readiness/asset snapshots 和 immutability guards，安装五项 readiness 与 versioned Submit RPC，收紧 submission table/Storage delete 权限，并把 workflow、notification、audit 写入同一事务。
 - `database/migrations/20260717_workspace_asset_scanner.sql`：Phase 2F 增量；新增 restricted leased jobs、append-only events、INSERT enqueue trigger、SKIP LOCKED claim、token-bound retry/complete、attempt exhaustion、Storage object/观察值校验、scan notification/audit，并只向 service_role 授予三条 RPC 的 EXECUTE。
 - `database/migrations/20260717_review_queue.sql`：Phase 3 增量；新增 scoped list/detail、atomic assignment/start 与 versioned/idempotent decision RPC，禁止 self-review，收紧 role-stacking RLS、current-clean private Storage bucket-kind/lifecycle、direct table/函数 ACL，并在事务内保存非空 expected version/result snapshot、notification 与覆盖 assignment/workflow/asset visibility 的真实 before/after audit。
+- `database/migrations/20260722_user_dashboard.sql`：User Dashboard 聚合读模型；`dashboard_image_json(uuid)` 仅供 `postgres` owner 内部调用，`get_my_dashboard()` 仅授权 `postgres + authenticated`，拒绝 recovery session 并返回 owner-scoped counts/attention/recent/review/storage/capabilities。
+- `database/migrations/20260722_workspace_trash_restore.sql`：Phase 2G owner-scoped Trash 列表；`workspace_list_trashed_drafts()` 仅授权 `postgres + authenticated`，拒绝 recovery session，只返回当前 owner 的 soft-deleted editable Draft。
+- `scripts/test_user_dashboard_database.py`：development-only、rollback-only Dashboard/Trash 真库验收；9 个 marker 覆盖三个函数的安全元数据与精确 ACL、聚合结果、owner 隔离、identity guards、Trash owner/state filter、事务回滚和独立 fixture absence。
 - `scripts/validate_review_queue_phase3.py` / `scripts/test_review_queue_boundary.py`：Review SQL/UI/API/CI 静态合同和 secret-free fake-provider HTTP 回归。
 - `scripts/test_review_queue_database.sql`：development-only、rollback-only 数据库验收；真实覆盖 User/Reviewer/stacked Admin AAL1/Admin AAL2、self-review、direct RLS、current-scan Storage 生命周期、CAS、Approve 后 Publish 仍稳定的 same-payload replay、冲突重放、notification 与 audit。
 - `scripts/test_review_queue_concurrency.py`：development-only committed-fixture 双会话验收；启动六个独立 `psql` 会话并确保每组竞争使用不同 backend PID，覆盖 Start/claim、不同 key CAS 和 same-key replay 竞争，并在运行前后清理 fixture。
+- `scripts/test_review_queue_browser.py`：development-only 真实 disposable 多身份浏览器验收；覆盖 Reviewer A claim、Reviewer B 越权拒绝、Request Changes、Admin AAL2 Approve、三类 private asset、桌面/移动 responsive、focus/dialog、console/session 与 fixture cleanup。
 - `workers/scan_adapters.py` / `workers/image_scanner.py` / `workers/image_probe.py`：不进入 Web 进程的 trusted scanner；使用隔离的高权限 secret 下载 private object，拒绝 redirect 并核对 size/checksum/magic；ClamAV 与 Pillow 在无凭据子进程中执行，完整 decode/EXIF-oriented dimensions 受 time/resource limit 约束，明确区分 terminal failure 与 transient retry。
 
 ## 数据表
@@ -328,8 +332,8 @@ Supabase 当前规则：
 
 1. 当前已完成本地读取连接：`server.py` 读取 `data/archive.db`，`works.html` / `archive.js` 优先消费 `/api/archive/images`。
 2. 当前已完成本地既有作品 metadata/tag 写入连接：`manage.js` 保存 seed 作品时调用 `PATCH /api/archive/images/{id}`。
-3. 已完成 `database/product_schema.sql` + Phase 1 RLS/Auth + Phase 2A-2F ordered Workspace migrations 的当前 development boundary。
-4. 已完成 owner-scoped signed upload、Folder、Draft edit/list、soft-delete Trash、双并发 Retry/Cancel/Remove、partial-object cleanup、五项 readiness、idempotent Submit transaction，以及独立 trusted scanner 的 leased/retry/clean/flagged/failed 代码与数据库状态机；development 常驻 Worker 仍需 provision scanner secret 与 ClamAV 后才会自动消费当前 queued jobs。
-5. `/admin/reviews` 的 scoped Queue/Detail、原子 assignment/start、versioned/idempotent decisions、notification/audit 与 private signed asset 边界已部署 development；rollback-only 与双会话真实数据库验收均通过，下一门禁是真实浏览器多身份验收。
-6. 后续先实现 published-only production DTO、derivative public delivery 和公开 Works 数据源迁移，再向浏览器开放真实的 Admin+AAL2 Approve and Publish；legacy `manage.html` 在迁移完成前保持 SQLite 原型。
+3. 已完成 `database/product_schema.sql` + Phase 1 RLS/Auth + Phase 2A-2G ordered Workspace migrations 的当前 development boundary。
+4. 已完成 owner-scoped signed upload、Folder、Draft edit/list、soft-delete Trash/Restore、双并发 Retry/Cancel/Remove、partial-object cleanup、五项 readiness、idempotent Submit transaction、User Dashboard aggregate，以及独立 trusted scanner 的 leased/retry/clean/flagged/failed 代码与数据库状态机；Dashboard/Trash 真库 9-marker 验收通过。development scanner 已具备隔离 secret 与 ClamAV 运行条件，production 常驻 Worker、监控与告警仍需交付。
+5. `/admin/reviews` 的 scoped Queue/Detail、原子 assignment/start、versioned/idempotent decisions、notification/audit 与 private signed asset 边界已部署 development；rollback-only、双会话并发和真实 disposable 多身份浏览器验收均通过。
+6. 后续先实现 published-only production DTO、derivative public delivery 和公开 Works 数据源迁移，再向浏览器开放真实的 Admin+AAL2 Approve and Publish；同时补公开 creator profile/editor，legacy `manage.html` 在迁移完成前保持 SQLite 原型。
 7. 再补 scheduled orphan repair、user quota/rate limit、TUS、Withdraw/Escalate/Quarantine 与运营筛选，最后迁移 `sampleItems`、首页精选、真实 AI 分析和仍被产品确认需要的 square slice/tag 能力。

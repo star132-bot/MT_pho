@@ -6,7 +6,7 @@
 - 设计语言：本文档使用中文；页面可见 UI、代码、数据库字段、API、事件名和开发注释使用英文。
 - 需求优先级：本文档是用户系统、上传工作台和管理员平台的唯一主规格；需求冲突时以本文为准。
 - 明确取消：目标产品不需要公开 `Series` 功能；`collections.html`、`collections.js`、`series-data.js` 在后续实施中应从导航和运行时移除，不在本轮文档阶段直接删除代码。
-- 当前实现基线（2026-07-20）：Supabase Auth/Account、owner-scoped Upload Workspace、Draft autosave/CAS、五项 server-authoritative readiness、idempotent Submit transaction、trusted asset scanner，以及独立的 Supabase Admin Review Queue/Detail/decision 已实现并部署 development。Reviewer 只能领取不属于自己的公共 Submitted 或处理自己的 open non-self assignment，任何角色都不能 self-review；Admin/Super Admin 必须达到 AAL2 才能查看完整授权历史。决定使用 current `lock_version` 和 UUID idempotency key，并把首次完整结果保存为 immutable replay snapshot，同时写 notification/audit；rollback-only 真实数据库测试已覆盖角色/AAL/RLS/Storage/CAS/幂等与审计，六个独立 `psql` 会话的三组 Start/decision 双会话 race 也已通过，每组使用不同 backend PID 且 fixture 已清理，真实浏览器多身份验收仍是门禁。Review asset 只允许 current scan policy 的 clean object 获得短时签名。真实 asset 仍以 `scan_status=pending` 创建，development 尚未运行常驻 Scanner Worker。公开 Works 和 legacy `manage.html` 继续读取 SQLite，因而浏览器暂不显示 Approve and Publish，也不宣称 Approve 已公开。
+- 当前实现基线（2026-07-22）：Supabase Auth/Account、owner-scoped Upload Workspace、Draft autosave/CAS、Trash/Restore、五项 server-authoritative readiness、idempotent Submit transaction、trusted asset scanner、User Dashboard aggregate，以及独立的 Supabase Admin Review Queue/Detail/decision 已实现并部署 development。Reviewer 只能领取不属于自己的公共 Submitted 或处理自己的 open non-self assignment，任何角色都不能 self-review；Admin/Super Admin 必须达到 AAL2 才能查看完整授权历史。决定使用 current `lock_version` 和 UUID idempotency key，并把首次完整结果保存为 immutable replay snapshot，同时写 notification/audit；rollback-only 真实数据库测试已覆盖角色/AAL/RLS/Storage/CAS/幂等与审计，六个独立 `psql` 会话的三组 Start/decision 双会话 race 也已通过，每组使用不同 backend PID 且 fixture 已清理。真实 disposable 多身份浏览器验收已通过 Reviewer A claim、Reviewer B 越权拒绝、Request Changes、Admin AAL2 Approve、private original/display/thumbnail、responsive/focus/console 和 fixture cleanup。Dashboard/Trash 真库验收的 9 个 marker 全部通过：helper `dashboard_image_json(uuid)` 仅 `postgres` owner 可执行，`get_my_dashboard()` 与 `workspace_list_trashed_drafts()` 仅 `postgres + authenticated`。Review asset 只允许 current scan policy 的 clean object 获得短时签名；真实 asset 仍以 `scan_status=pending` 创建，production 常驻 Scanner Worker 与监控尚未交付。公开 Works 和 legacy `manage.html` 继续读取 SQLite，公开 derivative delivery、Works 数据源迁移与公开 creator profile/editor 尚未完成，因而浏览器暂不显示 Approve and Publish，也不宣称 Approve 已公开。
 
 ## 2. 产品目标
 
@@ -114,13 +114,13 @@ Register / Sign in
 | `Sign In` | `/auth/sign-in` | 登录入口 |
 | `Create Account` | `/auth/register` | 用户注册 |
 
-公开导航建议：`Works / About / Contact / Sign In`。登录后用头像菜单替换 Sign In，菜单内进入 `Workspace` 和 `Account Settings`。
+公开导航建议：`Works / About / Contact / Sign In`。登录后 Sign In 替换为 initials 头像，点击直接进入 `/settings/account#profile`；内部页面同样以头像进入个人信息，并用相邻独立菜单按钮进入 `Dashboard`、`Workspace`、`Account Settings` 和有权限时的 `Review`。
 
 ### 5.2 用户工作区
 
 | Page | Route | 职责 |
 | --- | --- | --- |
-| `Dashboard` | `/workspace` | 用户作品状态和最近活动总览 |
+| `Dashboard` | `/dashboard` | 用户作品状态和最近活动总览；`/workspace` 规范化到此路由 |
 | `Upload Workspace` | `/workspace/images` | 上传、文件夹、草稿、图片信息编辑 |
 | `Image Editor` | `/workspace/images/{id}` | 单张图片完整文案和权利信息 |
 | `Notifications` | `/workspace/notifications` | 审核、失败和下架通知 |
@@ -527,6 +527,7 @@ Submit 后：
 - Changes Requested 永远优先于普通 recent activity。
 - 空账号只显示 Import Images 和基础账号完成提示。
 - Dashboard 不承担图片完整编辑。
+- 当前实现通过 authenticated-only `get_my_dashboard()` 聚合以上状态；浏览器只读取稳定 DTO 和短期签名 thumbnail。尚未配置的 storage quota 与尚未接通的 public delivery 必须显示为 unavailable，不能伪造数字或公开 Portfolio。
 
 ## 10. Admin Platform 详细设计
 
@@ -1242,6 +1243,7 @@ SQLite + 静态页面适合本地原型，不适合作为多用户生产系统�
 - Folder CRUD、Inbox、Drafts、Trash。
 - Duplicate detection、quota、scan state。
 - Phase 2F 代码与数据库已完成：leased scan jobs、private object integrity、无凭据 ClamAV/Pillow subprocess、retry/attempt exhaustion、append-only events 与 current-policy readiness projection；常驻 Worker 部署和监控属于生产运行工作。
+- Phase 2G 已完成：owner-scoped Trash read model、Drafts/Trash 分段视图、versioned Restore 和原 Folder 失效时回退 Inbox；fake-provider、桌面/移动浏览器与 rollback-only 真库验收均通过。
 
 验收：刷新/换设备可恢复 Draft；Folder 不影响公开 metadata；Draft 不公开。
 
@@ -1249,7 +1251,7 @@ SQLite + 静态页面适合本地原型，不适合作为多用户生产系统�
 
 - 已完成 Phase 2E：server-authoritative readiness、immutable image version/submission snapshots、expected-version + UUID idempotency、notification/audit transaction 和 Upload Studio Submit UI。
 - 已完成并向 development 部署 Supabase Review Queue、status/assignment filter、atomic assignment/start、image-first Review Detail、checklist，以及 Request Changes、Reject、Approve；Reviewer 与 Admin+AAL2 使用不同的最小权限范围。
-- 决定采用 current-version compare-and-swap、same-payload immutable result replay、immutable decision、Review notification 和 append-only audit；migration 已部署 development，rollback-only 数据库验收、三组双会话并发 race，以及 secret-free fake-provider 桌面/移动浏览器验收均已通过。剩余发布门禁是真实 disposable Reviewer/Admin 多身份浏览器验收。
+- 决定采用 current-version compare-and-swap、same-payload immutable result replay、immutable decision、Review notification 和 append-only audit；migration 已部署 development，rollback-only 数据库验收、三组双会话并发 race、secret-free fake-provider 桌面/移动浏览器，以及 2026-07-22 真实 disposable Reviewer/Admin 多身份浏览器验收均已通过。真实流程覆盖 Reviewer A claim、Reviewer B cross-assignment denial、Request Changes、Admin AAL2 Approve、private 三变体、responsive/focus/console、session close 与 fixture cleanup。
 - `approve_and_publish` 仅保留在 Admin+AAL2 数据库/API 边界，浏览器不显示；必须先完成 Supabase public DTO、derivative delivery 和公开 Works 数据源迁移，才能把该动作作为真实用户能力开放。
 - Escalate、Quarantine、Withdraw、批量分配、风险/日期/类别/release filters 与生产 SLA/通知投递保留给后续切片。
 
@@ -1259,7 +1261,7 @@ SQLite + 静态页面适合本地原型，不适合作为多用户生产系统�
 
 - Admin All Images/Image Detail。
 - Users/User Detail、suspend/ban/session revoke/quota。
-- 用户 Unpublish、Trash/Restore。
+- 用户 Unpublish；Trash/Restore 已由 Phase 2G 完成。
 - Admin Quarantine/Takedown/Restore。
 - Audit Log。
 

@@ -7,9 +7,10 @@ private Storage boundaries through ``server.py``.  A process-held advisory
 lock prevents overlapping runs.  Fixed object paths and fixture UUIDs make an
 interrupted run recoverable by the next invocation.
 
-Stdout contains only stable yes/no markers.  Provider bodies, browser output,
-credentials, tokens, TOTP material, private keys, and Storage keys are never
-printed.  Every cleanup action is attempted independently in ``finally``.
+Stdout contains stable yes/no markers plus one bounded failure-stage code.
+Provider bodies, browser output, credentials, tokens, TOTP material, private
+keys, and Storage keys are never printed.  Every cleanup action is attempted
+independently in ``finally``.
 """
 
 from __future__ import annotations
@@ -760,8 +761,10 @@ insert into public.review_submissions (
   status, assigned_reviewer_id, policy_version, lock_version,
   readiness_snapshot, asset_snapshot
 )
-select '{SUBMISSION_IDS[0]}', '{IMAGE_IDS[0]}', '{VERSION_IDS[0]}', '{OWNER_ID}',
-       '{SUBMIT_KEYS[0]}', 'submitted', null, '{REVIEW_POLICY}', 1,
+select '{SUBMISSION_IDS[0]}'::uuid, '{IMAGE_IDS[0]}'::uuid,
+       '{VERSION_IDS[0]}'::uuid, '{OWNER_ID}'::uuid,
+       '{SUBMIT_KEYS[0]}'::uuid, 'submitted'::public.submission_status,
+       null::uuid, '{REVIEW_POLICY}', 1,
        '{readiness_one}'::jsonb,
        (select jsonb_agg(jsonb_build_object(
           'id', a.id, 'kind', a.kind, 'mime_type', a.mime_type,
@@ -771,8 +774,10 @@ select '{SUBMISSION_IDS[0]}', '{IMAGE_IDS[0]}', '{VERSION_IDS[0]}', '{OWNER_ID}'
         ) order by case a.kind when 'original' then 1 when 'display' then 2 else 3 end)
         from public.image_assets a where a.image_id = '{IMAGE_IDS[0]}')
 union all
-select '{SUBMISSION_IDS[1]}', '{IMAGE_IDS[1]}', '{VERSION_IDS[1]}', '{OWNER_ID}',
-       '{SUBMIT_KEYS[1]}', 'submitted', null, '{REVIEW_POLICY}', 1,
+select '{SUBMISSION_IDS[1]}'::uuid, '{IMAGE_IDS[1]}'::uuid,
+       '{VERSION_IDS[1]}'::uuid, '{OWNER_ID}'::uuid,
+       '{SUBMIT_KEYS[1]}'::uuid, 'submitted'::public.submission_status,
+       null::uuid, '{REVIEW_POLICY}', 1,
        '{readiness_two}'::jsonb,
        (select jsonb_agg(jsonb_build_object(
           'id', a.id, 'kind', a.kind, 'mime_type', a.mime_type,
@@ -1012,17 +1017,30 @@ class Browser:
             return False
         return "MT_ACCEPT_YES" in json.dumps(payload, separators=(",", ":"))
 
-    def assert_condition(self, session: str, expression: str) -> None:
+    def assert_condition(
+        self,
+        session: str,
+        expression: str,
+        *,
+        failure_code: str = "browser_assertion_failed",
+    ) -> None:
         if not self.condition(session, expression):
-            raise AcceptanceError("browser_assertion_failed")
+            raise AcceptanceError(failure_code)
 
-    def wait_condition(self, session: str, expression: str, *, timeout: float = 25.0) -> None:
+    def wait_condition(
+        self,
+        session: str,
+        expression: str,
+        *,
+        timeout: float = 25.0,
+        failure_code: str = "browser_wait_timeout",
+    ) -> None:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if self.condition(session, expression):
                 return
             time.sleep(0.25)
-        raise AcceptanceError("browser_wait_timeout")
+        raise AcceptanceError(failure_code)
 
     def close(self, session: str) -> bool:
         try:
@@ -1136,20 +1154,106 @@ def login_admin_aal2(
     browser.wait_condition(session, "location.pathname.startsWith('/admin/reviews')", timeout=35)
 
 
-def no_horizontal_overflow(browser: Browser, session: str) -> None:
+def no_horizontal_overflow(browser: Browser, session: str, failure_code: str) -> None:
     browser.assert_condition(
         session,
         "document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1",
+        failure_code=failure_code,
     )
 
 
 def responsive_check(browser: Browser, session: str) -> None:
-    browser.command(session, "set", "viewport", "1440", "900")
-    no_horizontal_overflow(browser, session)
+    browser.command(session, "set", "viewport", "1440", "1000")
+    no_horizontal_overflow(browser, session, "responsive_desktop_horizontal_overflow")
+    browser.assert_condition(
+        session,
+        "getComputedStyle(document.querySelector('[data-review-image-stage]').closest('.admin-review-media')).alignSelf === 'start' && "
+        "getComputedStyle(document.querySelector('.admin-review-inspector')).alignSelf === 'start'",
+        failure_code="responsive_desktop_panel_alignment",
+    )
+    browser.assert_condition(
+        session,
+        "Array.from(document.querySelectorAll('.admin-review-asset-meta dt, .admin-review-readiness li, .admin-review-history li, .admin-review-check-item')).every((item) => parseFloat(getComputedStyle(item).fontSize) >= 12)",
+        failure_code="responsive_desktop_supporting_text_size",
+    )
+    browser.assert_condition(
+        session,
+        "Array.from(document.querySelectorAll('.admin-review-asset-meta dd, .admin-review-definition-list dd, .admin-review-history p, .admin-review-decision select, .admin-review-decision textarea')).every((item) => parseFloat(getComputedStyle(item).fontSize) >= 13)",
+        failure_code="responsive_desktop_evidence_text_size",
+    )
     browser.command(session, "set", "viewport", "390", "844")
     browser.command(session, "wait", "200")
-    no_horizontal_overflow(browser, session)
-    browser.command(session, "set", "viewport", "1440", "900")
+    no_horizontal_overflow(browser, session, "responsive_mobile_horizontal_overflow")
+    browser.assert_condition(
+        session,
+        "document.querySelector('[data-review-workspace]')?.dataset.mobileView === 'detail'",
+        failure_code="responsive_mobile_detail_state",
+    )
+    browser.assert_condition(
+        session,
+        "document.querySelector('[data-review-back-to-queue]')?.getClientRects().length === 1",
+        failure_code="responsive_mobile_back_button_hidden",
+    )
+    browser.command(session, "set", "viewport", "1440", "1000")
+
+
+def queue_accessibility_check(browser: Browser, session: str) -> None:
+    browser.assert_condition(
+        session,
+        "document.querySelectorAll('[data-review-submission]').length > 0",
+        failure_code="queue_accessibility_items_missing",
+    )
+    browser.assert_condition(
+        session,
+        "(() => {const labels = Array.from(document.querySelectorAll('[data-review-submission]'), (button) => button.getAttribute('aria-label') || ''); return labels.every(Boolean) && new Set(labels).size === labels.length;})()",
+        failure_code="queue_accessibility_labels_missing_or_duplicate",
+    )
+    browser.assert_condition(
+        session,
+        "(() => {"
+        "const buttons = Array.from(document.querySelectorAll('[data-review-submission]'));"
+        "return buttons.every((button) => {"
+        "const label = button.getAttribute('aria-label') || '';"
+        "const title = button.querySelector('strong')?.textContent.trim() || '';"
+        "const status = button.querySelector('.admin-review-list-status')?.textContent.trim() || '';"
+        "const ownerAndWait = button.querySelector('.admin-review-list-meta')?.textContent.trim().split(' · ') || [];"
+        "return Boolean(title && status && ownerAndWait[0] && ownerAndWait[1]) && label.includes(title) && label.includes(status) && label.includes(ownerAndWait[0]) && label.includes(ownerAndWait[1]) && /submission ending [A-F0-9]{8}$/.test(label);"
+        "});"
+        "})()",
+        failure_code="queue_accessibility_label_contract",
+    )
+
+
+def mobile_queue_navigation_check(browser: Browser, session: str) -> None:
+    browser.command(session, "set", "viewport", "390", "844")
+    browser.command(
+        session,
+        "eval",
+        "window.__mtReviewDetailRoute = location.href",
+    )
+    browser.command(session, "click", "[data-review-back-to-queue]")
+    browser.wait_condition(
+        session,
+        "document.querySelector('[data-review-workspace]')?.dataset.mobileView === 'queue' && "
+        "document.querySelector('[data-review-queue]')?.getClientRects().length === 1 && "
+        "document.querySelector('[data-review-detail-region]')?.getClientRects().length === 0 && "
+        "location.href === window.__mtReviewDetailRoute && "
+        "document.activeElement === document.querySelector('[data-review-submission][aria-current=true]')",
+        failure_code="mobile_navigation_queue_state_or_focus",
+    )
+    browser.command(session, "click", "[data-review-submission][aria-current=true]")
+    browser.wait_condition(
+        session,
+        "document.querySelector('[data-review-workspace]')?.dataset.mobileView === 'detail' && "
+        "document.querySelector('[data-review-detail-region]')?.getClientRects().length === 1 && "
+        "document.querySelector('[data-review-queue]')?.getClientRects().length === 0 && "
+        "document.querySelector('[data-review-detail]')?.hidden === false && "
+        "location.href === window.__mtReviewDetailRoute",
+        timeout=30,
+        failure_code="mobile_navigation_detail_state_or_route",
+    )
+    no_horizontal_overflow(browser, session, "mobile_navigation_horizontal_overflow")
+    browser.command(session, "set", "viewport", "1440", "1000")
 
 
 def private_image_check(browser: Browser, session: str, supabase_url: str) -> None:
@@ -1159,16 +1263,23 @@ def private_image_check(browser: Browser, session: str, supabase_url: str) -> No
         "document.querySelector('[data-review-image]')?.complete === true && "
         "document.querySelector('[data-review-image]')?.naturalWidth > 0",
         timeout=30,
+        failure_code="private_image_primary_not_loaded",
     )
     browser.wait_condition(
         session,
         "Array.from(document.images).filter((image) => image.getAttribute('src')).every((image) => image.complete && image.naturalWidth > 0)",
         timeout=30,
+        failure_code="private_image_variant_not_loaded",
     )
     browser.assert_condition(
         session,
-        f"new URL(document.querySelector('[data-review-image]').src).host === {json.dumps(origin)} && "
-        "document.querySelectorAll('[data-asset-kind]').length === 3",
+        f"new URL(document.querySelector('[data-review-image]').src).host === {json.dumps(origin)}",
+        failure_code="private_image_signed_host_mismatch",
+    )
+    browser.assert_condition(
+        session,
+        "(() => {const kinds = Array.from(document.querySelectorAll('[data-review-asset-switcher] [data-asset-kind]'), (button) => button.dataset.assetKind).sort(); return kinds.length === 3 && kinds.join(',') === 'display,original,thumbnail';})()",
+        failure_code="private_image_variant_count_mismatch",
     )
 
 
@@ -1240,6 +1351,19 @@ def complete_checklist(browser: Browser, session: str) -> None:
         browser.command(session, "check", f"[data-review-checklist] [name={name}]")
 
 
+def exercise_checklist_alert(browser: Browser, session: str) -> None:
+    browser.command(session, "click", "[data-review-decision-submit]")
+    browser.wait_condition(
+        session,
+        "document.activeElement === document.querySelector('[data-review-checklist] input:not(:checked)') && "
+        "document.activeElement.getAttribute('aria-invalid') === 'true' && "
+        "document.activeElement.getAttribute('aria-describedby') === 'review-form-notice' && "
+        "document.querySelector('#review-form-notice')?.getAttribute('role') === 'alert' && "
+        "document.querySelector('#review-form-notice')?.getAttribute('aria-live') === 'assertive' && "
+        "document.querySelector('[data-review-dialog]')?.open !== true",
+    )
+
+
 def exercise_dialog_focus(browser: Browser, session: str) -> None:
     browser.command(session, "click", "[data-review-decision-submit]")
     browser.wait_condition(session, "document.querySelector('[data-review-dialog]')?.open === true")
@@ -1308,7 +1432,9 @@ def reviewer_a_claim(
         f"in_review|{reviewer_id}",
     )
     private_image_check(browser, session, required(values, "SUPABASE_URL"))
+    queue_accessibility_check(browser, session)
     responsive_check(browser, session)
+    mobile_queue_navigation_check(browser, session)
     browser_diagnostics_clean(browser, session)
     clear_browser_diagnostics(browser, session)
     return True, True, True, True, True
@@ -1333,6 +1459,7 @@ def reviewer_a_request_changes(
         "[data-review-decision-form] textarea[name=internal_note]",
         "Phase 3 browser acceptance request changes.",
     )
+    exercise_checklist_alert(browser, session)
     complete_checklist(browser, session)
     exercise_dialog_focus(browser, session)
     confirm_decision(browser, session)
@@ -1411,7 +1538,9 @@ def admin_acceptance(
         timeout=35,
     )
     private_image_check(browser, session, required(values, "SUPABASE_URL"))
+    queue_accessibility_check(browser, session)
     responsive_check(browser, session)
+    mobile_queue_navigation_check(browser, session)
     click_dialog_action(browser, session, "assign")
     browser.wait_condition(
         session,
@@ -1513,6 +1642,7 @@ def main() -> int:
     server: subprocess.Popen[bytes] | None = None
     reviewer_ids: set[str] = set()
     acceptance_ok = False
+    failure_stage = "none"
 
     with tempfile.TemporaryDirectory(prefix="mt-phase3-browser-") as temporary_directory:
         config_path = Path(temporary_directory) / "agent-browser.json"
@@ -1618,14 +1748,17 @@ def main() -> int:
                     "review_browser_console_clean",
                 )
             )
+        except AcceptanceError as error:
+            failure_stage = str(error) or "acceptance_error"
+            acceptance_ok = False
         except (
-            AcceptanceError,
             OSError,
             ValueError,
             KeyError,
             TypeError,
             subprocess.SubprocessError,
-        ):
+        ) as error:
+            failure_stage = f"unexpected_{type(error).__name__.lower()}"
             acceptance_ok = False
         finally:
             try:
@@ -1652,14 +1785,16 @@ def main() -> int:
     )
     for name in MARKER_ORDER:
         print(f"{name}={'yes' if markers[name] else 'no'}")
+    print(f"review_browser_failure_stage={failure_stage}")
     return 0 if markers["review_browser_acceptance"] else 1
 
 
 if __name__ == "__main__":
     try:
         exit_code = main()
-    except (Exception, KeyboardInterrupt):
+    except (Exception, KeyboardInterrupt) as error:
         for marker_name in MARKER_ORDER:
             print(f"{marker_name}=no")
+        print(f"review_browser_failure_stage=unexpected_{type(error).__name__.lower()}")
         exit_code = 1
     raise SystemExit(exit_code)

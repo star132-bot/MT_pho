@@ -71,20 +71,28 @@ MT_TEST_ENVIRONMENT=development python3 scripts/test_review_queue_concurrency.py
 
 It must print all five `review_concurrency_*=yes` markers, including `review_concurrency_distinct_backends=yes` and `review_concurrency_fixtures_cleaned=yes`. Never set `MT_TEST_ENVIRONMENT=development` for a production database.
 
-## Manual Browser Acceptance
+## Real Browser Acceptance
 
-Secret-free fake-provider acceptance passed on 2026-07-20 at `1440 x 1000` and `390 x 844`: signed images rendered, mobile document width matched the viewport, missing fields/checklist restored useful focus, the confirmation dialog focused Cancel and restored its opener on Escape, and the browser reported no console/page errors. Real disposable Reviewer/Admin sessions remain required before release.
+Secret-free fake-provider acceptance passed on 2026-07-20 at `1440 x 1000` and `390 x 844`: signed images rendered, mobile document width matched the viewport, missing fields/checklist restored useful focus, the confirmation dialog focused Cancel and restored its opener on Escape, and the browser reported no console/page errors.
 
-1. Start the current server and sign in with a disposable Reviewer or Admin test identity.
-2. Open `/admin/reviews`.
-3. Verify loading, empty, error, queue, and detail states without horizontal overflow at `1440 × 900` and `390 × 844`.
-4. As a pure Reviewer, open an unassigned waiting item and confirm the start request claims it atomically before private detail assets load.
-5. Open the same submission in a second reviewer session; the second actor must not receive the detail or overwrite the assignment.
-6. Submit a stale `expected_version`; the UI must preserve the decision form and offer a reload path.
-7. Retry the same decision key with the same payload; it must return the original complete result and create one decision, notification, and audit event.
-8. Reuse that key with a different payload; it must return an idempotency conflict.
-9. Confirm Request Changes creates a new editable version while preserving the immutable submitted version.
-10. Confirm the dialog restores focus to its trigger, errors are announced, and controls remain disabled during an in-flight mutation.
+The real disposable Reviewer/Admin multi-identity acceptance passed on 2026-07-22. It is development-only, creates disposable Auth/database fixtures, holds an advisory run lock, and removes its sessions and fixtures before reporting success:
+
+```bash
+MT_TEST_ENVIRONMENT=development python3 scripts/test_review_queue_browser.py
+```
+
+The successful run verified:
+
+- Reviewer A atomically claimed an unassigned non-self submission before private detail access;
+- Reviewer B was denied cross-assignment detail and could not overwrite Reviewer A;
+- Reviewer A completed Request Changes against the immutable submitted version;
+- an Admin at AAL2 completed Approve without bypassing the self-review boundary;
+- `display`, `original`, and `thumbnail` private variants loaded from the signed provider origin;
+- desktop/mobile responsive bounds, checklist error focus, confirmation-dialog focus restoration, and console/page errors stayed clean;
+- every browser session closed and all disposable users, submissions, assets, decisions, notifications, audit rows, and Storage objects were cleaned;
+- `review_browser_state_persisted=no`, `credentials_logged=no`, `review_browser_failure_stage=none`, and `review_browser_acceptance=yes`.
+
+Never run this fixture workflow against production. A passing result requires both `review_browser_sessions_closed=yes` and `review_browser_fixtures_cleaned=yes`; a functional assertion alone is insufficient.
 
 ## Database Acceptance Before Release
 
@@ -106,7 +114,7 @@ The two-session development concurrency test passed on 2026-07-20. It used six i
 - two same-key/same-payload decisions return the same immutable result with exactly one decision, notification, and audit row;
 - all committed fixture users, images, submissions, decisions, notifications, and audit rows are removed afterward.
 
-The remaining Phase 3 release gate is real disposable Reviewer/Admin browser acceptance. Never run either database fixture test against production, and always verify the rollback and cleanup markers.
+The database, concurrency, fake-provider, and real disposable multi-identity browser gates are complete. Never run any fixture test against production, and always verify the rollback and cleanup markers. Remaining product work is public derivative delivery, the Supabase-backed public Works migration, and the public creator profile/editor; browser-exposed Approve and Publish stays disabled until the public delivery chain is real.
 
 ## Explicit Non-goals
 

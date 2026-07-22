@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard | MT Presence</title>
+    <meta name="description" content="Your MT Presence profile, works, and review activity." />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css?v=20260722-avatar-nav" />
+  </head>
+  <body class="dashboard-page">
+    <a class="auth-skip" href="#dashboard-content">Skip to Dashboard</a>
+
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-home" viewBox="0 0 24 24"><path d="m3 10.5 9-7.5 9 7.5" /><path d="M5 9v12h14V9" /><path d="M9 21v-7h6v7" /></symbol>
+      <symbol id="icon-photo" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1.5" /><path d="m7 15 3.2-3.2a1.3 1.3 0 0 1 1.8 0L16 16" /><path d="m14 14 1.1-1.1a1.3 1.3 0 0 1 1.8 0L21 17" /><circle cx="8.5" cy="9.2" r="1.2" /></symbol>
+      <symbol id="icon-folder" viewBox="0 0 24 24"><path d="M3 6.8h6l2 2.4h10v8.6a1.7 1.7 0 0 1-1.7 1.7H4.7A1.7 1.7 0 0 1 3 17.8z" /><path d="M3 8.8v-3a1.3 1.3 0 0 1 1.3-1.3h5.1l2 2.2" /></symbol>
+      <symbol id="icon-pen" viewBox="0 0 24 24"><path d="m4 20 4.3-1.1 10.4-10.4a2.1 2.1 0 0 0-3-3L5.3 15.9z" /><path d="m14 6 4 4" /></symbol>
+      <symbol id="icon-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5" /><path d="M5 20a7 7 0 0 1 14 0" /></symbol>
+      <symbol id="icon-upload-cloud" viewBox="0 0 24 24"><path d="M16 16h2.5a3.5 3.5 0 0 0 .4-7 5.8 5.8 0 0 0-10.8-2A4.7 4.7 0 0 0 4.8 16H8" /><path d="M12 19V9" /><path d="m8 13 4-4 4 4" /></symbol>
+      <symbol id="icon-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></symbol>
+      <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5" /><path d="M4 17v-5h5" /><path d="M6.1 8.2A7 7 0 0 1 18.8 10M5.2 14A7 7 0 0 0 17.9 15.8" /></symbol>
+      <symbol id="icon-alert" viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4z" /><path d="M12 9v5" /><path d="M12 17h.01" /></symbol>
+      <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></symbol>
+    </svg>
+
+    <aside class="archive-rail dashboard-rail" aria-label="Artist workspace navigation">
+      <a class="archive-rail-brand" href="/" aria-label="Back to MT Presence home">MT</a>
+      <nav class="archive-rail-nav" aria-label="Workspace navigation">
+        <a class="archive-rail-button is-active" href="/dashboard" aria-label="Dashboard" aria-current="page">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-home"></use></svg>
+          <span class="archive-rail-copy">Dashboard</span>
+        </a>
+        <a class="archive-rail-button" href="/works.html" aria-label="Works Archive">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-photo"></use></svg>
+          <span class="archive-rail-copy">Works</span>
+        </a>
+        <a class="archive-rail-button" href="/workspace/images" aria-label="Upload Studio">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-folder"></use></svg>
+          <span class="archive-rail-copy">Upload</span>
+        </a>
+        <a class="archive-rail-button" href="/admin/reviews" aria-label="Review Center" data-admin-only hidden>
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-pen"></use></svg>
+          <span class="archive-rail-copy">Review</span>
+        </a>
+      </nav>
+      <div class="archive-rail-footer">
+        <a class="archive-rail-button" href="/settings/account" aria-label="Account settings">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-user"></use></svg>
+          <span class="archive-rail-copy">Account</span>
+        </a>
+      </div>
+    </aside>
+
+    <header class="site-header dashboard-header" aria-label="Artist workspace navigation">
+      <a class="brand-mark" href="/dashboard" aria-label="Dashboard home"><span>MT</span><span>Artist Dashboard</span></a>
+      <nav class="site-nav" aria-label="Workflow navigation">
+        <a href="/works.html">Works</a>
+        <a href="/workspace/images">Upload</a>
+      </nav>
+    </header>
+
+    <main class="dashboard-shell" id="dashboard-content" tabindex="-1">
+      <section class="dashboard-cover" aria-label="Profile cover">
+        <img src="/assets/art/concrete-02.jpg" alt="" />
+      </section>
+
+      <section class="dashboard-identity" aria-labelledby="dashboard-name">
+        <a class="dashboard-avatar" href="/settings/account#profile" aria-label="Open personal information" data-dashboard-initials>MT</a>
+        <div class="dashboard-identity-copy">
+          <p class="section-kicker">Photographer Profile</p>
+          <h1 id="dashboard-name" data-dashboard-name>Loading profile</h1>
+          <p class="dashboard-email" data-dashboard-email></p>
+          <div class="dashboard-account-state" aria-label="Account status">
+            <span data-dashboard-account-status>Checking account</span>
+            <span data-dashboard-verification>Checking verification</span>
+          </div>
+        </div>
+        <div class="dashboard-commands" aria-label="Profile commands">
+          <a class="button button-secondary" href="/settings/account">Edit profile</a>
+          <a class="button button-primary" href="/workspace/images?folder=inbox">
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-upload-cloud"></use></svg>
+            Upload images
+          </a>
+          <a class="dashboard-workspace-link" href="/workspace/images">
+            View workspace
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
+          </a>
+        </div>
+        <p class="dashboard-bio" data-dashboard-bio>Loading profile details...</p>
+      </section>
+
+      <nav class="dashboard-tabs" role="tablist" aria-label="Dashboard views">
+        <button id="dashboard-tab-overview" type="button" role="tab" aria-selected="true" aria-controls="dashboard-panel-overview" data-dashboard-tab="overview">Overview</button>
+        <button id="dashboard-tab-works" type="button" role="tab" aria-selected="false" aria-controls="dashboard-panel-works" tabindex="-1" data-dashboard-tab="works">My works</button>
+      </nav>
+
+      <div class="dashboard-loading" role="status" aria-live="polite" data-dashboard-loading>
+        <span aria-hidden="true"></span>
+        <p>Loading your Dashboard...</p>
+      </div>
+
+      <section class="dashboard-error" role="alert" tabindex="-1" data-dashboard-error hidden>
+        <div>
+          <p class="section-kicker">Dashboard unavailable</p>
+          <h2 data-dashboard-error-title>We could not load your account overview.</h2>
+          <p data-dashboard-error-message>Try the request again.</p>
+        </div>
+        <button class="button button-secondary" type="button" data-dashboard-retry>
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg>
+          Retry
+        </button>
+      </section>
+
+      <div class="dashboard-content" data-dashboard-content hidden>
+        <section id="dashboard-panel-overview" role="tabpanel" aria-labelledby="dashboard-tab-overview" data-dashboard-panel="overview">
+          <section class="dashboard-status-section" aria-labelledby="dashboard-status-title">
+            <header class="dashboard-section-heading">
+              <div><p>Work status</p><h2 id="dashboard-status-title">At a glance</h2></div>
+              <small data-dashboard-generated></small>
+            </header>
+            <dl class="dashboard-status-grid" data-dashboard-status-grid></dl>
+          </section>
+
+          <div class="dashboard-overview-grid">
+            <section class="dashboard-section" aria-labelledby="dashboard-attention-title">
+              <header class="dashboard-section-heading">
+                <div><p>Priority</p><h2 id="dashboard-attention-title">Needs attention</h2></div>
+              </header>
+              <div data-dashboard-attention></div>
+            </section>
+
+            <section class="dashboard-section" aria-labelledby="dashboard-recent-title">
+              <header class="dashboard-section-heading">
+                <div><p>Latest edits</p><h2 id="dashboard-recent-title">Recent images</h2></div>
+                <button class="dashboard-text-button" type="button" data-dashboard-open-works>View drafts</button>
+              </header>
+              <div data-dashboard-recent></div>
+            </section>
+          </div>
+
+          <div class="dashboard-overview-grid dashboard-overview-lower">
+            <section class="dashboard-section" aria-labelledby="dashboard-activity-title">
+              <header class="dashboard-section-heading">
+                <div><p>Review trail</p><h2 id="dashboard-activity-title">Review activity</h2></div>
+              </header>
+              <div data-dashboard-activity></div>
+            </section>
+
+            <section class="dashboard-section" aria-labelledby="dashboard-storage-title">
+              <header class="dashboard-section-heading">
+                <div><p>Private assets</p><h2 id="dashboard-storage-title">Storage</h2></div>
+              </header>
+              <div data-dashboard-storage></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="dashboard-panel-works" role="tabpanel" aria-labelledby="dashboard-tab-works" data-dashboard-panel="works" hidden>
+          <section class="dashboard-section dashboard-works-section" aria-labelledby="dashboard-drafts-title">
+            <header class="dashboard-section-heading">
+              <div><p>Editable work</p><h2 id="dashboard-drafts-title">Recent drafts</h2></div>
+              <a class="dashboard-workspace-link" href="/workspace/images">Open all in Workspace <svg class="ui-icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg></a>
+            </header>
+            <div class="dashboard-draft-grid" data-dashboard-drafts></div>
+          </section>
+          <section class="dashboard-capability-note" data-dashboard-public-note>
+            <p class="section-kicker">Published portfolio</p>
+            <h2>Public delivery is not connected yet.</h2>
+            <p>Published status is reported by the server. A public creator portfolio will appear here only after the published-only delivery boundary is available.</p>
+          </section>
+        </section>
+      </div>
+    </main>
+
+    <div class="visually-hidden" role="status" aria-live="polite" aria-atomic="true" data-dashboard-live></div>
+    <script src="/account-menu.js?v=20260722-avatar-nav"></script>
+    <script src="/dashboard.js?v=20260722-user-dashboard"></script>
+  </body>
+</html>

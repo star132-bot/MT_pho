@@ -16,6 +16,7 @@ from pathlib import Path
 import sys
 import tempfile
 import threading
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -41,13 +42,14 @@ SUBMISSION_POLICY_VERSION = "workspace-review-v1"
 
 
 def access_token(user_id: str, aal: str = "aal1") -> str:
+    now = int(time.time())
     claims = {
         "sub": user_id,
         "aal": aal,
         "amr": [{"method": "password"}],
         "session_id": str(uuid.uuid5(uuid.NAMESPACE_URL, user_id)),
-        "iat": 1784044800,
-        "exp": 1784048400,
+        "iat": now - 60,
+        "exp": now + 3600,
     }
     payload = base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip("=")
     return f"e30.{payload}.signature"
@@ -66,6 +68,8 @@ def draft_payload(
     workflow_status: str = "draft",
     locked_at: str | None = None,
     scan_statuses: dict[str, str] | None = None,
+    folder_id: str = CUSTOM_FOLDER_ID,
+    deleted_at: str | None = None,
 ) -> dict:
     version = {
         "id": VERSION_ID,
@@ -92,7 +96,7 @@ def draft_payload(
     version.update(version_patch or {})
     return {
         "id": IMAGE_ID,
-        "folder_id": CUSTOM_FOLDER_ID,
+        "folder_id": folder_id,
         "processing_status": processing_status,
         "workflow_status": workflow_status,
         "publication_status": "never_published",
@@ -103,6 +107,7 @@ def draft_payload(
         "lock_version": lock_version,
         "created_at": "2026-07-15T00:00:00Z",
         "updated_at": "2026-07-15T00:00:00Z",
+        "deleted_at": deleted_at,
         "version": version,
         "assets": [
             {
@@ -135,6 +140,10 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
     draft_processing_status = "ready"
     draft_workflow_status = "draft"
     draft_locked_at: str | None = None
+    draft_deleted_at: str | None = None
+    draft_folder_id = CUSTOM_FOLDER_ID
+    restore_folder_missing = False
+    restore_delay_seconds = 0.0
     asset_scan_statuses: dict[str, str] = {
         "original": "pending",
         "display": "pending",
@@ -151,6 +160,10 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
         cls.draft_processing_status = "ready"
         cls.draft_workflow_status = "draft"
         cls.draft_locked_at = None
+        cls.draft_deleted_at = None
+        cls.draft_folder_id = CUSTOM_FOLDER_ID
+        cls.restore_folder_missing = False
+        cls.restore_delay_seconds = 0.0
         cls.asset_scan_statuses = {
             "original": "pending",
             "display": "pending",
@@ -170,6 +183,8 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
             workflow_status=cls.draft_workflow_status,
             locked_at=cls.draft_locked_at,
             scan_statuses=cls.asset_scan_statuses,
+            folder_id=cls.draft_folder_id,
+            deleted_at=cls.draft_deleted_at,
         )
 
     @classmethod
@@ -289,6 +304,27 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                 "email_confirmed_at": "2026-07-15T00:00:00Z",
                 "factors": [],
             })
+            return
+        if self.path.startswith("/rest/v1/user_profiles?") and authorization in {f"Bearer {MEMBER_TOKEN}", f"Bearer {ADMIN_TOKEN}"}:
+            self.send_json(HTTPStatus.OK, [{
+                "display_name": "Workspace Member",
+                "avatar_url": None,
+                "bio": "",
+                "website_url": None,
+                "country_code": "CN",
+                "preferred_locale": "en",
+                "timezone": "Asia/Shanghai",
+                "copyright_name": "Workspace Member",
+                "default_license_preference": "all-rights-reserved",
+            }])
+            return
+        if self.path.startswith("/storage/v1/object/sign/"):
+            body = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
             return
         self.send_json(HTTPStatus.UNAUTHORIZED, {"message": "invalid token"})
 
@@ -432,14 +468,40 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                         "message": "Submitted or reviewed images cannot be moved to Trash.",
                     }})
                     return
+                if type(self).draft_deleted_at is not None:
+                    self.send_json(HTTPStatus.OK, {"error": {
+                        "code": "DRAFT_NOT_FOUND",
+                        "message": "The Draft is unavailable or cannot be moved to Trash.",
+                    }})
+                    return
+                type(self).draft_deleted_at = "2026-07-22T03:00:00Z"
+                type(self).draft_lock_version += 1
+            if name == "workspace_restore_draft":
+                if type(self).restore_delay_seconds:
+                    time.sleep(type(self).restore_delay_seconds)
+                if type(self).draft_deleted_at is None:
+                    self.send_json(HTTPStatus.OK, {"error": {
+                        "code": "DRAFT_NOT_FOUND",
+                        "message": "The Draft is unavailable or cannot be restored.",
+                    }})
+                    return
+                if type(self).restore_folder_missing:
+                    type(self).draft_folder_id = FOLDER_ID
+                type(self).draft_deleted_at = None
+                type(self).draft_lock_version += 1
+                self.send_json(HTTPStatus.OK, {"draft": type(self).current_draft()})
+                return
             persisted_version = dict(type(self).draft_version_patch)
             persisted_version.setdefault("title", update_title)
             updated_draft = draft_payload(
                 persisted_version.get("title", update_title),
                 persisted_version,
                 type(self).draft_lock_version,
+                folder_id=type(self).draft_folder_id,
+                deleted_at=type(self).draft_deleted_at,
             )
             if "folder_id" in patch:
+                type(self).draft_folder_id = patch["folder_id"]
                 updated_draft["folder_id"] = patch["folder_id"]
             intent_upload_id = (
                 CANCEL_UPLOAD_ID
@@ -476,12 +538,18 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                 "workspace_list_drafts": {
                     "images": [type(self).current_draft()]
                     if type(self).draft_workflow_status in {"draft", "changes_requested"}
+                    and type(self).draft_deleted_at is None
+                    else []
+                },
+                "workspace_list_trashed_drafts": {
+                    "images": [type(self).current_draft()]
+                    if type(self).draft_workflow_status in {"draft", "changes_requested"}
+                    and type(self).draft_deleted_at is not None
                     else []
                 },
                 "workspace_update_draft_versioned": {"draft": updated_draft},
                 "workspace_trash_draft": {"trashed": True, "image_id": IMAGE_ID},
                 "workspace_trash_draft_versioned": {"trashed": True, "image_id": IMAGE_ID},
-                "workspace_restore_draft": {"draft": draft_payload()},
             }
             self.send_json(HTTPStatus.OK, responses.get(name, {"error": {"code": "UNKNOWN", "message": "unknown RPC"}}))
             return
@@ -950,6 +1018,83 @@ def main() -> None:
             if status != HTTPStatus.OK or result.get("trashed") is not True:
                 raise RuntimeError("Draft Trash boundary failed")
 
+            status, result, _ = request(member, base_url, "/api/images?workflow_status=draft")
+            if status != HTTPStatus.OK or result.get("images") != []:
+                raise RuntimeError("Trashed Draft remained visible in the active Draft list")
+            status, result, _ = request(member, base_url, "/api/images?workflow_status=trashed")
+            trashed = result.get("images", [])
+            if (
+                status != HTTPStatus.OK
+                or len(trashed) != 1
+                or trashed[0].get("id") != IMAGE_ID
+                or not trashed[0].get("deleted_at")
+                or trashed[0].get("lock_version") != 5
+            ):
+                raise RuntimeError("Owner Trash list did not return the soft-deleted Draft DTO")
+
+            for invalid_query in (
+                "/api/images?workflow_status=",
+                "/api/images?workflow_status=trashed&workflow_status=draft",
+                "/api/images?workflow_status=trashed&owner_id=other",
+            ):
+                status, result, _ = request(member, base_url, invalid_query)
+                if status != HTTPStatus.UNPROCESSABLE_ENTITY or result.get("error", {}).get("code") != "IMAGE_FILTER_INVALID":
+                    raise RuntimeError(f"Draft list accepted invalid query parameters: {invalid_query}")
+
+            restore_path = f"/api/images/{IMAGE_ID}/restore"
+            status, result, _ = request(
+                member,
+                base_url,
+                restore_path,
+                payload={},
+                origin=base_url,
+                include_csrf=False,
+            )
+            if status != HTTPStatus.FORBIDDEN or result.get("error", {}).get("code") != "CSRF_REJECTED":
+                raise RuntimeError("Draft Restore accepted a request without CSRF")
+
+            restore_rpc_count = len([
+                call for call in FakeSupabaseHandler.rpc_calls
+                if call[0] == "workspace_restore_draft"
+            ])
+            status, result, _ = request(
+                member,
+                base_url,
+                restore_path,
+                payload={"expected_version": 5},
+                origin=base_url,
+            )
+            if (
+                status != HTTPStatus.UNPROCESSABLE_ENTITY
+                or result.get("error", {}).get("code") != "DRAFT_RESTORE_INVALID"
+                or len([call for call in FakeSupabaseHandler.rpc_calls if call[0] == "workspace_restore_draft"]) != restore_rpc_count
+            ):
+                raise RuntimeError("Draft Restore accepted or forwarded unsupported request fields")
+
+            FakeSupabaseHandler.restore_folder_missing = True
+            status, result, _ = request(member, base_url, restore_path, payload={}, origin=base_url)
+            restored = result.get("draft", {})
+            if (
+                status != HTTPStatus.OK
+                or restored.get("id") != IMAGE_ID
+                or restored.get("folder_id") != FOLDER_ID
+                or restored.get("deleted_at") is not None
+                or restored.get("lock_version") != 6
+            ):
+                raise RuntimeError("Draft Restore did not recover into the active Inbox")
+            status, result, _ = request(member, base_url, restore_path, payload={}, origin=base_url)
+            if status != HTTPStatus.NOT_FOUND or result.get("error", {}).get("code") != "DRAFT_NOT_FOUND":
+                raise RuntimeError("Repeated Draft Restore did not report the stale Trash state")
+            if FakeSupabaseHandler.draft_lock_version != 6:
+                raise RuntimeError("Repeated Draft Restore changed the restored Draft version")
+            status, result, _ = request(member, base_url, "/api/images?workflow_status=trashed")
+            if status != HTTPStatus.OK or result.get("images") != []:
+                raise RuntimeError("Restored Draft remained visible in Trash")
+            status, result, _ = request(member, base_url, "/api/images?workflow_status=draft")
+            active_drafts = result.get("images", [])
+            if status != HTTPStatus.OK or len(active_drafts) != 1 or active_drafts[0].get("folder_id") != FOLDER_ID:
+                raise RuntimeError("Restored Draft did not return to the active Draft list")
+
             FakeSupabaseHandler.reset_draft_state()
             submit_path = f"/api/images/{IMAGE_ID}/submit"
             submit_payload = {
@@ -1151,6 +1296,8 @@ def main() -> None:
             print("workspace_draft_optimistic_concurrency=yes")
             print("workspace_draft_system_fields_rejected=yes")
             print("workspace_draft_trash_confirmation=yes")
+            print("workspace_trash_list_restore=yes")
+            print("workspace_restore_folder_fallback=yes")
             print("workspace_submit_readiness=yes")
             print("workspace_submit_csrf_boundary=yes")
             print("workspace_submit_optimistic_concurrency=yes")

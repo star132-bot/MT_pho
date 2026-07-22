@@ -31,6 +31,18 @@ def main() -> None:
         html = (ROOT / name).read_text()
         if 'href="collections.html' in html or 'href="/collections.html' in html:
             raise RuntimeError(f"{name} still exposes the removed Collections/Series route")
+        if name == "index.html":
+            if "public-site-rail" in html or "public-rail-page" in html:
+                raise RuntimeError("index.html must keep the homepage free of the left navigation rail")
+            require(html, {
+                'class="site-header"',
+                'href="/works.html"',
+                'href="/about.html"',
+                'href="/contact.html"',
+                'href="/lightbox.html"',
+                "data-home-account-entry",
+            }, "index.html top navigation")
+            continue
         require(html, {
             "public-site-rail",
             'href="index.html" aria-label="Home"',

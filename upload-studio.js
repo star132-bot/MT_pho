@@ -110,6 +110,11 @@ const submitDialog = document.querySelector("[data-studio-submit-dialog]");
 const submitDialogTitle = document.querySelector("[data-studio-submit-dialog-title]");
 const toastElement = document.querySelector("[data-studio-toast]");
 const studioGrid = document.querySelector(".upload-studio-grid");
+const workspaceViewButtons = [...document.querySelectorAll("[data-studio-view]")];
+const draftCountElement = document.querySelector("[data-studio-draft-count]");
+const trashCountElement = document.querySelector("[data-studio-trash-count]");
+const folderPanelTitle = document.querySelector("[data-folder-panel-title]");
+const draftsOnlyElements = [...document.querySelectorAll("[data-studio-drafts-only]")];
 const recognizablePeopleSelect = document.querySelector("[data-recognizable-people]");
 const modelReleaseField = document.querySelector("[data-model-release-field]");
 const copyrightYearInput = document.querySelector("[name=\"copyright_year\"]");
@@ -118,6 +123,8 @@ let archiveDb = null;
 let folders = [];
 let activeFolderId = "inbox";
 let records = [];
+let trashedRecords = [];
+let activeWorkspaceView = new URLSearchParams(window.location.search).get("view") === "trash" ? "trash" : "drafts";
 let activeRecordId = null;
 let toastTimer = null;
 let workspaceOnline = true;
@@ -136,9 +143,14 @@ let readinessPollTimer = null;
 let submissionPreparing = false;
 let submissionInFlight = false;
 let activeSubmissionPromise = null;
+let trashLoading = false;
+let trashLoaded = false;
+let trashError = null;
 const taskByRecordId = new Map();
 const submissionIdempotencyKeys = new Map();
 const objectUrls = new Set();
+const restoringTrashIds = new Set();
+const trashRestoreErrors = new Map();
 
 function cleanText(value) {
   return value === null || value === undefined ? "" : String(value).trim();
@@ -325,6 +337,12 @@ function formatBytes(value) {
   return `${(bytes / (1024 * 1024)).toFixed(bytes >= 10 * 1024 * 1024 ? 1 : 2)} MB`;
 }
 
+function formatTrashDate(value) {
+  const date = new Date(value || "");
+  if (Number.isNaN(date.getTime())) return "Recently moved";
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
+}
+
 function uniqueTextList(values = []) {
   const seen = new Set();
   const result = [];
@@ -377,6 +395,11 @@ async function loadFolders() {
 function saveActiveFolder() {
   const url = new URL(window.location.href);
   url.searchParams.set("folder", activeFolderId);
+  if (activeWorkspaceView === "trash") {
+    url.searchParams.set("view", "trash");
+  } else {
+    url.searchParams.delete("view");
+  }
   window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
@@ -745,6 +768,7 @@ function normalizeWorkspaceDraft(draft) {
     processing_status: draft.processing_status,
     workflow_status: draft.workflow_status,
     publication_status: draft.publication_status,
+    deleted_at: draft.deleted_at || null,
     lock_version: Number.isInteger(draft.lock_version) ? draft.lock_version : 1,
     readiness: normalizeReadiness(draft.readiness, {
       id: draft.id,
@@ -908,6 +932,15 @@ async function trashWorkspaceDraft(record) {
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify({ confirmation: "move-to-trash", expected_version: record.lock_version }),
   });
+}
+
+async function restoreWorkspaceDraft(recordId) {
+  const result = await workspaceRequest(`${WORKSPACE_IMAGES_API}/${encodeURIComponent(recordId)}/restore`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  return normalizeWorkspaceDraft(result.draft);
 }
 
 async function createWorkspaceFolder(name) {
@@ -1213,6 +1246,16 @@ function releaseTaskRuntime(task) {
 }
 
 function renderFolders() {
+  workspaceViewButtons.forEach((button) => {
+    const selected = button.dataset.studioView === activeWorkspaceView;
+    button.setAttribute("aria-pressed", String(selected));
+    button.classList.toggle("is-active", selected);
+  });
+  if (draftCountElement) draftCountElement.textContent = String(records.length);
+  if (trashCountElement) {
+    trashCountElement.hidden = !trashLoaded;
+    trashCountElement.textContent = String(trashedRecords.length);
+  }
   if (workspaceLoading) {
     if (folderSummary) folderSummary.textContent = "Loading folders";
     if (folderList) {
@@ -1224,10 +1267,22 @@ function renderFolders() {
     }
     return;
   }
-  if (folderSummary) {
+  const showingTrash = activeWorkspaceView === "trash";
+  if (folderPanelTitle) folderPanelTitle.textContent = showingTrash ? "Trash" : "Folders";
+  if (folderForm) folderForm.hidden = showingTrash;
+  if (folderList) folderList.hidden = showingTrash;
+  if (showingTrash) {
+    if (folderSummary) {
+      folderSummary.textContent = trashLoading
+        ? "Loading items"
+        : trashError
+          ? "Unavailable"
+          : `${trashedRecords.length} item${trashedRecords.length === 1 ? "" : "s"}`;
+    }
+  } else if (folderSummary) {
     folderSummary.textContent = `${folders.length} folder${folders.length === 1 ? "" : "s"}`;
   }
-  if (folderList) {
+  if (folderList && !showingTrash) {
     folderList.innerHTML = folders
       .map((folder) => {
         const recordCount = records.filter((record) => record.folder_id === folder.id).length;
@@ -1267,7 +1322,67 @@ function renderFolders() {
   }
 }
 
+function renderTrashQueue() {
+  if (!queueElement) return;
+  queueElement.setAttribute("aria-busy", String(workspaceLoading || trashLoading));
+  if (workspaceLoading || trashLoading) {
+    queueElement.innerHTML = `
+      <article class="upload-studio-empty upload-studio-loading" aria-label="Loading Trash">
+        <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+      </article>`;
+    return;
+  }
+  if (trashError) {
+    const permissionError = trashError.status === 403;
+    queueElement.innerHTML = `
+      <article class="upload-studio-empty upload-studio-trash-message" data-state="error">
+        <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-alert"></use></svg>
+        <h2>${permissionError ? "Trash access unavailable" : "Trash could not be loaded"}</h2>
+        <p>${escapeHtml(permissionError ? "Your account cannot read or restore these Drafts." : trashError.message || "Try loading Trash again.")}</p>
+        ${permissionError ? "" : `<button class="upload-studio-secondary" type="button" data-trash-retry>
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg>
+          Retry
+        </button>`}
+      </article>`;
+    return;
+  }
+  if (!trashedRecords.length) {
+    queueElement.innerHTML = `
+      <article class="upload-studio-empty">
+        <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
+        <h2>Trash is empty</h2>
+      </article>`;
+    return;
+  }
+  queueElement.innerHTML = trashedRecords.map((record) => {
+    const restoring = restoringTrashIds.has(record.id);
+    const restoreError = trashRestoreErrors.get(record.id);
+    return `
+      <article class="upload-studio-card upload-studio-trash-card" aria-busy="${restoring}" data-state="${restoreError ? "failed" : "trashed"}">
+        <div class="upload-studio-card-main">
+          <img src="${escapeHtml(thumbnailUrl(record))}" alt="" loading="lazy" decoding="async" />
+          <span class="upload-studio-card-copy">
+            <strong>${escapeHtml(record.title || "Untitled Work")}</strong>
+            <small>Moved ${escapeHtml(formatTrashDate(record.deleted_at))}</small>
+            ${restoreError ? `<small class="upload-studio-trash-error" role="alert">${escapeHtml(restoreError)}</small>` : ""}
+          </span>
+          <span class="upload-studio-card-state" data-state="${restoring ? "canceling" : "canceled"}">${restoring ? "Restoring" : "Trashed"}</span>
+        </div>
+        <span class="upload-studio-task-actions">
+          <button type="button" data-trash-restore="${escapeHtml(record.id)}" aria-label="Restore ${escapeHtml(record.title || "Untitled Work")}" data-tooltip="Restore Draft" ${restoring || !workspaceOnline ? "disabled" : ""}>
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg>
+          </button>
+        </span>
+      </article>`;
+  }).join("");
+}
+
 function renderQueue() {
+  if (activeWorkspaceView === "trash") {
+    renderTrashQueue();
+    return;
+  }
+  if (queueElement) queueElement.setAttribute("aria-busy", String(workspaceLoading));
   if (workspaceLoading) {
     if (countElement) countElement.textContent = "–";
     if (statusElement) statusElement.textContent = "Loading";
@@ -1372,7 +1487,7 @@ function renderQueue() {
 }
 
 function renderEditor() {
-  const record = records.find((item) => item.id === activeRecordId);
+  const record = activeWorkspaceView === "drafts" ? records.find((item) => item.id === activeRecordId) : null;
   if (!record) {
     formRecordId = null;
     if (studioGrid) studioGrid.dataset.editorState = "empty";
@@ -1454,6 +1569,8 @@ function renderEditor() {
 }
 
 function renderAll() {
+  if (studioGrid) studioGrid.dataset.view = activeWorkspaceView;
+  draftsOnlyElements.forEach((element) => { element.hidden = activeWorkspaceView !== "drafts"; });
   renderFolders();
   renderQueue();
   renderEditor();
@@ -1462,17 +1579,28 @@ function renderAll() {
 }
 
 function setWorkspaceControls() {
-  const record = records.find((item) => item.id === activeRecordId);
-  const workspaceBusy = submissionPreparing || submissionInFlight;
-  const importDisabled = workspaceLoading || !workspaceOnline || workspaceBusy;
+  const record = activeWorkspaceView === "drafts" ? records.find((item) => item.id === activeRecordId) : null;
+  const workspaceBusy = submissionPreparing || submissionInFlight || restoringTrashIds.size > 0;
+  const importDisabled = workspaceLoading || activeWorkspaceView !== "drafts" || !workspaceOnline || workspaceBusy;
   if (uploadInput) uploadInput.disabled = importDisabled;
   if (primaryImport) primaryImport.setAttribute("aria-disabled", String(importDisabled));
   if (dropzone) dropzone.setAttribute("aria-disabled", String(importDisabled));
   folderForm?.querySelectorAll("input, button").forEach((control) => { control.disabled = importDisabled; });
   folderList?.querySelectorAll("button").forEach((control) => { control.disabled = workspaceBusy; });
-  queueElement?.querySelectorAll("button").forEach((control) => { control.disabled = workspaceBusy; });
+  queueElement?.querySelectorAll("button").forEach((control) => {
+    if (control.matches("[data-trash-restore]")) {
+      control.disabled = workspaceBusy || !workspaceOnline || restoringTrashIds.has(control.dataset.trashRestore);
+    } else if (control.matches("[data-trash-retry]")) {
+      control.disabled = workspaceBusy || !workspaceOnline || trashLoading;
+    } else {
+      control.disabled = workspaceBusy;
+    }
+  });
+  workspaceViewButtons.forEach((button) => {
+    button.disabled = workspaceLoading || workspaceBusy || (button.dataset.studioView === "trash" && !workspaceOnline);
+  });
   formElement?.querySelectorAll("input, select, textarea").forEach((control) => {
-    control.disabled = !workspaceOnline || submissionInFlight;
+    control.disabled = activeWorkspaceView !== "drafts" || !workspaceOnline || submissionInFlight;
   });
   if (saveRecordButton) {
     saveRecordButton.disabled = !workspaceOnline || !activeRecordId || draftSaveInFlight || draftConflict || workspaceBusy;
@@ -1928,6 +2056,9 @@ async function deleteActiveRecord() {
       }
     });
     records = records.filter((item) => item.id !== record.id);
+    if (trashLoaded) {
+      trashedRecords = [{ ...record, deleted_at: nowIso(), publication_status: "deleted" }, ...trashedRecords];
+    }
     const completedTask = taskByRecordId.get(record.id);
     taskByRecordId.delete(record.id);
     uploadTasks = uploadTasks.filter((task) => task !== completedTask);
@@ -2128,7 +2259,7 @@ async function handleFiles(fileList) {
   if (!files.length) {
     return;
   }
-  if (!workspaceOnline || submissionPreparing || submissionInFlight) {
+  if (activeWorkspaceView !== "drafts" || !workspaceOnline || submissionPreparing || submissionInFlight) {
     showToast(workspaceOnline ? "Wait for the current submission to finish." : "Reconnect before importing images.", "error");
     return;
   }
@@ -2147,7 +2278,7 @@ async function handleFiles(fileList) {
 }
 
 async function selectRecord(recordId) {
-  if (submissionPreparing || submissionInFlight) return false;
+  if (activeWorkspaceView !== "drafts" || submissionPreparing || submissionInFlight) return false;
   if (recordId === activeRecordId) return true;
   if (!(await flushDraftBeforeNavigation())) return false;
   activeRecordId = recordId;
@@ -2166,6 +2297,82 @@ async function loadExistingUploadRecords() {
   await Promise.all(records.map((record) => putStoredItem(record).catch(() => undefined)));
   if (!activeRecordId && recordsForActiveFolder()[0]) {
     activeRecordId = recordsForActiveFolder()[0].id;
+  }
+}
+
+async function loadTrashRecords({ force = false } = {}) {
+  if (!workspaceOnline || trashLoading || (trashLoaded && !force)) return;
+  trashLoading = true;
+  trashError = null;
+  renderAll();
+  try {
+    const result = await workspaceRequest(`${WORKSPACE_IMAGES_API}?workflow_status=trashed`);
+    trashedRecords = (result.images || []).map(normalizeWorkspaceDraft);
+    trashLoaded = true;
+  } catch (error) {
+    trashError = error;
+  } finally {
+    trashLoading = false;
+    renderAll();
+  }
+}
+
+async function switchWorkspaceView(nextView) {
+  const next = nextView === "trash" ? "trash" : "drafts";
+  if (next === activeWorkspaceView) {
+    if (next === "trash" && trashError) await loadTrashRecords({ force: true });
+    return;
+  }
+  if (activeWorkspaceView === "drafts" && !(await flushDraftBeforeNavigation())) return;
+  clearReadinessPoll();
+  activeWorkspaceView = next;
+  activeRecordId = next === "drafts" ? recordsForActiveFolder()[0]?.id || null : null;
+  resetDraftEditState(activeRecordId ? "All changes saved." : "");
+  saveActiveFolder();
+  renderAll();
+  if (next === "trash") {
+    await loadTrashRecords();
+  } else if (activeRecordId) {
+    refreshActiveReadiness();
+  }
+}
+
+async function restoreTrashedRecord(recordId) {
+  if (!workspaceOnline || restoringTrashIds.has(recordId)) return;
+  const record = trashedRecords.find((item) => item.id === recordId);
+  if (!record) return;
+  let restoredSuccessfully = false;
+  restoringTrashIds.add(recordId);
+  trashRestoreErrors.delete(recordId);
+  renderAll();
+  try {
+    const restored = await restoreWorkspaceDraft(recordId);
+    trashedRecords = trashedRecords.filter((item) => item.id !== recordId);
+    records = [restored, ...records.filter((item) => item.id !== restored.id)];
+    activeFolderId = restored.folder_id || activeFolderId;
+    saveActiveFolder();
+    if (!archiveDb) archiveDb = await openArchiveDatabase();
+    await putStoredItem(restored).catch(() => undefined);
+    showToast(`Draft restored to ${restored.folder_name || "Inbox"}.`, "success");
+    restoredSuccessfully = true;
+  } catch (error) {
+    const message = error?.status === 403
+      ? "Your account cannot restore this Draft."
+      : error?.status === 409
+        ? "This Draft changed elsewhere. Refresh Trash before retrying."
+        : error?.status === 404
+          ? "This Draft is no longer in Trash. Refresh the list."
+          : error?.message || "The Draft could not be restored.";
+    trashRestoreErrors.set(recordId, message);
+    showToast(message, "error");
+  } finally {
+    restoringTrashIds.delete(recordId);
+    renderAll();
+    const focusTarget = restoredSuccessfully
+      ? workspaceViewButtons.find((button) => button.dataset.studioView === "trash")
+      : [...(queueElement?.querySelectorAll("[data-trash-restore]") || [])]
+        .find((button) => button.dataset.trashRestore === recordId);
+    focusTarget?.focus({ preventScroll: true });
   }
 }
 
@@ -2207,6 +2414,12 @@ folderForm?.addEventListener("submit", async (event) => {
   } finally {
     submit.disabled = false;
   }
+});
+
+workspaceViewButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    switchWorkspaceView(button.dataset.studioView);
+  });
 });
 
 folderList?.addEventListener("click", async (event) => {
@@ -2264,6 +2477,16 @@ folderList?.addEventListener("click", async (event) => {
 
 queueElement?.addEventListener("click", async (event) => {
   if (submissionPreparing || submissionInFlight) return;
+  const trashRetryButton = event.target.closest("[data-trash-retry]");
+  if (trashRetryButton) {
+    await loadTrashRecords({ force: true });
+    return;
+  }
+  const restoreButton = event.target.closest("[data-trash-restore]");
+  if (restoreButton) {
+    await restoreTrashedRecord(restoreButton.dataset.trashRestore);
+    return;
+  }
   const retryButton = event.target.closest("[data-task-retry]");
   if (retryButton) {
     await retryUploadTask(retryButton.dataset.taskRetry);
@@ -2293,7 +2516,7 @@ uploadInput?.addEventListener("change", async (event) => {
 
 dropzone?.addEventListener("dragover", (event) => {
   event.preventDefault();
-  if (submissionPreparing || submissionInFlight || !workspaceOnline) return;
+  if (activeWorkspaceView !== "drafts" || submissionPreparing || submissionInFlight || !workspaceOnline) return;
   dropzone.classList.add("is-dragging");
 });
 
@@ -2366,16 +2589,22 @@ async function initUploadStudio() {
     workspaceOnline = true;
     await loadFolders();
     await loadExistingUploadRecords();
+    if (activeWorkspaceView === "trash") {
+      activeRecordId = null;
+      await loadTrashRecords();
+    }
     setGlobalStatus("Ready");
     resetDraftEditState(activeRecordId ? "All changes saved." : "");
   } catch (error) {
     workspaceOnline = false;
+    activeWorkspaceView = "drafts";
     await loadOfflineCache().catch(() => {
       folders = defaultFolders();
       records = [];
       activeRecordId = null;
     });
     setGlobalStatus("Offline read-only");
+    saveActiveFolder();
     showToast(error?.message || "Workspace unavailable. Showing a read-only local cache.", "error");
   }
   workspaceLoading = false;

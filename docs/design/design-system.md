@@ -96,7 +96,7 @@ Rail 功能设计方向：
 - Works：当前作品档案入口，保持主入口 active。
 - Manage：内部 Archive Review 审核入口，后续应加权限/内部模式提示，避免公开访客误入。
 - Sets：进入 `collections.html`，只负责浏览当前浏览器保存/策展的作品集合，不承担上传或审核。
-- Upload Studio：个人上传入口，提供文件夹、上传队列、点击图片编辑 Draft、保存和移入 Trash；不提供 Publish，不能替换后续 Review/Admin 的审核、发布和首页设置能力。
+- Upload Studio：个人上传入口，提供文件夹、上传队列、点击图片编辑 Draft、保存，以及 Drafts/Trash 分段视图；Trash 卡片只读并只提供 Restore，不提供 hard delete 或 Publish。
 - Draft editor 使用无卡片的 Work details 与 Accessibility/Rights 分组；Alt Text 和长文案跨两列，版权/枚举字段维持双列，Recognizable People=Yes 时才显示 Model Release。桌面 editor 可独立纵向滚动，1180px 以下回到普通页面流，移动端严格单列。字段编辑停顿 900ms 后自动保存，同时保留明确的手工 Save 命令。
 - Download Visible：下载当前筛选视图第一张作品；后续可升级为打开下载设置菜单。
 - Saved：切换只看已保存作品，保留 `aria-pressed` 状态。
@@ -119,6 +119,7 @@ Rail 功能设计方向：
 - 空状态保持 Folder + 导入区两列，队列空提示控制在紧凑高度；有 Draft 时桌面展开三列，1180px 以下 editor 移到下一行，760px 以下严格单列。
 - Import Images 是页面主命令；Choose files 是 dropzone 内的同一 file input 入口。两者状态同步，Loading/离线时都必须 disabled。
 - 面板靠边界、留白和层级区分，不做卡片套卡片；统计使用同一条分隔栏，不使用两个独立统计卡。
+- Drafts/Trash 使用稳定分段控件；Trash 仅展示标题、缩略图、移入时间和图标 Restore 命令，并完整呈现 loading、empty、error/retry、restoring、success、conflict 与 permission 状态。恢复时原 Folder 已删除则回退 Inbox。
 
 ### Draft Save and Conflict
 
@@ -134,12 +135,22 @@ Rail 功能设计方向：
 
 - Review Queue 是高密度编辑工作台，不使用 Dashboard 卡片墙。顶部只保留紧凑标题、可操作 queue counts、Assignment filter 和 Refresh；统计必须能直接改变队列。
 - 桌面采用稳定的 Queue + Detail 结构：队列保持窄而可扫描，详情以提交图片为视觉主角，右侧 inspector 用细分隔线组织 Copy、Rights、Evidence、History 和 Decision；图片始终 `object-fit: contain`，Actual size 只改变查看方式，不裁切作品。
-- 列表至少显示作品名、短 Submission ID、作者、等待时间、category、rights、assignment 和状态；长文件名与用户文案必须换行或省略，不能挤压状态和缩略图。
+- 列表至少显示作品名、Submission ID 尾段、作者、等待时间、category、rights、assignment 和状态；每个 queue button 的 accessible name 必须同时包含 title/status/owner/waiting/ID 尾段并保持唯一。长文件名与用户文案必须换行或省略，不能挤压状态和缩略图。
 - Reviewer 打开可领取的 Submitted 项时先执行原子 Start/Claim，再加载 Original/Display；未领取队列只暴露 thumbnail。Admin+AAL2 可以查看完整历史，但角色叠加不能绕过 MFA。
-- Decision 使用完整 checklist、reason 和 user message；提交期间所有相关控件 disabled，冲突保留当前输入并提供 Reload。确认 dialog 首焦点放在 Cancel，关闭后恢复触发控件，错误必须聚焦或通过 `role="alert"` 宣告。
+- Decision 使用完整 checklist、reason 和 user message；提交期间所有相关控件 disabled，冲突保留当前输入并提供 Reload。确认 dialog 首焦点放在 Cancel，关闭后恢复触发控件；未完成 checklist 必须把首个失败 checkbox 标记为 invalid、用 `aria-describedby` 关联 assertive `role="alert"`，同时把焦点移到该项。
 - Request Changes、Reject 和 Approve 是当前浏览器动作；在 Supabase public DTO、derivative delivery 和公开 Works 数据源接通前，不显示会虚假承诺公开结果的 Approve and Publish。
-- 1024px 以下 Queue 与 Detail 改为上下布局；760px 以下隐藏桌面 rail、使用 68px 单行顶栏，筛选与指标可横向滚动但页面本身不得横向溢出；选中详情后移动端优先呈现作品和决定，而不是压缩桌面多列。
-- Loading、empty、error、permission、busy、success、conflict 都使用固定布局和可读文字；状态颜色只作为辅助，小字号文字与 gallery-white 背景至少满足 WCAG AA。
+- 1024px 以下 Queue 与 Detail 改为上下布局；760px 以下隐藏桌面 rail、使用 68px 单行顶栏，Queue/Detail 为互斥视图。Detail 顶部必须提供 44px 以上 `Back to queue`，返回时保留 deep-link 与选中项、把焦点交还 active row，重新点选无需滚过完整详情即可恢复 Detail。
+- Loading、empty、error、permission、busy、success、conflict 都使用固定布局和可读文字；状态颜色只作为辅助。Evidence/History/Checklist 不低于 12px，Inspector 与表单正文不低于 13px，checkbox 行和关键触控动作不低于 44px。
+
+### User Dashboard And Account Menu
+
+- Dashboard 是已登录摄影作者的安静工作首页，不是营销 Hero 或通用统计卡片墙。第一视口用真实摄影 cover、initials avatar、名称/邮箱/账户状态/bio 和 Edit Profile、Import Images、View Workspace 三个明确动作建立身份。
+- Overview 依次呈现服务端聚合 Status、Changes Requested 优先的 Needs Attention、Recent Images、Review Activity 与 Storage；My works 只列最近可编辑 Draft。区块使用白底、细线和留白，只有重复 Draft 可以使用 6px 边框卡片。
+- Status 数字来自单一 aggregate DTO；loading、空账号、provider error、permission denied 和 retry 都保留稳定尺寸。未实现的 storage quota/public portfolio 用明确 unavailable 文案，不显示虚假进度条、剩余容量或公开作品入口。
+- Dashboard cover 可使用本地摄影图，但 private work 预览只加载当前 clean thumbnail 的短期签名 URL；没有缩略图时显示固定尺寸图标占位，不能请求 original 替代列表图。
+- Dashboard 提供 Overview/My works tablist，ArrowLeft/ArrowRight/Home/End 可切换并同步 `aria-selected`、`tabindex` 与 panel visibility；移动端把统计改为两列、内容改为单列，不允许横向溢出。
+- Home 登录态与内部 Dashboard、Upload、Review、Account 顶栏共用 initials profile avatar；点击头像直接进入 `/settings/account#profile`。内部顶栏在头像旁提供独立账户菜单按钮，菜单显示当前身份、Dashboard、Workspace、Account Settings、权限允许时的 Review 和 Sign out；ArrowUp/ArrowDown/Home/End 导航，Escape 关闭并恢复菜单按钮焦点，点击外部或焦点离开时关闭。
+- Avatar menu 最大 8px 圆角，不使用阴影堆叠或彩色身份 chip；Sign out 通过 same-origin CSRF 执行，失败留在当前页并把可读错误聚焦宣告。
 
 ## 推荐技术选型
 
@@ -271,8 +282,8 @@ Rail 功能设计方向：
 - 移动端：整屏摄影背景，文案靠下显示，按钮全宽排列。
 - 首屏只保留两个主要入口：`Enter Works` 和 `Contact Artist`。
 - 首屏下沿可使用斜切过渡，参考摄影社区 landing page 的大图构图，但不照搬 cookie 弹窗或多按钮营销结构。
-- 首页 hero 使用短 pinned 图片覆盖转场：桌面 `hero-stage` 约 `150vh`，移动端约 `140vh`；抽象黑白图到具体彩色图的 opacity 过渡覆盖大部分 pinned 滚动，并在结束后尽快释放到 Selected Works，不能让用户在完整具象图上空滚很久。
-- 首屏导航延迟换肤：hero 转场期间保持透明或极轻微顶部渐变，只用浅色文字、轻微 text-shadow 保证可读性；等 hero-stage 接近释放、Selected Works 即将进入时再切换为浅色实底，不在滚动早期遮挡摄影图。
+- 首页 hero 使用普通流内的短图片覆盖转场：桌面 `hero-stage` 高度上限约 `92svh`，移动端约 `82svh`；不能使用超过一个视口的 sticky/pinned 空滚动，各视口首屏下沿必须露出 Selected Works。
+- 首屏导航延迟换肤：hero 转场期间保持透明或极轻微顶部渐变，只用浅色文字、轻微 text-shadow 保证可读性；等 hero 底部接近 header、Selected Works 即将进入时再切换为浅色实底，不在滚动早期遮挡摄影图。
 - Hero 文案随图片切换交替，但不改变按钮和布局：抽象阶段使用 `Abstract Field`、`A Quiet Field for Images`、`Images are not records of the world...`；具象阶段使用 `Concrete Field`、`Where Looking Becomes Presence`、`Light, weather, and distance settle into form...`。两套大标题不能以 50/50 方式叠字，应使用分段 opacity 和轻微位移：抽象文案先安静淡出，具象文案再淡入。按钮保持原位，过渡结束时应隐约感觉下一段内容即将出现。
 
 Statement：
@@ -280,8 +291,8 @@ Statement：
 - Statement 是进入作品前的安静序章，不做营销长页面。
 - 首页顺序为 Hero、Selected Works、Statement、Contact。Selected Works 先出现，用作品带给 Statement 留出呼吸空间。
 - Statement 使用 `Statement`、`MT Presence` 标题和四个图文 moment；每个 moment 一张 `assets/art/` 图片、一段文案和 `01`-`04` 编号。
-- 桌面每个 moment 使用图片/文字两栏，偶数段左右反排，形成观看节奏；移动端改为图片在上、文字在下的普通流。
-- 每个 moment 进入视口时图片横向轻推入场，文字延迟淡入上浮；CTA 在段落标题可见后出现。动画保持 700-1000ms，不使用弹跳、旋转、粒子或装饰光效。
+- 桌面四个 moment 使用两个稳定列轨，每个单元内部图片在上、文字在下；移动端改为严格单列普通流。图片统一稳定比例，动态内容不能推动相邻单元跳动。
+- 每个 moment 进入视口时图片和文字只做轻微纵向显影；IntersectionObserver 是渐进增强，未触发前仍需保持可读透明度。动画保持 700-1000ms，不使用弹跳、旋转、粒子或装饰光效。
 - `prefers-reduced-motion` 下关闭显影动画，标题、图片、文字和 CTA 默认完整可读。
 
 作品：
@@ -326,8 +337,8 @@ Statement：
 功能侧栏：
 
 - 桌面端 `archive-rail` 统一使用 78px 极简短标题侧栏。入口只包含 icon 和一个短标题，不放说明句、不放常驻分组标题。
-- Home、Works、About、Contact、Lightbox 五个主要公开页必须使用同一 public rail，顺序固定为 Home、Works、Upload、Lightbox、About，Contact 固定在底部；当前页面只激活一个对应入口。
-- 作者工作区使用 Works、Upload、Review、Account，Review 按权限显示；公开 rail 的 Upload 始终进入受保护 `/workspace/images`，不直接暴露 Draft 数据。
+- Home 不显示左侧 public rail，使用全宽摄影首屏和顶部 Works/About/Contact/Lightbox/Account 导航；Works、About、Contact、Lightbox 继续使用同一 public rail，顺序固定为 Home、Works、Upload、Lightbox、About，Contact 固定在底部。
+- 作者工作区使用 Dashboard、Works、Upload、Review、Account，Review 按权限显示；`/dashboard` 是登录后的 canonical 总览，公开 rail 的 Upload 始终进入受保护 `/workspace/images`，不直接暴露 Draft 数据。
 - 侧栏 active 状态使用轻色底、细边界和品牌色，不使用大面积黑块；所有入口保持 8px 圆角、细线、低对比 hover。
 - 移动端隐藏侧栏，顶部导航保留主要入口；不要为了塞满功能把窄屏顶栏做成过多小字按钮。
 - 不再添加 `Your Studio` 或 `user-manage.html`；账户与云端 Draft 统一进入现有受保护 Upload/Account 边界。

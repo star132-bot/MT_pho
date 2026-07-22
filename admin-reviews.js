@@ -6,6 +6,7 @@ const listCount = document.querySelector("[data-review-list-count]");
 const loadMoreButton = document.querySelector("[data-review-load-more]");
 const filterForm = document.querySelector("[data-review-filters]");
 const filterSummary = document.querySelector("[data-review-filter-summary]");
+const reviewWorkspace = document.querySelector("[data-review-workspace]");
 const queueRegion = document.querySelector("[data-review-queue]");
 const detailRegion = document.querySelector("[data-review-detail-region]");
 const detailState = document.querySelector("[data-review-detail-state]");
@@ -46,6 +47,7 @@ const dialogTitle = document.querySelector("[data-review-dialog-title]");
 const dialogMessage = document.querySelector("[data-review-dialog-message]");
 const dialogCancel = document.querySelector("[data-review-dialog-cancel]");
 const dialogConfirm = document.querySelector("[data-review-dialog-confirm]");
+const backToQueueButton = document.querySelector("[data-review-back-to-queue]");
 
 const CHECKLIST_ITEMS = [
   ["file_integrity", "File integrity and decode"],
@@ -106,6 +108,7 @@ let queueStatus = FILTER_STATUSES.has(initialParams.get("status")) ? initialPara
 let queueAssignment = FILTER_ASSIGNMENTS.has(initialParams.get("assignment")) ? initialParams.get("assignment") : "all";
 let selectedId = selectedIdFromLocation();
 filterForm.elements.assignment.value = queueAssignment;
+reviewWorkspace.dataset.mobileView = selectedId ? "detail" : "queue";
 
 function selectedIdFromLocation() {
   const match = window.location.pathname.match(/^\/admin\/reviews\/([^/]+)\/?$/);
@@ -126,6 +129,23 @@ function syncRoute() {
   if (queueAssignment !== "all") params.set("assignment", queueAssignment);
   const query = params.toString();
   window.history.replaceState({}, "", `${path}${query ? `?${query}` : ""}`);
+}
+
+function isMobileReviewLayout() {
+  return window.matchMedia("(max-width: 760px)").matches;
+}
+
+function setMobileReviewView(view, { focusQueue = false, scroll = false } = {}) {
+  reviewWorkspace.dataset.mobileView = view === "detail" ? "detail" : "queue";
+  if (!isMobileReviewLayout()) return;
+  window.requestAnimationFrame(() => {
+    const target = view === "detail" ? detailRegion : queueRegion;
+    if (scroll) target.scrollIntoView({ block: "start", behavior: "auto" });
+    if (focusQueue) {
+      const active = listElement.querySelector('[data-review-submission][aria-current="true"]');
+      (active || listElement.querySelector("[data-review-submission]"))?.focus({ preventScroll: true });
+    }
+  });
 }
 
 function showToast(message, type = "success") {
@@ -200,8 +220,8 @@ function accountAge(value) {
 }
 
 function shortId(value) {
-  const text = displayValue(value, "");
-  return text ? text.slice(0, 8).toUpperCase() : "UNKNOWN";
+  const text = displayValue(value, "").replaceAll("-", "");
+  return text ? text.slice(-8).toUpperCase() : "UNKNOWN";
 }
 
 function humanizeKey(value) {
@@ -379,7 +399,12 @@ function renderQueueItems() {
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.reviewSubmission = item.id;
-    button.setAttribute("aria-label", `Open ${item.image.title || item.image.original_filename || "untitled submission"}`);
+    const titleText = item.image.title || item.image.original_filename || "Untitled submission";
+    const waitingText = waitingTime(item.submitted_at) || formatDate(item.submitted_at);
+    button.setAttribute(
+      "aria-label",
+      `Open ${titleText}, ${displayStatus(item.status)}, owner ${item.owner.display_name}, ${waitingText}, submission ending ${shortId(item.id)}`,
+    );
     button.setAttribute("aria-controls", "review-detail-content");
     if (active) button.setAttribute("aria-current", "true");
     button.disabled = mutationBusy;
@@ -406,7 +431,7 @@ function renderQueueItems() {
     const content = document.createElement("span");
     content.className = "admin-review-list-copy";
     const title = document.createElement("strong");
-    title.textContent = item.image.title || item.image.original_filename || "Untitled Work";
+    title.textContent = titleText;
     const meta = document.createElement("span");
     meta.className = "admin-review-list-meta";
     meta.textContent = `${item.owner.display_name} · ${waitingTime(item.submitted_at) || formatDate(item.submitted_at)}`;
@@ -487,6 +512,7 @@ async function loadQueue({ append = false, skipDetail = false, selectFirst = tru
       renderQueueItems();
     }
     const selectedQueueItem = queueItems.find((item) => item.id === selectedId);
+    if (!skipDetail && selectedQueueItem) setMobileReviewView("detail");
     if (!skipDetail && selectedQueueItem && reviewerMustStart(selectedQueueItem)) {
       setDetailState("Ready to begin review", "empty", {
         message: "Start the review to claim this submission before its private evidence is opened.",
@@ -582,6 +608,10 @@ function renderAssignmentActions(detail) {
     note.className = "admin-review-assigned-note";
     note.textContent = `Assigned to ${submission.assigned_reviewer.display_name}`;
     assignmentActions.append(note);
+    return;
+  }
+  if (submission.status === "in_review" && assignedId === actorId) {
+    assignmentActions.append(actionButton("Review decision", "decision", "button-secondary"));
     return;
   }
   if (submission.status !== "submitted") return;
@@ -762,6 +792,7 @@ async function loadDetail(id, { focus = false } = {}) {
     });
     return;
   }
+  setMobileReviewView("detail");
   detailController?.abort();
   const controller = new AbortController();
   detailController = controller;
@@ -813,6 +844,11 @@ function setupDecisionForm() {
   });
   decisionForm.reset();
   renderReasonOptions();
+  checklist.querySelectorAll("input").forEach((input) => {
+    input.removeAttribute("aria-invalid");
+    input.removeAttribute("aria-describedby");
+  });
+  delete formNotice.dataset.tone;
   formNotice.textContent = "Complete each policy check before submitting a decision.";
   decisionSubmit.disabled = mutationBusy;
 }
@@ -909,6 +945,7 @@ async function mutateReview(
       } else {
         showConflict(message);
       }
+      formNotice.dataset.tone = "error";
       formNotice.textContent = message;
     }
     handleRequestError(error);
@@ -926,13 +963,26 @@ function currentChecklist() {
 
 function submitDecision() {
   if (!selectedDetail || mutationBusy) return;
-  if (!decisionForm.reportValidity()) return;
   const checklistResult = currentChecklist();
   if (Object.values(checklistResult).some((value) => !value)) {
+    checklist.querySelectorAll("input").forEach((input) => {
+      input.removeAttribute("aria-invalid");
+      input.removeAttribute("aria-describedby");
+    });
     formNotice.textContent = "Complete every policy checklist item before submitting.";
-    checklist.querySelector("input:not(:checked)")?.focus();
+    formNotice.dataset.tone = "error";
+    const firstMissing = checklist.querySelector("input:not(:checked)");
+    firstMissing?.setAttribute("aria-invalid", "true");
+    firstMissing?.setAttribute("aria-describedby", formNotice.id);
+    firstMissing?.focus();
     return;
   }
+  if (!decisionForm.reportValidity()) return;
+  checklist.querySelectorAll("input").forEach((input) => {
+    input.removeAttribute("aria-invalid");
+    input.removeAttribute("aria-describedby");
+  });
+  delete formNotice.dataset.tone;
   const decision = decisionSelect.value;
   const body = {
     confirmation: `review-${decision.replaceAll("_", "-")}`,
@@ -976,6 +1026,7 @@ function setActualSize(actual) {
 
 async function openQueueSubmission(item) {
   if (!item || mutationBusy) return;
+  setMobileReviewView("detail", { scroll: true });
   selectedId = item.id;
   syncRoute();
   renderQueueItems();
@@ -1036,7 +1087,8 @@ document.querySelectorAll("[data-status-filter]").forEach((button) => {
     selectedId = "";
     selectedDetail = null;
     syncRoute();
-    loadQueue();
+    setMobileReviewView("queue", { scroll: true });
+    loadQueue({ selectFirst: !isMobileReviewLayout() });
   });
 });
 
@@ -1046,7 +1098,8 @@ filterForm.addEventListener("change", (event) => {
   selectedId = "";
   selectedDetail = null;
   syncRoute();
-  loadQueue();
+  setMobileReviewView("queue", { scroll: true });
+  loadQueue({ selectFirst: !isMobileReviewLayout() });
 });
 
 listElement.addEventListener("click", (event) => {
@@ -1071,6 +1124,11 @@ assignmentActions.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-review-action]");
   if (!button || !selectedDetail || mutationBusy) return;
   const action = button.dataset.reviewAction;
+  if (action === "decision") {
+    decisionForm.scrollIntoView({ block: "start", behavior: "smooth" });
+    window.setTimeout(() => decisionSelect.focus({ preventScroll: true }), 220);
+    return;
+  }
   const body = {
     confirmation: action === "assign" ? "assign-to-me" : "start-review",
     expected_version: selectedDetail.submission.lock_version,
@@ -1092,6 +1150,16 @@ assignmentActions.addEventListener("click", async (event) => {
 });
 
 decisionSelect.addEventListener("change", renderReasonOptions);
+checklist.addEventListener("change", (event) => {
+  const input = event.target.closest('input[type="checkbox"]');
+  if (!input || !input.checked) return;
+  input.removeAttribute("aria-invalid");
+  input.removeAttribute("aria-describedby");
+  if (!checklist.querySelector("input:not(:checked)")) {
+    delete formNotice.dataset.tone;
+    formNotice.textContent = "All policy checklist items are complete.";
+  }
+});
 decisionForm.addEventListener("submit", (event) => {
   event.preventDefault();
   submitDecision();
@@ -1116,6 +1184,9 @@ detailRetryButton.addEventListener("click", () => {
 });
 conflictReloadButton.addEventListener("click", reloadSelected);
 imageRetryButton.addEventListener("click", () => selectedId && loadDetail(selectedId));
+backToQueueButton.addEventListener("click", () => {
+  setMobileReviewView("queue", { focusQueue: true, scroll: true });
+});
 
 reviewImage.addEventListener("load", () => {
   imageError.hidden = true;

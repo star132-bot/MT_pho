@@ -22,6 +22,7 @@ def main() -> None:
     versioning_migration = (ROOT / "database" / "migrations" / "20260716_workspace_draft_versioning.sql").read_text()
     folder_integrity_migration = (ROOT / "database" / "migrations" / "20260716_workspace_folder_integrity.sql").read_text()
     submit_migration = (ROOT / "database" / "migrations" / "20260716_workspace_submit_readiness.sql").read_text()
+    trash_migration = (ROOT / "database" / "migrations" / "20260722_workspace_trash_restore.sql").read_text()
     server = (ROOT / "server.py").read_text()
     upload_html = (ROOT / "upload-studio.html").read_text()
     upload_js = (ROOT / "upload-studio.js").read_text()
@@ -132,6 +133,18 @@ def main() -> None:
         "revoke all on function public.workspace_submit_draft_versioned(uuid, integer, uuid) from anon, public",
     }, "Phase 2E Submit readiness migration")
 
+    require(trash_migration, {
+        "begin;", "commit;", "create or replace function public.workspace_list_trashed_drafts()",
+        "stable", "security definer", "set search_path = ''",
+        "public.is_recovery_auth_session()", "recovery session cannot access Workspace Trash",
+        "public.require_active_workspace_user()", "i.owner_user_id = app_user_id",
+        "public.workspace_draft_json(i.id)",
+        "jsonb_build_object('deleted_at', i.deleted_at)", "i.deleted_at is not null",
+        "i.workflow_status in ('draft'::public.workflow_status, 'changes_requested'::public.workflow_status)",
+        "from public, anon, authenticated, service_role",
+        "grant execute on function public.workspace_list_trashed_drafts() to authenticated",
+    }, "Phase 2G Trash/Restore migration")
+
     require(server, {
         "def supabase_storage_request(", "normalize_workspace_upload_intent", "normalize_workspace_draft_patch",
         'parsed.path == "/api/folders"', 'parsed.path == "/api/images"',
@@ -148,6 +161,10 @@ def main() -> None:
         'set(body) != {"draft", "expected_version"}',
         '"workspace_update_draft_versioned"', 'key != "assets"',
         '"workspace_trash_draft_versioned"',
+        'parse_qs(parsed.query, keep_blank_values=True)',
+        'set(query) - {"workflow_status"}', 'len(workflow_values) != 1',
+        '"trashed": "workspace_list_trashed_drafts"', "handle_workspace_draft_restore",
+        'auth_error("DRAFT_RESTORE_INVALID"',
         "clean_workspace_submit_readiness", "clean_workspace_submission_result",
         "handle_workspace_submit_readiness", "handle_workspace_draft_submit",
         '"workspace_get_submit_readiness"', '"workspace_submit_draft_versioned"',
@@ -164,10 +181,11 @@ def main() -> None:
         'name="contains_recognizable_people"', 'data-model-release-field',
         'name="property_release_status"', 'name="rights_declared"',
         'name="ai_disclosure"', 'name="sensitive_content_disclosure"',
-        "data-studio-reload-record", "20260716-submit-readiness",
+        "data-studio-reload-record", "20260722-trash-restore",
         "data-studio-readiness", "data-studio-readiness-refresh", "data-studio-readiness-list",
         "Submission readiness", "Submission state", "data-studio-submit-record",
         "Submit for Review", "data-studio-submit-dialog",
+        'data-studio-view="drafts"', 'data-studio-view="trash"', "data-studio-trash-count",
     }, "Phase 2 Upload Studio page")
     require(upload_js, {
         'const WORKSPACE_FOLDERS_API = "/api/folders"',
@@ -176,6 +194,7 @@ def main() -> None:
         'method: "PUT"', 'credentials: "omit"', 'signed_url',
         "createWorkspaceUploadIntent", "completeWorkspaceUpload", "saveWorkspaceDraft",
         "trashWorkspaceDraft", "Offline read-only", "loadOfflineCache",
+        "restoreWorkspaceDraft", "loadTrashRecords", "restoreTrashedRecord", "data-trash-restore",
         "window.history.replaceState", "data-folder-rename", "data-folder-delete",
         "allowEmptyTitle: true", 'record.title || "Untitled Work"',
         "const UPLOAD_CONCURRENCY = 2", "new AbortController()", "processTasksWithLimit",
@@ -238,7 +257,7 @@ def main() -> None:
         "python3 scripts/validate_workspace_phase2.py",
         "python3 scripts/test_workspace_phase2_boundary.py",
     }, "Phase 2 CI contract")
-    print("Phase 2A/2B/2C/2D/2E Workspace contracts validated.")
+    print("Phase 2A/2B/2C/2D/2E/2G Workspace contracts validated.")
 
 
 if __name__ == "__main__":

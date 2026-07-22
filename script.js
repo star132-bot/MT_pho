@@ -209,13 +209,13 @@ function updateHeroTransition() {
   }
 
   const stageRect = stage ? stage.getBoundingClientRect() : hero.getBoundingClientRect();
-  const stageTravel = Math.max((stage?.offsetHeight || hero.offsetHeight) - window.innerHeight, 1);
+  const stageTravel = Math.max((stage?.offsetHeight || hero.offsetHeight) * 0.66, 1);
   const progress = Math.min(Math.max(-stageRect.top / stageTravel, 0), 1);
   const concreteProgress = reduceMotion.matches
     ? 1
     : easeInOutCubic(Math.min(Math.max(progress / HERO_CONCRETE_COMPLETE_PROGRESS, 0), 1));
   const headerOffset = (header?.offsetHeight || 84) + HERO_NAV_RELEASE_OFFSET;
-  const navReleaseLine = reduceMotion.matches ? headerOffset : window.innerHeight + headerOffset;
+  const navReleaseLine = headerOffset + HERO_NAV_RELEASE_OFFSET;
   const shouldUseScrolledHeader = stageRect.bottom <= navReleaseLine;
   const copyProgress = reduceMotion.matches ? 1 : concreteProgress;
   const abstractCopyExit = smoothstep(0.08, 0.44, copyProgress);
@@ -310,3 +310,30 @@ readHomepageSettings()
   .catch(() => {
     applyHomepageSettings({ settings: defaultHomepageSettings(), storedRecords: [] });
   });
+
+const homeAccountEntry = document.querySelector("[data-home-account-entry]");
+if (homeAccountEntry) {
+  fetch("/api/me", {
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+  }).then(async (response) => {
+    if (!response.ok) return null;
+    return response.json();
+  }).then((payload) => {
+    if (!payload) return;
+    const displayName = payload.profile?.display_name || payload.user?.display_name || "Member";
+    const avatarText = String(displayName)
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || "")
+      .join("") || "MT";
+    homeAccountEntry.href = "/settings/account#profile";
+    homeAccountEntry.textContent = avatarText;
+    homeAccountEntry.classList.add("is-avatar");
+    homeAccountEntry.setAttribute("aria-label", `Open personal information for ${displayName}`);
+    homeAccountEntry.title = "Personal information";
+  }).catch(() => {});
+}

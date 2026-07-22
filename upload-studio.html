@@ -9,7 +9,7 @@
       content="A secure workspace for importing images, organizing folders, and editing private MT Presence Drafts."
     />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260716-submit-readiness" />
+    <link rel="stylesheet" href="/styles.css?v=20260722-avatar-nav" />
   </head>
   <body class="upload-studio-page">
     <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -60,6 +60,11 @@
         <path d="M3 6.8h6l2 2.4h10v8.6a1.7 1.7 0 0 1-1.7 1.7H4.7A1.7 1.7 0 0 1 3 17.8z" />
         <path d="M3 8.8v-3a1.3 1.3 0 0 1 1.3-1.3h5.1l2 2.2" />
       </symbol>
+      <symbol id="icon-home" viewBox="0 0 24 24">
+        <path d="m3 10.5 9-7.5 9 7.5" />
+        <path d="M5 9v12h14V9" />
+        <path d="M9 21v-7h6v7" />
+      </symbol>
       <symbol id="icon-photo" viewBox="0 0 24 24">
         <rect x="3" y="5" width="18" height="14" rx="1.5" />
         <path d="m7 15 3.2-3.2a1.3 1.3 0 0 1 1.8 0L16 16" />
@@ -95,6 +100,10 @@
     <aside class="archive-rail upload-studio-rail" aria-label="Artist workspace navigation">
       <a class="archive-rail-brand" href="/" aria-label="Back to MT Presence home">MT</a>
       <nav class="archive-rail-nav" aria-label="Publishing workflow navigation">
+        <a class="archive-rail-button" href="/dashboard" aria-label="Dashboard">
+          <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-home"></use></svg>
+          <span class="archive-rail-copy">Dashboard</span>
+        </a>
         <a class="archive-rail-button" href="/works.html" aria-label="Works Archive">
           <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-photo"></use></svg>
           <span class="archive-rail-copy">Works</span>
@@ -105,7 +114,7 @@
           </svg>
           <span class="archive-rail-copy">Upload</span>
         </a>
-        <a class="archive-rail-button" href="/admin/reviews" aria-label="Review Center">
+        <a class="archive-rail-button" href="/admin/reviews" aria-label="Review Center" data-admin-only hidden>
           <svg class="ui-icon" aria-hidden="true" focusable="false">
             <use href="#icon-pen"></use>
           </svg>
@@ -123,14 +132,14 @@
     </aside>
 
     <header class="site-header upload-studio-header" aria-label="Artist workspace navigation">
-      <a class="brand-mark" href="/" aria-label="Back to home">
+      <a class="brand-mark" href="/dashboard" aria-label="Open Dashboard">
         <span>MT</span>
         <span>Artist Workspace</span>
       </a>
       <nav class="site-nav" aria-label="Workflow navigation">
+        <a href="/dashboard">Dashboard</a>
         <a href="/works.html">Works</a>
-        <a href="/admin/reviews">Review Center</a>
-        <a href="/settings/account">Account</a>
+        <a href="/admin/reviews" data-admin-only hidden>Review</a>
       </nav>
     </header>
 
@@ -159,9 +168,21 @@
 
       <section class="upload-studio-grid" aria-label="Upload and edit workspace" data-editor-state="empty">
         <aside class="upload-studio-folder-panel" aria-labelledby="upload-folders-title">
+          <div class="upload-studio-view-switch" role="group" aria-label="Workspace view">
+            <button type="button" data-studio-view="drafts" aria-pressed="true">
+              <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-folder"></use></svg>
+              <span>Drafts</span>
+              <small data-studio-draft-count>0</small>
+            </button>
+            <button type="button" data-studio-view="trash" aria-pressed="false">
+              <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
+              <span>Trash</span>
+              <small data-studio-trash-count hidden>0</small>
+            </button>
+          </div>
           <div class="upload-studio-panel-heading">
             <div>
-              <h2 id="upload-folders-title">Folders</h2>
+              <h2 id="upload-folders-title" data-folder-panel-title>Folders</h2>
               <p data-folder-summary>Loading folders</p>
             </div>
           </div>
@@ -180,7 +201,7 @@
         </aside>
 
         <section class="upload-studio-drop-panel" aria-labelledby="upload-drop-title">
-          <div class="upload-studio-dropzone" data-upload-dropzone>
+          <div class="upload-studio-dropzone" data-upload-dropzone data-studio-drafts-only>
             <svg class="ui-icon" aria-hidden="true" focusable="false">
               <use href="#icon-upload-cloud"></use>
             </svg>
@@ -190,7 +211,7 @@
             <label for="upload-studio-input">Choose files</label>
           </div>
 
-          <div class="upload-studio-meter" aria-label="Upload summary">
+          <div class="upload-studio-meter" aria-label="Upload summary" data-studio-drafts-only>
             <div>
               <span data-studio-count>–</span>
               <small>items</small>
@@ -441,6 +462,7 @@
 
     <script src="/archive-data.js?v=20260610-works-viewer-editor"></script>
     <script src="/archive-upload.js?v=20260610-works-viewer-editor"></script>
-    <script src="/upload-studio.js?v=20260716-submit-readiness"></script>
+    <script src="/account-menu.js?v=20260722-avatar-nav"></script>
+    <script src="/upload-studio.js?v=20260722-trash-restore"></script>
   </body>
 </html>

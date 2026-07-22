@@ -16,8 +16,9 @@
 10. `POST /api/images/{id}/submit` 使用 current `expected_version`、UUID idempotency key 和显式确认；事务锁定 image version，保存 review/readiness/asset snapshots，更新 workflow/version，并写 notification/audit。
 11. authenticated 不能直接 mutation `review_submissions`；owner 不能直接删除已经登记到 `image_assets` 的 Storage object，未完成 intent 的临时对象仍可通过受控取消清理。
 12. `image_assets` INSERT 自动建立 restricted scan job；独立 worker 通过仅授予 service_role 的 scanner RPC 领取 lease，流式核对 private object，并在无凭据子进程中执行 ClamAV/Pillow，token-bound complete/retry 最终更新 scan status、event、notification 与 audit。
+13. Trash 分段视图通过 owner-scoped read RPC 只列出已 soft-delete 的可编辑 Draft；页面只提供 Restore，原 Folder 已删除时服务端回退到 Inbox。
 
-当前不包含 Admin Review Queue/Detail/decision、Publish、scheduled orphan repair、TUS/断点续传、user quota/rate limit 或 Trash 恢复页面。真实上传资产从 `scan_status=pending` 开始，trusted scanner 按当前策略明确写入三个 `clean` 前 Submit 必须 disabled；这不是 quota/capacity 限制。Phase 2F 代码和数据库已部署，但 development 尚未配置常驻 scanner secret/ClamAV Worker，所以现有三个任务保持 `queued`、资产保持 `pending`。浏览器上传 Retry 仍是明确的用户操作，scanner 基础设施失败则使用独立的有界后台 retry。`manage.html` 和公开 Works 仍属于 legacy SQLite Review 原型，不读取 Supabase `review_submissions`。
+当前不包含 Publish、scheduled orphan repair、TUS/断点续传或 user quota/rate limit。真实上传资产从 `scan_status=pending` 开始，trusted scanner 按当前策略明确写入三个 `clean` 前 Submit 必须 disabled；这不是 quota/capacity 限制。Phase 2F 代码和数据库已部署，但 development 尚未配置常驻 scanner secret/ClamAV Worker，所以现有三个任务保持 `queued`、资产保持 `pending`。浏览器上传 Retry 仍是明确的用户操作，scanner 基础设施失败则使用独立的有界后台 retry。`manage.html` 和公开 Works 仍属于 legacy SQLite Review 原型，不读取 Supabase `review_submissions`。
 
 ## 自动验证
 
@@ -37,6 +38,8 @@ python3 scripts/test_supabase_deploy_script.py
 node --check upload-studio.js
 ```
 
+With `agent-browser` installed, run `python3 scripts/test_workspace_trash_browser.py` for the 1440px/390px Trash/Restore visual and interaction acceptance.
+
 `test_workspace_phase2_boundary.py` 使用本地 fake Auth/REST/Storage provider，不读取真实凭据，覆盖：
 
 - anonymous Folder 读取拒绝；
@@ -46,6 +49,7 @@ node --check upload-studio.js
 - complete 后 private Draft signed preview；
 - publication/workflow 等系统字段拒绝；
 - Trash confirmation；
+- active/trashed owner-scoped list、Restore CSRF、重复 Restore 404 与已删除 Folder 回退 Inbox；
 - readiness blocked/pending/ready 与固定五项安全 response shape；
 - Submit missing CSRF、stale expected version、DRAFT_NOT_READY、安全 details 清洗和严格 success allowlist；
 - UUID same-key idempotency、immutable snapshot、submitted update/Trash lock 与 Draft list 移除；
@@ -86,6 +90,14 @@ MT_APPLY_PHASE1_BASELINE=no MT_DEPLOY_ENVIRONMENT=development bash scripts/deplo
 - cancel/cleanup 两个新增 RPC 不向响应泄露 intended asset keys；
 - 每个业务用户有一个 active system Inbox；
 - Storage owner insert/select/delete policies 均存在，且 owner delete policy 排除已登记到 `image_assets` 的对象。
+
+Dashboard 与 Trash migration 部署后运行聚焦的真实数据库门禁。脚本只允许显式 development 环境，使用固定 UUID 和事务级 advisory lock，在同一事务内创建两名 owner、inactive、recovery 与 stacked Admin fixture，最后固定 `ROLLBACK`，再用独立连接确认 fixture 不存在：
+
+```bash
+MT_TEST_ENVIRONMENT=development python3 scripts/test_user_dashboard_database.py
+```
+
+成功必须打印 `dashboard_database_pg_proc_security=yes`、`dashboard_database_acl_boundary=yes`、`dashboard_database_owner_isolation=yes`、`dashboard_database_identity_guards=yes`、`workspace_trash_database_owner_filter=yes`、`workspace_trash_database_state_filter=yes`、`dashboard_database_fixtures_rolled_back=yes` 和 `dashboard_database_fixtures_absent=yes`。不得在 production 或设置了 `MT_ALLOW_PRODUCTION=yes` 时运行；脚本从 Git ignored `.env` 读取 `PG*`，不输出 credential 或业务 payload。
 
 development 至少有三个 queued job 时，可运行真实数据库状态机测试。它会在单个事务内验证 disjoint claim、same-token idempotency/conflict、旧 token 拒绝、lease reclaim 和 attempt exhaustion，最后固定执行 `ROLLBACK`，不会保存 verdict：
 
@@ -184,10 +196,11 @@ python3 server.py --port 8131
 ### 6. 验证 Trash 与离线 cache
 
 1. Move to Trash 必须先确认；成功后 active Draft list 不再显示该记录。
-2. 浏览器 Trash restore UI 尚未实现，不应伪装为 hard delete。
-3. 在线成功载入后断开网络并刷新：允许展示 IndexedDB 最近 cache。
-4. 离线状态下 Import、Folder mutation、Draft form 和 Trash 必须禁用；不得把本地 mutation 当成已同步。
-5. signed preview URL 可能在离线 cache 中过期；metadata 仍可读，图片不可用不代表 cache 可写。
+2. 切换 Trash 后只显示已删除 Draft 的标题、缩略图和移入时间；不得出现编辑、再次删除或 hard delete。
+3. Restore 期间按钮 disabled 并显示 restoring；成功后 Trash 移除记录、Drafts 恢复记录。原 Folder 已删除时 Inbox 必须 active；403/409/404 保留卡片并显示可操作错误。
+4. 在线成功载入后断开网络并刷新：允许展示 IndexedDB 最近 cache。
+5. 离线状态下 Import、Folder mutation、Draft form 和 Trash 必须禁用；不得把本地 mutation 当成已同步。
+6. signed preview URL 可能在离线 cache 中过期；metadata 仍可读，图片不可用不代表 cache 可写。
 
 ## Workspace API
 
@@ -203,6 +216,7 @@ DELETE /api/uploads/{id}
 POST   /api/uploads/{id}/complete
 
 GET    /api/images?workflow_status=draft
+GET    /api/images?workflow_status=trashed
 GET    /api/images/{id}/readiness
 PATCH  /api/images/{id}/draft
 POST   /api/images/{id}/submit
