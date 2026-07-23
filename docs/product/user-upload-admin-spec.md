@@ -6,7 +6,7 @@
 - 设计语言：本文档使用中文；页面可见 UI、代码、数据库字段、API、事件名和开发注释使用英文。
 - 需求优先级：本文档是用户系统、上传工作台和管理员平台的唯一主规格；需求冲突时以本文为准。
 - 明确取消：目标产品不需要公开 `Series` 功能；`collections.html`、`collections.js`、`series-data.js` 在后续实施中应从导航和运行时移除，不在本轮文档阶段直接删除代码。
-- 当前实现基线（2026-07-22）：Supabase Auth/Account、owner-scoped Upload Workspace、Draft autosave/CAS、Trash/Restore、五项 server-authoritative readiness、idempotent Submit transaction、trusted asset scanner、full-width protected creator profile/Dashboard，以及独立的 Supabase Admin Review Queue/Detail/decision 已实现。Reviewer 只能领取不属于自己的公共 Submitted 或处理自己的 open non-self assignment，任何角色都不能 self-review；Admin/Super Admin 必须达到 AAL2 才能查看完整授权历史。决定使用 current `lock_version` 和 UUID idempotency key，并把首次完整结果保存为 immutable replay snapshot，同时写 notification/audit；rollback-only 真实数据库测试已覆盖角色/AAL/RLS/Storage/CAS/幂等与审计，六个独立 `psql` 会话的三组 Start/decision 双会话 race 也已通过，每组使用不同 backend PID 且 fixture 已清理。真实 disposable 多身份浏览器验收已通过 Reviewer A claim、Reviewer B 越权拒绝、Request Changes、Admin AAL2 Approve、private original/display/thumbnail、responsive/focus/console 和 fixture cleanup。Dashboard/Trash/creator-profile 真库门禁现在要求十二个 marker：三个 helper 仅 `postgres` owner 可执行，五个 exposed RPC 仅 `postgres + authenticated`，并覆盖 profile field/social host、cover owner/current-clean/bucket-kind、identity guard、rollback 和 fixture absence。Review 与 profile cover asset 都只允许 current scan policy 的 clean private object 获得短时签名；真实 asset 仍以 `scan_status=pending` 创建，production 常驻 Scanner Worker 与监控尚未交付。公开 Works 和 legacy `manage.html` 继续读取 SQLite，公开 derivative delivery、Works 数据源迁移与 public creator portfolio/delivery 尚未完成，因而浏览器暂不显示 Approve and Publish，也不宣称 protected profile 已公开。
+- 当前实现基线（2026-07-22）：Supabase Auth/Account、owner-scoped Upload Workspace、Draft autosave/CAS、Trash/Restore、五项 server-authoritative readiness、idempotent Submit、trusted asset scanner、protected creator profile/Dashboard、Admin Review Queue/Detail/decision，以及 published-only Works/public creator delivery 已实现。Reviewer 只能处理 non-self assignment 且只能 Request Changes、Reject 或 Approve；任何角色都不能 self-review。Admin/Super Admin 必须达到 AAL2 才可执行 Approve and publish；该事务只把 current-policy clean display/thumbnail 切为 public，并立即通过 strict DTO 出现在 Works 与 `/creators/{public_slug}`。MT Web API 浏览器 DTO 不包含 original、owner UUID、显式 Storage bucket/key、review evidence 或 private GPS/EXIF；权威空数据或 provider 错误不回退 SQLite/sample/IndexedDB。Supabase signed URL 与匿名交付 RPC 的 provider locator 仍可能包含当前公开衍生图 object path；若业务要求隐藏该 locator，后续必须采用 owner-independent opaque public path 或 server-only credential + image-byte proxy。rollback-only 数据库、双会话并发、无密钥 HTTP 与真实多身份浏览器门禁覆盖上述边界。真实 asset 仍以 `scan_status=pending` 创建，production 常驻 Scanner Worker 与监控尚未交付。
 
 ## 2. 产品目标
 
@@ -269,7 +269,7 @@ Submit registration
 
 Cover chooser 只允许选择或移除当前 owner 的 current、non-deleted、ready image 资产，每张 image 优先 current-policy scanner-clean private display、缺失时回退 clean thumbnail。`GET/PATCH /api/me/profile/cover` 只返回固定 DTO 与可用时的短期 signed URL；不能返回 bucket/key/owner/scan internals，mutation 要求 CSRF，并拒绝 recovery、inactive、Admin/Super Admin AAL1、跨 owner 与 bucket-kind mismatch。若数据库保存已提交但即时预览签名失败，PATCH 返回 HTTP 200 `{cover:null,saved:true}`，UI 明确显示保存成功但预览暂不可用，不得引导用户重复提交。
 
-公开 Works 只能读取明确公开的 profile 字段；当前尚无 public creator profile DTO 或公开 cover URL，不能把 protected `/api/me/profile*` 直接复用为 public delivery。
+公开 Works 与 `/creators/{public_slug}` 只读取独立的 published-only public creator DTO。公开 cover 也必须来自当前作品、current-policy clean、精确 object 匹配的 public display/thumbnail；protected `/api/me/profile*` 不得复用为 public delivery。
 
 ### 7.5 账号状态
 
@@ -464,7 +464,7 @@ Submit 后：
 - Browser、普通 authenticated user 与 `server.py` 都不能读写 scan job/event 或 verdict，也不持有 Supabase secret/service-role key。Phase 2F 不实现或宣称 user quota/submission capacity。
 - `/admin/reviews` 与 `/admin/reviews/{submissionId}` 已通过服务端 DTO 接入 Supabase submission snapshot，支持 status/assignment queue、原子 claim/start、submitted-version Detail、checklist，以及 Request Changes/Reject/Approve；Reviewer 的 detail/private asset 权限只在自己的 open non-self assignment 内有效，Admin/Super Admin 仍要求 AAL2，所有角色的 mutation 都拒绝 self-review。
 - 决定 mutation 要求 current `expected_version`、UUID idempotency key 和 action-specific fields；same-key/same-payload 返回首次完整结果，same-key/different-payload、stale version 或 reviewer conflict 必须拒绝，历史 decision 与 audit 不可覆盖。
-- 数据库/API 保留 Admin+AAL2-only `approve_and_publish` 边界，但浏览器不暴露。Supabase published-only DTO、derivative public delivery、公开 Works 数据源迁移、Withdraw、Escalate、Quarantine 和风险/批量筛选仍是后续切片；legacy `manage.html` 保持独立 SQLite 原型。
+- Admin/Super Admin 在 AAL2 下可以从浏览器执行 `approve_and_publish`，立即进入 Supabase published-only DTO、公开 Works 与 creator profile；Reviewer 仍不能 publish。Withdraw、Escalate、Quarantine 和风险/批量筛选仍是后续切片；legacy `manage.html` 保持独立 SQLite 原型。
 
 ### 8.9 删除、回收站与下架
 
@@ -541,7 +541,7 @@ Submit 后：
 - 空账号只显示 Import Images 和基础账号完成提示。
 - Dashboard 不承担图片完整编辑。
 - Dashboard 不显示左侧 rail，Overview/My works 使用 keyboard-accessible tabs；桌面事实区稳定 3x2，窄屏逐步降为 2 列/1 列，不允许横向溢出。
-- 当前实现通过 authenticated-only `get_my_dashboard()` 聚合工作状态，通过 protected `/api/me/profile` 与 `/api/me/profile/cover` 读取 identity/cover；浏览器只读取稳定 DTO 和短期签名 display/thumbnail。尚未配置的 storage quota 与尚未接通的 public delivery 必须显示为 unavailable，不能伪造数字或公开 Portfolio。
+- 当前实现通过 authenticated-only `get_my_dashboard()` 聚合工作状态，通过 protected `/api/me/profile` 与 `/api/me/profile/cover` 读取 identity/cover；浏览器只读取稳定 DTO 和短期签名 display/thumbnail。尚未配置的 storage quota 显示 unavailable；public delivery capability 按真实 published count 显示公开主页入口或 no-published-works 状态，不能伪造数字或链接。
 
 ## 10. Admin Platform 详细设计
 
@@ -1017,7 +1017,7 @@ POST   /api/admin/review-submissions/{submissionId}/approve
 POST   /api/admin/review-submissions/{submissionId}/approve-and-publish
 ```
 
-当前 Phase 3 本地边界已实现上述 queue/detail/assign/start/decision routes；list 使用 `status` / `assignment` / bounded `limit` / `offset`，所有 mutation 要求 same-origin CSRF。纯 Reviewer 只能处理自己的 open assignment，Admin/Super Admin 的完整范围和 `approve-and-publish` 都要求 AAL2。`approve-and-publish` 暂不出现在浏览器 UI；在 public DTO、derivative delivery 与公开 Works 迁移完成前只作为受保护的未来服务边界保留。
+当前 Phase 3 本地边界已实现上述 queue/detail/assign/start/decision routes；list 使用 `status` / `assignment` / bounded `limit` / `offset`，所有 mutation 要求 same-origin CSRF。纯 Reviewer 只能处理自己的 open assignment 且不能 publish；Admin/Super Admin 的完整范围和浏览器 `approve-and-publish` 都要求 AAL2。发布成功后，作品立即进入 strict public DTO、Works 与 creator profile。
 
 ### 13.5 Admin Images and Users
 
@@ -1266,7 +1266,7 @@ SQLite + 静态页面适合本地原型，不适合作为多用户生产系统�
 - 已完成 Phase 2E：server-authoritative readiness、immutable image version/submission snapshots、expected-version + UUID idempotency、notification/audit transaction 和 Upload Studio Submit UI。
 - 已完成并向 development 部署 Supabase Review Queue、status/assignment filter、atomic assignment/start、image-first Review Detail、checklist，以及 Request Changes、Reject、Approve；Reviewer 与 Admin+AAL2 使用不同的最小权限范围。
 - 决定采用 current-version compare-and-swap、same-payload immutable result replay、immutable decision、Review notification 和 append-only audit；migration 已部署 development，rollback-only 数据库验收、三组双会话并发 race、secret-free fake-provider 桌面/移动浏览器，以及 2026-07-22 真实 disposable Reviewer/Admin 多身份浏览器验收均已通过。真实流程覆盖 Reviewer A claim、Reviewer B cross-assignment denial、Request Changes、Admin AAL2 Approve、private 三变体、responsive/focus/console、session close 与 fixture cleanup。
-- `approve_and_publish` 仅保留在 Admin+AAL2 数据库/API 边界，浏览器不显示；必须先完成 Supabase public DTO、derivative delivery 和公开 Works 数据源迁移，才能把该动作作为真实用户能力开放。
+- `approve_and_publish` 已作为 Admin/Super Admin+AAL2 浏览器能力开放，并接入 Supabase public DTO、derivative delivery、公开 Works 与 creator profile；Reviewer 不显示该动作，普通 Approve 也不会公开作品。
 - Escalate、Quarantine、Withdraw、批量分配、风险/日期/类别/release filters 与生产 SLA/通知投递保留给后续切片。
 
 验收：审核历史不可覆盖；并发 reviewer 不冲突；只有 approved/published 进入 Works。

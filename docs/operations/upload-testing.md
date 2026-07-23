@@ -283,7 +283,7 @@ Submit body 必须精确是 `{"confirmation":"submit-for-review","expected_versi
 
 ### Draft 不出现在 `manage.html` 或 `works.html`
 
-Editable Draft 与成功 submitted record 都不会进入 legacy `manage.html` 或公开 Works。Phase 2E 已创建 Supabase submission，独立 Supabase Review Queue/decision 已接入，但 published-only DTO、derivative public delivery 与公开 Works 数据迁移仍未完成；不要用 legacy `/api/archive/images` 复制记录来绕过工作流。
+Editable Draft 与成功 submitted record 都不会进入 legacy `manage.html` 或公开 Works。Phase 2E 创建 Supabase submission，独立 Review Queue/decision 与 published-only delivery 已接入；只有 Admin/Super Admin+AAL2 的 Approve and publish 才会让 strict DTO 出现在公开 Works/creator profile。不要用 legacy `/api/archive/images` mutation 复制记录来绕过工作流。
 
 ### Review Center 未修改却提示离开
 

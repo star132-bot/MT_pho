@@ -568,8 +568,8 @@ def main() -> None:
             raise RuntimeError("Legacy upload directory listing remained publicly readable")
 
         status, _, _ = request(fresh_opener, base_url, "/assets/uploads/published/display-public.jpg")
-        if status != HTTPStatus.OK:
-            raise RuntimeError("Published display derivative was not publicly readable")
+        if status != HTTPStatus.NOT_FOUND:
+            raise RuntimeError("Configured Supabase delivery leaked a legacy published derivative")
 
         print("csrf_missing_rejected=yes")
         print("csrf_cross_origin_rejected=yes")
@@ -588,7 +588,7 @@ def main() -> None:
         print("legacy_original_private=yes")
         print("legacy_draft_derivative_private=yes")
         print("legacy_upload_listing_disabled=yes")
-        print("published_display_public=yes")
+        print("configured_legacy_published_display_private=yes")
         print("secrets_logged=no")
     finally:
         app_server.shutdown()

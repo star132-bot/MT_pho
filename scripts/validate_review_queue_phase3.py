@@ -1229,8 +1229,6 @@ def validate_browser(page: str, client: str, styles: str) -> None:
         },
         "Review page accessible queue/detail/dialog states",
     )
-    forbid(page, {"approve-and-publish", "approve_and_publish", "Approve and Publish"}, "Browser Review page")
-
     require(
         client,
         {
@@ -1240,6 +1238,13 @@ def validate_browser(page: str, client: str, styles: str) -> None:
             '["request_changes", "Request changes"]',
             '["reject", "Reject"]',
             '["approve", "Approve"]',
+            'approve_and_publish: [["policy_complete", "Policy checks complete"]]',
+            'decisions.push(["approve_and_publish", publishOnly ? "Publish approved work" : "Approve and publish"])',
+            'detail.actor.can_publish === true',
+            'submission.status === "approved"',
+            'detail.image.publication_status !== "published"',
+            'decision === "approve_and_publish"',
+            "immediately publishes the work in Works and on the creator's public profile",
             'const closesPrivateDetail = ["request_changes", "reject", "approve"].includes(action)',
             'setDetailState("Decision recorded", "empty"',
             'internalLabel.textContent = "Internal note"',
@@ -1258,16 +1263,11 @@ def validate_browser(page: str, client: str, styles: str) -> None:
     )
     if client.count("new AbortController()") < 2:
         raise RuntimeError("Queue and detail requests must each use latest-wins AbortController cancellation")
-    publish_mentions = [line.strip() for line in client.splitlines() if "approve_and_publish" in line]
-    if publish_mentions != ['approve_and_publish: "Approved and published",']:
-        raise RuntimeError(
-            "approve_and_publish may appear in browser JavaScript only as a history display label; "
-            f"got {publish_mentions}"
-        )
     forbid(client, {"approve-and-publish"}, "Browser Review mutation actions")
     for action, codes in REASON_CODES.items():
         for code in codes:
-            if client.count(f'["{code}",') != 1:
+            expected_count = 2 if code == "policy_complete" else 1
+            if client.count(f'["{code}",') != expected_count:
                 raise RuntimeError(f"Browser reason code {action}.{code} must be declared exactly once")
     for checklist_code in CHECKLIST_CODES:
         if client.count(f'["{checklist_code}",') != 1:
@@ -1418,7 +1418,8 @@ def validate_ci_and_docs(
             "/admin/reviews",
             "same-key/same-payload",
             "approve_and_publish",
-            "浏览器不暴露",
+            "Admin/Super Admin 在 AAL2 下可以从浏览器执行",
+            "Reviewer 仍不能 publish",
         },
         "Product Review Queue contract",
     )
@@ -1439,7 +1440,7 @@ def validate_ci_and_docs(
             "GET    /api/admin/review-submissions",
             "POST   /api/admin/review-submissions/{submissionId}/assign",
             "POST   /api/admin/review-submissions/{submissionId}/start",
-            "POST   /api/admin/review-submissions/{submissionId}/{request-changes|reject|approve}",
+            "POST   /api/admin/review-submissions/{submissionId}/{request-changes|reject|approve|approve-and-publish}",
             "`scripts/test_review_queue_database.sql`",
             "`scripts/test_review_queue_concurrency.py`",
             "Phase 3",

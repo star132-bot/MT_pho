@@ -10,12 +10,12 @@ Included:
 - status and assignment filters with bounded pagination;
 - queue counts, compact submission summaries, and signed thumbnail previews;
 - atomic reviewer claim/start, optimistic `lock_version` checks, and immutable review decisions;
-- Request Changes, Reject, and Approve UI;
-- Admin+AAL2-only database/API boundary for `approve_and_publish`;
+- Request Changes, Reject, and Approve UI for Reviewer;
+- Admin/Super Admin+AAL2-only browser and database/API boundary for `approve_and_publish`;
 - signed, short-lived access to submitted private assets;
 - notifications and append-only audit evidence.
 
-The browser does **not** expose Approve and Publish yet. The public Works page still reads the legacy SQLite archive, so enabling that action before Supabase public DTO and derivative delivery are connected would create a false publication promise.
+The browser exposes Approve and publish only to Admin/Super Admin sessions at AAL2. That action is connected to the strict Supabase public DTO and derivative delivery; Reviewer Approve remains unpublished, and the production public path never falls back to the legacy SQLite archive.
 
 ## Authorization Matrix
 
@@ -23,9 +23,9 @@ The browser does **not** expose Approve and Publish yet. The public Works page s
 | --- | --- | --- | --- |
 | Anonymous / normal user | Denied | Denied | Denied |
 | Recovery session | Denied | Denied | Denied |
-| Pure Reviewer | Unassigned waiting items and their own open assignments, excluding their submissions | Own open non-self assignment only | Own active non-self assignment only |
+| Pure Reviewer | Unassigned waiting items and their own open assignments, excluding their submissions | Own open non-self assignment only | Request Changes, Reject, or Approve on own active non-self assignment; no publish |
 | Admin or Super Admin at AAL1 | Denied | Denied | Denied |
-| Admin or Super Admin at AAL2 | Full queue/history, including read-only visibility of own submissions | Full authorized review history | Supported Admin actions, but never self-review |
+| Admin or Super Admin at AAL2 | Full queue/history, including read-only visibility of own submissions | Full authorized review history | Supported Admin actions including Approve and publish, but never self-review |
 
 Role stacking must not let an Admin who also has `reviewer` bypass AAL2. Self-review is denied in assignment, start, and decision RPCs for every role; a future override would require a separate, explicitly audited policy action.
 
@@ -114,12 +114,10 @@ The two-session development concurrency test passed on 2026-07-20. It used six i
 - two same-key/same-payload decisions return the same immutable result with exactly one decision, notification, and audit row;
 - all committed fixture users, images, submissions, decisions, notifications, and audit rows are removed afterward.
 
-The database, concurrency, fake-provider, and real disposable multi-identity browser gates are complete. Never run any fixture test against production, and always verify the rollback and cleanup markers. Remaining product work is public derivative delivery, the Supabase-backed public Works migration, and the public creator profile/editor; browser-exposed Approve and Publish stays disabled until the public delivery chain is real.
+The database, concurrency, fake-provider, and real disposable multi-identity browser gates are complete. Never run any fixture test against production, and always verify the rollback and cleanup markers. Public derivative delivery, Supabase-backed Works, the public creator profile, and browser-exposed Admin+AAL2 Approve and publish are now covered by the separate public-delivery gate.
 
 ## Explicit Non-goals
 
-- public Works data-source migration and public derivative delivery;
-- browser-exposed Approve and Publish;
 - Escalate, Quarantine, Withdraw, appeal, and legal-hold workflows;
 - risk/date/category/release filters beyond the first status/assignment queue slice;
 - bulk assignment or bulk approval;

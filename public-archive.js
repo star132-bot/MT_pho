@@ -42,29 +42,85 @@
     return cleanText(type).toLowerCase() === "abstract" ? "Abstract" : "Concrete";
   }
 
-  function displayUrl(record) {
-    const assets = Array.isArray(record.assets) ? record.assets : [];
-    const display = assets.find((asset) => asset.kind === "display") || assets.find((asset) => asset.kind === "original");
-    return display?.objectUrl || display?.public_url || record.image_url || record.src || "";
+  function assetUrl(asset) {
+    return cleanText(asset?.url || asset?.public_url || asset?.signed_url || asset?.objectUrl);
   }
 
-  function normalizeApiWork(row) {
+  function displayUrl(record) {
+    const assets = record?.assets;
+    if (Array.isArray(assets)) {
+      const display = assets.find((asset) => asset.kind === "display");
+      const original = assets.find((asset) => asset.kind === "original");
+      return assetUrl(display) || assetUrl(original) || cleanText(record.image_url || record.display_url || record.src);
+    }
+    return assetUrl(assets?.display) || cleanText(record?.image_url || record?.display_url || record?.src);
+  }
+
+  function thumbnailUrl(record) {
+    const assets = record?.assets;
+    if (Array.isArray(assets)) {
+      return assetUrl(assets.find((asset) => asset.kind === "thumbnail")) || cleanText(record.thumbnail_url);
+    }
+    return assetUrl(assets?.thumbnail) || cleanText(record?.thumbnail_url);
+  }
+
+  function normalizeCreator(row) {
+    const rawCreator = row?.creator && typeof row.creator === "object" ? row.creator : {};
+    const slug = cleanText(rawCreator.slug || row?.creator_slug || row?.public_slug);
+    const displayName = cleanText(rawCreator.display_name || rawCreator.name || row?.creator_name);
+    return slug && displayName ? { slug, displayName } : null;
+  }
+
+  function isLocalPreviewSource(source) {
+    return ["local-sqlite", "local-sqlite-preview"].includes(cleanText(source).toLowerCase());
+  }
+
+  function isAuthoritativeSource(source) {
+    return !isLocalPreviewSource(source);
+  }
+
+  function responseErrorMessage(payload, fallback) {
+    const message = payload?.error?.message
+      || (typeof payload?.error === "string" ? payload.error : "")
+      || payload?.hint;
+    return cleanText(message) || fallback;
+  }
+
+  function normalizeApiWork(row, deliverySource = "") {
+    const width = Number(row.original_width || row.width || 1);
+    const height = Number(row.original_height || row.height || 1);
+    const contentType = row.content_type || row.content_category || row.type;
     return {
       id: cleanText(row.id),
       title: cleanText(row.title) || "Untitled Work",
       src: displayUrl(row),
-      width: Number(row.original_width || row.width || 1),
-      height: Number(row.original_height || row.height || 1),
-      type: contentTypeLabel(row.content_type || row.type),
+      width,
+      height,
+      original_width: width,
+      original_height: height,
+      type: contentTypeLabel(contentType),
       ratio: cleanText(row.ratio_label || ratioLabelFromCode(row.ratio_category_code) || row.ratio) || "1:1",
+      ratio_label: cleanText(row.ratio_label),
       series: cleanText(row.series),
       capturedAt: cleanText(row.captured_at),
+      captured_at: cleanText(row.captured_at),
       description: cleanText(row.description),
-      curatorialNote: cleanText(row.curatorial_note),
+      curatorialNote: cleanText(row.curatorial_note || row.caption),
+      curatorial_note: cleanText(row.curatorial_note || row.caption),
+      artist_statement: cleanText(row.artist_statement),
+      alt_text: cleanText(row.alt_text),
       tags: Array.isArray(row.tags) ? row.tags : [],
       tagGroups: Array.isArray(row.tag_groups) ? row.tag_groups : [],
+      tag_groups: Array.isArray(row.tag_groups) ? row.tag_groups : [],
+      thumbnail_url: thumbnailUrl(row),
+      display_mode: cleanText(row.display_mode),
+      original_filename: cleanText(row.original_filename),
+      public_exif: row.public_exif && typeof row.public_exif === "object" ? row.public_exif : {},
       visibility: cleanText(row.visibility) || "published",
       sortOrder: Number.isFinite(Number(row.sort_order)) ? Number(row.sort_order) : 0,
+      published_at: cleanText(row.published_at),
+      creator: normalizeCreator(row),
+      deliverySource: cleanText(deliverySource),
     };
   }
 
@@ -100,11 +156,23 @@
       headers: { Accept: "application/json" },
       cache: "no-store",
     });
+    const payload = await response.json().catch(() => ({}));
+    const source = cleanText(payload.source) || "api";
     if (!response.ok) {
-      throw new Error(`Archive API returned ${response.status}.`);
+      const error = new Error(responseErrorMessage(payload, `Archive API returned ${response.status}.`));
+      error.source = source;
+      error.authoritative = isAuthoritativeSource(source);
+      throw error;
     }
-    const payload = await response.json();
-    return (Array.isArray(payload.items) ? payload.items : []).map(normalizeApiWork).filter((item) => item.id && item.src);
+    const works = (Array.isArray(payload.items) ? payload.items : [])
+      .map((row) => normalizeApiWork(row, source))
+      .filter((item) => item.id && item.src);
+    return {
+      works,
+      source,
+      authoritative: isAuthoritativeSource(source),
+      count: Number.isFinite(Number(payload.count)) ? Number(payload.count) : works.length,
+    };
   }
 
   function openArchiveDatabase() {
@@ -141,28 +209,45 @@
     let source = "api";
     let status = "Archive loaded.";
     let works;
+    let authoritative = false;
     try {
-      works = await fetchArchiveWorks();
-      if (!works.length) {
+      const result = await fetchArchiveWorks();
+      works = result.works;
+      source = result.source;
+      authoritative = result.authoritative;
+      if (authoritative) {
+        status = works.length ? "Published works loaded." : "No published works yet.";
+      } else if (!works.length) {
         throw new Error("The archive contains no published works.");
       }
     } catch (error) {
+      if (error?.authoritative !== false) {
+        return {
+          works: [],
+          source: error.source || "supabase",
+          status: error?.message || "Published works are temporarily unavailable.",
+          authoritative: true,
+          error: true,
+        };
+      }
       source = "sample";
       status = `${error?.message || "Archive unavailable"} Showing local preview works.`;
       works = (archiveSeedData.sampleItems || []).map(normalizeSampleWork);
     }
 
-    try {
-      const storedUploads = (await readStoredWorks()).filter((item) => item.visibility === "published" && item.id && item.src);
-      const merged = new Map(works.map((item) => [item.id, item]));
-      storedUploads.forEach((item) => merged.set(item.id, item));
-      works = [...merged.values()];
-    } catch {
-      // API or sample works remain available when browser storage cannot be read.
+    if (!authoritative) {
+      try {
+        const storedUploads = (await readStoredWorks()).filter((item) => item.visibility === "published" && item.id && item.src);
+        const merged = new Map(works.map((item) => [item.id, item]));
+        storedUploads.forEach((item) => merged.set(item.id, item));
+        works = [...merged.values()];
+      } catch {
+        // API or sample works remain available when browser storage cannot be read.
+      }
     }
 
     works.sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title));
-    return { works, source, status };
+    return { works, source, status, authoritative };
   }
 
   function readIdArray(key) {
@@ -204,7 +289,10 @@
     LIGHTBOX_STORAGE_KEY,
     cleanText,
     escapeHtml,
+    isAuthoritativeSource,
+    isLocalPreviewSource,
     loadPublishedWorks,
+    normalizeApiWork,
     ratioCssValue,
     readLightboxIds,
     writeLightboxIds,

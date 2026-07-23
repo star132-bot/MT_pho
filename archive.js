@@ -345,11 +345,14 @@ const downloadVisibleButton = document.querySelector("[data-download-visible]");
 const archiveToast = document.querySelector("[data-archive-toast]");
 const workViewer = document.querySelector("[data-work-viewer]");
 const workViewerDialog = document.querySelector("[data-work-viewer-dialog]");
+const viewerStage = document.querySelector("[data-viewer-stage]");
 const viewerImage = document.querySelector("[data-viewer-image]");
 const viewerTitle = document.querySelector("[data-viewer-title]");
 const viewerNote = document.querySelector("[data-viewer-note]");
+const viewerDialogLabel = document.querySelector("[data-viewer-dialog-label]");
 const viewerMetadata = document.querySelector("[data-viewer-metadata]");
 const viewerPosition = document.querySelector("[data-viewer-position]");
+const viewerMode = document.querySelector("[data-viewer-mode]");
 const viewerTagsSection = document.querySelector("[data-viewer-tags-section]");
 const viewerTags = document.querySelector("[data-viewer-tags]");
 const viewerStatementSection = document.querySelector("[data-viewer-statement-section]");
@@ -364,6 +367,7 @@ const viewerPrevButton = document.querySelector("[data-viewer-prev]");
 const viewerNextButton = document.querySelector("[data-viewer-next]");
 const viewerCloseButton = document.querySelector("[data-viewer-close-button]");
 const viewerInquireLink = document.querySelector("[data-viewer-inquire]");
+const viewerCreator = document.querySelector("[data-viewer-creator]");
 const lightboxCount = document.querySelector("[data-lightbox-count]");
 
 const ORDER_STORAGE_KEY = "mt-cijian-archive-order-v1";
@@ -381,6 +385,7 @@ let draggedArchiveItemId = null;
 let uploadTasks = [];
 let viewerCurrentId = null;
 let viewerTriggerElement = null;
+let viewerSequenceIds = [];
 let viewerScrollY = 0;
 let viewerCloseTimer = null;
 let viewerOriginalBodyOverflow = "";
@@ -779,7 +784,7 @@ function publicAssetUrl(asset) {
   if (!asset) {
     return null;
   }
-  return asset.public_url || asset.signed_url || assetObjectUrl(asset);
+  return asset.url || asset.public_url || asset.signed_url || assetObjectUrl(asset);
 }
 
 function detailImageUrl(item) {
@@ -805,41 +810,47 @@ function thumbnailImageUrl(item) {
   return publicAssetUrl(preferredThumbnailAsset(item.assets || [])) || item.thumbnail_url || record.thumbnail_url || item.src || "";
 }
 
-function archiveApiRowToItem(row) {
-  const type = contentTypeLabelFromCode(row.content_type) || "Concrete";
-  const ratio = row.ratio_label || ratioLabelFromCode(row.ratio_category_code) || "1:1";
-  const width = Number(row.original_width || 0);
-  const height = Number(row.original_height || 0);
-  const tagGroups = normalizeTagGroupList(row.tag_groups);
-  const tags = tagsFromValue(row.tags);
+function archiveApiRowToItem(row, deliverySource = "") {
+  const normalized = publicArchive?.normalizeApiWork?.(row, deliverySource) || {};
+  const type = normalized.type || contentTypeLabelFromCode(row.content_type || row.content_category) || "Concrete";
+  const width = Number(normalized.width || row.original_width || 0);
+  const height = Number(normalized.height || row.original_height || 0);
+  const ratio = normalized.ratio || row.ratio_label || ratioLabelFromCode(row.ratio_category_code) || classifyRatio(width, height);
+  const tagGroups = normalizeTagGroupList(normalized.tag_groups || row.tag_groups);
+  const tags = tagsFromValue(normalized.tags || row.tags);
+  const imageUrl = normalized.src || row.image_url || row.display_url || "";
 
   return {
-    id: row.id,
-    title: row.title || "Untitled Work",
-    src: row.image_url || row.display_url || row.original_url || "",
+    ...normalized,
+    id: normalized.id || row.id,
+    title: normalized.title || row.title || "Untitled Work",
+    src: imageUrl,
     width,
     height,
     type,
     ratio,
-    ratio_label: row.ratio_label,
+    ratio_label: normalized.ratio_label || row.ratio_label,
     source: row.source_type === "local_sample" ? "Local sample" : "Archive database",
     createdAt: row.uploaded_at ? Date.parse(row.uploaded_at) || 0 : 0,
     sortOrder: Number.isFinite(Number(row.sort_order)) ? Number(row.sort_order) : 0,
-    description: row.description || "",
-    curatorial_note: row.curatorial_note || "",
-    artist_statement: row.artist_statement || "",
-    captured_at: row.captured_at || "",
-    series: row.series || "",
+    description: normalized.description || row.description || "",
+    curatorial_note: normalized.curatorial_note || row.curatorial_note || row.caption || "",
+    artist_statement: normalized.artist_statement || row.artist_statement || "",
+    alt_text: normalized.alt_text || row.alt_text || "",
+    captured_at: normalized.captured_at || row.captured_at || "",
+    series: normalized.series || row.series || "",
     tags,
     tag_groups: tagGroups,
-    image_url: row.image_url || "",
-    thumbnail_url: row.thumbnail_url || "",
-    original_url: row.original_url || "",
-    display_mode: row.display_mode || displayModeForType(type),
+    image_url: imageUrl,
+    thumbnail_url: normalized.thumbnail_url || row.thumbnail_url || "",
+    original_url: publicArchive?.isAuthoritativeSource?.(deliverySource) ? "" : row.original_url || "",
+    display_mode: normalized.display_mode || row.display_mode || displayModeForType(type),
     original_width: width,
     original_height: height,
-    original_filename: row.original_filename || "",
-    visibility: row.visibility || "published",
+    original_filename: normalized.original_filename || row.original_filename || "",
+    visibility: normalized.visibility || row.visibility || "published",
+    creator: normalized.creator || null,
+    deliverySource,
     imageRecord: {
       ...row,
       tags,
@@ -847,9 +858,9 @@ function archiveApiRowToItem(row) {
       original_width: width,
       original_height: height,
       ratio_category_code: row.ratio_category_code || ratioCategoryCode(ratio),
-      content_type: row.content_type || contentTypeCode(type),
-      display_mode: row.display_mode || displayModeForType(type),
-      visibility: row.visibility || "published",
+      content_type: row.content_type || row.content_category || contentTypeCode(type),
+      display_mode: normalized.display_mode || row.display_mode || displayModeForType(type),
+      visibility: normalized.visibility || row.visibility || "published",
     },
     assets: [],
     squareSliceCount: Number(row.square_slice_count || 0),
@@ -862,20 +873,28 @@ async function fetchArchiveApiItems() {
     headers: { Accept: "application/json" },
     cache: "no-store",
   });
+  const payload = await response.json().catch(() => ({}));
+  const source = cleanText(payload.source) || "api";
   if (!response.ok) {
-    let message = `Archive API returned ${response.status}.`;
-    try {
-      const payload = await response.json();
-      message = payload?.error || payload?.hint || message;
-    } catch {
-      // Keep the HTTP status message when the response is not JSON.
-    }
-    throw new Error(message);
+    const message = cleanText(
+      payload?.error?.message
+      || (typeof payload?.error === "string" ? payload.error : "")
+      || payload?.hint,
+    ) || `Archive API returned ${response.status}.`;
+    const error = new Error(message);
+    error.source = source;
+    error.authoritative = publicArchive?.isAuthoritativeSource?.(source) === true;
+    throw error;
   }
 
-  const payload = await response.json();
   const rows = Array.isArray(payload.items) ? payload.items : [];
-  return rows.map(archiveApiRowToItem).filter((item) => item.id && item.src);
+  const items = rows.map((row) => archiveApiRowToItem(row, source)).filter((item) => item.id && item.src);
+  return {
+    items,
+    source,
+    authoritative: publicArchive?.isAuthoritativeSource?.(source) === true,
+    count: Number.isFinite(Number(payload.count)) ? Number(payload.count) : items.length,
+  };
 }
 
 function cleanText(value) {
@@ -1339,6 +1358,7 @@ function normalizeWorkDetail(item) {
     series,
     note: curatorialNote || description || defaultNote,
     statement: artistStatement || (curatorialNote && description ? description : ""),
+    altText: cleanText(item.alt_text || record.alt_text) || cleanText(item.title || record.title || "Untitled Work"),
     imageUrl: detailImageUrl(item),
     thumbnailUrl: thumbnailImageUrl(item),
   };
@@ -1984,6 +2004,19 @@ function viewerItems() {
   return filteredItems();
 }
 
+function setViewerSequence(items) {
+  viewerSequenceIds = items.map((item) => item.id);
+}
+
+function viewerSequenceItems() {
+  const itemsById = new Map(
+    orderedItems()
+      .filter((item) => isPublishedArchiveItem(item) && item.src)
+      .map((item) => [item.id, item]),
+  );
+  return viewerSequenceIds.map((id) => itemsById.get(id)).filter(Boolean);
+}
+
 function currentViewerIndex(items = viewerItems()) {
   return items.findIndex((item) => item.id === viewerCurrentId);
 }
@@ -2087,7 +2120,6 @@ function updateViewerActionStates(itemId) {
     button.classList.toggle("is-active", active);
     if (action === "lightbox") {
       button.setAttribute("aria-pressed", String(active));
-      button.dataset.tooltip = active ? "Remove from Lightbox" : "Add to Lightbox";
       const label = button.querySelector("span");
       if (label) {
         label.textContent = active ? "In Lightbox" : "Add to Lightbox";
@@ -2096,18 +2128,53 @@ function updateViewerActionStates(itemId) {
   });
 }
 
+function renderViewerCreator(item) {
+  if (!viewerCreator) {
+    return;
+  }
+  const creator = item?.creator;
+  const slug = cleanText(creator?.slug);
+  const displayName = cleanText(creator?.displayName || creator?.display_name);
+  viewerCreator.replaceChildren();
+  if (!slug || !displayName) {
+    viewerCreator.hidden = true;
+    return;
+  }
+  const prefix = document.createElement("span");
+  prefix.textContent = "By ";
+  const link = document.createElement("a");
+  link.href = `/creators/${encodeURIComponent(slug)}`;
+  link.textContent = displayName;
+  link.setAttribute("aria-label", `Open ${displayName}'s public profile`);
+  viewerCreator.append(prefix, link);
+  viewerCreator.hidden = false;
+}
+
 function setViewerZoom(zoomed) {
   isViewerZoomed = Boolean(zoomed);
   workViewerDialog?.classList.toggle("is-zoomed", isViewerZoomed);
   if (viewerZoomButton) {
     const label = isViewerZoomed ? "Fit image to screen" : "View actual size";
     viewerZoomButton.setAttribute("aria-label", label);
-    viewerZoomButton.dataset.tooltip = isViewerZoomed ? "Fit screen" : "Actual size";
+    viewerZoomButton.dataset.tooltip = isViewerZoomed ? "Fit to window" : "View actual size";
+    viewerZoomButton.setAttribute("aria-pressed", String(isViewerZoomed));
     const useElement = viewerZoomButton.querySelector("use");
     if (useElement) {
       useElement.setAttribute("href", `#icon-${isViewerZoomed ? "zoom-out" : "zoom-in"}`);
     }
   }
+  if (viewerMode) {
+    viewerMode.textContent = isViewerZoomed ? "Actual size" : "Fit";
+  }
+  window.requestAnimationFrame(() => {
+    if (!viewerStage) return;
+    if (isViewerZoomed) {
+      viewerStage.scrollLeft = Math.max(0, (viewerStage.scrollWidth - viewerStage.clientWidth) / 2);
+      viewerStage.scrollTop = Math.max(0, (viewerStage.scrollHeight - viewerStage.clientHeight) / 2);
+    } else {
+      viewerStage.scrollTo(0, 0);
+    }
+  });
 }
 
 function setViewerInfoOpen(open) {
@@ -2116,26 +2183,35 @@ function setViewerInfoOpen(open) {
   if (viewerInfoButton) {
     const label = isOpen ? "Hide work details" : "Show work details";
     viewerInfoButton.setAttribute("aria-label", label);
-    viewerInfoButton.dataset.tooltip = isOpen ? "Hide details" : "Details";
+    viewerInfoButton.dataset.tooltip = isOpen ? "Hide details" : "Show details";
     viewerInfoButton.setAttribute("aria-expanded", String(isOpen));
     viewerInfoButton.classList.toggle("is-active", isOpen);
   }
   if (viewerInfoPanel) {
+    if (!isOpen && viewerInfoPanel.contains(document.activeElement)) {
+      viewerInfoButton?.focus({ preventScroll: true });
+    }
     viewerInfoPanel.setAttribute("aria-hidden", String(!isOpen));
+    viewerInfoPanel.toggleAttribute("inert", !isOpen);
   }
 }
 
-function renderWorkViewer(item, index, items) {
+function renderWorkViewer(item, index, items, { resetView = false } = {}) {
   const detail = normalizeWorkDetail(item);
   setViewerZoom(false);
-  setViewerInfoOpen(false);
+  if (resetView) {
+    setViewerInfoOpen(window.matchMedia("(min-width: 761px)").matches);
+  }
   if (workViewerDialog) {
     workViewerDialog.dataset.displayMode = detail.displayMode;
     workViewerDialog.dataset.workType = detail.type;
   }
+  if (viewerDialogLabel) {
+    viewerDialogLabel.textContent = `${detail.title} work viewer`;
+  }
   if (viewerImage) {
     viewerImage.src = detail.imageUrl;
-    viewerImage.alt = detail.title;
+    viewerImage.alt = detail.altText;
   }
   if (viewerTitle) {
     viewerTitle.textContent = detail.title;
@@ -2143,6 +2219,7 @@ function renderWorkViewer(item, index, items) {
   if (viewerNote) {
     viewerNote.textContent = detail.note;
   }
+  renderViewerCreator(item);
   if (viewerMetadata) {
     viewerMetadata.innerHTML = [
       metadataTerm("Type", detail.typeLabel),
@@ -2220,9 +2297,10 @@ function openWorkViewer(itemId, triggerElement = null) {
 
   clearTimeout(viewerCloseTimer);
   viewerCurrentId = itemId;
+  setViewerSequence(items);
   viewerTriggerElement =
     triggerElement || Array.from(gallery.querySelectorAll("[data-item-id]")).find((element) => element.dataset.itemId === itemId);
-  renderWorkViewer(items[index], index, items);
+  renderWorkViewer(items[index], index, items, { resetView: true });
   replaceArchiveUrl({ work: itemId });
 
   if (workViewer.hidden) {
@@ -2247,15 +2325,19 @@ function closeWorkViewer({ restoreFocus = true } = {}) {
   replaceArchiveUrl({ work: "" });
   clearTimeout(viewerCloseTimer);
   const finishClose = () => {
+    const focusTarget = viewerTriggerElement?.isConnected
+      ? viewerTriggerElement
+      : Array.from(gallery.querySelectorAll("[data-item-id]")).find((element) => element.dataset.itemId === viewerCurrentId);
     workViewer.hidden = true;
     viewerCurrentId = null;
+    viewerSequenceIds = [];
     if (viewerImage) {
       viewerImage.removeAttribute("src");
       viewerImage.alt = "";
     }
     unlockViewerScroll();
-    if (restoreFocus && viewerTriggerElement?.isConnected) {
-      viewerTriggerElement.focus({ preventScroll: true });
+    if (restoreFocus && focusTarget?.isConnected) {
+      focusTarget.focus({ preventScroll: true });
     }
     viewerTriggerElement = null;
   };
@@ -2269,7 +2351,11 @@ function moveViewer(direction) {
     return;
   }
 
-  const items = viewerItems();
+  let items = viewerSequenceItems();
+  if (!items.length) {
+    items = viewerItems();
+    setViewerSequence(items);
+  }
   if (items.length <= 1) {
     return;
   }
@@ -2282,6 +2368,7 @@ function moveViewer(direction) {
   const nextIndex = (currentIndex + direction + items.length) % items.length;
   viewerCurrentId = items[nextIndex].id;
   renderWorkViewer(items[nextIndex], nextIndex, items);
+  replaceArchiveUrl({ work: viewerCurrentId });
 }
 
 function isInteractiveTarget(target) {
@@ -2449,7 +2536,7 @@ function renderGallery() {
               : ""
           }
           <figure class="archive-image-frame" style="--display-ratio: ${ratioCssValue(item.ratio)};">
-            <img src="${escapeHtml(item.src)}" alt="${escapeHtml(item.title)}" loading="lazy" decoding="async" />
+            <img src="${escapeHtml(item.src)}" alt="${escapeHtml(item.alt_text || item.title)}" loading="lazy" decoding="async" />
             ${
               isArrangeMode
                 ? ""
@@ -2648,18 +2735,21 @@ workViewer?.addEventListener("click", (event) => {
   const relatedButton = event.target.closest("[data-related-work-id]");
   if (relatedButton) {
     const nextId = relatedButton.dataset.relatedWorkId;
-    let items = viewerItems();
+    let items = viewerSequenceItems();
     const nextIndex = items.findIndex((item) => item.id === nextId);
     if (nextIndex >= 0) {
       viewerCurrentId = nextId;
       renderWorkViewer(items[nextIndex], nextIndex, items);
+      replaceArchiveUrl({ work: nextId });
       return;
     }
     items = orderedItems().filter((item) => isPublishedArchiveItem(item) && item.src);
     const allIndex = items.findIndex((item) => item.id === nextId);
     if (allIndex >= 0) {
+      setViewerSequence(items);
       viewerCurrentId = nextId;
       renderWorkViewer(items[allIndex], allIndex, items);
+      replaceArchiveUrl({ work: nextId });
     }
   }
 });
@@ -2937,45 +3027,67 @@ uploadInput?.addEventListener("change", async (event) => {
 async function initArchive() {
   setArchiveDataStatus("Loading archive.", "loading");
   hydrateArchiveUrlState();
-  let storedItems = [];
+  let apiResult = null;
+  let apiError = null;
 
   try {
-    archiveDb = await openArchiveDatabase();
-    storedItems = await getStoredItems();
-  } catch {
-    archiveDb = null;
+    apiResult = await fetchArchiveApiItems();
+  } catch (error) {
+    apiError = error;
+    if (apiError && typeof apiError.authoritative !== "boolean") {
+      apiError.authoritative = true;
+    }
   }
 
-  let baseItems = sampleItems;
-  try {
-    const apiItems = await fetchArchiveApiItems();
-    if (apiItems.length) {
-      baseItems = apiItems;
+  const authoritative = apiResult?.authoritative === true || apiError?.authoritative === true;
+  if (authoritative) {
+    archiveDb = null;
+    archiveDataSource = apiResult?.source || apiError?.source || "supabase";
+    archiveItems = (apiResult?.items || []).filter(isPublishedArchiveItem);
+    normalizeSortOrders(archiveItems);
+    if (apiError) {
+      setArchiveDataStatus(apiError.message || "Published works are temporarily unavailable.", "error");
+    } else {
+      setArchiveDataStatus(archiveItems.length ? "Published works loaded." : "No published works yet.", "ready");
+    }
+  } else {
+    let storedItems = [];
+
+    try {
+      archiveDb = await openArchiveDatabase();
+      storedItems = await getStoredItems();
+    } catch {
+      archiveDb = null;
+    }
+
+    let baseItems = sampleItems;
+    if (apiResult?.items.length) {
+      baseItems = apiResult.items;
       archiveDataSource = "api";
       setArchiveDataStatus("Archive loaded from local SQLite database.", "ready");
-    } else {
+    } else if (apiResult) {
       archiveDataSource = "local";
       setArchiveDataStatus("Archive database returned no published works. Showing local samples.", "warning");
+    } else {
+      archiveDataSource = "local";
+      setArchiveDataStatus(`${apiError?.message || "Archive database is unavailable."} Showing local samples.`, "warning");
     }
-  } catch (error) {
-    archiveDataSource = "local";
-    setArchiveDataStatus(`${error?.message || "Archive database is unavailable."} Showing local samples.`, "warning");
+
+    if (!archiveDb && archiveDataSource === "api") {
+      setArchiveDataStatus("Archive loaded from local SQLite database. Browser edits are unavailable.", "warning");
+    }
+
+    const storedById = new Map(storedItems.map((item) => [item.id, item]));
+    const baseIds = new Set(baseItems.map((item) => item.id));
+    const mergedBaseItems = baseItems.map((item) => mergeStoredWorkDetail(item, storedById.get(item.id)));
+    const uploadedItems = storedItems
+      .filter((item) => !baseIds.has(item.id) && isStoredUpload(item))
+      .map(reviveStoredItem)
+      .sort((a, b) => b.createdAt - a.createdAt);
+
+    archiveItems = applySavedSortOrders([...mergedBaseItems, ...uploadedItems].filter(isPublishedArchiveItem));
+    normalizeSortOrders();
   }
-
-  if (!archiveDb && archiveDataSource === "api") {
-    setArchiveDataStatus("Archive loaded from local SQLite database. Browser edits are unavailable.", "warning");
-  }
-
-  const storedById = new Map(storedItems.map((item) => [item.id, item]));
-  const baseIds = new Set(baseItems.map((item) => item.id));
-  const mergedBaseItems = baseItems.map((item) => mergeStoredWorkDetail(item, storedById.get(item.id)));
-  const uploadedItems = storedItems
-    .filter((item) => !baseIds.has(item.id) && isStoredUpload(item))
-    .map(reviveStoredItem)
-    .sort((a, b) => b.createdAt - a.createdAt);
-
-  archiveItems = applySavedSortOrders([...mergedBaseItems, ...uploadedItems].filter(isPublishedArchiveItem));
-  normalizeSortOrders();
 
   setActiveButton(typeFilters, "data-filter-type", activeType);
   setActiveButton(ratioFilters, "data-filter-ratio", activeRatio);

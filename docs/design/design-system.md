@@ -58,7 +58,7 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 - `contact-section`：联系作者。
 - `contact-page`：联系作者独立页面和表单。
 - `manage-workspace`：内部作者维护工作区，当前用于 Works Viewer metadata 编辑。
-- `site-footer`：页脚。
+- `site-footer`：全站共享页脚挂载点；按页面语境渲染 Public Footer 或 Workspace Footer，不在 Viewer/Auth 内重复出现。
 
 这样做的原因：
 
@@ -79,14 +79,14 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 
 后续如果迁移到 Next.js，可把这些 token 和状态命名直接映射到 Tailwind theme、shadcn/ui variants 和 Radix state attributes。
 
-### 2026-07-04 Viewer 与内部 Rail 修正
+### 2026-07-22 Work Viewer 与内部 Rail
 
-作品查看器不使用大面积黑色影棚底。参考馆藏/摄影作品页的处理方式，图片区域使用 gallery white / stone surface，黑色只用于文字和少量 hover/active 强调：
+作品查看器按专业阅片室组织：纯色工具栏、炭黑影像舞台、独立白色展签面板三层关系明确，不使用模糊背景、玻璃拟态、渐变或发光控件：
 
-- `.work-viewer-media` 使用浅色 gallery surface 和细分割线承托作品，不使用厚阴影。
-- 图片自身保持浅边框与自然比例，不让背景或装饰比作品更抢眼。
+- `.work-viewer-media` 使用 `#171717` 纯色舞台和稳定内边距；图片保持原始比例并以 `object-fit: contain` 完整显示，只允许极轻的暗色投影，不添加白色卡片边框。
+- 桌面详情开启时使用真实网格列而非覆盖图片；详情关闭后舞台占满释放空间。移动端详情使用舞台下方可收起、独立滚动的底部区域，不能遮挡图片。
 - `archive-rail-button.is-active` 只适用于 Upload/Review 等内部工作区，不再用于任何公开页面；active 状态使用轻色底、细边界和低声量强调色。
-- 详情层默认是全屏图片优先，不显示右侧信息栏；`Info` 图标打开展签、metadata、tags 和 related works 抽屉；图片本身的点击不再切换局部 zoom，避免把“全屏查看”误做成“单图放大”。
+- 桌面默认显示展签，移动端默认保持图片优先；`Info` 图标在 Show details / Hide details 间同步 tooltip、`aria-expanded`、`aria-hidden` 和 `inert`。Fit 完整适配舞台，Actual Size 只在舞台内部滚动并显示当前模式。
 - 作品卡片 hover 只显示 `MT` 角标和 Save / Collect / Download 图标按钮；不再显示底部标题说明和大号 Download 文案按钮，避免遮挡图片。
 - 图标按钮必须有 `aria-label` 和 `data-tooltip`，鼠标 hover 或键盘 focus 时显示统一黑底提示；不要只依赖浏览器原生 `title`。
 
@@ -120,10 +120,21 @@ Creator Profile：
 
 - 固定顶栏之后先显示 200px 横向 cover；Change cover 位于右上角。桌面 112px avatar 与 cover 底边重叠，主体使用 300px identity/facts 侧列加弹性 Works/Account 主列。
 - 姓名、headline、地点、简介、Edit profile、Upload work、资料完整度、职业、可用性、网站与社交链接使用留白和细线建立层级；禁止把事实做成不同底色的 dashboard tiles。
-- Overview/My works 保留键盘 tablist 与服务端聚合状态；loading、empty、permission、error、retry、quota unavailable 和 public delivery unavailable 都保持真实语义。
+- Overview/My works 保留键盘 tablist 与服务端聚合状态；loading、empty、permission、error、retry、quota unavailable、尚无公开作品和已公开 profile 都保持真实语义。
 - `<=760px` cover 为 152px、avatar 为 84px，主体改单列，Status 两列、Draft 单列；`<520px` 主操作也改单列。
 
-响应式视觉验收必须覆盖 1440x900、1024x768、390x844：无公开 rail 或占位、无重复导航、无横向溢出，固定顶栏不遮挡内容，菜单不换行失控，封面/头像构图稳定，文字/按钮/图片互不遮挡，并检查 hover、focus、Viewer、筛选、Lightbox、封面 chooser 与账户菜单没有功能回归。
+响应式视觉验收必须覆盖 1920x1080、1440x900、1024x768、390x844：无公开 rail 或占位、无重复导航、无横向溢出，固定顶栏不遮挡内容，菜单不换行失控，封面/头像构图稳定，文字/按钮/图片互不遮挡，并检查 hover、focus、Viewer、筛选、Lightbox、封面 chooser 与账户菜单没有功能回归。
+
+### 2026-07-23 Global Footer
+
+全站页脚定位为“当代摄影画册的封底”，使用一个共享脚本和一组全局样式维护两种语境，禁止每个页面独立复制视觉规则：
+
+- Public Footer 用于 Home、Works、About、Contact 与 Lightbox。背景固定为中性炭黑，普通公开页依次呈现克制的 inquiry band、品牌/Explore/Practice/Account 导航和版权栏；Contact 页面省略重复的 inquiry band。
+- Workspace Footer 用于 Dashboard、Upload Studio、Account Settings 与 Review Queue。它保持在正常文档流中，仅显示版权、Public Works 和 Contact；短页面由页面 flex 布局自然推到视口底部，不使用会遮挡内容的 fixed 定位。
+- Public Footer 的 Account 组默认只显示 Sign In，并复用 `account-menu.js` 发出的 `mt:account-loaded` 状态事件；只有明确为 active 的账户才显示 Dashboard、Upload、Account Settings，且仅具备权限的 active 账户显示 Review。非 active 或缺失状态一律 fail closed，不生成受保护死入口；`site-footer.js` 不发起第二次 `/api/me` 请求。
+- Practice 只进入真实存在的 Contact inquiry 类型。项目没有公开法律页面，也没有可靠的站点级创作者社交资料源，因此不渲染 Privacy/Terms/Cookie 或 Instagram/LinkedIn/Website 占位链接。
+- 桌面使用品牌宽列加三组必要链接；`<=1100px` 变为两列且品牌占满首行，`<=760px` 变为单列并保证链接至少 44px 触控高度。工作台 Upload/Review 桌面端对齐 78px 内部 rail，移动端回到完整视口宽度。
+- 所有链接提供高对比 `focus-visible`，hover 只改变颜色或下划线，动效为 180ms，并在 `prefers-reduced-motion` 下关闭。Footer 与 Work Viewer 保持独立层级，Viewer 打开时 Footer 留在遮罩之后。
 
 ### Upload Queue
 
@@ -167,7 +178,7 @@ Creator Profile：
 
 - Dashboard 是已登录摄影作者的受保护个人资料，不是营销 Hero、通用统计卡片墙或 public creator portfolio。页面复用统一全宽顶部导航且不显示左侧 rail；第一视口用真实摄影 cover、重叠 avatar/initials、名称/headline/location/availability/bio/links/account context 和 Edit profile、Upload work 两个明确动作建立身份。
 - Overview 依次呈现服务端聚合 Status、Changes Requested 优先的 Needs Attention、Recent Images、Review Activity 与 Storage；My works 只列最近可编辑 Draft。身份事实和资料完整度必须使用白底、留白与 1px 中性分隔线，深森林绿只用于动作/active/focus，danger 色只用于真实异常；不得使用不同底色的 dashboard blocks 或卡片套卡片，重复 Draft 可使用不超过 8px 的细边框卡片。
-- Status 数字来自单一 aggregate DTO；loading、空账号、provider error、permission denied 和 retry 都保留稳定尺寸。未实现的 storage quota/public portfolio 用明确 unavailable 文案，不显示虚假进度条、剩余容量或公开作品入口。
+- Status 数字来自单一 aggregate DTO；loading、空账号、provider error、permission denied 和 retry 都保留稳定尺寸。未实现的 storage quota 用明确 unavailable 文案；public portfolio 只在服务端返回 published works 后显示真实入口，不显示虚假进度或链接。
 - Dashboard cover chooser 只显示当前 owner 的 non-deleted、ready image，并按 image 去重、优先 current-policy scanner-clean display、缺失时回退 clean thumbnail。候选和当前 cover 只加载服务端短期 signed URL，不能读取 original、Storage key 或跨 owner asset；无候选时使用稳定摄影 fallback。Dialog 支持 loading/empty/error/success、Remove current cover、Escape/Cancel 和 trigger focus restoration。
 - Dashboard 提供 Overview/My works tablist，ArrowLeft/ArrowRight/Home/End 可切换并同步 `aria-selected`、`tabindex` 与 panel visibility；移动端把统计改为两列、内容改为单列，不允许横向溢出。
 - Account Settings 是紧凑的填写型设置界面：全局顶栏之后使用短标题栏、桌面 sticky 本地导航和一块连续白色内容面板。Profile 的 Identity、Work、Location、About、Links 五组只用留白与 1px 中性分隔线组织，不使用彩色底或独立卡片；十个字段在桌面稳定两列、窄屏单列，输入框统一为中性细边框。Identity 顶部可展示 initials 头像摘要，但在没有后端上传能力时不得提供虚假上传操作。
@@ -348,12 +359,12 @@ Statement：
 - 搜索结果数量必须通过 Count 更新并使用 `aria-live`；无结果时显示 `No works match this search.`，移动端筛选区不能横向溢出。
 - Count 和数据来源状态与 Works Archive 标题同层，使用 12px 中性文字和 `aria-live`；公开 DOM 不挂载 Arrange、Save Order、Done、拖动柄或移动控件。
 - 作品图片默认不加圆角；hover/focus 只允许极轻微 scale 和半透明操作层，不能永久遮挡作品主体。
-- 作品放大鉴赏层和标签可视化是 Works Archive 的核心浏览入口：点击作品打开，公开页面没有 Arrange 状态；动效只使用低声量 fade、slight scale 和 blur reveal，保持当前静态站结构，不引入 Magic UI / Aceternity UI 运行时依赖。
-- 鉴赏层桌面使用两栏式：左侧大图优先占面积，右侧是展签式信息；平板和手机改为上下结构，首屏优先看到作品本身。
-- 鉴赏层图片优先使用 `display` 资产或 `archive_image_view.image_url`，没有 display 时才 fallback 到 original；图片始终 `object-fit: contain`，不裁切、不拉伸、不加黑边。
+- 作品放大鉴赏层和标签可视化是 Works Archive 的核心浏览入口：点击作品打开，公开页面没有 Arrange 状态；动效只使用低声量 opacity 与布局过渡，禁止 blur reveal、玻璃拟态和发光按钮，保持当前静态站结构且不引入第二套运行时依赖。
+- 鉴赏层桌面使用两栏式：左侧炭黑舞台优先占面积，右侧是独立白色展签；平板保持不覆盖图片的侧列，手机改为舞台在上、可收起详情在下。
+- 鉴赏层图片优先使用 `display` 资产或 `archive_image_view.image_url`，没有 display 时才 fallback 到 original；Fit 始终 `object-fit: contain`，不裁切、不拉伸，Actual Size 只允许舞台内部滚动。
 - 鉴赏层信息区可显示标题、策展说明、Type、Ratio、Size、Captured、Display、Series、Artist Statement/Description 和标签分组；标题用衬线，metadata 和标签用小号无衬线。
 - 标签分组服务作品理解，不做彩色 chip 墙；推荐使用 Subject、Mood、Material / Surface、Palette / Tone、Technique、Series / Collection、Place 等细线分组，标签以轻量行内文字和小点分隔。
-- 鉴赏层必须支持 Esc、遮罩、关闭按钮、左右按钮和 ArrowLeft/ArrowRight；打开后锁定背景滚动、焦点进入 dialog，关闭后恢复触发卡片焦点；`prefers-reduced-motion` 下取消 blur/scale 转场。
+- 鉴赏层必须支持 Esc、遮罩、关闭按钮、左右按钮和 ArrowLeft/ArrowRight；打开后锁定背景滚动、焦点进入 dialog，关闭后即使 Gallery 已重绘也要恢复同一作品卡片焦点；切图和 Related Works 同步 `?work=`；`prefers-reduced-motion` 下取消全部布局转场。
 
 导航与内部侧栏：
 
@@ -417,8 +428,9 @@ Statement：
 ### Work Viewer
 
 - 用于 Works Archive 的作品放大鉴赏，不是商品详情页、后台 drawer 或普通图库 lightbox。
-- 桌面布局为大图 + 信息展签，信息区宽度不能挤压图片；移动端为大图在上、信息在下，关闭和左右切换按钮始终可见。
-- 大图保持原始比例，优先 `display` 资产，不默认请求原图。
+- 顶部工具栏固定 60-64px，使用纯色背景、1px 分隔线和统一 40-42px 线性图标按钮；序号、Fit/Actual 状态、Details、Previous、Next、Close 的尺寸不能随作品比例改变。
+- 桌面布局为炭黑舞台 + `clamp(360px, 28vw, 460px)` 白色信息展签；移动端为舞台在上、可收起且独立滚动的信息区在下，关闭和左右切换始终可见。
+- 大图保持原始比例，优先 `display` 资产，不默认请求原图；详情开关必须重新计算 Fit 可用空间，不能让面板覆盖或裁掉作品。
 - Metadata 使用细线、留白和小号档案字体，不使用密集表格线或厚卡片。
 - 标签按组展示，小标题对读屏器可读；标签本身不使用高饱和彩色背景。
 - 打开/关闭转场控制在 220ms-420ms；`prefers-reduced-motion` 下直接显示。

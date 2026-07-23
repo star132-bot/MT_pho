@@ -69,7 +69,7 @@ python3 scripts/validate_local_archive_db.py
 
 Archive 页面展示时读取 `archive_image_view.image_url`。该字段优先使用 `display` 的 URL，没有 `display` 时才 fallback 到 `original`。`thumbnail` 只用于列表和后台，不作为作品主展示图。`images.original_width` / `images.original_height` 永远来自 `original`，不能被压缩后的 `display` 尺寸覆盖。
 
-当前 Upload Studio 在浏览器生成 `original`、`display`、`thumbnail`，服务端创建 `{auth.uid}/{image_id}/{kind}.{ext}` signed destination，浏览器直传 private Storage，再由 complete RPC 创建 Draft/version/asset rows。Folder/Draft/readiness/Submit 以 PostgreSQL 为 authority，IndexedDB 只缓存最近成功响应。上传永远不会直接 published；成功 Submit 只进入 `submitted`，之后由独立 Supabase Review Queue 领取并决定。真实 asset 初始 `scan_status=pending`，Phase 2F 独立 worker 通过仅授予 service_role 的 leased RPC 读取并验证 private object，只有三个资产都以当前 policy 明确 `clean` 才允许 Submit；当前没有 user quota/capacity policy。Trash 是 soft delete，owner-scoped Trash view 与 Restore/Inbox fallback 已实现并通过真库与浏览器验收。公开 Works 仍未消费 Supabase publication DTO，所以浏览器不提供 Approve and Publish。
+当前 Upload Studio 在浏览器生成 `original`、`display`、`thumbnail`，服务端创建 `{auth.uid}/{image_id}/{kind}.{ext}` signed destination，浏览器直传 private Storage，再由 complete RPC 创建 Draft/version/asset rows。Folder/Draft/readiness/Submit 以 PostgreSQL 为 authority，IndexedDB 只缓存最近成功响应。上传永远不会直接 published；成功 Submit 只进入 `submitted`，之后由独立 Supabase Review Queue 领取并决定。真实 asset 初始 `scan_status=pending`，Phase 2F 独立 worker 通过仅授予 service_role 的 leased RPC 读取并验证 private object，只有三个资产都以当前 policy 明确 `clean` 才允许 Submit；当前没有 user quota/capacity policy。Trash 是 soft delete，owner-scoped Trash view 与 Restore/Inbox fallback 已实现并通过真库与浏览器验收。公开 Works 已消费 strict Supabase publication DTO；只有 Admin/Super Admin+AAL2 的 Approve and publish 会把 clean display/thumbnail 公开，Reviewer Approve 仍保持 unpublished。
 
 ## 文件
 
@@ -346,5 +346,5 @@ Supabase 当前规则：
 3. 已完成 `database/product_schema.sql` + Phase 1 RLS/Auth + Phase 2A-2G ordered Workspace migrations 的当前 development boundary。
 4. 已完成 owner-scoped signed upload、Folder、Draft edit/list、soft-delete Trash/Restore、双并发 Retry/Cancel/Remove、partial-object cleanup、五项 readiness、idempotent Submit transaction、User Dashboard aggregate、受保护 creator profile/cover，以及独立 trusted scanner 的 leased/retry/clean/flagged/failed 代码与数据库状态机；Dashboard/Trash/creator-profile 真库门禁使用十二个 marker。development scanner 已具备隔离 secret 与 ClamAV 运行条件，production 常驻 Worker、监控与告警仍需交付。
 5. `/admin/reviews` 的 scoped Queue/Detail、原子 assignment/start、versioned/idempotent decisions、notification/audit 与 private signed asset 边界已部署 development；rollback-only、双会话并发和真实 disposable 多身份浏览器验收均通过。
-6. 后续先实现 published-only production DTO、derivative public delivery 和公开 Works 数据源迁移，再向浏览器开放真实的 Admin+AAL2 Approve and Publish；public creator portfolio/delivery 需要另建只读 published-only 边界，不能直接暴露当前 protected profile DTO，legacy `manage.html` 在迁移完成前保持 SQLite 原型。
+6. published-only production DTO、derivative public delivery、公开 Works 数据源迁移与 Admin+AAL2 Approve and Publish 已接通；public creator portfolio 使用独立只读边界，不直接暴露 protected profile DTO。legacy `manage.html` 仍保持独立 SQLite 原型。
 7. 再补 scheduled orphan repair、user quota/rate limit、TUS、Withdraw/Escalate/Quarantine 与运营筛选，最后迁移 `sampleItems`、首页精选、真实 AI 分析和仍被产品确认需要的 square slice/tag 能力。

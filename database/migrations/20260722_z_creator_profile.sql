@@ -1,7 +1,7 @@
 begin;
 
 -- Creator profile fields and cover selection. Covers intentionally reuse the
--- existing private image pipeline: only current owner assets that completed the
+-- existing image pipeline: only current owner assets that completed the
 -- trusted scanner may be selected, so profile customization cannot bypass the
 -- malware boundary with an unscanned standalone upload.
 
@@ -375,7 +375,7 @@ as $$
     and a.owner_user_id = expected_owner_id
     and a.kind in ('display', 'thumbnail')
     and a.deleted_at is null
-    and a.storage_visibility = 'private'
+    and a.storage_visibility in ('private', 'public')
     and a.scan_status = 'clean'
     and a.scan_result_code = 'clean'
     and a.scan_policy_version = 'mt-asset-scan-2026-07-v1'
@@ -445,7 +445,7 @@ begin
         and a.owner_user_id = app_user_id
         and a.kind in ('display', 'thumbnail')
         and a.deleted_at is null
-        and a.storage_visibility = 'private'
+        and a.storage_visibility in ('private', 'public')
         and a.scan_status = 'clean'
         and a.scan_result_code = 'clean'
         and a.scan_policy_version = 'mt-asset-scan-2026-07-v1'

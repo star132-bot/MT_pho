@@ -9,7 +9,7 @@
       content="A quiet photography works archive for MT Presence, arranged by image type and ratio."
     />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="styles.css?v=20260722-public-shell" />
+    <link rel="stylesheet" href="styles.css?v=20260723-global-footer-3" />
   </head>
   <body class="archive-page">
     <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -215,6 +215,8 @@
       </section>
     </main>
 
+    <footer class="site-footer public-footer" aria-label="Site footer" data-site-footer data-footer-variant="public"></footer>
+
     <div class="archive-toast" role="status" aria-live="polite" data-archive-toast hidden></div>
 
     <div class="work-viewer" data-work-viewer hidden>
@@ -223,20 +225,23 @@
         class="work-viewer-dialog"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="work-viewer-title"
-        aria-describedby="work-viewer-note"
+        aria-labelledby="work-viewer-dialog-label"
         tabindex="-1"
         data-work-viewer-dialog
       >
-        <header class="work-viewer-controls" aria-label="Work viewer controls">
-          <p class="work-viewer-position" data-viewer-position></p>
+        <header class="work-viewer-controls viewer-toolbar" aria-label="Work viewer controls">
+          <div class="work-viewer-status">
+            <p id="work-viewer-dialog-label" class="visually-hidden" data-viewer-dialog-label>Work viewer</p>
+            <p class="work-viewer-position" data-viewer-position aria-live="polite"></p>
+            <p class="work-viewer-mode" data-viewer-mode>Fit</p>
+          </div>
           <div class="work-viewer-actions">
-            <button class="work-viewer-icon-button" type="button" aria-label="Show work details" data-tooltip="Details" aria-expanded="false" data-viewer-info-toggle>
+            <button class="work-viewer-icon-button" type="button" aria-label="Show work details" data-tooltip="Show details" aria-controls="work-viewer-details" aria-expanded="false" data-viewer-info-toggle>
               <svg class="ui-icon" aria-hidden="true" focusable="false">
                 <use href="#icon-info"></use>
               </svg>
             </button>
-            <button class="work-viewer-icon-button" type="button" aria-label="View actual size" data-tooltip="Actual size" data-viewer-zoom>
+            <button class="work-viewer-icon-button" type="button" aria-label="View actual size" data-tooltip="View actual size" aria-pressed="false" data-viewer-zoom>
               <svg class="ui-icon" aria-hidden="true" focusable="false">
                 <use href="#icon-zoom-in"></use>
               </svg>
@@ -259,25 +264,26 @@
           </div>
         </header>
 
-        <div class="work-viewer-layout">
-          <figure class="work-viewer-media">
+        <div class="work-viewer-layout viewer-body">
+          <figure class="work-viewer-media viewer-stage" tabindex="0" aria-label="Image viewing area" data-viewer-stage>
             <img src="" alt="" decoding="async" data-viewer-image />
           </figure>
-          <aside class="work-viewer-info" data-viewer-info>
+          <aside id="work-viewer-details" class="work-viewer-info viewer-details" aria-label="Work details" aria-hidden="true" inert data-viewer-info>
             <h2 id="work-viewer-title" data-viewer-title></h2>
+            <p class="work-viewer-creator" data-viewer-creator hidden></p>
             <p id="work-viewer-note" class="work-viewer-note" data-viewer-note></p>
             <div class="work-viewer-primary-actions" aria-label="Work actions">
-              <button class="work-viewer-action-button" type="button" data-viewer-action="lightbox" aria-pressed="false" data-tooltip="Add to Lightbox">
+              <button class="work-viewer-action-button" type="button" data-viewer-action="lightbox" aria-pressed="false">
                 <svg class="ui-icon" aria-hidden="true" focusable="false">
                   <use href="#icon-bookmark"></use>
                 </svg>
                 <span>Add to Lightbox</span>
               </button>
-              <a class="work-viewer-action-button" href="contact.html?source=work" data-viewer-inquire data-tooltip="Inquire">
+              <a class="work-viewer-action-button" href="contact.html?source=work" data-viewer-inquire>
                 <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-mail"></use></svg>
                 <span>Inquire</span>
               </a>
-              <button class="work-viewer-action-button" type="button" data-viewer-action="download" data-tooltip="Download">
+              <button class="work-viewer-action-button" type="button" data-viewer-action="download">
                 <svg class="ui-icon" aria-hidden="true" focusable="false">
                   <use href="#icon-download"></use>
                 </svg>
@@ -303,8 +309,9 @@
     </div>
 
     <script src="archive-data.js?v=20260610-works-viewer-editor"></script>
-    <script src="public-archive.js?v=20260713-public-architecture"></script>
-    <script src="archive.js?v=20260713-public-architecture"></script>
+    <script src="public-archive.js?v=20260722-public-delivery"></script>
+    <script src="archive.js?v=20260722-gallery-viewer"></script>
+    <script src="/site-footer.js?v=20260723-global-footer-3"></script>
     <script src="/account-menu.js?v=20260722-public-shell"></script>
     <script src="/public-navigation.js?v=20260722-public-shell"></script>
   </body>

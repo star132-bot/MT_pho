@@ -154,7 +154,9 @@ def main() -> None:
         'new AbortController()',
         'event.key === "Home"',
         'event.key === "End"',
-        'payload.capabilities?.public_portfolio?.available',
+        'capability.available === true && capability.public_path',
+        'renderPublicPortfolio(payload.capabilities?.public_portfolio || {})',
+        'data-dashboard-public-link',
     }, "Dashboard client")
     if '"/api/images"' in javascript or "'/api/images'" in javascript:
         raise RuntimeError("Dashboard client must consume the aggregate DTO instead of walking image rows")

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Creator | MT Presence</title>
+    <meta name="description" content="A public creator profile and published works on MT Presence." data-creator-description />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css?v=20260723-global-footer-3" />
+  </head>
+  <body class="public-page creator-page">
+    <a class="auth-skip" href="#creator-content">Skip to creator profile</a>
+
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-location" viewBox="0 0 24 24">
+        <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" />
+        <circle cx="12" cy="10" r="2.4" />
+      </symbol>
+    </svg>
+
+    <header class="site-header public-site-header" aria-label="Primary navigation" data-public-header>
+      <a class="brand-mark" href="/" aria-label="MT Presence home"><span>MT</span><span>Presence</span></a>
+      <nav id="public-site-navigation" class="site-nav public-site-nav" aria-label="Primary" data-public-nav>
+        <a href="/">Home</a>
+        <a href="/works.html">Works</a>
+        <a href="/about.html">About</a>
+        <a href="/lightbox.html">Lightbox</a>
+        <a href="/contact.html">Contact</a>
+      </nav>
+      <a class="home-account-entry" href="/auth/sign-in" data-home-account-entry data-public-sign-in>Sign In</a>
+      <button
+        class="public-nav-toggle"
+        type="button"
+        aria-label="Open navigation"
+        aria-controls="public-site-navigation"
+        aria-expanded="false"
+        title="Open navigation"
+        data-public-nav-toggle
+      >
+        <span class="public-nav-toggle-icon" aria-hidden="true"><span></span><span></span><span></span></span>
+      </button>
+    </header>
+
+    <main class="creator-main" id="creator-content" tabindex="-1" aria-busy="true">
+      <section class="creator-loading" role="status" aria-live="polite" data-creator-loading>
+        <span aria-hidden="true"></span>
+        <p>Loading creator profile.</p>
+      </section>
+
+      <section class="creator-error" role="alert" tabindex="-1" data-creator-error hidden>
+        <p class="section-kicker">Profile unavailable</p>
+        <h1 data-creator-error-title>This creator profile could not be loaded.</h1>
+        <p data-creator-error-message>Try the request again.</p>
+        <button class="button button-secondary" type="button" data-creator-retry>Retry</button>
+      </section>
+
+      <article class="creator-profile" data-creator-profile hidden>
+        <section class="creator-cover" aria-label="Creator cover">
+          <img src="/assets/art/hero-concrete.jpg" alt="" decoding="async" data-creator-cover />
+        </section>
+
+        <div class="creator-profile-frame">
+          <aside class="creator-identity" aria-labelledby="creator-name">
+            <div class="creator-avatar" aria-hidden="true" data-creator-avatar>
+              <img alt="" decoding="async" data-creator-avatar-image hidden />
+              <span data-creator-initials>MT</span>
+            </div>
+            <p class="section-kicker" data-creator-headline hidden></p>
+            <h1 id="creator-name" data-creator-name></h1>
+            <p class="creator-company" data-creator-company hidden></p>
+            <p class="creator-location" data-creator-location hidden>
+              <svg class="ui-icon" aria-hidden="true"><use href="#icon-location"></use></svg>
+              <span></span>
+            </p>
+            <p class="creator-availability" data-creator-availability hidden></p>
+            <p class="creator-bio" id="creator-about" data-creator-bio hidden></p>
+            <nav class="creator-links" aria-label="Creator links" data-creator-links hidden></nav>
+          </aside>
+
+          <section class="creator-work" id="creator-works" aria-labelledby="creator-works-title">
+            <nav class="creator-tabs" aria-label="Creator profile sections">
+              <a href="#creator-works" aria-current="page">Works</a>
+              <a href="#creator-about">About</a>
+            </nav>
+            <header class="creator-work-heading">
+              <div>
+                <p class="section-kicker">Published portfolio</p>
+                <h2 id="creator-works-title">Selected works</h2>
+              </div>
+              <p data-creator-work-count aria-live="polite"></p>
+            </header>
+            <p class="creator-data-status" role="status" aria-live="polite" data-creator-status></p>
+            <div class="creator-work-gallery" data-creator-work-gallery></div>
+            <section class="creator-empty" data-creator-empty hidden>
+              <h3>No published works yet</h3>
+              <p>This profile will show work after publication.</p>
+            </section>
+          </section>
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer public-footer" aria-label="Site footer" data-site-footer data-footer-variant="public"></footer>
+
+    <script src="/account-menu.js?v=20260722-public-shell"></script>
+    <script src="/public-navigation.js?v=20260722-public-shell"></script>
+    <script src="/site-footer.js?v=20260723-global-footer-3"></script>
+    <script src="/creator.js?v=20260722-public-delivery"></script>
+  </body>
+</html>

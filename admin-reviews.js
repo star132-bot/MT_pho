@@ -76,6 +76,7 @@ const REASONS = {
     ["misleading_metadata", "Misleading metadata"],
   ],
   approve: [["policy_complete", "Policy checks complete"]],
+  approve_and_publish: [["policy_complete", "Policy checks complete"]],
 };
 
 const FILTER_STATUSES = new Set(["open", "submitted", "in_review", "completed"]);
@@ -739,11 +740,16 @@ function renderDetail(detail) {
   }
 
   const assignedToActor = submission.assigned_reviewer?.id === detail.actor.id;
-  const canDecide = submission.status === "in_review"
+  const canReview = submission.status === "in_review"
     && assignedToActor
     && detail.owner.id !== detail.actor.id;
+  const canPublishApproved = detail.actor.can_publish === true
+    && submission.status === "approved"
+    && detail.image.publication_status !== "published"
+    && detail.owner.id !== detail.actor.id;
+  const canDecide = canReview || canPublishApproved;
   decisionForm.hidden = !canDecide;
-  if (canDecide) setupDecisionForm();
+  if (canDecide) setupDecisionForm(detail);
   renderQueueItems();
 }
 
@@ -822,13 +828,18 @@ async function loadDetail(id, { focus = false } = {}) {
   }
 }
 
-function setupDecisionForm() {
+function setupDecisionForm(detail) {
   decisionSelect.replaceChildren();
-  [
+  const publishOnly = detail.submission.status === "approved";
+  const decisions = publishOnly ? [] : [
     ["request_changes", "Request changes"],
     ["reject", "Reject"],
     ["approve", "Approve"],
-  ].forEach(([value, label]) => decisionSelect.add(new Option(label, value)));
+  ];
+  if (detail.actor.can_publish === true) {
+    decisions.push(["approve_and_publish", publishOnly ? "Publish approved work" : "Approve and publish"]);
+  }
+  decisions.forEach(([value, label]) => decisionSelect.add(new Option(label, value)));
   checklist.replaceChildren();
   CHECKLIST_ITEMS.forEach(([code, label]) => {
     const wrapper = document.createElement("label");
@@ -849,7 +860,9 @@ function setupDecisionForm() {
     input.removeAttribute("aria-describedby");
   });
   delete formNotice.dataset.tone;
-  formNotice.textContent = "Complete each policy check before submitting a decision.";
+  formNotice.textContent = publishOnly
+    ? "Publishing makes this work immediately visible in Works and on the creator's public profile."
+    : "Complete each policy check before submitting a decision.";
   decisionSubmit.disabled = mutationBusy;
 }
 
@@ -996,7 +1009,9 @@ function submitDecision() {
   openDialog(
     { action: decision, body, submissionId: selectedDetail.submission.id },
     `Confirm ${displayDecision(decision).toLowerCase()}`,
-    "The decision, reason, checklist, and user message will be written to immutable review history.",
+    decision === "approve_and_publish"
+      ? "This records an immutable approval decision and immediately publishes the work in Works and on the creator's public profile."
+      : "The decision, reason, checklist, and user message will be written to immutable review history.",
   );
 }
 

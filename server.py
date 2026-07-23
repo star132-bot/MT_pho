@@ -135,6 +135,14 @@ PROFILE_COVER_ASSET_BUCKETS = {
 }
 PROFILE_COVER_SCAN_POLICY_VERSION = "mt-asset-scan-2026-07-v1"
 PROFILE_COVER_MAX_CANDIDATES = 24
+PUBLIC_CREATOR_SLUG_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,94}[a-z0-9])?$")
+PUBLIC_DELIVERY_ASSET_KINDS = {"display", "thumbnail"}
+PUBLIC_DELIVERY_ASSET_BUCKETS = {
+    "display": "image-display",
+    "thumbnail": "image-thumbnails",
+}
+PUBLIC_DELIVERY_SIGNED_URL_TTL = 10 * 60
+PUBLIC_DELIVERY_MAX_WORKS = 250
 WORKSPACE_ASSET_KINDS = {"original", "display", "thumbnail"}
 WORKSPACE_ASSET_LIMITS = {
     "original": 50 * 1024 * 1024,
@@ -828,6 +836,301 @@ def clean_dashboard_result(value) -> dict | None:
         "storage_usage": storage,
         "capabilities": capabilities,
         "generated_at": generated_at,
+    }
+
+
+def clean_public_delivery_asset(
+    value,
+    *,
+    expected_image_id: str,
+    expected_kind: str | None = None,
+) -> dict | None:
+    """Validate an anonymous derivative descriptor before Storage signing."""
+    if not isinstance(value, dict):
+        return None
+    try:
+        asset_id = clean_uuid(value.get("id"), "public asset id")
+        image_id = clean_uuid(value.get("image_id"), "public asset image id")
+    except ValueError:
+        return None
+    kind = clean_text(value.get("kind"), 32)
+    bucket = clean_text(value.get("storage_bucket"), 80)
+    storage_key = clean_text(value.get("storage_key"), 1024)
+    mime_type = clean_text(value.get("mime_type"), 120).lower()
+    width = value.get("width")
+    height = value.get("height")
+    key_parts = storage_key.split("/")
+    if (
+        image_id != expected_image_id
+        or kind not in PUBLIC_DELIVERY_ASSET_KINDS
+        or (expected_kind is not None and kind != expected_kind)
+        or bucket != PUBLIC_DELIVERY_ASSET_BUCKETS.get(kind)
+        or mime_type not in WORKSPACE_IMAGE_MIME_TYPES
+        or len(key_parts) != 3
+        or key_parts[1] != image_id
+        or not re.fullmatch(rf"{re.escape(kind)}\.(?:jpg|jpeg|png|webp)", key_parts[2], re.IGNORECASE)
+        or "\\" in storage_key
+        or any(part in {"", ".", ".."} for part in key_parts)
+        or any(ord(character) < 32 or ord(character) == 127 for character in storage_key)
+        or any(
+            isinstance(dimension, bool)
+            or not isinstance(dimension, int)
+            or dimension < 1
+            or dimension > 100_000
+            for dimension in (width, height)
+        )
+    ):
+        return None
+    try:
+        owner_prefix = clean_uuid(key_parts[0], "public asset owner prefix")
+    except ValueError:
+        return None
+    return {
+        "id": asset_id,
+        "image_id": image_id,
+        "kind": kind,
+        "storage_bucket": bucket,
+        "storage_key": storage_key,
+        "mime_type": mime_type,
+        "width": width,
+        "height": height,
+        "owner_prefix": owner_prefix,
+    }
+
+
+def clean_public_creator_summary(value) -> dict | None:
+    if not isinstance(value, dict):
+        return None
+    slug = clean_text(value.get("slug"), 96).lower()
+    display_name = clean_text(value.get("display_name"), 120)
+    if not PUBLIC_CREATOR_SLUG_PATTERN.fullmatch(slug) or not display_name:
+        return None
+    return {
+        "slug": slug,
+        "display_name": display_name,
+        "href": f"/creators/{quote(slug, safe='')}",
+    }
+
+
+def clean_public_exif(value) -> dict | None:
+    if not isinstance(value, dict) or len(value) > 6:
+        return None
+    result = {}
+    for key in ("camera", "lens", "exposure", "aperture", "iso", "focal_length"):
+        raw_value = value.get(key)
+        if raw_value is None:
+            continue
+        if isinstance(raw_value, bool) or not isinstance(raw_value, (str, int, float)):
+            return None
+        normalized = clean_text(raw_value, 160)
+        if normalized:
+            result[key] = normalized
+    return result
+
+
+def clean_public_work(value) -> dict | None:
+    if not isinstance(value, dict):
+        return None
+    try:
+        image_id = clean_uuid(value.get("id"), "public work id")
+    except ValueError:
+        return None
+    title = clean_text(value.get("title"), 180) or "Untitled Work"
+    published_at = clean_text(value.get("published_at"), 80)
+    category = clean_text(value.get("content_category"), 80)
+    ratio_code = clean_text(value.get("ratio_code"), 40)
+    ratio_label = clean_text(value.get("ratio_label"), 40)
+    width = value.get("width")
+    height = value.get("height")
+    creator = clean_public_creator_summary(value.get("creator"))
+    raw_tags = value.get("tags")
+    public_exif = clean_public_exif(value.get("public_exif"))
+    if (
+        not published_at
+        or category not in ARCHIVE_CONTENT_TYPES
+        or ratio_code not in set(ARCHIVE_RATIO_CODES.values())
+        or not ratio_label
+        or creator is None
+        or not isinstance(raw_tags, list)
+        or len(raw_tags) > 40
+        or public_exif is None
+        or any(
+            isinstance(dimension, bool)
+            or not isinstance(dimension, int)
+            or dimension < 1
+            or dimension > 100_000
+            for dimension in (width, height)
+        )
+    ):
+        return None
+    tags = []
+    for raw_tag in raw_tags:
+        if not isinstance(raw_tag, str):
+            return None
+        tag = clean_text(raw_tag, 80)
+        if not tag or len(raw_tag.strip()) > 80:
+            return None
+        tags.append(tag)
+    display_asset = clean_public_delivery_asset(
+        value.get("display_asset"),
+        expected_image_id=image_id,
+        expected_kind="display",
+    )
+    thumbnail_asset = clean_public_delivery_asset(
+        value.get("thumbnail_asset"),
+        expected_image_id=image_id,
+        expected_kind="thumbnail",
+    )
+    if (
+        display_asset is None
+        or thumbnail_asset is None
+        or display_asset["owner_prefix"] != thumbnail_asset["owner_prefix"]
+    ):
+        return None
+    return {
+        "id": image_id,
+        "title": title,
+        "caption": clean_text(value.get("caption"), 500) or None,
+        "description": clean_text(value.get("description"), 6000) or None,
+        "alt_text": clean_text(value.get("alt_text"), 500) or title,
+        "tags": tags,
+        "content_category": category,
+        "captured_at": clean_text(value.get("captured_at"), 80) or None,
+        "location_name": clean_text(value.get("location_name"), 240) or None,
+        "public_exif": public_exif,
+        "published_at": published_at,
+        "width": width,
+        "height": height,
+        "ratio_code": ratio_code,
+        "ratio_label": ratio_label,
+        "creator": creator,
+        "display_asset": display_asset,
+        "thumbnail_asset": thumbnail_asset,
+        "owner_prefix": display_asset["owner_prefix"],
+    }
+
+
+def clean_public_works_result(value, *, maximum: int = 100) -> dict | None:
+    if not isinstance(value, dict):
+        return None
+    raw_items = value.get("items")
+    count = value.get("count")
+    if (
+        not isinstance(raw_items, list)
+        or len(raw_items) > maximum
+        or isinstance(count, bool)
+        or not isinstance(count, int)
+        or count < len(raw_items)
+    ):
+        return None
+    items = []
+    seen_ids = set()
+    for raw_item in raw_items:
+        item = clean_public_work(raw_item)
+        if item is None or item["id"] in seen_ids:
+            return None
+        seen_ids.add(item["id"])
+        items.append(item)
+    return {"items": items, "count": count}
+
+
+def clean_public_creator(value, expected_slug: str) -> dict | None:
+    if not isinstance(value, dict):
+        return None
+    summary = clean_public_creator_summary(value)
+    if summary is None or summary["slug"] != expected_slug:
+        return None
+    work_count = value.get("work_count")
+    raw_works = value.get("works")
+    if (
+        isinstance(work_count, bool)
+        or not isinstance(work_count, int)
+        or work_count < 1
+        or not isinstance(raw_works, list)
+        or not 1 <= len(raw_works) <= 100
+        or work_count < len(raw_works)
+    ):
+        return None
+    works = []
+    owner_prefix = ""
+    for raw_work in raw_works:
+        work = clean_public_work(raw_work)
+        if work is None or work["creator"]["slug"] != expected_slug:
+            return None
+        if owner_prefix and work["owner_prefix"] != owner_prefix:
+            return None
+        owner_prefix = work["owner_prefix"]
+        works.append(work)
+    cover = None
+    if value.get("cover_asset") is not None:
+        raw_cover = value.get("cover_asset")
+        try:
+            cover_image_id = clean_uuid(
+                raw_cover.get("image_id") if isinstance(raw_cover, dict) else None,
+                "public creator cover image id",
+            )
+        except ValueError:
+            return None
+        cover = clean_public_delivery_asset(raw_cover, expected_image_id=cover_image_id)
+        if cover is None or cover["owner_prefix"] != owner_prefix:
+            return None
+
+    creator = {**summary, "work_count": work_count, "works": works, "cover_asset": cover}
+    for field, maximum in (
+        ("professional_headline", 160),
+        ("company", 160),
+        ("city", 120),
+        ("bio", 1600),
+    ):
+        raw_value = value.get(field)
+        if raw_value is not None and not isinstance(raw_value, str):
+            return None
+        creator[field] = clean_text(raw_value, maximum) or None
+    country_code = clean_text(value.get("country_code"), 2).upper()
+    availability = clean_text(value.get("availability_status"), 32)
+    if country_code and not re.fullmatch(r"[A-Z]{2}", country_code):
+        return None
+    if availability and availability not in PROFILE_AVAILABILITY_STATUSES:
+        return None
+    creator["country_code"] = country_code or None
+    creator["availability_status"] = availability or None
+    for field in ("website_url", "instagram_url", "linkedin_url", "avatar_url"):
+        raw_value = value.get(field)
+        if raw_value is not None and not isinstance(raw_value, str):
+            return None
+        url = clean_text(raw_value, 2048)
+        if url and not valid_profile_https_url(url, allowed_hosts=PROFILE_SOCIAL_HOSTS.get(field)):
+            return None
+        creator[field] = url or None
+    return creator
+
+
+def clean_public_delivery_status(value) -> dict | None:
+    if not isinstance(value, dict) or not isinstance(value.get("available"), bool):
+        return None
+    available = value["available"]
+    slug = clean_text(value.get("slug"), 96).lower()
+    path = clean_text(value.get("path"), 180)
+    count = value.get("published_count")
+    reason = clean_text(value.get("reason"), 80) or None
+    if (
+        not PUBLIC_CREATOR_SLUG_PATTERN.fullmatch(slug)
+        or isinstance(count, bool)
+        or not isinstance(count, int)
+        or count < 0
+        or available != (count > 0)
+        or (available and path != f"/creators/{slug}")
+        or (available and reason is not None)
+        or (not available and path)
+        or (not available and reason != "no_published_works")
+    ):
+        return None
+    return {
+        "available": available,
+        "public_slug": slug,
+        "public_path": path or None,
+        "published_count": count,
+        "reason": reason,
     }
 
 
@@ -2347,6 +2650,15 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
+        creator_parts = [part for part in canonical_path.split("/") if part]
+        if (
+            len(creator_parts) == 2
+            and creator_parts[0] == "creators"
+            and PUBLIC_CREATOR_SLUG_PATTERN.fullmatch(creator_parts[1].lower())
+        ):
+            self.path = "/creator.html"
+            super().do_HEAD()
+            return
         self.path = canonical_path
         super().do_HEAD()
 
@@ -3335,6 +3647,259 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         safe_asset["expires_in"] = 10 * 60
         return safe_asset
 
+    def send_public_delivery_error(self) -> None:
+        self.send_json(
+            HTTPStatus.BAD_GATEWAY,
+            {
+                **auth_error(
+                    "PUBLIC_DELIVERY_PROVIDER_FAILED",
+                    "Published works are temporarily unavailable. Try again.",
+                ),
+                "source": "supabase-public",
+            },
+        )
+
+    def public_delivery_rpc(self, name: str, payload: dict) -> dict | None:
+        status, result = supabase_rest_request(
+            f"rpc/{name}",
+            SUPABASE_PUBLISHABLE_KEY,
+            payload,
+        )
+        if status != HTTPStatus.OK or not isinstance(result, dict):
+            self.send_public_delivery_error()
+            return None
+        return result
+
+    def sign_public_delivery_asset(self, asset: dict, cache: dict[str, dict]) -> dict | None:
+        asset_id = asset["id"]
+        if asset_id in cache:
+            return dict(cache[asset_id])
+        endpoint = (
+            f"object/sign/{quote(asset['storage_bucket'], safe='')}/"
+            f"{quote(asset['storage_key'], safe='/')}"
+        )
+        status, signed = supabase_storage_request(
+            endpoint,
+            SUPABASE_PUBLISHABLE_KEY,
+            {"expiresIn": PUBLIC_DELIVERY_SIGNED_URL_TTL},
+        )
+        signed_value = ""
+        if isinstance(signed, dict):
+            signed_value = signed.get("signedURL") or signed.get("signedUrl") or ""
+        signed_url = self.absolute_storage_url(signed_value)
+        if status != HTTPStatus.OK or not signed_url:
+            return None
+        safe_asset = {
+            "id": asset_id,
+            "image_id": asset["image_id"],
+            "kind": asset["kind"],
+            "mime_type": asset["mime_type"],
+            "width": asset["width"],
+            "height": asset["height"],
+            "signed_url": signed_url,
+            "expires_in": PUBLIC_DELIVERY_SIGNED_URL_TTL,
+        }
+        cache[asset_id] = safe_asset
+        return dict(safe_asset)
+
+    def public_work_payload(self, work: dict, cache: dict[str, dict]) -> dict | None:
+        display = self.sign_public_delivery_asset(work["display_asset"], cache)
+        thumbnail = self.sign_public_delivery_asset(work["thumbnail_asset"], cache)
+        if display is None or thumbnail is None:
+            return None
+        return {
+            "id": work["id"],
+            "title": work["title"],
+            "caption": work["caption"],
+            "description": work["description"],
+            "alt_text": work["alt_text"],
+            "tags": work["tags"],
+            "content_type": work["content_category"],
+            "content_category": work["content_category"],
+            "captured_at": work["captured_at"],
+            "location_name": work["location_name"],
+            "public_exif": work["public_exif"],
+            "published_at": work["published_at"],
+            "uploaded_at": work["published_at"],
+            "original_width": work["width"],
+            "original_height": work["height"],
+            "ratio_category_code": work["ratio_code"],
+            "ratio_label": work["ratio_label"],
+            "creator": work["creator"],
+            "display": display,
+            "thumbnail": thumbnail,
+            "image_url": display["signed_url"],
+            "display_url": display["signed_url"],
+            "thumbnail_url": thumbnail["signed_url"],
+            "visibility": "published",
+            "source_type": "supabase_public",
+        }
+
+    def signed_public_works(self, result: dict, *, maximum: int = 100) -> dict | None:
+        cleaned = clean_public_works_result(result, maximum=maximum)
+        if cleaned is None:
+            return None
+        cache: dict[str, dict] = {}
+        items = []
+        for work in cleaned["items"]:
+            item = self.public_work_payload(work, cache)
+            if item is None:
+                return None
+            items.append(item)
+        return {"items": items, "count": cleaned["count"], "source": "supabase-public"}
+
+    def load_public_delivery_works(self, target_creator_slug: str | None, maximum: int) -> dict | None:
+        items = []
+        seen_ids = set()
+        total_count = None
+        offset = 0
+        while len(items) < maximum:
+            page_limit = min(100, maximum - len(items))
+            result = self.public_delivery_rpc(
+                "get_public_works",
+                {
+                    "target_creator_slug": target_creator_slug,
+                    "page_limit": page_limit,
+                    "page_offset": offset,
+                },
+            )
+            if result is None:
+                return None
+            cleaned = clean_public_works_result(result, maximum=page_limit)
+            if cleaned is None or (total_count is not None and cleaned["count"] != total_count):
+                self.send_public_delivery_error()
+                return None
+            total_count = cleaned["count"] if total_count is None else total_count
+            page_items = cleaned["items"]
+            if any(item["id"] in seen_ids for item in page_items):
+                self.send_public_delivery_error()
+                return None
+            items.extend(page_items)
+            seen_ids.update(item["id"] for item in page_items)
+            offset += len(page_items)
+            if offset >= total_count:
+                break
+            if len(page_items) != page_limit:
+                self.send_public_delivery_error()
+                return None
+        return {"items": items, "count": total_count or 0}
+
+    def handle_public_creator_get(self, slug: str) -> None:
+        normalized_slug = clean_text(slug, 96).lower()
+        if not PUBLIC_CREATOR_SLUG_PATTERN.fullmatch(normalized_slug):
+            self.send_json(
+                HTTPStatus.NOT_FOUND,
+                auth_error("PUBLIC_CREATOR_NOT_FOUND", "This creator profile is unavailable."),
+            )
+            return
+        if not auth_configured():
+            self.handle_local_creator_get(normalized_slug)
+            return
+        result = self.public_delivery_rpc(
+            "get_public_creator",
+            {"target_creator_slug": normalized_slug},
+        )
+        if result is None:
+            return
+        if not result or isinstance(result.get("error"), dict):
+            self.send_json(
+                HTTPStatus.NOT_FOUND,
+                auth_error("PUBLIC_CREATOR_NOT_FOUND", "This creator profile is unavailable."),
+            )
+            return
+        creator = clean_public_creator(result, normalized_slug)
+        if creator is None:
+            self.send_public_delivery_error()
+            return
+        if creator["work_count"] > len(creator["works"]):
+            complete_works = self.load_public_delivery_works(
+                normalized_slug,
+                min(creator["work_count"], PUBLIC_DELIVERY_MAX_WORKS),
+            )
+            if complete_works is None:
+                return
+            if complete_works["count"] != creator["work_count"]:
+                self.send_public_delivery_error()
+                return
+            creator["works"] = complete_works["items"]
+        cache: dict[str, dict] = {}
+        works = []
+        for work in creator.pop("works"):
+            item = self.public_work_payload(work, cache)
+            if item is None:
+                self.send_public_delivery_error()
+                return
+            works.append(item)
+        cover_asset = creator.pop("cover_asset")
+        cover = self.sign_public_delivery_asset(cover_asset, cache) if cover_asset else None
+        if cover_asset and cover is None:
+            self.send_public_delivery_error()
+            return
+        creator.pop("href", None)
+        creator["cover"] = cover
+        creator["works"] = works
+        self.send_json(HTTPStatus.OK, {"creator": creator, "source": "supabase-public"})
+
+    def handle_local_creator_get(self, slug: str) -> None:
+        """Provide an explicit local preview without weakening configured delivery."""
+        if slug != "mt-presence" or not ARCHIVE_DB_PATH.exists():
+            self.send_json(
+                HTTPStatus.NOT_FOUND,
+                auth_error("PUBLIC_CREATOR_NOT_FOUND", "This creator profile is unavailable."),
+            )
+            return
+        try:
+            with sqlite3.connect(ARCHIVE_DB_PATH) as connection:
+                connection.row_factory = sqlite3.Row
+                rows = connection.execute(
+                    """
+                    SELECT * FROM archive_image_view
+                    WHERE visibility = 'published'
+                    ORDER BY sort_order ASC, uploaded_at DESC
+                    LIMIT 100
+                    """
+                ).fetchall()
+        except sqlite3.Error:
+            self.send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "Unable to read the local creator preview."})
+            return
+        works = [
+            work
+            for work in (archive_image_payload(row) for row in rows)
+            if work.get("image_url")
+        ]
+        creator_summary = {
+            "slug": "mt-presence",
+            "display_name": "MT Presence",
+            "href": "/creators/mt-presence",
+        }
+        for work in works:
+            work["creator"] = creator_summary
+            work["alt_text"] = work.get("alt_text") or work.get("title") or "Published work"
+        cover_url = works[0].get("image_url") if works else None
+        self.send_json(
+            HTTPStatus.OK,
+            {
+                "creator": {
+                    "slug": "mt-presence",
+                    "display_name": "MT Presence",
+                    "professional_headline": "Photographic archive",
+                    "company": None,
+                    "city": None,
+                    "country_code": None,
+                    "bio": "An evolving archive of abstract and concrete photographic studies.",
+                    "website_url": None,
+                    "availability_status": "limited",
+                    "instagram_url": None,
+                    "linkedin_url": None,
+                    "avatar_url": None,
+                    "cover_url": cover_url,
+                    "work_count": len(works),
+                    "works": works,
+                },
+                "source": "local-sqlite-preview",
+            },
+        )
+
     def sign_dashboard_asset(self, user: dict, asset: dict) -> dict | None:
         bucket = asset.get("storage_bucket")
         storage_key = asset.get("storage_key")
@@ -3887,6 +4452,27 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_json(
                 HTTPStatus.BAD_GATEWAY,
                 auth_error("DASHBOARD_PROVIDER_FAILED", "Dashboard data could not be verified. Try again."),
+            )
+            return
+
+        public_status_code, public_status_result = supabase_rest_request(
+            "rpc/get_my_public_delivery_status",
+            self.current_access_token(user),
+            {},
+        )
+        if public_status_code == HTTPStatus.OK:
+            public_capability = clean_public_delivery_status(public_status_result)
+            if public_capability is None:
+                self.send_json(
+                    HTTPStatus.BAD_GATEWAY,
+                    auth_error("DASHBOARD_PROVIDER_FAILED", "Public profile status could not be verified. Try again."),
+                )
+                return
+            response["capabilities"]["public_portfolio"] = public_capability
+        elif public_status_code != HTTPStatus.NOT_FOUND:
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("DASHBOARD_PROVIDER_FAILED", "Public profile status could not be loaded. Try again."),
             )
             return
 
@@ -4634,6 +5220,12 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         return body, {}
 
     def handle_archive_images(self, parsed) -> None:
+        query = parse_qs(parsed.query)
+        visibility = single_query_value(query, "visibility").lower()
+        if auth_configured() and visibility in {"", "published"}:
+            self.handle_public_works_get(query)
+            return
+
         if not ARCHIVE_DB_PATH.exists():
             self.send_json(
                 HTTPStatus.SERVICE_UNAVAILABLE,
@@ -4645,7 +5237,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
 
         try:
-            filters, params, limit = archive_query_filters(parse_qs(parsed.query))
+            filters, params, limit = archive_query_filters(query)
         except ValueError as error:
             self.send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
             return
@@ -4668,6 +5260,15 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
 
         items = [archive_image_payload(row) for row in rows]
+        if visibility in {"", "published"}:
+            creator = {
+                "slug": "mt-presence",
+                "display_name": "MT Presence",
+                "href": "/creators/mt-presence",
+            }
+            for item in items:
+                item["creator"] = creator
+                item["alt_text"] = item.get("alt_text") or item.get("title") or "Published work"
         self.send_json(
             HTTPStatus.OK,
             {
@@ -4676,6 +5277,27 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 "source": "local-sqlite",
             },
         )
+
+    def handle_public_works_get(self, query: dict) -> None:
+        try:
+            page_limit = int(single_query_value(query, "limit") or str(PUBLIC_DELIVERY_MAX_WORKS))
+        except ValueError:
+            self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Archive limit must be an integer."})
+            return
+        if not 1 <= page_limit <= PUBLIC_DELIVERY_MAX_WORKS:
+            self.send_json(
+                HTTPStatus.BAD_REQUEST,
+                {"error": f"Archive limit must be between 1 and {PUBLIC_DELIVERY_MAX_WORKS}."},
+            )
+            return
+        result = self.load_public_delivery_works(None, page_limit)
+        if result is None:
+            return
+        response = self.signed_public_works(result, maximum=page_limit)
+        if response is None:
+            self.send_public_delivery_error()
+            return
+        self.send_json(HTTPStatus.OK, response)
 
     def handle_archive_image_update(self, image_id: str) -> None:
         if not ARCHIVE_DB_PATH.exists():
@@ -4814,6 +5436,14 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         # encoded legacy upload paths must never fall through as public files.
         parsed = parsed._replace(path=canonical_path, netloc="")
         parts = [part for part in parsed.path.split("/") if part]
+        if len(parts) == 2 and parts[0] == "creators":
+            creator_slug = clean_text(parts[1], 96).lower()
+            if not PUBLIC_CREATOR_SLUG_PATTERN.fullmatch(creator_slug):
+                self.send_json(HTTPStatus.NOT_FOUND, {"error": "Creator profile not found."})
+                return
+            self.path = "/creator.html"
+            super().do_GET()
+            return
         if parsed.path in {"/admin/reviews", "/admin/reviews/"}:
             self.serve_review_page()
             return
@@ -5022,6 +5652,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             if allowed:
                 self.send_auth_json(HTTPStatus.OK, {"allowed": True, "authorization": authorization})
             return
+        if len(parts) == 4 and parts[:3] == ["api", "public", "creators"]:
+            self.handle_public_creator_get(parts[3])
+            return
         if parsed.path == "/api/archive/images":
             visibility = single_query_value(parse_qs(parsed.query), "visibility").lower()
             if visibility not in {"", "published"}:
@@ -5038,7 +5671,8 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 return
             access = legacy_upload_asset_access(parsed.path)
             is_public_derivative = bool(
-                access
+                not auth_configured()
+                and access
                 and access[1] == "published"
                 and access[0] in {"display", "thumbnail", "square_slice"}
             )

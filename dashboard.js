@@ -702,6 +702,30 @@ function renderDrafts(images) {
   });
 }
 
+function renderPublicPortfolio(capability = {}) {
+  const section = document.querySelector("[data-dashboard-public-note]");
+  const title = section.querySelector("[data-dashboard-public-title]");
+  const message = section.querySelector("[data-dashboard-public-message]");
+  const link = section.querySelector("[data-dashboard-public-link]");
+  const count = Number(capability.published_count || 0);
+  section.hidden = false;
+  link.hidden = true;
+  if (capability.available === true && capability.public_path) {
+    title.textContent = "Your public profile is live.";
+    message.textContent = `${count} published ${count === 1 ? "work is" : "works are"} visible to visitors.`;
+    link.href = capability.public_path;
+    link.hidden = false;
+    return;
+  }
+  if (capability.reason === "no_published_works") {
+    title.textContent = "No public works yet.";
+    message.textContent = "Your profile will become public when an administrator publishes your first approved work.";
+    return;
+  }
+  title.textContent = "Public profile status is unavailable.";
+  message.textContent = "Published work is still tracked here while public delivery is being configured.";
+}
+
 function renderDashboard(payload) {
   renderStatusCounts(payload.status_counts || {});
   renderAttention(Array.isArray(payload.needs_attention) ? payload.needs_attention : []);
@@ -709,8 +733,8 @@ function renderDashboard(payload) {
   renderActivity(Array.isArray(payload.review_activity) ? payload.review_activity : []);
   renderStorage(payload.storage_usage || {}, payload.capabilities || {});
   renderDrafts(Array.isArray(payload.drafts) ? payload.drafts : []);
+  renderPublicPortfolio(payload.capabilities?.public_portfolio || {});
   document.querySelector("[data-dashboard-generated]").textContent = `Updated ${formatDate(payload.generated_at, true)}`;
-  document.querySelector("[data-dashboard-public-note]").hidden = payload.capabilities?.public_portfolio?.available === true;
 }
 
 function showDashboardError(error) {

@@ -6,7 +6,7 @@
     <title>Profile | MT Presence</title>
     <meta name="description" content="Your MT Presence profile, works, and review activity." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260722-profile-dashboard" />
+    <link rel="stylesheet" href="/styles.css?v=20260723-global-footer-3" />
   </head>
   <body class="dashboard-page">
     <a class="auth-skip" href="#dashboard-content">Skip to profile</a>
@@ -213,14 +213,17 @@
               </section>
               <section class="dashboard-capability-note" data-dashboard-public-note>
                 <p class="section-kicker">Published portfolio</p>
-                <h2>Public delivery is not connected yet.</h2>
-                <p>Published status is reported by the server. A public creator portfolio will appear here only after the published-only delivery boundary is available.</p>
+                <h2 data-dashboard-public-title>Preparing your public profile</h2>
+                <p data-dashboard-public-message>Your public profile becomes available after an administrator publishes your first approved work.</p>
+                <a class="button button-secondary" href="/works.html" data-dashboard-public-link hidden>View public profile</a>
               </section>
             </section>
           </div>
         </section>
       </div>
     </main>
+
+    <footer class="site-footer workspace-footer" aria-label="Workspace footer" data-site-footer data-footer-variant="workspace"></footer>
 
     <dialog class="dashboard-cover-dialog" aria-labelledby="dashboard-cover-dialog-title" data-dashboard-cover-dialog>
       <div class="dashboard-cover-dialog-shell">
@@ -257,6 +260,7 @@
     </dialog>
 
     <div class="visually-hidden" role="status" aria-live="polite" aria-atomic="true" data-dashboard-live></div>
+    <script src="/site-footer.js?v=20260723-global-footer-3"></script>
     <script src="/account-menu.js?v=20260722-public-shell"></script>
     <script src="/public-navigation.js?v=20260722-public-shell"></script>
     <script src="/dashboard.js?v=20260722-profile-dashboard"></script>
