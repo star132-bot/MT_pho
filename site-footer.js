@@ -40,6 +40,7 @@
             <a href="/about.html">About</a>
             <a href="/lightbox.html">Lightbox</a>
             <a href="/contact.html">Contact</a>
+            <a href="/privacy.html">Privacy</a>
           </nav>
 
           <nav class="site-footer-nav" aria-label="Practice">
@@ -57,6 +58,8 @@
             <a href="/workspace/images" data-footer-account-active hidden>Upload</a>
             <a href="/settings/account" data-footer-account-member hidden>Account Settings</a>
             <a href="/admin/reviews" data-footer-account-review hidden>Review</a>
+            <a href="/admin/works" data-footer-account-governance hidden>Works Governance</a>
+            <a href="/admin/audit" data-footer-account-audit hidden>Audit Ledger</a>
           </nav>
         </div>
 
@@ -75,6 +78,7 @@
         <nav aria-label="Workspace footer">
           <a href="/works.html">Public Works</a>
           <a href="/contact.html">Contact</a>
+          <a href="/privacy.html">Privacy</a>
         </nav>
       </div>
     `;
@@ -109,6 +113,7 @@
     const accountStatus = String(payload.account?.account_status || "");
     const isActive = accountStatus === "active";
     const canReview = isActive && roles.some((role) => ["reviewer", "admin", "super_admin"].includes(role));
+    const canGovern = isActive && roles.some((role) => ["admin", "super_admin"].includes(role));
 
     footers.forEach((footer) => {
       const accountNavigation = footer.querySelector("[data-footer-account-nav]");
@@ -124,10 +129,43 @@
       if (unavailableStatus) unavailableStatus.hidden = isActive;
       const reviewLink = accountNavigation.querySelector("[data-footer-account-review]");
       if (reviewLink) reviewLink.hidden = !canReview;
+      const governanceLink = accountNavigation.querySelector("[data-footer-account-governance]");
+      if (governanceLink) governanceLink.hidden = !canGovern;
+      const auditLink = accountNavigation.querySelector("[data-footer-account-audit]");
+      if (auditLink) auditLink.hidden = !canGovern;
       markCurrentLinks(footer);
     });
 
   }
 
+  function renderHeaderIdentity(identity = {}) {
+    if (identity.authenticated === true) {
+      renderAccount({
+        account: {
+          roles: Array.isArray(identity.roles) ? identity.roles : [],
+          account_status: identity.account_status || "",
+        },
+      });
+      return;
+    }
+
+    const isAnonymous = identity.status === "anonymous";
+    footers.forEach((footer) => {
+      const accountNavigation = footer.querySelector("[data-footer-account-nav]");
+      if (!accountNavigation) return;
+      const signIn = accountNavigation.querySelector("[data-footer-account-sign-in]");
+      if (signIn) signIn.hidden = !isAnonymous;
+      const unavailable = accountNavigation.querySelector("[data-footer-account-unavailable]");
+      if (unavailable) unavailable.hidden = isAnonymous;
+      accountNavigation.querySelectorAll(
+        "[data-footer-account-member], [data-footer-account-active], [data-footer-account-review], [data-footer-account-governance], [data-footer-account-audit]",
+      ).forEach((link) => {
+        link.hidden = true;
+      });
+      markCurrentLinks(footer);
+    });
+  }
+
   window.addEventListener("mt:account-loaded", (event) => renderAccount(event.detail || {}));
+  window.addEventListener("mt:header-identity-change", (event) => renderHeaderIdentity(event.detail || {}));
 })();

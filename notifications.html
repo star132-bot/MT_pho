@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Notifications | MT Presence</title>
+    <meta name="description" content="Your MT Presence account and work notifications." />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css?v=20260723-communications-v1" />
+    <template id="mt-header-identity">{"authenticated":false,"status":"pending"}</template>
+  </head>
+  <body class="communications-page notifications-page">
+    <a class="communications-skip" href="#notifications-main">Skip to notifications</a>
+
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12.5 4.2 4.2L19 7" /></symbol>
+      <symbol id="icon-checks" viewBox="0 0 24 24"><path d="m2.5 12.5 4 4 8-9" /><path d="m11 14.5 2 2 8-9" /></symbol>
+      <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5" /><path d="M4 17v-5h5" /><path d="M6.1 8.2A7 7 0 0 1 18.8 10M5.2 14A7 7 0 0 0 17.9 15.8" /></symbol>
+      <symbol id="icon-alert" viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4z" /><path d="M12 9v5" /><path d="M12 17h.01" /></symbol>
+      <symbol id="icon-inbox" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" /><path d="M4 14h4l2 3h4l2-3h4" /></symbol>
+      <symbol id="icon-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></symbol>
+    </svg>
+
+    <header class="site-header communications-header" aria-label="Workspace navigation">
+      <a class="brand-mark" href="/dashboard" aria-label="Open Dashboard"><span>MT</span><span>Artist Workspace</span></a>
+      <nav class="site-nav" aria-label="Workspace navigation">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/workspace/images">Upload</a>
+        <a href="/admin/reviews" data-review-nav hidden>Review</a>
+        <a href="/admin/works" data-governance-nav hidden>Governance</a>
+        <a href="/admin/users" data-users-nav hidden>Users</a>
+      </nav>
+      <div class="header-identity-slot" data-header-identity-slot></div>
+    </header>
+
+    <main class="communications-shell notifications-shell" id="notifications-main" tabindex="-1">
+      <header class="communications-command">
+        <div>
+          <p class="section-kicker">Personal Account</p>
+          <h1>Notifications</h1>
+        </div>
+        <button class="communications-icon-button" type="button" data-notifications-refresh aria-label="Refresh notifications" title="Refresh notifications">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg>
+        </button>
+      </header>
+
+      <div class="notifications-toolbar">
+        <div class="communications-segments" role="group" aria-label="Notification view">
+          <button type="button" data-notifications-filter="all" aria-pressed="true">All</button>
+          <button type="button" data-notifications-filter="unread" aria-pressed="false">
+            Unread <span data-notifications-unread-count>0</span>
+          </button>
+        </div>
+        <button class="notifications-mark-all" type="button" data-notifications-mark-all disabled>
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-checks"></use></svg>
+          Mark all read
+        </button>
+      </div>
+
+      <section class="notifications-feed" aria-labelledby="notifications-feed-title" aria-busy="true" data-notifications-region>
+        <header>
+          <h2 id="notifications-feed-title">Recent activity</h2>
+          <span data-notifications-summary>Checking updates</span>
+        </header>
+        <div class="communications-state" data-notifications-state data-tone="loading" role="status" aria-live="polite">
+          <span class="communications-spinner" aria-hidden="true"></span>
+          <p>Loading notifications...</p>
+        </div>
+        <ol class="notifications-list" data-notifications-list hidden></ol>
+        <footer class="communications-pagination" data-notifications-pagination hidden>
+          <button type="button" data-notifications-more>Load more</button>
+        </footer>
+      </section>
+    </main>
+
+    <footer class="site-footer workspace-footer" aria-label="Workspace footer" data-site-footer data-footer-variant="workspace" data-footer-context="notifications"></footer>
+    <div class="contact-toast" role="status" aria-live="polite" data-notifications-toast></div>
+    <div class="visually-hidden" aria-live="polite" aria-atomic="true" data-notifications-live></div>
+
+    <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
+    <script src="/account-menu.js?v=20260723-communications-v1"></script>
+    <script src="/notifications.js?v=20260723-communications-v1"></script>
+  </body>
+</html>

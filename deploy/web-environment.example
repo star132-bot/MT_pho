@@ -1,0 +1,12 @@
+# Install as /etc/mt-presence/web.env with root:mtpresence ownership and 0640.
+# Never place database or scanner administrative credentials in this file.
+MT_RUNTIME_ENVIRONMENT=production
+MT_COOKIE_SECURE=1
+MT_PUBLIC_BASE_URL=https://portfolio.example.com
+MT_TRUST_PROXY=1
+MT_MAX_REQUEST_THREADS=32
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_replace_me
+
+# The BFF applies an additional bounded limiter behind nginx.
+MT_INQUIRY_RATE_LIMIT_PER_HOUR=5

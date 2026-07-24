@@ -6,7 +6,8 @@
     <title>Creator | MT Presence</title>
     <meta name="description" content="A public creator profile and published works on MT Presence." data-creator-description />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260723-global-footer-3" />
+    <link rel="stylesheet" href="/styles.css?v=20260723-interaction-integrity" />
+    <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="public-page creator-page">
     <a class="auth-skip" href="#creator-content">Skip to creator profile</a>
@@ -26,8 +27,10 @@
         <a href="/about.html">About</a>
         <a href="/lightbox.html">Lightbox</a>
         <a href="/contact.html">Contact</a>
+        <a href="/admin/reviews" data-review-nav hidden>Review</a>
+        <a href="/admin/works" data-governance-nav hidden>Governance</a>
       </nav>
-      <a class="home-account-entry" href="/auth/sign-in" data-home-account-entry data-public-sign-in>Sign In</a>
+      <div class="header-identity-slot" data-header-identity-slot></div>
       <button
         class="public-nav-toggle"
         type="button"
@@ -102,9 +105,9 @@
 
     <footer class="site-footer public-footer" aria-label="Site footer" data-site-footer data-footer-variant="public"></footer>
 
-    <script src="/account-menu.js?v=20260722-public-shell"></script>
+    <script src="/account-menu.js?v=20260723-interaction-integrity-2"></script>
     <script src="/public-navigation.js?v=20260722-public-shell"></script>
-    <script src="/site-footer.js?v=20260723-global-footer-3"></script>
+    <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
     <script src="/creator.js?v=20260722-public-delivery"></script>
   </body>
 </html>

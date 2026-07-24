@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>User Administration | MT Presence</title>
+    <meta name="description" content="Protected MT Presence workspace for account and role administration." />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css?v=20260723-admin-users-v1" />
+    <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
+  </head>
+  <body class="admin-users-page">
+    <a class="admin-users-skip" href="#admin-users-main">Skip to user administration</a>
+
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-home" viewBox="0 0 24 24">
+        <path d="m3 10.5 9-7.5 9 7.5" /><path d="M5 9v12h14V9" /><path d="M9 21v-7h6v7" />
+      </symbol>
+      <symbol id="icon-folder" viewBox="0 0 24 24">
+        <path d="M3 6.8h6l2 2.4h10v8.6a1.7 1.7 0 0 1-1.7 1.7H4.7A1.7 1.7 0 0 1 3 17.8z" />
+        <path d="M3 8.8v-3a1.3 1.3 0 0 1 1.3-1.3h5.1l2 2.2" />
+      </symbol>
+      <symbol id="icon-pen" viewBox="0 0 24 24">
+        <path d="m4 20 4.3-1.1 10.4-10.4a2.1 2.1 0 0 0-3-3L5.3 15.9z" /><path d="m14 6 4 4" />
+      </symbol>
+      <symbol id="icon-shield" viewBox="0 0 24 24">
+        <path d="M12 3 5 6v5c0 4.5 2.7 7.8 7 10 4.3-2.2 7-5.5 7-10V6z" /><path d="m9 12 2 2 4-5" />
+      </symbol>
+      <symbol id="icon-users" viewBox="0 0 24 24">
+        <circle cx="9" cy="8" r="3.2" /><path d="M3.5 20a5.5 5.5 0 0 1 11 0" />
+        <circle cx="17.2" cy="9.2" r="2.3" /><path d="M15.5 14.7a4.7 4.7 0 0 1 5 4.6" />
+      </symbol>
+      <symbol id="icon-user" viewBox="0 0 24 24">
+        <circle cx="12" cy="8" r="3.5" /><path d="M5 20a7 7 0 0 1 14 0" />
+      </symbol>
+      <symbol id="icon-audit" viewBox="0 0 24 24"><path d="M7 3h10v4H7z" /><path d="M5 5H4v16h16V5h-1" /><path d="M8 12h8M8 16h5" /></symbol>
+      <symbol id="icon-refresh" viewBox="0 0 24 24">
+        <path d="M20 7v5h-5" /><path d="M4 17v-5h5" />
+        <path d="M6.1 8.2A7 7 0 0 1 18.8 10M5.2 14A7 7 0 0 0 17.9 15.8" />
+      </symbol>
+      <symbol id="icon-search" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="6.8" /><path d="m16 16 4.5 4.5" />
+      </symbol>
+      <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" /></symbol>
+      <symbol id="icon-arrow-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7" /></symbol>
+      <symbol id="icon-alert" viewBox="0 0 24 24">
+        <path d="M12 3 2.8 20h18.4z" /><path d="M12 9v5" /><path d="M12 17h.01" />
+      </symbol>
+      <symbol id="icon-lock" viewBox="0 0 24 24">
+        <rect x="5" y="10" width="14" height="11" rx="1.5" /><path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      </symbol>
+      <symbol id="icon-key" viewBox="0 0 24 24">
+        <circle cx="8" cy="15" r="4" /><path d="m11 12 8-8M16 7l2 2M14 9l2 2" />
+      </symbol>
+    </svg>
+
+    <aside class="archive-rail admin-users-rail" aria-label="Admin platform navigation">
+      <a class="archive-rail-brand" href="/" aria-label="Back to MT Presence home">MT</a>
+      <nav class="archive-rail-nav" aria-label="Admin workflow navigation">
+        <a class="archive-rail-button" href="/dashboard" aria-label="Dashboard" title="Dashboard">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-home"></use></svg>
+          <span class="archive-rail-copy">Dashboard</span>
+        </a>
+        <a class="archive-rail-button" href="/workspace/images" aria-label="Upload Studio" title="Upload Studio">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-folder"></use></svg>
+          <span class="archive-rail-copy">Upload</span>
+        </a>
+        <a class="archive-rail-button" href="/admin/reviews" aria-label="Review Queue" title="Review Queue">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-pen"></use></svg>
+          <span class="archive-rail-copy">Review</span>
+        </a>
+        <a class="archive-rail-button" href="/admin/works" aria-label="Works Governance" title="Works Governance">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-shield"></use></svg>
+          <span class="archive-rail-copy">Works</span>
+        </a>
+        <a class="archive-rail-button is-active" href="/admin/users" aria-label="User Administration" aria-current="page" title="User Administration">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-users"></use></svg>
+          <span class="archive-rail-copy">Users</span>
+        </a>
+        <a class="archive-rail-button" href="/admin/audit" aria-label="Audit Ledger" title="Audit Ledger">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-audit"></use></svg>
+          <span class="archive-rail-copy">Audit</span>
+        </a>
+      </nav>
+      <div class="archive-rail-footer">
+        <a class="archive-rail-button" href="/settings/account" aria-label="Account settings" title="Account settings">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-user"></use></svg>
+          <span class="archive-rail-copy">Account</span>
+        </a>
+      </div>
+    </aside>
+
+    <header class="site-header admin-users-header" aria-label="Admin workspace navigation">
+      <a class="brand-mark" href="/dashboard" aria-label="Open Dashboard"><span>MT</span><span>Admin Platform</span></a>
+      <nav class="site-nav" aria-label="Workflow navigation">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/admin/reviews" data-review-nav hidden>Review</a>
+        <a href="/admin/works" data-governance-nav hidden>Works</a>
+        <a href="/admin/users" aria-current="page">Users</a>
+        <a href="/admin/audit">Audit</a>
+      </nav>
+      <div class="header-identity-slot" data-header-identity-slot></div>
+    </header>
+
+    <main class="admin-users-shell" id="admin-users-main" tabindex="-1">
+      <header class="admin-users-command">
+        <div>
+          <p class="section-kicker">Admin Platform</p>
+          <h1>User Administration</h1>
+          <p>Inspect account posture and apply traceable access controls.</p>
+        </div>
+        <button class="admin-users-icon-button" type="button" data-users-refresh title="Refresh users" aria-label="Refresh users">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg>
+        </button>
+      </header>
+
+      <section class="admin-users-metrics" aria-label="Users by account status">
+        <button type="button" data-status-filter="all" aria-pressed="true"><span>All users</span><strong data-user-count="all">0</strong></button>
+        <button type="button" data-status-filter="active" aria-pressed="false"><span>Active</span><strong data-user-count="active">0</strong></button>
+        <button type="button" data-status-filter="pending_verification" aria-pressed="false"><span>Pending</span><strong data-user-count="pending_verification">0</strong></button>
+        <button type="button" data-status-filter="suspended" aria-pressed="false"><span>Suspended</span><strong data-user-count="suspended">0</strong></button>
+        <button type="button" data-status-filter="banned" aria-pressed="false"><span>Banned</span><strong data-user-count="banned">0</strong></button>
+      </section>
+
+      <form class="admin-users-filters" data-users-filters role="search">
+        <label class="admin-users-search">
+          <span class="visually-hidden">Search users</span>
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+          <input type="search" name="q" maxlength="160" autocomplete="off" placeholder="Search name, email, or user ID" />
+        </label>
+        <button type="submit">Search</button>
+        <button type="button" data-users-clear hidden>Clear</button>
+        <label class="admin-users-filter-select">
+          <span>Role</span>
+          <select name="role">
+            <option value="all">All roles</option>
+            <option value="user">User</option>
+            <option value="reviewer">Reviewer</option>
+            <option value="admin">Admin</option>
+            <option value="super_admin">Super Admin</option>
+          </select>
+        </label>
+        <label class="admin-users-filter-select">
+          <span>Sort</span>
+          <select name="sort">
+            <option value="updated_desc">Recently updated</option>
+            <option value="created_desc">Recently created</option>
+            <option value="last_login_desc">Recently active</option>
+            <option value="email_asc">Email A-Z</option>
+          </select>
+        </label>
+        <p data-users-filter-summary aria-live="polite">Loading users</p>
+      </form>
+
+      <section class="admin-users-workspace" aria-label="User administration workspace" data-users-workspace data-mobile-view="list">
+        <section class="admin-users-inventory" aria-labelledby="admin-users-list-title" aria-busy="true" data-users-inventory>
+          <header>
+            <div>
+              <h2 id="admin-users-list-title">Directory</h2>
+              <span data-users-list-count>0 users</span>
+            </div>
+            <small>Account activity and access</small>
+          </header>
+
+          <div class="admin-users-list-state" data-users-list-state role="status" aria-atomic="true">
+            <span data-users-list-state-message>Loading users</span>
+            <button type="button" data-users-list-retry hidden>Retry</button>
+          </div>
+
+          <div class="admin-users-table-wrap">
+            <table class="admin-users-table">
+              <caption class="visually-hidden">Users matching the active account filters</caption>
+              <thead>
+                <tr><th scope="col">Identity</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Last active</th><th scope="col"><span class="visually-hidden">Open</span></th></tr>
+              </thead>
+              <tbody data-users-list></tbody>
+            </table>
+          </div>
+
+          <footer class="admin-users-pagination">
+            <span data-users-range>0 of 0</span>
+            <button type="button" data-users-load-more hidden>Load more</button>
+          </footer>
+        </section>
+
+        <aside class="admin-users-inspector" aria-label="User inspector" aria-busy="false" data-users-detail-region>
+          <div class="admin-users-mobile-toolbar">
+            <button type="button" data-users-back-to-list>
+              <svg class="ui-icon" aria-hidden="true"><use href="#icon-arrow-left"></use></svg><span>Back to directory</span>
+            </button>
+          </div>
+
+          <div class="admin-users-detail-state" data-users-detail-state role="status" aria-atomic="true">
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-users"></use></svg>
+            <h2 data-users-detail-state-title tabindex="-1">Select a user</h2>
+            <p data-users-detail-state-message>Choose a row to inspect identity, security posture, roles, and audit history.</p>
+            <button type="button" data-users-detail-retry hidden>Retry</button>
+          </div>
+
+          <div class="admin-users-detail" data-users-detail hidden>
+            <div class="admin-users-conflict" data-users-conflict role="alert" hidden>
+              <svg class="ui-icon" aria-hidden="true"><use href="#icon-alert"></use></svg>
+              <p data-users-conflict-message></p>
+              <button type="button" data-users-conflict-reload>Reload user</button>
+            </div>
+
+            <header class="admin-users-detail-header">
+              <button class="admin-users-close-detail" type="button" data-users-close-detail aria-label="Close user inspector" title="Close inspector">
+                <svg class="ui-icon" aria-hidden="true"><use href="#icon-arrow-left"></use></svg>
+              </button>
+              <div class="admin-users-avatar" data-users-avatar aria-hidden="true"></div>
+              <div class="admin-users-status-line">
+                <span class="admin-users-status" data-users-status></span>
+                <span data-users-version></span>
+              </div>
+              <h2 data-users-name tabindex="-1">User</h2>
+              <p data-users-email></p>
+            </header>
+
+            <section class="admin-users-inspector-section" aria-labelledby="admin-users-identity-title">
+              <h3 id="admin-users-identity-title">Identity</h3>
+              <dl class="admin-users-definition-list" data-users-identity></dl>
+            </section>
+
+            <section class="admin-users-inspector-section" aria-labelledby="admin-users-security-title">
+              <h3 id="admin-users-security-title">Security posture</h3>
+              <dl class="admin-users-definition-list" data-users-security></dl>
+            </section>
+
+            <section class="admin-users-inspector-section" aria-labelledby="admin-users-activity-title">
+              <h3 id="admin-users-activity-title">Product activity</h3>
+              <dl class="admin-users-definition-list" data-users-activity></dl>
+            </section>
+
+            <section class="admin-users-inspector-section" aria-labelledby="admin-users-roles-title">
+              <h3 id="admin-users-roles-title">Roles</h3>
+              <div class="admin-users-role-list" data-users-roles></div>
+              <div class="admin-users-inline-actions" data-users-role-actions>
+                <button type="button" data-users-action="grant_role">Grant role</button>
+                <button type="button" data-users-action="revoke_role">Revoke role</button>
+              </div>
+              <p class="admin-users-role-note" data-users-role-note></p>
+            </section>
+
+            <section class="admin-users-inspector-section" aria-labelledby="admin-users-history-title">
+              <h3 id="admin-users-history-title">Administrative history</h3>
+              <ol class="admin-users-history" data-users-history></ol>
+            </section>
+
+            <section class="admin-users-actions" aria-labelledby="admin-users-actions-title">
+              <div>
+                <h3 id="admin-users-actions-title">Account controls</h3>
+                <p data-users-action-note>Administrator role and an MFA-verified session are required.</p>
+              </div>
+              <div class="admin-users-action-buttons">
+                <button class="button button-secondary" type="button" data-users-action="revoke_sessions">Record session revocation</button>
+                <button class="button button-primary" type="button" data-users-status-action hidden></button>
+              </div>
+            </section>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <footer class="site-footer workspace-footer" aria-label="Workspace footer" data-site-footer data-footer-variant="workspace"></footer>
+
+    <dialog class="admin-users-dialog" data-users-dialog aria-labelledby="admin-users-dialog-title" aria-describedby="admin-users-dialog-description">
+      <form data-users-dialog-form novalidate>
+        <p class="section-kicker" data-users-dialog-kicker>Account control</p>
+        <h2 id="admin-users-dialog-title" data-users-dialog-title>Confirm action</h2>
+        <p id="admin-users-dialog-description" data-users-dialog-description></p>
+        <label data-users-dialog-role-field hidden>
+          <span>Role</span>
+          <select name="target_role" aria-describedby="admin-users-dialog-help admin-users-dialog-error">
+            <option value="">Select a role</option>
+            <option value="reviewer">Reviewer</option>
+            <option value="admin">Admin</option>
+          </select>
+        </label>
+        <label>
+          <span>Reason category</span>
+          <select name="reason_code" required aria-describedby="admin-users-dialog-help admin-users-dialog-error">
+            <option value="">Select a reason</option>
+          </select>
+        </label>
+        <label data-users-dialog-confirmation-field hidden>
+          <span data-users-dialog-confirmation-label>Type the confirmation phrase</span>
+          <input name="confirmation" type="text" autocomplete="off" spellcheck="false" aria-describedby="admin-users-dialog-help admin-users-dialog-error" />
+        </label>
+        <p id="admin-users-dialog-help" class="admin-users-dialog-help" data-users-dialog-help>The reason and resulting action are retained in the immutable audit record.</p>
+        <p id="admin-users-dialog-error" class="admin-users-dialog-error" role="alert" aria-live="assertive" data-users-dialog-error></p>
+        <div class="admin-users-dialog-actions">
+          <button class="button button-secondary" type="button" data-users-dialog-cancel>Cancel</button>
+          <button class="button button-primary" type="submit" data-users-dialog-confirm>Confirm</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="contact-toast" role="status" aria-live="polite" aria-atomic="true" data-users-live></div>
+    <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
+    <script src="/account-menu.js?v=20260723-interaction-integrity-2"></script>
+    <script src="/admin-users.js?v=20260723-admin-users-v1"></script>
+  </body>
+</html>

@@ -9,7 +9,8 @@
       content="A quiet photography works archive for MT Presence, arranged by image type and ratio."
     />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="styles.css?v=20260723-global-footer-3" />
+    <link rel="stylesheet" href="styles.css?v=20260724-ratio-layout" />
+    <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="archive-page">
     <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -137,8 +138,10 @@
         <a href="/about.html">About</a>
         <a href="/lightbox.html">Lightbox <span data-lightbox-count>0</span></a>
         <a href="/contact.html">Contact</a>
+        <a href="/admin/reviews" data-review-nav hidden>Review</a>
+        <a href="/admin/works" data-governance-nav hidden>Governance</a>
       </nav>
-      <a class="home-account-entry" href="/auth/sign-in" data-home-account-entry data-public-sign-in>Sign In</a>
+      <div class="header-identity-slot" data-header-identity-slot></div>
       <button
         class="public-nav-toggle"
         type="button"
@@ -266,7 +269,7 @@
 
         <div class="work-viewer-layout viewer-body">
           <figure class="work-viewer-media viewer-stage" tabindex="0" aria-label="Image viewing area" data-viewer-stage>
-            <img src="" alt="" decoding="async" data-viewer-image />
+            <img alt="" decoding="async" data-viewer-image />
           </figure>
           <aside id="work-viewer-details" class="work-viewer-info viewer-details" aria-label="Work details" aria-hidden="true" inert data-viewer-info>
             <h2 id="work-viewer-title" data-viewer-title></h2>
@@ -309,10 +312,10 @@
     </div>
 
     <script src="archive-data.js?v=20260610-works-viewer-editor"></script>
-    <script src="public-archive.js?v=20260722-public-delivery"></script>
-    <script src="archive.js?v=20260722-gallery-viewer"></script>
-    <script src="/site-footer.js?v=20260723-global-footer-3"></script>
-    <script src="/account-menu.js?v=20260722-public-shell"></script>
+    <script src="public-archive.js?v=20260723-interaction-integrity"></script>
+    <script src="archive.js?v=20260723-interaction-integrity"></script>
+    <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
+    <script src="/account-menu.js?v=20260723-interaction-integrity-2"></script>
     <script src="/public-navigation.js?v=20260722-public-shell"></script>
   </body>
 </html>

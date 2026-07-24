@@ -30,6 +30,7 @@ def main() -> None:
     works_html = (ROOT / "works.html").read_text()
     account_menu = (ROOT / "account-menu.js").read_text()
     workflow = (ROOT / ".github" / "workflows" / "database.yml").read_text()
+    release_gate = (ROOT / "scripts" / "release_gate.sh").read_text()
 
     require(schema, {
         "CREATE TABLE upload_intents", "expected_assets jsonb", "status IN ('issued', 'completed', 'expired', 'canceled')",
@@ -259,9 +260,16 @@ def main() -> None:
         raise RuntimeError("Review beforeunload must not mutate dirty state")
 
     require(workflow, {
-        "python3 scripts/validate_workspace_phase2.py",
-        "python3 scripts/test_workspace_phase2_boundary.py",
-    }, "Phase 2 CI contract")
+        "bash scripts/release_gate.sh",
+    }, "Phase 2 CI entrypoint")
+    require(release_gate, {
+        "scripts/validate_workspace_phase2.py",
+        "scripts/test_workspace_phase2_boundary.py",
+        'for validator in "${static_validators[@]}"; do',
+        'run_group "Static contract: $validator" python3 "$validator"',
+        'for test_file in "${boundary_tests[@]}"; do',
+        'run_group "Boundary test: $test_file" python3 "$test_file"',
+    }, "Phase 2 release gate contract")
     print("Phase 2A/2B/2C/2D/2E/2G Workspace contracts validated.")
 
 

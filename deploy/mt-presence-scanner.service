@@ -1,0 +1,44 @@
+[Unit]
+Description=MT Presence trusted image scanner
+After=network-online.target clamav-daemon.service
+Wants=network-online.target clamav-daemon.service
+
+[Service]
+Type=simple
+User=mtpresence-scanner
+Group=mtpresence-scanner
+SupplementaryGroups=clamav
+WorkingDirectory=/opt/mt-presence/current
+EnvironmentFile=/etc/mt-presence/scanner.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStartPre=/opt/mt-presence/scanner-venv/bin/python /opt/mt-presence/current/scripts/production_preflight.py --runtime scanner
+ExecStart=/opt/mt-presence/scanner-venv/bin/python /opt/mt-presence/current/workers/image_scanner.py
+Restart=always
+RestartSec=5
+TimeoutStartSec=30
+TimeoutStopSec=30
+UMask=0077
+
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/mt-presence-scanner
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

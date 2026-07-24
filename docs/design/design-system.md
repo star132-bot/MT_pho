@@ -41,6 +41,7 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 4. 实现后检查桌面与移动端视口，并验证 hover、focus、active、empty、error 等相关状态。
 5. 同步更新项目功能地图，并说明未完成或无法验证的部分。
 
+
 ## 当前首版组件策略
 
 当前项目是静态站点，没有 React/Vue/Next 依赖。首版先使用自建轻量组件系统：
@@ -53,7 +54,7 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 - `marquee-gallery`：精选作品无限横向滚动带。
 - `marquee-item`：单张作品展示容器，统一高度、自然宽度。
 - `ui-icon`：作品档案页功能图标，使用单色细线 SVG symbol。
-- `archive-controls`：公开作品档案页的 Type/Ratio 文本 tabs；桌面可吸附、移动端分组横向滚动。
+- `archive-topbar` / `archive-controls`：公开作品档案页的 Search、Type、Ratio 文本 tabs；桌面可吸附、移动端分组横向滚动。
 - `archive-gallery`：全宽自然比例 masonry；公开页不挂载 Arrange 控件。
 - `contact-section`：联系作者。
 - `contact-page`：联系作者独立页面和表单。
@@ -65,6 +66,32 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 - 首版只有一个页面和一个精选作品带，不需要重型组件库。
 - 艺术站点的视觉质量主要来自排版、图片比例、留白和节奏，不来自复杂 UI 控件。
 - 未来如果升级为多页面或 CMS，再引入框架和组件库。
+
+### 页面壳与导航归属
+
+项目必须把三种不同工作语境分开，不能为了“统一”把所有入口塞进同一套导航：
+
+- Public Gallery：Home、Works、About、Lightbox、Contact、Creator Profile。只使用顶部品牌导航；允许具备权限的登录用户看到顶层 Review，但 Governance、Users、Upload 等后台入口不得进入公开导航。公开页不显示左 rail，也不保留 rail 空位。
+- Creator Workspace：Dashboard、Upload Studio、Account Settings。以创作者任务为中心；Dashboard 与 Account Settings 使用顶部导航和页面内章节导航，只有 Upload/Review 这类高密度工作台可以使用紧凑内部 rail。
+- Admin Operations：Review、Works Governance、User Governance。使用独立的后台操作导航和高密度列表/inspector；Governance 与 Users 只属于这里，不得出现在 Public Gallery。
+
+当前静态架构继续使用原生 HTML/CSS/JavaScript 和既有 Viewer，不为首轮视觉优化引入 PhotoSwipe、React 或通用组件库运行时。是否引入第三方组件以清晰的交互缺口为前提，不能用组件库外观替代品牌设计。
+
+### 2026-07-23 外部参考与组件决策
+
+本轮针对真实海外摄影站和官方组件文档做了定向研究，提取结构原则而不复制品牌外观：
+
+- [Nadav Kander](https://www.nadavkander.com/)：极小字号文字导航、居中单图、底部序号/展签与大面积空白形成稳定观看节奏。MT Presence 采用其“图片先于界面”的原则，但保留更适合大型档案的 masonry 浏览。
+- [Tyler Mitchell](https://www.tylermitchell.co/)：密集自然比例档案和 50/200/500 浏览密度选择证明高作品量需要明确的浏览模式。MT Presence 首阶段维持四/三/二/一列；作品规模显著增长后再评估显式 Density 控件，不能用无限细小缩略图牺牲当前作品辨识度。
+- [Rinko Kawauchi](https://rinkokawauchi.com/)：大图、弱界面和克制文字验证 image-first 方向；其左侧导航不适合本项目，因为公共站已明确使用顶部导航，重复 rail 会压缩作品宽度。
+- [Siiimple Photography curation](https://siiimple.com/category/photography/)：参考集合共同强调 minimal layout、thoughtful gallery 和 subtle transitions；本项目把 minimal 理解为每个元素都有职责，而不是空白页面加超大标题。
+
+组件候选必须按缺口引入：
+
+- [PhotoSwipe](https://photoswipe.com/getting-started/)：适合未来需要成熟触控缩放、响应式 `srcset` 和按需加载 Core 时采用；官方要求预先提供图片尺寸并建议响应式图片。当前原生 Viewer 已绑定 URL、详情 drawer、Lightbox/Inquiry 和业务状态，首阶段不替换。
+- [Embla Carousel](https://www.embla-carousel.com/docs/plugins/accessibility)：只有首页 Selected Works 从 CSS marquee 升级为可控触摸 carousel 时才评估，并必须同时接入按钮、live region、ARIA 和 `prefers-reduced-motion`，不能只为了滑动手感引入。
+- [Floating UI](https://floating-ui.com/docs/popover)：只有账户菜单、tooltip 或 popover 出现真实碰撞定位问题时才引入；当前简单顶栏菜单和 Viewer tooltip 继续使用本地实现。
+- Viewer 继续遵循 [WAI-ARIA Modal Dialog Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/)：打开后焦点进入并限制在 dialog，Escape 关闭，关闭后恢复触发器焦点，背景保持 inert。
 
 ### 2026-07-04 静态组件体系增强
 
@@ -79,18 +106,7 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 
 后续如果迁移到 Next.js，可把这些 token 和状态命名直接映射到 Tailwind theme、shadcn/ui variants 和 Radix state attributes。
 
-### 2026-07-22 Work Viewer 与内部 Rail
-
-作品查看器按专业阅片室组织：纯色工具栏、炭黑影像舞台、独立白色展签面板三层关系明确，不使用模糊背景、玻璃拟态、渐变或发光控件：
-
-- `.work-viewer-media` 使用 `#171717` 纯色舞台和稳定内边距；图片保持原始比例并以 `object-fit: contain` 完整显示，只允许极轻的暗色投影，不添加白色卡片边框。
-- 桌面详情开启时使用真实网格列而非覆盖图片；详情关闭后舞台占满释放空间。移动端详情使用舞台下方可收起、独立滚动的底部区域，不能遮挡图片。
-- `archive-rail-button.is-active` 只适用于 Upload/Review 等内部工作区，不再用于任何公开页面；active 状态使用轻色底、细边界和低声量强调色。
-- 桌面默认显示展签，移动端默认保持图片优先；`Info` 图标在 Show details / Hide details 间同步 tooltip、`aria-expanded`、`aria-hidden` 和 `inert`。Fit 完整适配舞台，Actual Size 只在舞台内部滚动并显示当前模式。
-- 作品卡片 hover 只显示 `MT` 角标和 Save / Collect / Download 图标按钮；不再显示底部标题说明和大号 Download 文案按钮，避免遮挡图片。
-- 图标按钮必须有 `aria-label` 和 `data-tooltip`，鼠标 hover 或键盘 focus 时显示统一黑底提示；不要只依赖浏览器原生 `title`。
-
-内部 Rail 功能边界：
+### 2026-07-23 Public shell 与内部 Rail 功能边界
 
 - 公开 Home、Works、About、Lightbox、Contact 与 Dashboard 不显示 rail，也不保留 rail 宽度；只使用统一顶部导航。
 - Upload/Review 等密集作者工作区可以保留 78px 内部 rail，提供 Dashboard、Works、Upload、权限允许的 Review 和 Account destinations；active 只表达当前位置。
@@ -98,22 +114,32 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 - Upload Studio 提供文件夹、上传队列、点击图片编辑 Draft、保存，以及 Drafts/Trash 分段视图；Trash 卡片只读并只提供 Restore，不提供 hard delete 或 Publish。
 - Draft editor 使用无卡片的 Work details 与 Accessibility/Rights 分组；Alt Text 和长文案跨两列，版权/枚举字段维持双列，Recognizable People=Yes 时才显示 Model Release。桌面 editor 可独立纵向滚动，1180px 以下回到普通页面流，移动端严格单列。字段编辑停顿 900ms 后自动保存，同时保留明确的手工 Save 命令。
 
+### 2026-07-23 Private Lightbox
+
+- Lightbox 是浏览器本地的私人选片桌，不是账户 dashboard。页面使用编辑式标题、收藏数量、单一选择工具带和自然比例作品墙；不使用统计卡片、彩色 tile、胶囊按钮或第二套导航。
+- 长期 Lightbox 收藏与本次 Inquiry Selection 必须在视觉和存储上分离。默认 `0 selected`；只有 checkbox 明确勾选的作品显示深森林绿细边界、勾号和计数，并能进入 Contact。
+- 选择控件使用熟悉的方形 checkbox，不使用无语义圆点；桌面 32px 并保留足够周边点击区域，移动端至少 40px 且工具按钮高度 44px。选择不能导航到 Viewer，也不能重建整个页面。
+- 桌面工具带依次呈现 selected count、Select all/Clear selection、Contact Artist 和低声量 Remove all；移动端重排为两列但保持 Contact 主命令最明确。Remove all 必须经过确认，普通 Remove 保持作品展签中的文字命令。
+- 集合在 `mt:lightbox-change`、跨标签页 `storage` 和 bfcache `pageshow` 后重新比对，只在真实变化时重绘；Inquiry Selection 同步剪除已不在 Lightbox 的 ID。同步反馈使用短 toast，不刷新页面。
+- Gallery 保持二至三列桌面、单列窄屏和 10-14px 水平间距；图片不裁切、不加厚阴影。空态保持单一 Browse Works 下一步，页面宽度不得超过视口。
+
 ### 2026-07-22 Unified Public Presentation
 
 视觉方向是 “professional creator profile + contemporary photography archive”。公共界面使用接近白色 canvas、接近黑色正文、中性灰辅助文字、1px 分隔线和少量深森林绿强调；不使用渐变、发光、装饰色块、多层阴影或超过 8px 的卡片圆角。正文使用中性无衬线，创作者姓名和编辑式标题使用 Georgia/系统衬线，图片始终比控件突出。
 
 统一顶部导航：
 
-- 桌面固定 64px：左侧 MT Presence，右侧 Home、Works、About、Lightbox、Contact 和 Sign In/账户身份。当前路由只用文字颜色和 2px 下划线表示。
+- 桌面固定 64px：左侧 MT Presence，右侧 Home、Works、About、Lightbox、Contact、权限允许时的 Review，再到 Sign In 或账户身份。当前路由只用文字颜色和 2px 下划线表示；Review 与 Dashboard/Upload 同级，不属于头像菜单。
 - 移动固定 56px：品牌保持单行，右侧只容纳 Sign In 或头像/账户按钮和 40px 菜单按钮；主链接在下方展开，不在顶栏内压缩成两行。
 - 菜单按钮必须有 `aria-label`、`title`、`aria-expanded` 和 `aria-controls`；展开状态同步 `aria-hidden`/`inert`，ArrowDown 可进入首项，Escape 关闭并恢复触发器焦点，外部点击与焦点离开关闭。
-- `account-menu.js` 负责 Sign In/登录态身份切换，`public-navigation.js` 只负责移动导航；两者不得复制登录或 Sign out 数据流。
+- `account-menu.js` 是唯一 Header Identity controller，消费服务端 secret-free bootstrap；`public-navigation.js` 只负责移动导航。首帧已登录状态显示真实 initials，头像固定 42px（移动 38px），图片 decode 成功后 160-220ms crossfade；Sign In、头像、Review 不得由其他脚本重复写入。
 
 Works Archive：
 
-- 信息顺序固定为全局顶栏、Search、Type/Ratio tabs、标题/数量/数据状态、全宽作品区，不能出现第二套导航或 public rail 空位。
-- Search 高 42px；Type 与 Ratio 用文字 tabs 和细下划线，桌面筛选层可吸附在顶栏下，移动端回到普通流并在各分组内横向滚动、隐藏滚动条。
+- 信息顺序固定为全局顶栏、Search、Type/Ratio tabs、Works Archive 标题/数量/数据状态、全宽作品区，不能出现第二套导航或 public rail 空位。
+- Search 高 42px；Type 与 Ratio 使用文字 tabs 和细下划线，桌面筛选层可吸附在顶栏下，移动端回到普通流并在各分组内横向滚动、隐藏滚动条。
 - Gallery 在 `>=1180px` 四列、`761-1179px` 三列、`520-760px` 两列、`<520px` 单列，间距约 16-18px。图片保留自然比例、无厚阴影和大圆角；收藏/下载等操作只在 hover、focus 或已选中时出现。
+- 收藏在原 card、Viewer 和计数节点上局部更新，不能刷新页面、重建 Gallery 或改变当前滚动/筛选/Viewer；成功使用实心图标、短促状态动效和低声量 toast 反馈。
 - Viewer、Search/Type/Ratio URL、Count、数据来源状态、Lightbox 与 Download 行为都属于既有合同，视觉重构不能改变。
 
 Creator Profile：
@@ -132,7 +158,7 @@ Creator Profile：
 - Public Footer 用于 Home、Works、About、Contact 与 Lightbox。背景固定为中性炭黑，普通公开页依次呈现克制的 inquiry band、品牌/Explore/Practice/Account 导航和版权栏；Contact 页面省略重复的 inquiry band。
 - Workspace Footer 用于 Dashboard、Upload Studio、Account Settings 与 Review Queue。它保持在正常文档流中，仅显示版权、Public Works 和 Contact；短页面由页面 flex 布局自然推到视口底部，不使用会遮挡内容的 fixed 定位。
 - Public Footer 的 Account 组默认只显示 Sign In，并复用 `account-menu.js` 发出的 `mt:account-loaded` 状态事件；只有明确为 active 的账户才显示 Dashboard、Upload、Account Settings，且仅具备权限的 active 账户显示 Review。非 active 或缺失状态一律 fail closed，不生成受保护死入口；`site-footer.js` 不发起第二次 `/api/me` 请求。
-- Practice 只进入真实存在的 Contact inquiry 类型。项目没有公开法律页面，也没有可靠的站点级创作者社交资料源，因此不渲染 Privacy/Terms/Cookie 或 Instagram/LinkedIn/Website 占位链接。
+- Practice 只进入真实存在的 Contact inquiry 类型；Privacy 链接进入真实 `/privacy.html`。项目没有 Terms/Cookie 独立页面或可靠的站点级创作者社交资料源，因此不渲染其占位链接。
 - 桌面使用品牌宽列加三组必要链接；`<=1100px` 变为两列且品牌占满首行，`<=760px` 变为单列并保证链接至少 44px 触控高度。工作台 Upload/Review 桌面端对齐 78px 内部 rail，移动端回到完整视口宽度。
 - 所有链接提供高对比 `focus-visible`，hover 只改变颜色或下划线，动效为 180ms，并在 `prefers-reduced-motion` 下关闭。Footer 与 Work Viewer 保持独立层级，Viewer 打开时 Footer 留在遮罩之后。
 
@@ -170,9 +196,27 @@ Creator Profile：
 - 列表至少显示作品名、Submission ID 尾段、作者、等待时间、category、rights、assignment 和状态；每个 queue button 的 accessible name 必须同时包含 title/status/owner/waiting/ID 尾段并保持唯一。长文件名与用户文案必须换行或省略，不能挤压状态和缩略图。
 - Reviewer 打开可领取的 Submitted 项时先执行原子 Start/Claim，再加载 Original/Display；未领取队列只暴露 thumbnail。Admin+AAL2 可以查看完整历史，但角色叠加不能绕过 MFA。
 - Decision 使用完整 checklist、reason 和 user message；提交期间所有相关控件 disabled，冲突保留当前输入并提供 Reload。确认 dialog 首焦点放在 Cancel，关闭后恢复触发控件；未完成 checklist 必须把首个失败 checkbox 标记为 invalid、用 `aria-describedby` 关联 assertive `role="alert"`，同时把焦点移到该项。
-- Request Changes、Reject 和 Approve 是当前浏览器动作；在 Supabase public DTO、derivative delivery 和公开 Works 数据源接通前，不显示会虚假承诺公开结果的 Approve and Publish。
+- Reviewer 显示 Request Changes、Reject 和 Approve；Admin/Super Admin+AAL2 可显示真实的 Approve and Publish，因为该动作已接入 Supabase public DTO、derivative delivery、Works 与 creator profile。按钮文案必须明确即时公开影响，普通 Approve 仍不公开。
 - 1024px 以下 Queue 与 Detail 改为上下布局；760px 以下隐藏桌面 rail、使用 68px 单行顶栏，Queue/Detail 为互斥视图。Detail 顶部必须提供 44px 以上 `Back to queue`，返回时保留 deep-link 与选中项、把焦点交还 active row，重新点选无需滚过完整详情即可恢复 Detail。
 - Loading、empty、error、permission、busy、success、conflict 都使用固定布局和可读文字；状态颜色只作为辅助。Evidence/History/Checklist 不低于 12px，Inspector 与表单正文不低于 13px，checkbox 行和关键触控动作不低于 44px。
+
+### Admin Works Governance
+
+- Works Governance 是高密度运营工具，可使用 Admin 专用 rail，但不得把公开 Home/Works/About/Contact 的重复导航带进来。桌面使用状态计数、搜索/排序、可扫描 Inventory 和 sticky Detail inspector；白色/近白背景、1px 分隔线、衍生图和文字层级优先，不使用渐变、发光、彩色统计卡或多层阴影。
+- Publication 状态用短文本与细边框表达；森林绿只表示 active/published/restore，暗红只用于真实 Takedown、Deleted、failure。状态必须同时有文字，不能只靠颜色。表格行、缩略图和 inspector 的动态内容不得改变列宽或造成 layout shift。
+- Takedown/Restore 必须从详情触发，通过原生 modal dialog 收集 reason、creator message 与可选 internal note。危险主按钮只在最终确认处使用暗红；dialog 保留 Cancel、首个输入焦点、Escape、关闭后焦点恢复、busy 禁用、validation alert 和 409 reload 流程。
+- 浏览器只显示短期 display/thumbnail preview。非 clean derivative 使用稳定的 Preview unavailable，不用低可信图片占位；original、Storage locator、checksum、owner UUID 和内部备注不得进入 DOM。失败治理尝试可进入 Governance history，但只显示受控 action/result/reason/timestamp，不显示原始请求或内部说明。
+- 900px 以下 Inventory 与 Detail 为互斥单视图，详情顶部提供 Back to inventory 并恢复所选行焦点；760px 以下隐藏 Admin rail，顶部单行、状态计数可横向滚动、表格变为作品/作者/状态的稳定两列摘要。390px 必须无横向溢出，dialog 操作保持至少 40px 高且文案不重叠。
+
+### Admin User Governance
+
+- User Administration 延续 Admin Works 的安静运营语言，不是彩色 CRM 仪表盘。页面使用近白底、白色 inventory、1px 中性分隔线、衬线页标题和紧凑无衬线数据；卡片圆角不超过 2px，不使用渐变、发光、装饰色块或多层阴影。
+- 桌面以状态 metrics、单行 search/role/sort controls、Directory table 和 sticky inspector 组成。metrics 是可操作的细分隔统计栏，不渲染成独立彩色卡；森林绿只表示 active/current/focus，琥珀只表示 pending，暗红只表示 suspended/banned/failure 和最终危险确认。
+- Directory 行保持稳定 Identity/Role/Status/Last active 列；头像位置即使没有可展示图片也使用固定 initials 圆形，不因姓名或状态变化移动列。动态内容必须省略或换行，不得扩大表格最小宽度造成页面横向滚动。
+- Inspector 以 Identity、Security posture、Roles、Administrative history 和 Account controls 的连续分隔区组织，不使用卡片套卡片。MFA、session count、quota 没有 provider authority 时只能显示 Unavailable/Provider managed；不得显示 Not enrolled、0 sessions 或假配额。
+- Suspend/Reactivate、Grant/Revoke role、Record session revocation 都通过原生 modal dialog 收集 allowlisted reason。session 动作必须写明“记录 provider request”，成功后也不能使用“sessions closed/revoked”文案；Super Admin 角色本身不从普通 UI 授予。
+- 409 version/idempotency conflict 在 inspector 顶部使用固定高度 notice，禁用所有 mutation 并要求 Reload；关闭 dialog、返回列表和移动端 back action都恢复触发元素焦点。所有图标按钮有 tooltip、accessible name 和至少 34px 稳定尺寸。
+- 900px 以下 Directory/Inspector 为互斥单视图；760px 以下隐藏 Admin rail、顶部保持单行、metrics 横向滚动、表格转为无横向溢出的 identity+role/status 摘要；390x844 下搜索、两个 select 和 dialog 操作必须自然换行且互不遮挡。
 
 ### User Dashboard And Account Menu
 
@@ -182,7 +226,10 @@ Creator Profile：
 - Dashboard cover chooser 只显示当前 owner 的 non-deleted、ready image，并按 image 去重、优先 current-policy scanner-clean display、缺失时回退 clean thumbnail。候选和当前 cover 只加载服务端短期 signed URL，不能读取 original、Storage key 或跨 owner asset；无候选时使用稳定摄影 fallback。Dialog 支持 loading/empty/error/success、Remove current cover、Escape/Cancel 和 trigger focus restoration。
 - Dashboard 提供 Overview/My works tablist，ArrowLeft/ArrowRight/Home/End 可切换并同步 `aria-selected`、`tabindex` 与 panel visibility；移动端把统计改为两列、内容改为单列，不允许横向溢出。
 - Account Settings 是紧凑的填写型设置界面：全局顶栏之后使用短标题栏、桌面 sticky 本地导航和一块连续白色内容面板。Profile 的 Identity、Work、Location、About、Links 五组只用留白与 1px 中性分隔线组织，不使用彩色底或独立卡片；十个字段在桌面稳定两列、窄屏单列，输入框统一为中性细边框。Identity 顶部可展示 initials 头像摘要，但在没有后端上传能力时不得提供虚假上传操作。
-- Home 与其他公开页及内部 Dashboard、Upload、Review、Account 顶栏共用 initials profile avatar；点击头像直接进入 `/dashboard` personal profile，再由 Edit profile 进入 `/settings/account#profile`。顶栏在头像旁提供独立账户菜单按钮，菜单显示当前身份、Dashboard、Workspace、Account Settings、权限允许时的 Review 和 Sign out；ArrowUp/ArrowDown/Home/End 导航，Escape 关闭并恢复菜单按钮焦点，点击外部或焦点离开时关闭。
+- Home 与其他公开页及内部 Dashboard、Upload、Review、Account 顶栏共用 initials profile avatar；点击头像直接进入 `/dashboard` personal profile，再由 Edit profile 进入 `/settings/account#profile`。顶栏在头像旁提供独立账户菜单按钮，菜单只显示当前身份、Dashboard、Workspace、Account Settings 和 Sign out；权限允许的 Review 位于顶部主导航。ArrowUp/ArrowDown/Home/End 导航，Escape 关闭并恢复菜单按钮焦点，点击外部或焦点离开时关闭。
+
+- Works 收藏是原节点上的即时状态变更：按钮必须为 `type="button"`，点击停止卡片传播，书签空心/实心与 `aria-pressed` 同步，220ms pop 只执行一次并支持 reduced motion。收藏不得导航、重新请求 Archive、调用完整 Gallery render 或替换 Gallery DOM。
+- Lightbox 的 saved works 与 Inquiry Selection 是两层状态：前者持久，后者为 session 临时子集且默认空；选择控件只 patch card outline/checkbox 与 toolbar count，不打开 Viewer。Contact Artist 在 0 selected 时使用原生 disabled，只把显式选中 ID 交给 Contact。
 - Avatar menu 最大 8px 圆角，不使用阴影堆叠或彩色身份 chip；Sign out 通过 same-origin CSRF 执行，失败留在当前页并把可读错误聚焦宣告。
 
 ## 推荐技术选型
@@ -449,10 +496,11 @@ Statement：
 
 ### Contact CTA
 
-- 保持短文案。
-- 主操作进入独立联系页。
-- 联系页表单使用少量阴影和半透明浅色背景；移动端单列显示，不遮挡或挤压表单字段。
-- 表单提交按钮沿用 `.button-primary`，生成邮件草稿时 disabled，成功和失败都显示 toast。
+- 保持短文案，主操作进入独立联系页。
+- 联系页使用接近白色背景、1px 分隔和清晰字段边界，不使用半透明装饰、渐变或厚阴影；移动端单列且不遮挡字段。
+- 表单提交按钮沿用 `.button-primary`，请求期间 disabled/`aria-busy`；成功显示独立 reference panel，失败保留输入和 idempotency key，并使用可读 toast。
+- Notifications 与 Inbox 延续安静运营语言：列表使用连续分隔行而非卡片墙；unread、open/replied/closed 同时以文字和低声量颜色表达。桌面 Inbox 为 inventory/detail，窄屏互斥单视图。
+- Admin Audit 使用高密度 ledger table + evidence inspector；安全字段以 definition list 展示，导出必须经 reason dialog。结果颜色只辅助 Success/Failure 文本，不能用彩色统计块替代内容。
 - 后续如果增加微信、Instagram、小红书，只作为次级链接，不抢主按钮。
 
 ## 后续引入组件库的触发条件

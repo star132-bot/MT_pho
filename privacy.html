@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy | MT Presence</title>
+    <meta name="description" content="How MT Presence handles account, artwork, inquiry, and security information." />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css?v=20260723-production-readiness" />
+    <link rel="stylesheet" href="/privacy.css?v=20260723-production-readiness" />
+    <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
+  </head>
+  <body class="public-page privacy-page">
+    <header class="site-header archive-header public-site-header" aria-label="Primary navigation" data-public-header>
+      <a class="brand-mark" href="/" aria-label="MT Presence home"><span>MT</span><span>Presence</span></a>
+      <nav id="public-site-navigation" class="site-nav public-site-nav" aria-label="Primary" data-public-nav>
+        <a href="/">Home</a>
+        <a href="/works.html">Works</a>
+        <a href="/about.html">About</a>
+        <a href="/lightbox.html">Lightbox</a>
+        <a href="/contact.html">Contact</a>
+        <a href="/admin/reviews" data-review-nav hidden>Review</a>
+        <a href="/admin/works" data-governance-nav hidden>Governance</a>
+      </nav>
+      <div class="header-identity-slot" data-header-identity-slot></div>
+      <button class="public-nav-toggle" type="button" aria-label="Open navigation" aria-controls="public-site-navigation" aria-expanded="false" title="Open navigation" data-public-nav-toggle>
+        <span class="public-nav-toggle-icon" aria-hidden="true"><span></span><span></span><span></span></span>
+      </button>
+    </header>
+
+    <main class="public-shell privacy-main">
+      <header class="privacy-intro">
+        <p class="section-kicker">Privacy</p>
+        <h1>How information is handled</h1>
+        <p>Effective July 23, 2026. This notice describes the information used to operate MT Presence and respond to project inquiries.</p>
+      </header>
+
+      <div class="privacy-layout">
+        <nav class="privacy-index" aria-label="Privacy notice sections">
+          <a href="#information">Information</a>
+          <a href="#use">Use</a>
+          <a href="#storage">Storage</a>
+          <a href="#choices">Your choices</a>
+          <a href="#contact">Contact</a>
+        </nav>
+
+        <div class="privacy-content">
+          <section id="information">
+            <h2>Information we receive</h2>
+            <p>Account holders provide identity, profile, authentication, and artwork information. Project inquiries may include a name, email address, organization, intended use, timeline, budget range, message, and selected works.</p>
+            <p>Security records include account and administrative events needed to protect publication, moderation, and access workflows. A visitor's Lightbox remains in that browser unless it is explicitly attached to an inquiry.</p>
+          </section>
+
+          <section id="use">
+            <h2>How information is used</h2>
+            <p>Information is used to operate accounts, publish and review works, respond to inquiries, maintain conversation history, prevent abuse, and preserve an auditable record of sensitive administrative actions.</p>
+            <p>MT Presence does not sell personal information. Inquiry details are visible only to the relevant account participants and authorized administrators.</p>
+          </section>
+
+          <section id="storage">
+            <h2>Storage and retention</h2>
+            <p>Application data and private image assets are stored with the infrastructure provider used by MT Presence. Essential secure cookies maintain authentication and request protection; advertising cookies are not used.</p>
+            <p>Inquiry and account information is retained while it is needed to provide the service, resolve a request, protect the platform, or meet legitimate record-keeping obligations. Immutable security and moderation records may outlast an active account where integrity or legal obligations require it.</p>
+          </section>
+
+          <section id="choices">
+            <h2>Your choices</h2>
+            <p>Account holders can update profile information in Account Settings. Anyone who submitted an inquiry may request access, correction, or deletion through the Contact page. A request may require identity verification, and some records cannot be removed when they are required for security, dispute resolution, or legal compliance.</p>
+          </section>
+
+          <section id="contact">
+            <h2>Questions and requests</h2>
+            <p>Use the <a href="/contact.html?type=other">Contact page</a> for privacy questions or data requests. Include enough information to identify the account or inquiry, but do not send passwords, access tokens, or private authentication codes.</p>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <footer class="site-footer public-footer" aria-label="Site footer" data-site-footer data-footer-variant="public"></footer>
+    <script src="/site-footer.js?v=20260723-production-readiness"></script>
+    <script src="/account-menu.js?v=20260723-production-readiness"></script>
+    <script src="/public-navigation.js?v=20260722-public-shell"></script>
+  </body>
+</html>

@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Inbox | MT Presence</title>
+    <meta name="description" content="Your recorded MT Presence inquiry conversations." />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css?v=20260723-communications-v1" />
+    <template id="mt-header-identity">{"authenticated":false,"status":"pending"}</template>
+  </head>
+  <body class="communications-page inbox-page">
+    <a class="communications-skip" href="#inbox-main">Skip to inbox</a>
+
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-inbox" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" /><path d="M4 14h4l2 3h4l2-3h4" /></symbol>
+      <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.8" /><path d="m16 16 4.5 4.5" /></symbol>
+      <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5" /><path d="M4 17v-5h5" /><path d="M6.1 8.2A7 7 0 0 1 18.8 10M5.2 14A7 7 0 0 0 17.9 15.8" /></symbol>
+      <symbol id="icon-alert" viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4z" /><path d="M12 9v5" /><path d="M12 17h.01" /></symbol>
+      <symbol id="icon-arrow-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7" /></symbol>
+      <symbol id="icon-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></symbol>
+      <symbol id="icon-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4z" /><path d="M22 2 11 13" /></symbol>
+      <symbol id="icon-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1.5" /><path d="m4 7 8 6 8-6" /></symbol>
+      <symbol id="icon-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="1.5" /><path d="M16 8V4H4v12h4" /></symbol>
+      <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="1.5" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></symbol>
+      <symbol id="icon-unlock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="1.5" /><path d="M8 10V7a4 4 0 0 1 7-2.6" /></symbol>
+    </svg>
+
+    <header class="site-header communications-header" aria-label="Workspace navigation">
+      <a class="brand-mark" href="/dashboard" aria-label="Open Dashboard"><span>MT</span><span>Artist Workspace</span></a>
+      <nav class="site-nav" aria-label="Workspace navigation">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/workspace/images">Upload</a>
+        <a href="/admin/reviews" data-review-nav hidden>Review</a>
+        <a href="/admin/works" data-governance-nav hidden>Governance</a>
+        <a href="/admin/users" data-users-nav hidden>Users</a>
+      </nav>
+      <div class="header-identity-slot" data-header-identity-slot></div>
+    </header>
+
+    <main class="communications-shell inbox-shell" id="inbox-main" tabindex="-1">
+      <header class="communications-command">
+        <div>
+          <p class="section-kicker">Communications</p>
+          <h1>Inbox</h1>
+        </div>
+        <button class="communications-icon-button" type="button" data-inbox-refresh aria-label="Refresh inbox" title="Refresh inbox">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg>
+        </button>
+      </header>
+
+      <form class="inbox-filters" data-inbox-filters role="search">
+        <label class="inbox-search">
+          <span class="visually-hidden">Search inquiries</span>
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+          <input type="search" name="q" maxlength="160" autocomplete="off" placeholder="Search loaded conversations" />
+        </label>
+        <button type="submit">Search</button>
+        <button type="button" data-inbox-clear hidden>Clear</button>
+        <label class="inbox-status-filter">
+          <span>Status</span>
+          <select name="status">
+            <option value="all">All</option>
+            <option value="open">Open</option>
+            <option value="replied">Replied</option>
+            <option value="closed">Closed</option>
+          </select>
+        </label>
+      </form>
+
+      <section class="inbox-workspace" aria-label="Inquiry inbox" data-inbox-workspace data-mobile-view="list">
+        <section class="inbox-inventory" aria-labelledby="inbox-list-title" aria-busy="true" data-inbox-inventory>
+          <header>
+            <div><h2 id="inbox-list-title">Conversations</h2><span data-inbox-total>0</span></div>
+          </header>
+          <div class="communications-state" data-inbox-list-state data-tone="loading" role="status" aria-live="polite">
+            <span class="communications-spinner" aria-hidden="true"></span>
+            <p>Loading conversations...</p>
+          </div>
+          <ol class="inbox-list" data-inbox-list hidden></ol>
+          <footer class="communications-pagination" data-inbox-pagination hidden>
+            <button type="button" data-inbox-more>Load more</button>
+          </footer>
+        </section>
+
+        <aside class="inbox-detail-region" aria-label="Conversation detail" aria-busy="false" data-inbox-detail-region>
+          <div class="inbox-mobile-toolbar">
+            <button type="button" data-inbox-back>
+              <svg class="ui-icon" aria-hidden="true"><use href="#icon-arrow-left"></use></svg>
+              Conversations
+            </button>
+          </div>
+          <div class="communications-state inbox-detail-state" data-inbox-detail-state data-tone="empty" role="status" aria-live="polite">
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-inbox"></use></svg>
+            <div><h2>Select a conversation</h2><p>Conversation details will appear here.</p></div>
+          </div>
+          <article class="inbox-detail" data-inbox-detail hidden>
+            <header class="inbox-detail-header">
+              <div class="inbox-detail-meta-line">
+                <span class="inbox-status" data-inbox-detail-status></span>
+                <span data-inbox-detail-reference></span>
+              </div>
+              <h2 data-inbox-detail-title tabindex="-1"></h2>
+              <p data-inbox-detail-contact></p>
+              <div class="inbox-detail-commands" data-inbox-detail-commands hidden>
+                <a data-inbox-manual-email hidden>
+                  <svg class="ui-icon" aria-hidden="true"><use href="#icon-mail"></use></svg>
+                  Email manually
+                </a>
+                <button type="button" data-inbox-copy-email hidden>
+                  <svg class="ui-icon" aria-hidden="true"><use href="#icon-copy"></use></svg>
+                  Copy address
+                </button>
+                <button type="button" data-inbox-status-action hidden></button>
+              </div>
+              <p class="inbox-manual-delivery-note" data-inbox-manual-delivery-note hidden>
+                Guest replies are recorded here; use the email command for manual external delivery.
+              </p>
+              <div class="inbox-status-notice" data-inbox-status-notice role="alert" tabindex="-1" hidden>
+                <p data-inbox-status-error></p>
+                <button type="button" data-inbox-status-reload>Reload conversation</button>
+              </div>
+            </header>
+
+            <section class="inbox-context" aria-labelledby="inbox-context-title">
+              <h3 id="inbox-context-title">Inquiry</h3>
+              <dl data-inbox-context></dl>
+            </section>
+
+            <section class="inbox-transcript" aria-labelledby="inbox-transcript-title">
+              <div class="inbox-section-heading"><h3 id="inbox-transcript-title">Conversation</h3><span data-inbox-message-count></span></div>
+              <ol data-inbox-messages></ol>
+            </section>
+
+            <form class="inbox-reply-form" data-inbox-reply-form novalidate>
+              <div class="inbox-section-heading"><h3>Reply</h3><span data-inbox-reply-count>0 / 5000</span></div>
+              <label for="inbox-reply-message" class="visually-hidden">Reply message</label>
+              <textarea id="inbox-reply-message" name="message" rows="6" maxlength="5000" placeholder="Write a reply" aria-describedby="inbox-reply-error inbox-delivery-note" required></textarea>
+              <p class="inbox-reply-error" id="inbox-reply-error" role="alert" data-inbox-reply-error></p>
+              <div class="inbox-reply-actions">
+                <p id="inbox-delivery-note">Replies are recorded in this inbox. Email delivery is not implied.</p>
+                <button class="button button-primary" type="submit" data-inbox-reply-submit>
+                  <svg class="ui-icon" aria-hidden="true"><use href="#icon-send"></use></svg>
+                  Record reply
+                </button>
+              </div>
+            </form>
+          </article>
+        </aside>
+      </section>
+    </main>
+
+    <footer class="site-footer workspace-footer" aria-label="Workspace footer" data-site-footer data-footer-variant="workspace" data-footer-context="inbox"></footer>
+    <div class="contact-toast" role="status" aria-live="polite" data-inbox-toast></div>
+    <div class="visually-hidden" aria-live="polite" aria-atomic="true" data-inbox-live></div>
+
+    <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
+    <script src="/account-menu.js?v=20260723-communications-v1"></script>
+    <script src="/inbox.js?v=20260723-communications-v1"></script>
+  </body>
+</html>

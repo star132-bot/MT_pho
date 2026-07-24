@@ -3,6 +3,8 @@ const pageContent = document.querySelector("[data-account-content]");
 const pageNotice = document.querySelector("[data-account-notice]");
 const liveRegion = document.querySelector("[data-account-live]");
 const accountSummary = document.querySelector("[data-account-summary]");
+const accountAvatarVisual = document.querySelector("[data-account-avatar-visual]");
+const accountAvatarImage = document.querySelector("[data-account-avatar-image]");
 const profileForm = document.querySelector("[data-profile-form]");
 const preferencesForm = document.querySelector("[data-preferences-form]");
 const profileSubmit = document.querySelector("[data-profile-submit]");
@@ -26,6 +28,12 @@ const sectionLinks = Array.from(document.querySelectorAll(".account-settings-ind
 const accountSections = sectionLinks
   .map((link) => document.querySelector(link.getAttribute("href")))
   .filter(Boolean);
+const profileAvatarVisual = document.querySelector("[data-profile-avatar-visual]");
+const profileAvatarImage = document.querySelector("[data-profile-avatar-image]");
+const profileAvatarInput = document.querySelector("[data-profile-avatar-input]");
+const profileAvatarChoose = document.querySelector("[data-profile-avatar-choose]");
+const profileAvatarRemove = document.querySelector("[data-profile-avatar-remove]");
+const profileAvatarStatus = document.querySelector("[data-profile-avatar-status]");
 
 const PROFILE_NAMES = [
   "display_name",
@@ -47,6 +55,10 @@ let sessionAction = "";
 let dialogTrigger = null;
 let dialogBusy = false;
 let suppressBeforeUnload = false;
+let profileAvatarBusy = false;
+let profileAvatarGeneration = 0;
+let accountAvatarGeneration = 0;
+let profileAvatarPreviewUrl = "";
 const formSnapshots = new WeakMap();
 
 function navigateWithoutDirtyPrompt(path, hideAccount = false) {
@@ -153,6 +165,298 @@ function initials(value) {
   return words.slice(0, 2).map((word) => word[0]?.toUpperCase() || "").join("") || "MT";
 }
 
+function setProfileAvatarStatus(message = "", state = "idle") {
+  profileAvatarStatus.textContent = message;
+  profileAvatarStatus.dataset.state = state;
+}
+
+function setProfileAvatarBusy(busy) {
+  profileAvatarBusy = busy;
+  profileAvatarChoose.disabled = busy;
+  profileAvatarRemove.disabled = busy;
+  profileAvatarInput.disabled = busy;
+  profileAvatarVisual.setAttribute("aria-busy", String(busy));
+}
+
+function releaseProfileAvatarPreview() {
+  if (!profileAvatarPreviewUrl) return;
+  URL.revokeObjectURL(profileAvatarPreviewUrl);
+  profileAvatarPreviewUrl = "";
+}
+
+function safeProfileAvatarUrl(value) {
+  const source = String(value || "").trim();
+  if (!source) return "";
+  try {
+    const url = new URL(source, window.location.origin);
+    const loopback = url.protocol === "http:"
+      && new Set(["localhost", "127.0.0.1", "[::1]"]).has(url.hostname);
+    return url.protocol === "https:" || loopback ? url.href : "";
+  } catch (_error) {
+    return "";
+  }
+}
+
+async function showAccountAvatar(source) {
+  const url = safeProfileAvatarUrl(source);
+  const generation = ++accountAvatarGeneration;
+  accountAvatarVisual.classList.remove("is-image-ready");
+  accountAvatarImage.hidden = true;
+  if (!url) {
+    accountAvatarImage.removeAttribute("src");
+    return;
+  }
+  accountAvatarImage.src = url;
+  accountAvatarImage.hidden = false;
+  try {
+    if (typeof accountAvatarImage.decode === "function") await accountAvatarImage.decode();
+    else if (!accountAvatarImage.complete || !accountAvatarImage.naturalWidth) {
+      await new Promise((resolve, reject) => {
+        accountAvatarImage.addEventListener("load", resolve, { once: true });
+        accountAvatarImage.addEventListener("error", reject, { once: true });
+      });
+    }
+    if (generation === accountAvatarGeneration && accountAvatarImage.naturalWidth) {
+      accountAvatarVisual.classList.add("is-image-ready");
+    }
+  } catch (_error) {
+    if (generation !== accountAvatarGeneration) return;
+    accountAvatarVisual.classList.remove("is-image-ready");
+    accountAvatarImage.hidden = true;
+  }
+}
+
+async function showProfileAvatar(source, { persisted = true } = {}) {
+  const url = persisted ? safeProfileAvatarUrl(source) : String(source || "");
+  const generation = ++profileAvatarGeneration;
+  profileAvatarVisual.classList.remove("is-image-ready");
+  profileAvatarImage.hidden = true;
+  if (persisted) profileAvatarRemove.hidden = !url;
+  if (!url) {
+    profileAvatarImage.removeAttribute("src");
+    return;
+  }
+  profileAvatarImage.src = url;
+  profileAvatarImage.hidden = false;
+  try {
+    if (typeof profileAvatarImage.decode === "function") await profileAvatarImage.decode();
+    else if (!profileAvatarImage.complete || !profileAvatarImage.naturalWidth) {
+      await new Promise((resolve, reject) => {
+        profileAvatarImage.addEventListener("load", resolve, { once: true });
+        profileAvatarImage.addEventListener("error", reject, { once: true });
+      });
+    }
+    if (generation === profileAvatarGeneration && profileAvatarImage.naturalWidth) {
+      profileAvatarVisual.classList.add("is-image-ready");
+    }
+  } catch (_error) {
+    if (generation !== profileAvatarGeneration) return;
+    profileAvatarVisual.classList.remove("is-image-ready");
+    profileAvatarImage.hidden = true;
+  }
+}
+
+async function decodedAvatarSource(file) {
+  if (typeof createImageBitmap === "function") {
+    let bitmap;
+    try {
+      bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    } catch (_error) {
+      bitmap = await createImageBitmap(file);
+    }
+    return {
+      image: bitmap,
+      width: bitmap.width,
+      height: bitmap.height,
+      close: () => bitmap.close?.(),
+    };
+  }
+  const objectUrl = URL.createObjectURL(file);
+  const image = new Image();
+  image.decoding = "async";
+  image.src = objectUrl;
+  try {
+    if (typeof image.decode === "function") await image.decode();
+    else {
+      await new Promise((resolve, reject) => {
+        image.addEventListener("load", resolve, { once: true });
+        image.addEventListener("error", reject, { once: true });
+      });
+    }
+  } catch (error) {
+    URL.revokeObjectURL(objectUrl);
+    throw error;
+  }
+  return {
+    image,
+    width: image.naturalWidth,
+    height: image.naturalHeight,
+    close: () => URL.revokeObjectURL(objectUrl),
+  };
+}
+
+function canvasJpeg(canvas, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => blob ? resolve(blob) : reject(new Error("This image could not be prepared.")),
+      "image/jpeg",
+      quality,
+    );
+  });
+}
+
+async function prepareProfileAvatar(file) {
+  const acceptedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+  if (!(file instanceof File) || !acceptedTypes.has(file.type.toLowerCase())) {
+    throw new Error("Choose a JPG, PNG, or WebP image.");
+  }
+  if (file.size < 1 || file.size > 20 * 1024 * 1024) {
+    throw new Error("Choose an image no larger than 20 MB.");
+  }
+  const decoded = await decodedAvatarSource(file);
+  try {
+    const { width, height } = decoded;
+    if (
+      !Number.isInteger(width)
+      || !Number.isInteger(height)
+      || width < 64
+      || height < 64
+      || width > 12000
+      || height > 12000
+      || width * height > 40_000_000
+    ) {
+      throw new Error("Choose an image between 64 px and 12,000 px with at most 40 megapixels.");
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 512;
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) throw new Error("Image processing is unavailable in this browser.");
+    const cropSize = Math.min(width, height);
+    const sourceX = (width - cropSize) / 2;
+    const sourceY = (height - cropSize) / 2;
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, 512, 512);
+    context.drawImage(decoded.image, sourceX, sourceY, cropSize, cropSize, 0, 0, 512, 512);
+    let blob = await canvasJpeg(canvas, 0.88);
+    if (blob.size > 1024 * 1024) blob = await canvasJpeg(canvas, 0.76);
+    if (blob.size < 1 || blob.size > 1024 * 1024) {
+      throw new Error("The prepared profile photo is larger than 1 MB. Choose a simpler image.");
+    }
+    return blob;
+  } finally {
+    decoded.close();
+  }
+}
+
+function emitProfileCommitted(profile) {
+  window.dispatchEvent(new CustomEvent("mt:profile-committed", {
+    detail: { profile },
+  }));
+}
+
+async function uploadPreparedAvatar(destination, blob) {
+  const signedUrl = safeProfileAvatarUrl(destination?.signed_url);
+  if (
+    !signedUrl
+    || destination?.mime_type !== "image/jpeg"
+    || destination?.byte_size !== blob.size
+    || destination?.width !== 512
+    || destination?.height !== 512
+  ) {
+    throw new Error("The secure profile photo destination was invalid.");
+  }
+  const formData = new FormData();
+  formData.append("cacheControl", "3600");
+  formData.append("", blob, "avatar.jpg");
+  const response = await fetch(signedUrl, {
+    method: "PUT",
+    credentials: "omit",
+    headers: { "x-upsert": "false" },
+    body: formData,
+  });
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    throw new Error(result.message || result.error || "The profile photo could not be uploaded.");
+  }
+}
+
+async function uploadProfileAvatar(file) {
+  if (profileAvatarBusy) return;
+  const previousProfile = { ...(accountData?.profile || {}) };
+  let uploadId = "";
+  setProfileAvatarBusy(true);
+  setProfileAvatarStatus("Preparing photo…", "working");
+  hideNotice();
+  try {
+    const blob = await prepareProfileAvatar(file);
+    releaseProfileAvatarPreview();
+    profileAvatarPreviewUrl = URL.createObjectURL(blob);
+    await showProfileAvatar(profileAvatarPreviewUrl, { persisted: false });
+    setProfileAvatarStatus("Uploading photo…", "working");
+    const intentResult = await accountRequest("/api/me/profile/avatar/intents", {
+      method: "POST",
+      body: JSON.stringify({ mime_type: "image/jpeg", byte_size: blob.size, width: 512, height: 512 }),
+    });
+    const destination = intentResult.upload || {};
+    uploadId = String(destination.id || "");
+    if (!uploadId) throw new Error("The secure profile photo destination was unavailable.");
+    await uploadPreparedAvatar(destination, blob);
+    setProfileAvatarStatus("Saving photo…", "working");
+    const result = await accountRequest(
+      `/api/me/profile/avatar/intents/${encodeURIComponent(uploadId)}/complete`,
+      { method: "POST", body: JSON.stringify({ confirmation: "complete-profile-avatar" }) },
+    );
+    accountData.profile = { ...accountData.profile, ...(result.profile || {}) };
+    releaseProfileAvatarPreview();
+    renderAccountChrome(accountData);
+    emitProfileCommitted(accountData.profile);
+    setProfileAvatarStatus("Profile photo saved.", "saved");
+    announce("Profile photo saved.");
+  } catch (error) {
+    if (uploadId) {
+      accountRequest(
+        `/api/me/profile/avatar/intents/${encodeURIComponent(uploadId)}`,
+        { method: "DELETE", body: JSON.stringify({ confirmation: "cancel-profile-avatar" }) },
+      ).catch(() => {});
+    }
+    releaseProfileAvatarPreview();
+    if (accountData) accountData.profile = previousProfile;
+    renderAccountChrome(accountData || { profile: previousProfile, account: {} });
+    if (redirectForAuth(error)) return;
+    setProfileAvatarStatus(error.message || "Profile photo upload failed.", "error");
+    announce("Profile photo upload failed.");
+  } finally {
+    profileAvatarInput.value = "";
+    setProfileAvatarBusy(false);
+  }
+}
+
+async function removeProfileAvatar() {
+  if (profileAvatarBusy || profileAvatarRemove.hidden) return;
+  if (!window.confirm("Remove your current profile photo? Your initials will be shown instead.")) return;
+  setProfileAvatarBusy(true);
+  setProfileAvatarStatus("Removing photo…", "working");
+  hideNotice();
+  try {
+    const result = await accountRequest("/api/me/profile/avatar", {
+      method: "DELETE",
+      body: JSON.stringify({ confirmation: "remove-profile-avatar" }),
+    });
+    accountData.profile = { ...accountData.profile, ...(result.profile || {}), avatar_url: null };
+    renderAccountChrome(accountData);
+    emitProfileCommitted(accountData.profile);
+    setProfileAvatarStatus("Profile photo removed.", "saved");
+    announce("Profile photo removed. Your initials are now shown.");
+  } catch (error) {
+    if (redirectForAuth(error)) return;
+    setProfileAvatarStatus(error.message || "Profile photo removal failed.", "error");
+    announce("Profile photo removal failed.");
+  } finally {
+    setProfileAvatarBusy(false);
+  }
+}
+
 function addSelectValue(select, value) {
   if (!value || Array.from(select.options).some((option) => option.value === value)) return;
   select.add(new Option(value, value));
@@ -166,6 +470,8 @@ function renderAccountChrome(result) {
     .forEach((element) => { element.textContent = avatarInitials; });
   document.querySelector("[data-account-display-name]").textContent = profile.display_name || "Member";
   document.querySelector("[data-profile-summary-name]").textContent = profile.display_name || "Member";
+  showAccountAvatar(profile.avatar_url);
+  showProfileAvatar(profile.avatar_url);
   document.querySelector("[data-account-email]").textContent = account.email || "";
   document.querySelector("[data-account-status]").textContent = `${String(account.account_status || "active").replaceAll("_", " ")} account`;
 
@@ -179,8 +485,6 @@ function renderAccountChrome(result) {
   document.querySelector("[data-security-aal]").textContent = isAal2 ? "MFA-verified session" : "Standard session";
   document.querySelector("[data-security-aal-detail]").textContent = isAal2 ? "Authenticator verification is active" : "Password-protected access";
 
-  const showAdmin = roles.some((role) => ["reviewer", "admin", "super_admin"].includes(role));
-  document.querySelectorAll("[data-admin-only]").forEach((link) => { link.hidden = !showAdmin; });
 }
 
 function populateAccount(result) {
@@ -310,6 +614,7 @@ async function saveForm(form) {
       }
     });
     renderAccountChrome(accountData);
+    emitProfileCommitted(accountData.profile);
     formSnapshots.set(form, JSON.stringify(savedPayload));
     saved = true;
     announce(
@@ -501,6 +806,13 @@ profileForm.elements.country_code.addEventListener("input", (event) => {
   event.target.value = event.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2);
 });
 
+profileAvatarChoose.addEventListener("click", () => profileAvatarInput.click());
+profileAvatarInput.addEventListener("change", () => {
+  const [file] = profileAvatarInput.files || [];
+  if (file) uploadProfileAvatar(file);
+});
+profileAvatarRemove.addEventListener("click", removeProfileAvatar);
+
 document.querySelectorAll("[data-session-action]").forEach((button) => {
   button.addEventListener("click", () => openSessionDialog(button.dataset.sessionAction, button));
 });
@@ -583,9 +895,10 @@ window.addEventListener("hashchange", scheduleSectionSync);
 
 window.addEventListener("beforeunload", (event) => {
   if (suppressBeforeUnload) return;
-  if (!isFormDirty(profileForm) && !isFormDirty(preferencesForm)) return;
+  if (!profileAvatarBusy && !isFormDirty(profileForm) && !isFormDirty(preferencesForm)) return;
   event.preventDefault();
   event.returnValue = "";
 });
+window.addEventListener("pagehide", releaseProfileAvatarPreview);
 
 loadAccount();

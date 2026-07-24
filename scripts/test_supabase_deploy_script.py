@@ -73,10 +73,20 @@ def main() -> None:
             raise RuntimeError(f"Incremental deployment path failed: {result.stderr.strip()}")
         if "Phase 3 Review Queue static contracts validated." not in result.stdout:
             raise RuntimeError("Incremental deployment skipped the Phase 3 Review Queue validator")
+        if "Admin Users static contracts passed" not in result.stdout:
+            raise RuntimeError("Incremental deployment skipped the Admin Users validator")
         incremental_files = logged_files(incremental_log)
         expected_migrations = sorted(path.name for path in (ROOT / "database" / "migrations").glob("*.sql"))
         if incremental_files != expected_migrations:
             raise RuntimeError(f"Incremental deployment order is incorrect: {incremental_files}")
+        works_migration = "20260723_admin_works_governance.sql"
+        users_migration = "20260723_b_admin_user_governance.sql"
+        if (
+            works_migration not in incremental_files
+            or users_migration not in incremental_files
+            or incremental_files.index(works_migration) >= incremental_files.index(users_migration)
+        ):
+            raise RuntimeError("Admin Users must deploy after its Admin Works governance dependency")
         if "product_schema.sql" in incremental_files or "supabase_phase1_auth_rls.sql" in incremental_files:
             raise RuntimeError("Incremental deployment replayed a fresh-database baseline")
 
@@ -120,6 +130,8 @@ def main() -> None:
     print("supabase_baseline_failure_stops=yes")
     print("supabase_invalid_mode_fails_closed=yes")
     print("supabase_phase3_validation_gate=yes")
+    print("supabase_admin_users_validation_gate=yes")
+    print("supabase_admin_users_dependency_order=yes")
 
 
 if __name__ == "__main__":

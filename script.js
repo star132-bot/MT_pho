@@ -310,30 +310,3 @@ readHomepageSettings()
   .catch(() => {
     applyHomepageSettings({ settings: defaultHomepageSettings(), storedRecords: [] });
   });
-
-const homeAccountEntry = document.querySelector("[data-home-account-entry]");
-if (homeAccountEntry) {
-  fetch("/api/me", {
-    credentials: "same-origin",
-    cache: "no-store",
-    headers: { Accept: "application/json" },
-  }).then(async (response) => {
-    if (!response.ok) return null;
-    return response.json();
-  }).then((payload) => {
-    if (!payload) return;
-    const displayName = payload.profile?.display_name || payload.user?.display_name || "Member";
-    const avatarText = String(displayName)
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() || "")
-      .join("") || "MT";
-    homeAccountEntry.href = "/dashboard";
-    homeAccountEntry.textContent = avatarText;
-    homeAccountEntry.classList.add("is-avatar");
-    homeAccountEntry.setAttribute("aria-label", `Open personal profile for ${displayName}`);
-    homeAccountEntry.title = "Personal profile";
-  }).catch(() => {});
-}

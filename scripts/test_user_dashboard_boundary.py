@@ -29,6 +29,12 @@ ASSET_ID = "83000000-0000-4000-8000-000000000001"
 SUBMISSION_ID = "84000000-0000-4000-8000-000000000001"
 COVER_IMAGE_ID = "82000000-0000-4000-8000-000000000002"
 COVER_ASSET_ID = "83000000-0000-4000-8000-000000000002"
+AVATAR_UPLOAD_IDS = (
+    "86000000-0000-4000-8000-000000000001",
+    "86000000-0000-4000-8000-000000000002",
+    "86000000-0000-4000-8000-000000000003",
+)
+AVATAR_JPEG = b"\xff\xd8mt-avatar-boundary\xff\xd9"
 
 
 def fake_access_token() -> str:
@@ -127,7 +133,7 @@ def dashboard_payload() -> dict:
 def profile_payload() -> dict:
     return {
         "display_name": "Dashboard Member",
-        "avatar_url": "https://provider.example/private-avatar.jpg",
+        "avatar_url": None,
         "bio": "Photographs shaped by weather and distance.",
         "website_url": "https://example.test",
         "country_code": "CN",
@@ -141,6 +147,37 @@ def profile_payload() -> dict:
         "availability_status": "open",
         "instagram_url": "https://www.instagram.com/dashboard.member",
         "linkedin_url": "https://www.linkedin.com/in/dashboard-member",
+        "avatar_storage_bucket": None,
+        "avatar_storage_key": None,
+        "avatar_mime_type": None,
+        "avatar_byte_size": None,
+        "avatar_width": None,
+        "avatar_height": None,
+        "avatar_updated_at": None,
+    }
+
+
+def profile_avatar_asset(upload_id: str, byte_size: int | None = None) -> dict:
+    return {
+        "storage_bucket": "profile-avatars",
+        "storage_key": f"{USER_ID}/{upload_id}/avatar.jpg",
+        "mime_type": "image/jpeg",
+        "byte_size": byte_size if byte_size is not None else len(AVATAR_JPEG),
+        "width": 512,
+        "height": 512,
+    }
+
+
+def stored_profile_avatar(profile: dict) -> dict | None:
+    if not profile.get("avatar_storage_key"):
+        return None
+    return {
+        "storage_bucket": profile.get("avatar_storage_bucket"),
+        "storage_key": profile.get("avatar_storage_key"),
+        "mime_type": profile.get("avatar_mime_type"),
+        "byte_size": profile.get("avatar_byte_size"),
+        "width": profile.get("avatar_width"),
+        "height": profile.get("avatar_height"),
     }
 
 
@@ -192,6 +229,14 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
     storage_calls: list[str] = []
     profile_update_calls: list[dict] = []
     cover_update_calls: list[dict] = []
+    avatar_intent_ids: list[str] = list(AVATAR_UPLOAD_IDS)
+    avatar_intents: dict[str, dict] = {}
+    avatar_create_calls: list[dict] = []
+    avatar_complete_calls: list[dict] = []
+    avatar_cancel_calls: list[dict] = []
+    avatar_remove_calls: list[dict] = []
+    avatar_upload_calls: list[str] = []
+    avatar_storage_delete_calls: list[str] = []
     fail_next_storage_signatures = 0
     logout_calls = 0
 
@@ -206,12 +251,44 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
         body = json.dumps(payload).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
 
+    def do_OPTIONS(self) -> None:
+        if not self.path.startswith("/storage/v1/object/upload/sign/profile-avatars/"):
+            self.send_json(HTTPStatus.NOT_FOUND, {})
+            return
+        self.send_response(HTTPStatus.NO_CONTENT)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "PUT, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "content-type, x-upsert")
+        self.send_header("Access-Control-Max-Age", "600")
+        self.end_headers()
+
     def do_GET(self) -> None:
         authorization = self.headers.get("Authorization")
+        parsed = urlparse(self.path)
+        avatar_read_prefix = "/storage/v1/object/sign/profile-avatars/"
+        if parsed.path.startswith(avatar_read_prefix) and parsed.query == "token=profile-avatar-read":
+            storage_key = parsed.path.removeprefix(avatar_read_prefix)
+            upload = next((
+                intent
+                for intent in type(self).avatar_intents.values()
+                if intent.get("storage_key") == storage_key
+            ), None)
+            uploaded_bytes = upload.get("uploaded_bytes") if isinstance(upload, dict) else None
+            if not isinstance(uploaded_bytes, bytes) or upload.get("status") != "completed":
+                self.send_json(HTTPStatus.NOT_FOUND, {})
+                return
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Content-Length", str(len(uploaded_bytes)))
+            self.end_headers()
+            self.wfile.write(uploaded_bytes)
+            return
         if self.path == "/auth/v1/user" and authorization == f"Bearer {ACCESS_TOKEN}":
             self.send_json(HTTPStatus.OK, {
                 "id": USER_ID,
@@ -224,6 +301,49 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
             self.send_json(HTTPStatus.OK, [copy.deepcopy(type(self).profile)])
             return
         self.send_json(HTTPStatus.UNAUTHORIZED, {"message": "invalid token"})
+
+    def do_PUT(self) -> None:
+        parsed = urlparse(self.path)
+        prefix = "/storage/v1/object/upload/sign/profile-avatars/"
+        if not parsed.path.startswith(prefix) or parsed.query != "token=profile-avatar-upload":
+            self.send_json(HTTPStatus.NOT_FOUND, {})
+            return
+        storage_key = parsed.path.removeprefix(prefix)
+        length = int(self.headers.get("Content-Length") or "0")
+        body = self.rfile.read(length)
+        content_type = self.headers.get_content_type()
+        uploaded_bytes = body
+        if content_type == "multipart/form-data":
+            boundary = self.headers.get_boundary()
+            uploaded_bytes = b""
+            if boundary:
+                marker = f"--{boundary}".encode()
+                for part in body.split(marker):
+                    headers, separator, payload = part.partition(b"\r\n\r\n")
+                    if (
+                        separator
+                        and b'filename="avatar.jpg"' in headers
+                        and b"Content-Type: image/jpeg" in headers
+                    ):
+                        uploaded_bytes = payload[:-2] if payload.endswith(b"\r\n") else payload
+                        break
+        upload = next((
+            intent
+            for intent in type(self).avatar_intents.values()
+            if intent.get("storage_key") == storage_key
+        ), None)
+        if (
+            upload is None
+            or upload.get("status") != "issued"
+            or content_type not in {"image/jpeg", "multipart/form-data"}
+            or len(uploaded_bytes) != upload.get("byte_size")
+        ):
+            self.send_json(HTTPStatus.BAD_REQUEST, {})
+            return
+        upload["uploaded"] = True
+        upload["uploaded_bytes"] = uploaded_bytes
+        type(self).avatar_upload_calls.append(storage_key)
+        self.send_json(HTTPStatus.OK, {"Key": storage_key})
 
     def do_POST(self) -> None:
         authorization = self.headers.get("Authorization")
@@ -270,6 +390,14 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                 return
             self.send_json(HTTPStatus.OK, copy.deepcopy(type(self).dashboard))
             return
+        if self.path == "/rest/v1/rpc/get_my_notification_unread_count":
+            self.body()
+            type(self).rpc_calls.append(self.path)
+            if authorization != f"Bearer {ACCESS_TOKEN}":
+                self.send_json(HTTPStatus.UNAUTHORIZED, {})
+                return
+            self.send_json(HTTPStatus.OK, {"unread_count": 0})
+            return
         if self.path == "/rest/v1/rpc/update_my_profile":
             body = self.body()
             type(self).rpc_calls.append(self.path)
@@ -283,6 +411,131 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                 return
             type(self).profile = {**type(self).profile, **patch}
             self.send_json(HTTPStatus.OK, copy.deepcopy(type(self).profile))
+            return
+        if self.path == "/rest/v1/rpc/create_my_profile_avatar_upload":
+            body = self.body()
+            type(self).rpc_calls.append(self.path)
+            type(self).avatar_create_calls.append(copy.deepcopy(body))
+            if authorization != f"Bearer {ACCESS_TOKEN}":
+                self.send_json(HTTPStatus.UNAUTHORIZED, {})
+                return
+            if not type(self).avatar_intent_ids:
+                self.send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {})
+                return
+            upload_id = type(self).avatar_intent_ids.pop(0)
+            intent = {
+                "upload_id": upload_id,
+                **profile_avatar_asset(upload_id, body.get("avatar_byte_size")),
+                "expires_at": "2026-07-23T11:30:00Z",
+                "superseded_uploads": [],
+                "status": "issued",
+                "uploaded": False,
+            }
+            type(self).avatar_intents[upload_id] = intent
+            self.send_json(HTTPStatus.OK, {
+                key: copy.deepcopy(value)
+                for key, value in intent.items()
+                if key not in {"status", "uploaded"}
+            })
+            return
+        if self.path == "/rest/v1/rpc/complete_my_profile_avatar_upload":
+            body = self.body()
+            type(self).rpc_calls.append(self.path)
+            type(self).avatar_complete_calls.append(copy.deepcopy(body))
+            if authorization != f"Bearer {ACCESS_TOKEN}":
+                self.send_json(HTTPStatus.UNAUTHORIZED, {})
+                return
+            upload = type(self).avatar_intents.get(body.get("upload_id"))
+            if not upload or upload.get("status") != "issued" or upload.get("uploaded") is not True:
+                self.send_json(HTTPStatus.OK, {
+                    "error": {
+                        "code": "PROFILE_AVATAR_UPLOAD_INCOMPLETE",
+                        "message": "The profile photo upload is incomplete.",
+                    }
+                })
+                return
+            previous = stored_profile_avatar(type(self).profile)
+            avatar = {
+                key: upload[key]
+                for key in ("storage_bucket", "storage_key", "mime_type", "byte_size", "width", "height")
+            }
+            type(self).profile.update({
+                "avatar_url": None,
+                "avatar_storage_bucket": avatar["storage_bucket"],
+                "avatar_storage_key": avatar["storage_key"],
+                "avatar_mime_type": avatar["mime_type"],
+                "avatar_byte_size": avatar["byte_size"],
+                "avatar_width": avatar["width"],
+                "avatar_height": avatar["height"],
+                "avatar_updated_at": "2026-07-23T11:00:00Z",
+            })
+            upload["status"] = "completed"
+            self.send_json(HTTPStatus.OK, {
+                "avatar": avatar,
+                "previous_avatar": previous,
+                "replayed": False,
+            })
+            return
+        if self.path == "/rest/v1/rpc/cancel_my_profile_avatar_upload":
+            body = self.body()
+            type(self).rpc_calls.append(self.path)
+            type(self).avatar_cancel_calls.append(copy.deepcopy(body))
+            if authorization != f"Bearer {ACCESS_TOKEN}":
+                self.send_json(HTTPStatus.UNAUTHORIZED, {})
+                return
+            upload = type(self).avatar_intents.get(body.get("upload_id"))
+            if not upload or upload.get("status") != "issued":
+                self.send_json(HTTPStatus.OK, {
+                    "error": {
+                        "code": "PROFILE_AVATAR_UPLOAD_NOT_FOUND",
+                        "message": "The profile photo upload is unavailable.",
+                    }
+                })
+                return
+            upload["status"] = "canceled"
+            self.send_json(HTTPStatus.OK, {
+                "canceled": True,
+                "status": "canceled",
+                "upload": {
+                    "upload_id": upload["upload_id"],
+                    "storage_bucket": upload["storage_bucket"],
+                    "storage_key": upload["storage_key"],
+                },
+            })
+            return
+        if self.path == "/rest/v1/rpc/remove_my_profile_avatar":
+            body = self.body()
+            type(self).rpc_calls.append(self.path)
+            type(self).avatar_remove_calls.append(copy.deepcopy(body))
+            if authorization != f"Bearer {ACCESS_TOKEN}":
+                self.send_json(HTTPStatus.UNAUTHORIZED, {})
+                return
+            previous = stored_profile_avatar(type(self).profile)
+            canceled_uploads = []
+            for upload in type(self).avatar_intents.values():
+                if upload.get("status") != "issued":
+                    continue
+                upload["status"] = "canceled"
+                canceled_uploads.append({
+                    "upload_id": upload["upload_id"],
+                    "storage_bucket": upload["storage_bucket"],
+                    "storage_key": upload["storage_key"],
+                })
+            type(self).profile.update({
+                "avatar_url": None,
+                "avatar_storage_bucket": None,
+                "avatar_storage_key": None,
+                "avatar_mime_type": None,
+                "avatar_byte_size": None,
+                "avatar_width": None,
+                "avatar_height": None,
+                "avatar_updated_at": None,
+            })
+            self.send_json(HTTPStatus.OK, {
+                "removed": previous is not None,
+                "previous_avatar": previous,
+                "canceled_uploads": canceled_uploads,
+            })
             return
         if self.path == "/rest/v1/rpc/get_my_profile_cover":
             self.body()
@@ -319,6 +572,37 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                 return
             type(self).profile_cover["cover_asset"] = copy.deepcopy(selected)
             self.send_json(HTTPStatus.OK, {"cover_asset": copy.deepcopy(selected), "saved": True})
+            return
+        if self.path.startswith("/storage/v1/object/upload/sign/profile-avatars/"):
+            self.body()
+            type(self).storage_calls.append(self.path)
+            if authorization != f"Bearer {ACCESS_TOKEN}":
+                self.send_json(HTTPStatus.UNAUTHORIZED, {})
+                return
+            suffix = self.path.removeprefix("/storage/v1")
+            self.send_json(HTTPStatus.OK, {"url": f"{suffix}?token=profile-avatar-upload"})
+            return
+        if self.path.startswith("/storage/v1/object/sign/profile-avatars/"):
+            self.body()
+            type(self).storage_calls.append(self.path)
+            if authorization != f"Bearer {ACCESS_TOKEN}":
+                self.send_json(HTTPStatus.UNAUTHORIZED, {})
+                return
+            suffix = self.path.removeprefix("/storage/v1")
+            self.send_json(HTTPStatus.OK, {"signedURL": f"{suffix}?token=profile-avatar-read"})
+            return
+        if self.path == "/storage/v1/bucket/profile-avatars/delete":
+            body = self.body()
+            type(self).storage_calls.append(self.path)
+            if authorization != f"Bearer {ACCESS_TOKEN}":
+                self.send_json(HTTPStatus.UNAUTHORIZED, {})
+                return
+            prefixes = body.get("prefixes") if isinstance(body, dict) else None
+            if not isinstance(prefixes, list) or any(not isinstance(key, str) for key in prefixes):
+                self.send_json(HTTPStatus.BAD_REQUEST, {})
+                return
+            type(self).avatar_storage_delete_calls.extend(prefixes)
+            self.send_json(HTTPStatus.OK, {"message": "Successfully deleted"})
             return
         if (
             self.path.startswith("/storage/v1/object/sign/image-thumbnails/")
@@ -392,6 +676,22 @@ def request(
         return error.code, value, error.headers
 
 
+def upload_signed_avatar(signed_url: str) -> int:
+    upload = urllib.request.Request(
+        signed_url,
+        data=AVATAR_JPEG,
+        headers={"Content-Type": "image/jpeg"},
+        method="PUT",
+    )
+    try:
+        with urllib.request.urlopen(upload, timeout=10) as response:
+            response.read()
+            return response.status
+    except urllib.error.HTTPError as error:
+        error.read()
+        return error.code
+
+
 def sign_in(opener, base_url: str) -> None:
     status, csrf, _ = request(opener, base_url, "/api/auth/csrf")
     if status != HTTPStatus.OK or not csrf.get("csrf_token"):
@@ -422,6 +722,14 @@ def main() -> None:
     FakeSupabaseHandler.storage_calls = []
     FakeSupabaseHandler.profile_update_calls = []
     FakeSupabaseHandler.cover_update_calls = []
+    FakeSupabaseHandler.avatar_intent_ids = list(AVATAR_UPLOAD_IDS)
+    FakeSupabaseHandler.avatar_intents = {}
+    FakeSupabaseHandler.avatar_create_calls = []
+    FakeSupabaseHandler.avatar_complete_calls = []
+    FakeSupabaseHandler.avatar_cancel_calls = []
+    FakeSupabaseHandler.avatar_remove_calls = []
+    FakeSupabaseHandler.avatar_upload_calls = []
+    FakeSupabaseHandler.avatar_storage_delete_calls = []
     FakeSupabaseHandler.fail_next_storage_signatures = 0
     FakeSupabaseHandler.logout_calls = 0
     fake_server = ThreadingHTTPServer(("127.0.0.1", 0), FakeSupabaseHandler)
@@ -440,6 +748,12 @@ def main() -> None:
     base_url = f"http://127.0.0.1:{app_server.server_address[1]}"
 
     try:
+        avatar_request = {
+            "mime_type": "image/jpeg",
+            "byte_size": len(AVATAR_JPEG),
+            "width": 512,
+            "height": 512,
+        }
         anonymous = CookieOpener()
         status, _, headers = request(anonymous, base_url, "/dashboard")
         if status != HTTPStatus.SEE_OTHER or headers.get("Location") != "/auth/sign-in?next=%2Fdashboard":
@@ -453,6 +767,22 @@ def main() -> None:
         status, result, _ = request(anonymous, base_url, "/api/me/profile/cover")
         if status != HTTPStatus.UNAUTHORIZED or result.get("error", {}).get("code") != "AUTH_REQUIRED":
             raise RuntimeError("Anonymous profile cover request was not rejected")
+        status, csrf, _ = request(anonymous, base_url, "/api/auth/csrf")
+        if status != HTTPStatus.OK or not csrf.get("csrf_token"):
+            raise RuntimeError("Anonymous avatar test could not initialize CSRF")
+        status, result, _ = request(
+            anonymous,
+            base_url,
+            "/api/me/profile/avatar/intents",
+            payload=avatar_request,
+            origin=base_url,
+        )
+        if (
+            status != HTTPStatus.UNAUTHORIZED
+            or result.get("error", {}).get("code") != "AUTH_REQUIRED"
+            or FakeSupabaseHandler.avatar_create_calls
+        ):
+            raise RuntimeError("Anonymous profile avatar intent was not rejected before provider access")
 
         member = CookieOpener()
         sign_in(member, base_url)
@@ -519,6 +849,165 @@ def main() -> None:
             or FakeSupabaseHandler.profile_update_calls != [{"profile_patch": creator_patch}]
         ):
             raise RuntimeError("Creator profile fields were not normalized and persisted through the strict RPC")
+
+        status, result, _ = request(
+            member,
+            base_url,
+            "/api/me/profile/avatar/intents",
+            payload=avatar_request,
+            origin=base_url,
+            include_csrf=False,
+        )
+        if (
+            status != HTTPStatus.FORBIDDEN
+            or result.get("error", {}).get("code") != "CSRF_REJECTED"
+            or FakeSupabaseHandler.avatar_create_calls
+        ):
+            raise RuntimeError("Profile avatar intent reached the provider without CSRF protection")
+
+        status, intent_payload, _ = request(
+            member,
+            base_url,
+            "/api/me/profile/avatar/intents",
+            payload=avatar_request,
+            origin=base_url,
+        )
+        upload = intent_payload.get("upload") or {}
+        first_upload_id = AVATAR_UPLOAD_IDS[0]
+        first_storage_key = profile_avatar_asset(first_upload_id)["storage_key"]
+        signed_upload = urlparse(upload.get("signed_url") or "")
+        expected_create_call = {
+            "avatar_mime_type": "image/jpeg",
+            "avatar_byte_size": len(AVATAR_JPEG),
+            "avatar_width": 512,
+            "avatar_height": 512,
+        }
+        if (
+            status != HTTPStatus.CREATED
+            or set(upload) != {
+                "id", "signed_url", "mime_type", "byte_size", "width", "height", "expires_at",
+            }
+            or upload.get("id") != first_upload_id
+            or signed_upload.path != f"/storage/v1/object/upload/sign/profile-avatars/{first_storage_key}"
+            or signed_upload.query != "token=profile-avatar-upload"
+            or FakeSupabaseHandler.avatar_create_calls != [expected_create_call]
+        ):
+            raise RuntimeError("Profile avatar intent did not return its strict owner-bound signed upload DTO")
+        assert_private_fields_absent(intent_payload)
+
+        if upload_signed_avatar(upload["signed_url"]) != HTTPStatus.OK:
+            raise RuntimeError("Profile avatar signed upload URL did not accept the prepared JPEG")
+        if FakeSupabaseHandler.avatar_upload_calls != [first_storage_key]:
+            raise RuntimeError("Profile avatar upload was not isolated to the current account path")
+
+        status, completed, _ = request(
+            member,
+            base_url,
+            f"/api/me/profile/avatar/intents/{first_upload_id}/complete",
+            payload={"confirmation": "complete-profile-avatar"},
+            origin=base_url,
+        )
+        completed_profile = completed.get("profile") or {}
+        signed_read = urlparse(completed_profile.get("avatar_url") or "")
+        if (
+            status != HTTPStatus.OK
+            or completed.get("saved") is not True
+            or signed_read.path != f"/storage/v1/object/sign/profile-avatars/{first_storage_key}"
+            or signed_read.query != "token=profile-avatar-read"
+            or FakeSupabaseHandler.avatar_complete_calls != [{"upload_id": first_upload_id}]
+        ):
+            raise RuntimeError("Completed profile avatar was not exposed through an owner-bound signed read URL")
+        assert_private_fields_absent(completed)
+
+        status, signed_profile_payload, _ = request(member, base_url, "/api/me/profile")
+        signed_profile = signed_profile_payload.get("profile") or {}
+        if (
+            status != HTTPStatus.OK
+            or urlparse(signed_profile.get("avatar_url") or "").path
+            != f"/storage/v1/object/sign/profile-avatars/{first_storage_key}"
+        ):
+            raise RuntimeError("Profile reload did not preserve the signed stable avatar")
+        assert_private_fields_absent(signed_profile_payload)
+
+        status, cancel_intent_payload, _ = request(
+            member,
+            base_url,
+            "/api/me/profile/avatar/intents",
+            payload=avatar_request,
+            origin=base_url,
+        )
+        second_upload_id = AVATAR_UPLOAD_IDS[1]
+        second_storage_key = profile_avatar_asset(second_upload_id)["storage_key"]
+        if status != HTTPStatus.CREATED or cancel_intent_payload.get("upload", {}).get("id") != second_upload_id:
+            raise RuntimeError("Profile avatar cancellation fixture could not create an upload intent")
+        assert_private_fields_absent(cancel_intent_payload)
+
+        status, canceled, _ = request(
+            member,
+            base_url,
+            f"/api/me/profile/avatar/intents/{second_upload_id}",
+            payload={"confirmation": "cancel-profile-avatar"},
+            origin=base_url,
+            method="DELETE",
+        )
+        if (
+            status != HTTPStatus.OK
+            or canceled != {"canceled": True}
+            or FakeSupabaseHandler.avatar_cancel_calls != [{"upload_id": second_upload_id}]
+            or FakeSupabaseHandler.avatar_storage_delete_calls != [second_storage_key]
+        ):
+            raise RuntimeError("Canceled profile avatar intent did not clean up its storage object")
+        assert_private_fields_absent(canceled)
+
+        status, pending_intent_payload, _ = request(
+            member,
+            base_url,
+            "/api/me/profile/avatar/intents",
+            payload=avatar_request,
+            origin=base_url,
+        )
+        third_upload_id = AVATAR_UPLOAD_IDS[2]
+        third_storage_key = profile_avatar_asset(third_upload_id)["storage_key"]
+        if status != HTTPStatus.CREATED or pending_intent_payload.get("upload", {}).get("id") != third_upload_id:
+            raise RuntimeError("Profile avatar removal fixture could not create its pending intent")
+        assert_private_fields_absent(pending_intent_payload)
+
+        status, removed, _ = request(
+            member,
+            base_url,
+            "/api/me/profile/avatar",
+            payload={"confirmation": "remove-profile-avatar"},
+            origin=base_url,
+            method="DELETE",
+        )
+        removed_profile = removed.get("profile") or {}
+        expected_cleanup = [second_storage_key, first_storage_key, third_storage_key]
+        if (
+            status != HTTPStatus.OK
+            or removed.get("removed") is not True
+            or removed_profile.get("avatar_url") is not None
+            or FakeSupabaseHandler.avatar_remove_calls != [{}]
+            or sorted(FakeSupabaseHandler.avatar_storage_delete_calls) != sorted(expected_cleanup)
+            or len(FakeSupabaseHandler.avatar_storage_delete_calls) != len(expected_cleanup)
+            or any(not key.startswith(f"{USER_ID}/") for key in FakeSupabaseHandler.avatar_storage_delete_calls)
+        ):
+            raise RuntimeError("Profile avatar removal did not clear the active and pending owner storage objects")
+        assert_private_fields_absent(removed)
+
+        status, fallback_profile_payload, _ = request(member, base_url, "/api/me/profile")
+        if status != HTTPStatus.OK or fallback_profile_payload.get("profile", {}).get("avatar_url") is not None:
+            raise RuntimeError("Removed profile avatar remained visible through the profile endpoint")
+        assert_private_fields_absent(fallback_profile_payload)
+        status, fallback_page, _ = request(member, base_url, "/dashboard")
+        if (
+            status != HTTPStatus.OK
+            or '"initials":"DM"' not in fallback_page
+            or '<span data-account-menu-initials aria-hidden="true">DM</span>' not in fallback_page
+            or "data-account-menu-image />" in fallback_page
+        ):
+            raise RuntimeError("Profile avatar removal did not return the header to its first-frame initials fallback")
+
+        FakeSupabaseHandler.storage_calls = []
 
         status, result, _ = request(
             member,

@@ -393,6 +393,8 @@ let viewerOriginalHtmlOverflow = "";
 let viewerOriginalBodyPaddingRight = "";
 let isViewerZoomed = false;
 let archiveToastTimer = null;
+const pendingLightboxWorkIds = new Set();
+const pendingLightboxTimers = new Map();
 
 function replaceArchiveUrl(changes = {}) {
   const url = new URL(window.location.href);
@@ -2119,10 +2121,13 @@ function updateViewerActionStates(itemId) {
     const active = action === "lightbox" && lightboxWorkIds.has(itemId);
     button.classList.toggle("is-active", active);
     if (action === "lightbox") {
+      const command = active ? "Remove from Lightbox" : "Add to Lightbox";
       button.setAttribute("aria-pressed", String(active));
+      button.setAttribute("aria-label", command);
+      button.dataset.tooltip = command;
       const label = button.querySelector("span");
       if (label) {
-        label.textContent = active ? "In Lightbox" : "Add to Lightbox";
+        label.textContent = command;
       }
     }
   });
@@ -2200,7 +2205,7 @@ function renderWorkViewer(item, index, items, { resetView = false } = {}) {
   const detail = normalizeWorkDetail(item);
   setViewerZoom(false);
   if (resetView) {
-    setViewerInfoOpen(window.matchMedia("(min-width: 761px)").matches);
+    setViewerInfoOpen(false);
   }
   if (workViewerDialog) {
     workViewerDialog.dataset.displayMode = detail.displayMode;
@@ -2427,18 +2432,198 @@ function updateSavedFilterButton() {
   }
 }
 
-function toggleLightboxWork(id, { rerenderGallery = true } = {}) {
+function archiveCardForWork(id) {
+  return Array.from(gallery.querySelectorAll("[data-item-id]")).find((item) => item.dataset.itemId === id) || null;
+}
+
+function setLightboxButtonState(button, active) {
+  if (!button) {
+    return;
+  }
+  const isCardAction = button.matches('[data-card-action="lightbox"]');
+  const command = active ? "Remove from Lightbox" : "Add to Lightbox";
+  button.classList.toggle("is-active", active);
+  button.setAttribute("aria-pressed", String(active));
+  button.setAttribute("aria-label", command);
+  button.dataset.tooltip = command;
+  if (!isCardAction) {
+    const label = button.querySelector("span");
+    if (label) {
+      label.textContent = command;
+    }
+  }
+}
+
+function lightboxButtonsForWork(id) {
+  const buttons = [];
+  const cardButton = archiveCardForWork(id)?.querySelector('[data-card-action="lightbox"]');
+  if (cardButton) {
+    buttons.push(cardButton);
+  }
+  if (viewerCurrentId === id) {
+    const viewerButton = workViewerDialog?.querySelector('[data-viewer-action="lightbox"]');
+    if (viewerButton) {
+      buttons.push(viewerButton);
+    }
+  }
+  return buttons;
+}
+
+function setLightboxPendingState(id, pending) {
+  lightboxButtonsForWork(id).forEach((button) => {
+    if (pending) {
+      button.setAttribute("aria-busy", "true");
+      button.setAttribute("aria-disabled", "true");
+    } else {
+      button.removeAttribute("aria-busy");
+      button.removeAttribute("aria-disabled");
+    }
+  });
+}
+
+function cancelBookmarkAnimation(button) {
+  button?.querySelector(".ui-icon")?.classList.remove("is-bookmark-popping");
+}
+
+function animateBookmarkButton(button) {
+  const icon = button?.querySelector(".ui-icon");
+  if (!icon || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    return;
+  }
+  icon.classList.remove("is-bookmark-popping");
+  void icon.offsetWidth;
+  icon.classList.add("is-bookmark-popping");
+  icon.addEventListener("animationend", () => icon.classList.remove("is-bookmark-popping"), { once: true });
+}
+
+function updateSavedGallerySummary() {
+  if (!showSavedOnly) {
+    return;
+  }
+  const visibleCount = gallery.querySelectorAll(":scope > [data-item-id]").length;
+  const filterParts = [];
+  if (activeType !== "All") {
+    filterParts.push(activeType);
+  }
+  if (activeRatio !== "All") {
+    filterParts.push(activeRatio);
+  }
+  if (activeSearch) {
+    filterParts.push(`"${activeSearch}"`);
+  }
+  filterParts.push("Saved");
+  count.textContent = `${visibleCount} of ${archiveItems.length} work${archiveItems.length === 1 ? "" : "s"} / ${filterParts.join(" + ")}`;
+  if (emptyState) {
+    emptyState.textContent = "No saved works match this view.";
+    emptyState.hidden = visibleCount > 0;
+  }
+}
+
+function patchLightboxWorkState(id, active, { removeFromSavedView = true } = {}) {
+  const card = archiveCardForWork(id);
+  if (card) {
+    card.dataset.lightbox = String(active);
+    setLightboxButtonState(card.querySelector('[data-card-action="lightbox"]'), active);
+    if (showSavedOnly && !active && removeFromSavedView) {
+      const focusWasInside = card.contains(document.activeElement);
+      const focusTarget = card.nextElementSibling?.querySelector?.('[data-card-action="lightbox"]')
+        || card.previousElementSibling?.querySelector?.('[data-card-action="lightbox"]')
+        || savedFilterButton;
+      card.remove();
+      if (focusWasInside) {
+        focusTarget?.focus({ preventScroll: true });
+      }
+    }
+  }
+  if (viewerCurrentId === id) {
+    updateViewerActionStates(id);
+  }
+}
+
+function reconcileLightboxWorkIds(ids, { changedId = "" } = {}) {
+  const previousIds = lightboxWorkIds;
+  const nextIds = new Set(Array.isArray(ids) ? ids : []);
+  const changedIds = new Set(changedId ? [changedId] : []);
+  previousIds.forEach((id) => {
+    if (!nextIds.has(id)) {
+      changedIds.add(id);
+    }
+  });
+  nextIds.forEach((id) => {
+    if (!previousIds.has(id)) {
+      changedIds.add(id);
+    }
+  });
+  lightboxWorkIds = nextIds;
+  changedIds.forEach((id) => patchLightboxWorkState(id, nextIds.has(id)));
+  updateSavedFilterButton();
+  updateSavedGallerySummary();
+  if (viewerCurrentId) {
+    updateViewerActionStates(viewerCurrentId);
+  }
+}
+
+function releaseLightboxPendingState(id, immediate = false) {
+  window.clearTimeout(pendingLightboxTimers.get(id));
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const release = () => {
+    pendingLightboxTimers.delete(id);
+    pendingLightboxWorkIds.delete(id);
+    setLightboxPendingState(id, false);
+  };
+  if (immediate || reducedMotion) {
+    release();
+    return;
+  }
+  pendingLightboxTimers.set(id, window.setTimeout(release, 240));
+}
+
+function toggleLightboxWork(id, { sourceButton = null } = {}) {
   if (!id) {
     return false;
   }
-  const result = publicArchive.toggleLightboxId(id);
-  lightboxWorkIds = new Set(result.ids);
-  showArchiveToast(result.added ? "Added to your lightbox." : "Removed from your lightbox.");
-  updateSavedFilterButton();
-  if (rerenderGallery) {
-    renderGallery();
+  if (pendingLightboxWorkIds.has(id)) {
+    return lightboxWorkIds.has(id);
   }
-  return result.added;
+
+  const wasAdded = lightboxWorkIds.has(id);
+  const optimisticIds = new Set(lightboxWorkIds);
+  if (wasAdded) {
+    optimisticIds.delete(id);
+  } else {
+    optimisticIds.add(id);
+  }
+  const optimisticAdded = !wasAdded;
+  pendingLightboxWorkIds.add(id);
+  lightboxWorkIds = optimisticIds;
+  patchLightboxWorkState(id, optimisticAdded, { removeFromSavedView: false });
+  updateSavedFilterButton();
+  setLightboxPendingState(id, true);
+  if (optimisticAdded) {
+    animateBookmarkButton(sourceButton);
+  }
+
+  try {
+    const result = publicArchive.toggleLightboxId(id);
+    reconcileLightboxWorkIds(result.ids, { changedId: id });
+    showArchiveToast(result.added ? "Added to your lightbox." : "Removed from your lightbox.");
+    releaseLightboxPendingState(id);
+    return result.added;
+  } catch {
+    const rollbackIds = new Set(lightboxWorkIds);
+    if (wasAdded) {
+      rollbackIds.add(id);
+    } else {
+      rollbackIds.delete(id);
+    }
+    lightboxWorkIds = rollbackIds;
+    cancelBookmarkAnimation(sourceButton);
+    patchLightboxWorkState(id, wasAdded, { removeFromSavedView: false });
+    updateSavedFilterButton();
+    showArchiveToast("Unable to update your lightbox. Your previous selection was restored.", "error");
+    releaseLightboxPendingState(id, true);
+    return wasAdded;
+  }
 }
 
 function downloadWork(item) {
@@ -2455,13 +2640,13 @@ function downloadWork(item) {
   showArchiveToast("Download started.");
 }
 
-function handleWorkAction(action, itemId, { rerenderGallery = true } = {}) {
+function handleWorkAction(action, itemId, { sourceButton = null } = {}) {
   const item = archiveItems.find((entry) => entry.id === itemId);
   if (!item) {
     return;
   }
   if (action === "lightbox") {
-    toggleLightboxWork(itemId, { rerenderGallery });
+    toggleLightboxWork(itemId, { sourceButton });
     return;
   }
   if (action === "download") {
@@ -2497,7 +2682,11 @@ function renderGallery() {
     searchInput.value = activeSearch;
   }
   if (emptyState) {
-    emptyState.textContent = showSavedOnly ? "No saved works match this view." : "No works match this search.";
+    emptyState.textContent = total === 0
+      ? "The archive is being prepared. New work will appear here soon."
+      : showSavedOnly
+        ? "No saved works match this view."
+        : "No works match this search.";
     emptyState.hidden = items.length > 0;
   }
   updateSavedFilterButton();
@@ -2544,7 +2733,7 @@ function renderGallery() {
                   <div class="archive-hover-layer">
                     <div class="archive-hover-brand">MT</div>
                     <div class="archive-hover-actions">
-                      <button class="archive-hover-icon ${isInLightbox ? "is-active" : ""}" type="button" data-card-action="lightbox" aria-pressed="${String(isInLightbox)}" aria-label="${isInLightbox ? "Remove from lightbox" : "Add to lightbox"}" data-tooltip="${isInLightbox ? "Remove from Lightbox" : "Add to Lightbox"}">
+                      <button class="archive-hover-icon ${isInLightbox ? "is-active" : ""}" type="button" data-card-action="lightbox" aria-pressed="${String(isInLightbox)}" aria-label="${isInLightbox ? "Remove from Lightbox" : "Add to Lightbox"}" data-tooltip="${isInLightbox ? "Remove from Lightbox" : "Add to Lightbox"}">
                         ${iconSvg("bookmark")}
                       </button>
                       <button class="archive-hover-icon" type="button" data-card-action="download" aria-label="Download display image" data-tooltip="Download">
@@ -2690,8 +2879,10 @@ gallery.addEventListener("click", (event) => {
 
   const actionButton = event.target.closest("[data-card-action]");
   if (actionButton) {
+    event.preventDefault();
+    event.stopPropagation();
     const item = actionButton.closest("[data-item-id]");
-    handleWorkAction(actionButton.dataset.cardAction, item?.dataset.itemId);
+    handleWorkAction(actionButton.dataset.cardAction, item?.dataset.itemId, { sourceButton: actionButton });
     return;
   }
 
@@ -2706,7 +2897,7 @@ gallery.addEventListener("click", (event) => {
 });
 
 gallery.addEventListener("keydown", (event) => {
-  if (isArrangeMode || !["Enter", " "].includes(event.key)) {
+  if (isArrangeMode || isInteractiveTarget(event.target) || !["Enter", " "].includes(event.key)) {
     return;
   }
 
@@ -2727,7 +2918,9 @@ workViewer?.addEventListener("click", (event) => {
 
   const actionButton = event.target.closest("[data-viewer-action]");
   if (actionButton && viewerCurrentId) {
-    handleWorkAction(actionButton.dataset.viewerAction, viewerCurrentId, { rerenderGallery: true });
+    event.preventDefault();
+    event.stopPropagation();
+    handleWorkAction(actionButton.dataset.viewerAction, viewerCurrentId, { sourceButton: actionButton });
     updateViewerActionStates(viewerCurrentId);
     return;
   }
@@ -3099,19 +3292,16 @@ async function initArchive() {
 }
 
 window.addEventListener("mt:lightbox-change", (event) => {
-  lightboxWorkIds = new Set(event.detail?.ids || publicArchive.readLightboxIds());
-  renderGallery();
-  if (viewerCurrentId) {
-    updateViewerActionStates(viewerCurrentId);
-  }
+  reconcileLightboxWorkIds(event.detail?.ids || publicArchive.readLightboxIds(), {
+    changedId: event.detail?.changedId || "",
+  });
 });
 
 window.addEventListener("storage", (event) => {
   if (event.key !== publicArchive.LIGHTBOX_STORAGE_KEY) {
     return;
   }
-  lightboxWorkIds = new Set(publicArchive.readLightboxIds());
-  renderGallery();
+  reconcileLightboxWorkIds(publicArchive.readLightboxIds());
 });
 
 initArchive();

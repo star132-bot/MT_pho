@@ -19,6 +19,7 @@ MIGRATION_PATH = ROOT / "database" / "migrations" / "20260722_public_delivery.sq
 SERVER_PATH = ROOT / "server.py"
 ARCHIVE_CLIENT_PATH = ROOT / "archive.js"
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "database.yml"
+RELEASE_GATE_PATH = ROOT / "scripts" / "release_gate.sh"
 DEPLOY_PATH = ROOT / "scripts" / "deploy_supabase_phase1.sh"
 BOUNDARY_TEST_PATH = ROOT / "scripts" / "test_public_delivery_boundary.py"
 DATABASE_TEST_PATH = ROOT / "scripts" / "test_public_delivery_database.py"
@@ -198,7 +199,13 @@ def validate_server(server: str) -> None:
     require(archive_handler, {
         "auth_configured()",
         "self.handle_public_works_get(query)",
-        '"source": "local-sqlite"',
+        '"local-sqlite"',
+        "LOCAL_ARCHIVE_PREVIEW",
+        'RUNTIME_ENVIRONMENT == "development"',
+        "self.is_loopback_request()",
+        'filters.append("source_type = ?")',
+        'params.append("local_sample")',
+        '"local-sqlite-preview" if local_preview else "local-sqlite"',
     }, "Configured public Works dispatch")
 
     do_get = python_function(server, "do_GET")
@@ -262,6 +269,7 @@ def validate_tests_and_wiring(
     boundary: str,
     database_test: str,
     workflow: str,
+    release_gate: str,
     deploy: str,
     testing: str,
 ) -> None:
@@ -298,9 +306,16 @@ def validate_tests_and_wiring(
         "public_delivery_database_fixtures_rolled_back=yes",
     }, "Rollback-only public delivery database acceptance")
     require(workflow, {
-        "python3 scripts/validate_public_delivery.py",
-        "python3 scripts/test_public_delivery_boundary.py",
-    }, "Public delivery CI")
+        "bash scripts/release_gate.sh",
+    }, "Public delivery CI entrypoint")
+    require(release_gate, {
+        "scripts/validate_public_delivery.py",
+        "scripts/test_public_delivery_boundary.py",
+        'for validator in "${static_validators[@]}"; do',
+        'run_group "Static contract: $validator" python3 "$validator"',
+        'for test_file in "${boundary_tests[@]}"; do',
+        'run_group "Boundary test: $test_file" python3 "$test_file"',
+    }, "Public delivery release gate contract")
     require(deploy, {"python3 \"$root/scripts/validate_public_delivery.py\""}, "Public delivery deploy preflight")
     require(testing, {
         "# Public Delivery Testing",
@@ -319,13 +334,14 @@ def main() -> None:
     boundary = read(BOUNDARY_TEST_PATH)
     database_test = read(DATABASE_TEST_PATH)
     workflow = read(WORKFLOW_PATH)
+    release_gate = read(RELEASE_GATE_PATH)
     deploy = read(DEPLOY_PATH)
     testing = read(TESTING_PATH)
 
     validate_migration(migration)
     validate_server(server)
     validate_archive_client(archive_client)
-    validate_tests_and_wiring(boundary, database_test, workflow, deploy, testing)
+    validate_tests_and_wiring(boundary, database_test, workflow, release_gate, deploy, testing)
 
     print("public_delivery_static_contract=yes")
     print("Public delivery static contracts validated; run the boundary and rollback-only database acceptances next.")

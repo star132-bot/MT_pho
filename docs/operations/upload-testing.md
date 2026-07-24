@@ -18,7 +18,7 @@
 12. `image_assets` INSERT 自动建立 restricted scan job；独立 worker 通过仅授予 service_role 的 scanner RPC 领取 lease，流式核对 private object，并在无凭据子进程中执行 ClamAV/Pillow，token-bound complete/retry 最终更新 scan status、event、notification 与 audit。
 13. Trash 分段视图通过 owner-scoped read RPC 只列出已 soft-delete 的可编辑 Draft；页面只提供 Restore，原 Folder 已删除时服务端回退到 Inbox。
 
-当前不包含 Publish、scheduled orphan repair、TUS/断点续传或 user quota/rate limit。真实上传资产从 `scan_status=pending` 开始，trusted scanner 按当前策略明确写入三个 `clean` 前 Submit 必须 disabled；这不是 quota/capacity 限制。Phase 2F 代码和数据库已部署，但 development 尚未配置常驻 scanner secret/ClamAV Worker，所以现有三个任务保持 `queued`、资产保持 `pending`。浏览器上传 Retry 仍是明确的用户操作，scanner 基础设施失败则使用独立的有界后台 retry。`manage.html` 和公开 Works 仍属于 legacy SQLite Review 原型，不读取 Supabase `review_submissions`。
+当前 Upload 切片不包含 scheduled orphan repair、TUS/断点续传或 user quota/rate limit。真实上传资产从 `scan_status=pending` 开始，trusted scanner 按当前策略明确写入三个 `clean` 前 Submit 必须 disabled；这不是 quota/capacity 限制。Development 已安全 provision Git ignored `.env.worker` 与 ClamAV，本轮三个既有任务均从 `queued` 经真实领取和扫描进入 `clean`，Security scan readiness 为 `pass`；production 常驻 Worker、监控与告警仍未交付。浏览器上传 Retry 仍是明确的用户操作，scanner 基础设施失败则使用独立的有界后台 retry。
 
 ## 自动验证
 

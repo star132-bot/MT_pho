@@ -31,6 +31,7 @@ SUBMISSION_ID = "30000000-0000-4000-8000-000000000061"
 DECISION_ID = "40000000-0000-4000-8000-000000000061"
 DISPLAY_ASSET_ID = "50000000-0000-4000-8000-000000000061"
 THUMBNAIL_ASSET_ID = "50000000-0000-4000-8000-000000000062"
+AVATAR_UPLOAD_ID = "50000000-0000-4000-8000-000000000063"
 CREATOR_SLUG = "field-notes"
 PRIVATE_CANARIES = (
     "private-owner@example.test",
@@ -128,6 +129,18 @@ def public_creator() -> dict:
     }
 
 
+def public_avatar() -> dict:
+    return {
+        "owner_user_id": OWNER_ID,
+        "storage_bucket": "profile-avatars",
+        "storage_key": f"{OWNER_ID}/{AVATAR_UPLOAD_ID}/avatar.jpg",
+        "mime_type": "image/jpeg",
+        "byte_size": 183420,
+        "width": 512,
+        "height": 512,
+    }
+
+
 class FakeSupabaseHandler(BaseHTTPRequestHandler):
     published = False
     public_mode = "normal"
@@ -212,6 +225,7 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
         if self.path in {
             "/rest/v1/rpc/get_public_works",
             "/rest/v1/rpc/get_public_creator",
+            "/rest/v1/rpc/get_public_creator_avatar",
         }:
             type(self).public_rpc_calls.append((self.path, copy.deepcopy(body), authorization))
             if authorization != f"Bearer {PUBLISHABLE_KEY}":
@@ -219,6 +233,13 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                 return
             if type(self).public_mode == "failure":
                 self.send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"message": "private-provider-failure"})
+                return
+
+            if self.path.endswith("get_public_creator_avatar"):
+                if not type(self).published or type(self).public_mode == "empty":
+                    self.send_json(HTTPStatus.OK, {})
+                    return
+                self.send_json(HTTPStatus.OK, public_avatar())
                 return
 
             if self.path.endswith("get_public_works"):
@@ -507,6 +528,7 @@ def main() -> None:
             or creator.get("display_name") != "Field Notes"
             or creator.get("work_count") != 1
             or len(creator.get("works") or []) != 1
+            or "/object/sign/profile-avatars/" not in (creator.get("avatar_url") or "")
         ):
             raise RuntimeError("Published creator did not enter the anonymous creator response")
         creator_assets = signed_assets(creator_response)

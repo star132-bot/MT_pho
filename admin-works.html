@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Works Governance | MT Presence</title>
+    <meta name="description" content="Protected MT Presence workspace for governing published works." />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css?v=20260723-admin-works-v2" />
+    <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
+  </head>
+  <body class="admin-works-page">
+    <a class="admin-works-skip" href="#admin-works-main">Skip to works governance</a>
+
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-home" viewBox="0 0 24 24">
+        <path d="m3 10.5 9-7.5 9 7.5" /><path d="M5 9v12h14V9" /><path d="M9 21v-7h6v7" />
+      </symbol>
+      <symbol id="icon-photo" viewBox="0 0 24 24">
+        <rect x="3" y="5" width="18" height="14" rx="1.5" />
+        <path d="m7 15 3.2-3.2a1.3 1.3 0 0 1 1.8 0L16 16" />
+        <path d="m14 14 1.1-1.1a1.3 1.3 0 0 1 1.8 0L21 17" />
+        <circle cx="8.5" cy="9.2" r="1.2" />
+      </symbol>
+      <symbol id="icon-folder" viewBox="0 0 24 24">
+        <path d="M3 6.8h6l2 2.4h10v8.6a1.7 1.7 0 0 1-1.7 1.7H4.7A1.7 1.7 0 0 1 3 17.8z" />
+        <path d="M3 8.8v-3a1.3 1.3 0 0 1 1.3-1.3h5.1l2 2.2" />
+      </symbol>
+      <symbol id="icon-pen" viewBox="0 0 24 24">
+        <path d="m4 20 4.3-1.1 10.4-10.4a2.1 2.1 0 0 0-3-3L5.3 15.9z" /><path d="m14 6 4 4" />
+      </symbol>
+      <symbol id="icon-shield" viewBox="0 0 24 24">
+        <path d="M12 3 5 6v5c0 4.5 2.7 7.8 7 10 4.3-2.2 7-5.5 7-10V6z" /><path d="m9 12 2 2 4-5" />
+      </symbol>
+      <symbol id="icon-user" viewBox="0 0 24 24">
+        <circle cx="12" cy="8" r="3.5" /><path d="M5 20a7 7 0 0 1 14 0" />
+      </symbol>
+      <symbol id="icon-audit" viewBox="0 0 24 24"><path d="M7 3h10v4H7z" /><path d="M5 5H4v16h16V5h-1" /><path d="M8 12h8M8 16h5" /></symbol>
+      <symbol id="icon-refresh" viewBox="0 0 24 24">
+        <path d="M20 7v5h-5" /><path d="M4 17v-5h5" />
+        <path d="M6.1 8.2A7 7 0 0 1 18.8 10M5.2 14A7 7 0 0 0 17.9 15.8" />
+      </symbol>
+      <symbol id="icon-search" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="6.8" /><path d="m16 16 4.5 4.5" />
+      </symbol>
+      <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" /></symbol>
+      <symbol id="icon-arrow-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7" /></symbol>
+      <symbol id="icon-external" viewBox="0 0 24 24">
+        <path d="M14 4h6v6" /><path d="m20 4-9 9" /><path d="M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6" />
+      </symbol>
+      <symbol id="icon-alert" viewBox="0 0 24 24">
+        <path d="M12 3 2.8 20h18.4z" /><path d="M12 9v5" /><path d="M12 17h.01" />
+      </symbol>
+      <symbol id="icon-remove" viewBox="0 0 24 24">
+        <path d="M4 7h16" /><path d="M9 7V4h6v3" /><path d="m7 7 1 13h8l1-13" /><path d="M10 11v5M14 11v5" />
+      </symbol>
+      <symbol id="icon-restore" viewBox="0 0 24 24">
+        <path d="M4 8v5h5" /><path d="M5.8 16.2A8 8 0 1 0 5 8.8L4 13" />
+      </symbol>
+    </svg>
+
+    <aside class="archive-rail admin-works-rail" aria-label="Admin platform navigation">
+      <a class="archive-rail-brand" href="/" aria-label="Back to MT Presence home">MT</a>
+      <nav class="archive-rail-nav" aria-label="Admin workflow navigation">
+        <a class="archive-rail-button" href="/dashboard" aria-label="Dashboard" title="Dashboard">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-home"></use></svg>
+          <span class="archive-rail-copy">Dashboard</span>
+        </a>
+        <a class="archive-rail-button" href="/workspace/images" aria-label="Upload Studio" title="Upload Studio">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-folder"></use></svg>
+          <span class="archive-rail-copy">Upload</span>
+        </a>
+        <a class="archive-rail-button" href="/admin/reviews" aria-label="Review Queue" title="Review Queue">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-pen"></use></svg>
+          <span class="archive-rail-copy">Review</span>
+        </a>
+        <a class="archive-rail-button is-active" href="/admin/works" aria-label="Works Governance" aria-current="page" title="Works Governance">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-shield"></use></svg>
+          <span class="archive-rail-copy">Govern</span>
+        </a>
+        <a class="archive-rail-button" href="/admin/users" aria-label="User Administration" title="User Administration">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-user"></use></svg>
+          <span class="archive-rail-copy">Users</span>
+        </a>
+        <a class="archive-rail-button" href="/admin/audit" aria-label="Audit Ledger" title="Audit Ledger">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-audit"></use></svg>
+          <span class="archive-rail-copy">Audit</span>
+        </a>
+      </nav>
+      <div class="archive-rail-footer">
+        <a class="archive-rail-button" href="/settings/account" aria-label="Account settings" title="Account settings">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-user"></use></svg>
+          <span class="archive-rail-copy">Account</span>
+        </a>
+      </div>
+    </aside>
+
+    <header class="site-header admin-works-header" aria-label="Admin workspace navigation">
+      <a class="brand-mark" href="/dashboard" aria-label="Open Dashboard"><span>MT</span><span>Admin Platform</span></a>
+      <nav class="site-nav" aria-label="Workflow navigation">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/admin/reviews" data-review-nav hidden>Review</a>
+        <a href="/admin/works" aria-current="page" data-governance-nav hidden>Works</a>
+        <a href="/admin/users" data-users-nav>Users</a>
+        <a href="/admin/audit">Audit</a>
+      </nav>
+      <div class="header-identity-slot" data-header-identity-slot></div>
+    </header>
+
+    <main class="admin-works-shell" id="admin-works-main" tabindex="-1">
+      <header class="admin-works-command">
+        <div>
+          <p class="section-kicker">Admin Platform</p>
+          <h1>Works Governance</h1>
+          <p>Inspect publication state and apply traceable controls.</p>
+        </div>
+        <button class="admin-works-icon-button" type="button" data-works-refresh title="Refresh works" aria-label="Refresh works">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg>
+        </button>
+      </header>
+
+      <section class="admin-works-metrics" aria-label="Works by status">
+        <button type="button" data-status-filter="all" aria-pressed="true"><span>All works</span><strong data-work-count="all">0</strong></button>
+        <button type="button" data-status-filter="published" aria-pressed="false"><span>Published</span><strong data-work-count="published">0</strong></button>
+        <button type="button" data-status-filter="never_published" aria-pressed="false"><span>Never published</span><strong data-work-count="never_published">0</strong></button>
+        <button type="button" data-status-filter="unpublished" aria-pressed="false"><span>Unpublished</span><strong data-work-count="unpublished">0</strong></button>
+        <button type="button" data-status-filter="quarantined" aria-pressed="false"><span>Taken down</span><strong data-work-count="quarantined">0</strong></button>
+        <button type="button" data-status-filter="archived" aria-pressed="false"><span>Archived</span><strong data-work-count="archived">0</strong></button>
+        <button type="button" data-status-filter="deleted" aria-pressed="false"><span>Deleted</span><strong data-work-count="deleted">0</strong></button>
+      </section>
+
+      <form class="admin-works-filters" data-works-filters role="search">
+        <label class="admin-works-search">
+          <span class="visually-hidden">Search works</span>
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+          <input type="search" name="q" maxlength="160" autocomplete="off" placeholder="Search title, creator, or work ID" />
+        </label>
+        <button type="submit">Search</button>
+        <button type="button" data-works-clear hidden>Clear</button>
+        <label class="admin-works-sort">
+          <span>Sort</span>
+          <select name="sort">
+            <option value="updated_desc">Recently updated</option>
+            <option value="published_desc">Recently published</option>
+            <option value="uploaded_desc">Recently uploaded</option>
+            <option value="title_asc">Title A-Z</option>
+          </select>
+        </label>
+        <p data-works-filter-summary aria-live="polite">Loading works</p>
+      </form>
+
+      <section class="admin-works-workspace" aria-label="Works governance workspace" data-works-workspace data-mobile-view="list">
+        <section class="admin-works-inventory" aria-labelledby="admin-works-list-title" aria-busy="true" data-works-inventory>
+          <header>
+            <div>
+              <h2 id="admin-works-list-title">Inventory</h2>
+              <span data-works-list-count>0 works</span>
+            </div>
+            <small>Newest activity first</small>
+          </header>
+
+          <div class="admin-works-list-state" data-works-list-state role="status" aria-atomic="true">
+            <span data-works-list-state-message>Loading works</span>
+            <button type="button" data-works-list-retry hidden>Retry</button>
+          </div>
+
+          <div class="admin-works-table-wrap">
+            <table class="admin-works-table">
+              <caption class="visually-hidden">All governed works matching the active filters</caption>
+              <thead>
+                <tr><th scope="col">Work</th><th scope="col">Creator</th><th scope="col">Publication</th><th scope="col">Updated</th><th scope="col"><span class="visually-hidden">Open</span></th></tr>
+              </thead>
+              <tbody data-works-list></tbody>
+            </table>
+          </div>
+
+          <footer class="admin-works-pagination">
+            <span data-works-range>0 of 0</span>
+            <button type="button" data-works-load-more hidden>Load more</button>
+          </footer>
+        </section>
+
+        <aside class="admin-works-inspector" aria-label="Work inspector" aria-busy="false" data-works-detail-region>
+          <div class="admin-works-mobile-toolbar">
+            <button type="button" data-works-back-to-list>
+              <svg class="ui-icon" aria-hidden="true"><use href="#icon-arrow-left"></use></svg><span>Back to inventory</span>
+            </button>
+          </div>
+
+          <div class="admin-works-detail-state" data-works-detail-state role="status" aria-atomic="true">
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-shield"></use></svg>
+            <h2 data-works-detail-state-title tabindex="-1">Select a work</h2>
+            <p data-works-detail-state-message>Choose a row to inspect publication evidence and governance history.</p>
+            <button type="button" data-works-detail-retry hidden>Retry</button>
+          </div>
+
+          <div class="admin-works-detail" data-works-detail hidden>
+            <div class="admin-works-conflict" data-works-conflict role="alert" hidden>
+              <svg class="ui-icon" aria-hidden="true"><use href="#icon-alert"></use></svg>
+              <p data-works-conflict-message></p>
+              <button type="button" data-works-conflict-reload>Reload work</button>
+            </div>
+
+            <figure class="admin-works-preview">
+              <img alt="" decoding="async" data-works-image />
+              <div data-works-image-error hidden><span>Preview unavailable</span></div>
+            </figure>
+
+            <header class="admin-works-detail-header">
+              <button class="admin-works-close-detail" type="button" data-works-close-detail aria-label="Close work inspector" title="Close inspector">
+                <svg class="ui-icon" aria-hidden="true"><use href="#icon-arrow-left"></use></svg>
+              </button>
+              <div class="admin-works-status-line">
+                <span class="admin-works-status" data-works-status></span>
+                <span data-works-version></span>
+              </div>
+              <h2 data-works-title tabindex="-1">Untitled work</h2>
+              <p data-works-creator></p>
+              <a href="#" target="_blank" rel="noopener" data-works-public-link hidden>
+                View public work <svg class="ui-icon" aria-hidden="true"><use href="#icon-external"></use></svg>
+              </a>
+            </header>
+
+            <section class="admin-works-inspector-section" aria-labelledby="admin-works-publication-title">
+              <h3 id="admin-works-publication-title">Publication</h3>
+              <dl class="admin-works-definition-list" data-works-publication></dl>
+            </section>
+
+            <section class="admin-works-inspector-section" aria-labelledby="admin-works-record-title">
+              <h3 id="admin-works-record-title">Record</h3>
+              <dl class="admin-works-definition-list" data-works-record></dl>
+            </section>
+
+            <section class="admin-works-inspector-section" aria-labelledby="admin-works-history-title">
+              <h3 id="admin-works-history-title">Governance history</h3>
+              <ol class="admin-works-history" data-works-history></ol>
+            </section>
+
+            <section class="admin-works-actions" aria-labelledby="admin-works-actions-title">
+              <div>
+                <h3 id="admin-works-actions-title">Publication control</h3>
+                <p data-works-action-note>Administrator role and an MFA-verified session are required.</p>
+              </div>
+              <button class="button button-primary" type="button" data-works-action hidden></button>
+            </section>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <footer class="site-footer workspace-footer" aria-label="Workspace footer" data-site-footer data-footer-variant="workspace"></footer>
+
+    <dialog class="admin-works-dialog" data-works-dialog aria-labelledby="admin-works-dialog-title" aria-describedby="admin-works-dialog-description">
+      <form data-works-dialog-form novalidate>
+        <p class="section-kicker" data-works-dialog-kicker>Publication control</p>
+        <h2 id="admin-works-dialog-title" data-works-dialog-title>Confirm action</h2>
+        <p id="admin-works-dialog-description" data-works-dialog-description></p>
+        <label>
+          <span>Reason category</span>
+          <select name="reason_code" required aria-describedby="admin-works-dialog-help admin-works-dialog-error">
+            <option value="">Select a reason</option>
+          </select>
+        </label>
+        <label>
+          <span>Message to creator</span>
+          <textarea name="public_message" rows="4" minlength="5" maxlength="1000" required aria-describedby="admin-works-dialog-help admin-works-dialog-error"></textarea>
+        </label>
+        <label>
+          <span>Internal note <small>Optional</small></span>
+          <textarea name="internal_note" rows="3" maxlength="2000" aria-describedby="admin-works-dialog-help admin-works-dialog-error"></textarea>
+        </label>
+        <p id="admin-works-dialog-help" class="admin-works-dialog-help">The category and creator message are retained in the immutable audit record. Internal notes remain visible to administrators only.</p>
+        <p id="admin-works-dialog-error" class="admin-works-dialog-error" role="alert" aria-live="assertive" data-works-dialog-error></p>
+        <div class="admin-works-dialog-actions">
+          <button class="button button-secondary" type="button" data-works-dialog-cancel>Cancel</button>
+          <button class="button button-primary" type="submit" data-works-dialog-confirm>Confirm</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="contact-toast" role="status" aria-live="polite" aria-atomic="true" data-works-live></div>
+    <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
+    <script src="/account-menu.js?v=20260723-interaction-integrity-2"></script>
+    <script src="/admin-works.js?v=20260723-admin-works-v2"></script>
+  </body>
+</html>

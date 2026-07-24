@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Audit Ledger | MT Presence</title>
+    <meta name="description" content="Protected MT Presence audit ledger for authorized administrators." />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css?v=20260723-admin-audit-v1" />
+    <link rel="stylesheet" href="/admin-audit.css?v=20260723-admin-audit-v1" />
+    <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
+  </head>
+  <body class="admin-audit-page">
+    <a class="admin-audit-skip" href="#admin-audit-main">Skip to audit ledger</a>
+
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-home" viewBox="0 0 24 24"><path d="m3 10.5 9-7.5 9 7.5" /><path d="M5 9v12h14V9" /><path d="M9 21v-7h6v7" /></symbol>
+      <symbol id="icon-folder" viewBox="0 0 24 24"><path d="M3 6.8h6l2 2.4h10v8.6a1.7 1.7 0 0 1-1.7 1.7H4.7A1.7 1.7 0 0 1 3 17.8z" /><path d="M3 8.8v-3a1.3 1.3 0 0 1 1.3-1.3h5.1l2 2.2" /></symbol>
+      <symbol id="icon-pen" viewBox="0 0 24 24"><path d="m4 20 4.3-1.1 10.4-10.4a2.1 2.1 0 0 0-3-3L5.3 15.9z" /><path d="m14 6 4 4" /></symbol>
+      <symbol id="icon-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.5 2.7 7.8 7 10 4.3-2.2 7-5.5 7-10V6z" /><path d="m9 12 2 2 4-5" /></symbol>
+      <symbol id="icon-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2" /><path d="M3.5 20a5.5 5.5 0 0 1 11 0" /><circle cx="17.2" cy="9.2" r="2.3" /><path d="M15.5 14.7a4.7 4.7 0 0 1 5 4.6" /></symbol>
+      <symbol id="icon-audit" viewBox="0 0 24 24"><path d="M7 3h10v4H7z" /><path d="M5 5H4v16h16V5h-1" /><path d="M8 12h8M8 16h5" /></symbol>
+      <symbol id="icon-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5" /><path d="M5 20a7 7 0 0 1 14 0" /></symbol>
+      <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5" /><path d="M4 17v-5h5" /><path d="M6.1 8.2A7 7 0 0 1 18.8 10M5.2 14A7 7 0 0 0 17.9 15.8" /></symbol>
+      <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M4 20h16" /></symbol>
+      <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.8" /><path d="m16 16 4.5 4.5" /></symbol>
+      <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" /></symbol>
+      <symbol id="icon-arrow-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7" /></symbol>
+    </svg>
+
+    <aside class="archive-rail admin-audit-rail" aria-label="Admin platform navigation">
+      <a class="archive-rail-brand" href="/" aria-label="Back to MT Presence home">MT</a>
+      <nav class="archive-rail-nav" aria-label="Admin workflow navigation">
+        <a class="archive-rail-button" href="/dashboard" aria-label="Dashboard" title="Dashboard"><svg class="ui-icon" aria-hidden="true"><use href="#icon-home"></use></svg><span class="archive-rail-copy">Dashboard</span></a>
+        <a class="archive-rail-button" href="/workspace/images" aria-label="Upload Studio" title="Upload Studio"><svg class="ui-icon" aria-hidden="true"><use href="#icon-folder"></use></svg><span class="archive-rail-copy">Upload</span></a>
+        <a class="archive-rail-button" href="/admin/reviews" aria-label="Review Queue" title="Review Queue"><svg class="ui-icon" aria-hidden="true"><use href="#icon-pen"></use></svg><span class="archive-rail-copy">Review</span></a>
+        <a class="archive-rail-button" href="/admin/works" aria-label="Works Governance" title="Works Governance"><svg class="ui-icon" aria-hidden="true"><use href="#icon-shield"></use></svg><span class="archive-rail-copy">Works</span></a>
+        <a class="archive-rail-button" href="/admin/users" aria-label="User Administration" title="User Administration"><svg class="ui-icon" aria-hidden="true"><use href="#icon-users"></use></svg><span class="archive-rail-copy">Users</span></a>
+        <a class="archive-rail-button is-active" href="/admin/audit" aria-label="Audit Ledger" aria-current="page" title="Audit Ledger"><svg class="ui-icon" aria-hidden="true"><use href="#icon-audit"></use></svg><span class="archive-rail-copy">Audit</span></a>
+      </nav>
+      <div class="archive-rail-footer"><a class="archive-rail-button" href="/settings/account" aria-label="Account settings" title="Account settings"><svg class="ui-icon" aria-hidden="true"><use href="#icon-user"></use></svg><span class="archive-rail-copy">Account</span></a></div>
+    </aside>
+
+    <header class="site-header admin-audit-header" aria-label="Admin workspace navigation">
+      <a class="brand-mark" href="/dashboard" aria-label="Open Dashboard"><span>MT</span><span>Admin Platform</span></a>
+      <nav class="site-nav" aria-label="Workflow navigation">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/admin/reviews" data-review-nav hidden>Review</a>
+        <a href="/admin/works" data-governance-nav hidden>Works</a>
+        <a href="/admin/users" data-users-nav hidden>Users</a>
+        <a href="/admin/audit" aria-current="page">Audit</a>
+      </nav>
+      <div class="header-identity-slot" data-header-identity-slot></div>
+    </header>
+
+    <main class="admin-audit-shell" id="admin-audit-main" tabindex="-1">
+      <header class="admin-audit-command">
+        <div><p class="section-kicker">Admin Platform</p><h1>Audit Ledger</h1><p>Review immutable security and governance evidence without exposing private record state.</p></div>
+        <div class="admin-audit-command-actions">
+          <button class="admin-audit-icon-button" type="button" data-audit-export title="Export matching events" aria-label="Export matching audit events" disabled><svg class="ui-icon" aria-hidden="true"><use href="#icon-download"></use></svg></button>
+          <button class="admin-audit-icon-button" type="button" data-audit-refresh title="Refresh audit events" aria-label="Refresh audit events"><svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg></button>
+        </div>
+      </header>
+
+      <form class="admin-audit-filters" data-audit-filters novalidate>
+        <div class="admin-audit-filter-primary">
+          <label><span>Result</span><select name="result"><option value="all">All results</option><option value="success">Success</option><option value="failure">Failure</option></select></label>
+          <label><span>Target type</span><input name="target_type" type="text" maxlength="64" autocomplete="off" placeholder="All target types" pattern="[a-z0-9_]{1,64}" /></label>
+          <label class="admin-audit-action-filter"><span>Action prefix</span><span class="admin-audit-input-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-search"></use></svg><input name="action" type="search" maxlength="100" autocomplete="off" placeholder="All actions" /></span></label>
+          <button type="submit">Apply</button>
+          <button type="button" data-audit-clear hidden>Clear</button>
+          <p data-audit-filter-summary aria-live="polite">Loading events</p>
+        </div>
+        <details class="admin-audit-advanced-filters" data-audit-advanced>
+          <summary>Actor, request, and date filters</summary>
+          <div>
+            <label><span>Actor ID</span><input name="actor" type="text" inputmode="text" maxlength="36" autocomplete="off" placeholder="UUID" /></label>
+            <label><span>Request ID</span><input name="request_id" type="text" maxlength="180" autocomplete="off" placeholder="Exact ID or prefix" /></label>
+            <label><span>From</span><input name="from" type="datetime-local" /></label>
+            <label><span>To</span><input name="to" type="datetime-local" /></label>
+          </div>
+        </details>
+        <p class="admin-audit-filter-error" role="alert" data-audit-filter-error hidden></p>
+      </form>
+
+      <section class="admin-audit-workspace" data-audit-workspace data-mobile-view="list" aria-label="Audit ledger workspace">
+        <section class="admin-audit-inventory" aria-labelledby="audit-event-list-title" aria-busy="true" data-audit-inventory>
+          <header><div><h2 id="audit-event-list-title">Events</h2><span data-audit-list-count>0 events</span></div><small>Newest evidence first</small></header>
+          <div class="admin-audit-list-state" data-audit-list-state role="status" aria-atomic="true"><span data-audit-list-state-message>Loading events</span><button type="button" data-audit-list-retry hidden>Retry</button></div>
+          <div class="admin-audit-table-wrap">
+            <table class="admin-audit-table">
+              <caption class="visually-hidden">Audit events matching the active filters</caption>
+              <thead><tr><th scope="col">Result</th><th scope="col">Action</th><th scope="col">Target</th><th scope="col">Actor</th><th scope="col">Created</th><th scope="col"><span class="visually-hidden">Open</span></th></tr></thead>
+              <tbody data-audit-list></tbody>
+            </table>
+          </div>
+          <footer class="admin-audit-pagination"><span data-audit-range>0 loaded</span><button type="button" data-audit-load-more hidden>Load more</button></footer>
+        </section>
+
+        <aside class="admin-audit-inspector" aria-label="Audit evidence inspector" aria-busy="false" data-audit-detail-region>
+          <div class="admin-audit-mobile-toolbar"><button type="button" data-audit-back-to-list><svg class="ui-icon" aria-hidden="true"><use href="#icon-arrow-left"></use></svg><span>Back to events</span></button></div>
+          <div class="admin-audit-detail-state" data-audit-detail-state role="status" aria-atomic="true"><svg class="ui-icon" aria-hidden="true"><use href="#icon-audit"></use></svg><h2 data-audit-detail-state-title tabindex="-1">Select an event</h2><p data-audit-detail-state-message>Choose a ledger row to inspect its safe evidence projection.</p><button type="button" data-audit-detail-retry hidden>Retry</button></div>
+          <article class="admin-audit-detail" data-audit-detail hidden>
+            <header><span class="admin-audit-result" data-audit-result></span><p data-audit-created></p><h2 data-audit-action tabindex="-1">Audit event</h2><p data-audit-target></p></header>
+            <section aria-labelledby="audit-context-title"><h3 id="audit-context-title">Event context</h3><dl class="admin-audit-definition-list" data-audit-context></dl></section>
+            <section aria-labelledby="audit-changes-title"><h3 id="audit-changes-title">Recorded changes</h3><div class="admin-audit-changed-fields" data-audit-changed-fields></div><div class="admin-audit-change-grid"><div><h4>Before</h4><dl data-audit-before></dl></div><div><h4>After</h4><dl data-audit-after></dl></div></div></section>
+          </article>
+        </aside>
+      </section>
+    </main>
+
+    <dialog class="admin-audit-export-dialog" data-audit-export-dialog aria-labelledby="audit-export-title">
+      <form data-audit-export-form novalidate>
+        <p class="section-kicker">Audit evidence</p>
+        <h2 id="audit-export-title">Export matching events</h2>
+        <p>The export uses the active filters and records its own immutable audit event.</p>
+        <label>
+          <span>Export reason</span>
+          <select name="reason_code" required>
+            <option value="">Select a reason</option>
+            <option value="operational_review">Operational review</option>
+            <option value="security_investigation">Security investigation</option>
+            <option value="compliance_request">Compliance request</option>
+          </select>
+        </label>
+        <p class="admin-audit-export-note">Up to 1,000 safe event rows are included. Private raw state and email addresses are never exported.</p>
+        <p class="admin-audit-export-error" role="alert" data-audit-export-error hidden></p>
+        <div class="admin-audit-export-actions">
+          <button type="button" data-audit-export-cancel>Cancel</button>
+          <button type="submit" data-audit-export-submit>Export CSV</button>
+        </div>
+      </form>
+    </dialog>
+
+    <footer class="site-footer workspace-footer" aria-label="Workspace footer" data-site-footer data-footer-variant="workspace"></footer>
+    <div class="contact-toast" role="status" aria-live="polite" aria-atomic="true" data-audit-live></div>
+    <script src="/site-footer.js?v=20260723-production-readiness"></script>
+    <script src="/account-menu.js?v=20260723-production-readiness"></script>
+    <script src="/admin-audit.js?v=20260723-admin-audit-v1"></script>
+  </body>
+</html>

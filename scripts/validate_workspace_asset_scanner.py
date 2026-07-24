@@ -24,6 +24,7 @@ WEB_ENV_PATH = ROOT / ".env.example"
 SERVER_PATH = ROOT / "server.py"
 GITIGNORE_PATH = ROOT / ".gitignore"
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "database.yml"
+RELEASE_GATE_PATH = ROOT / "scripts" / "release_gate.sh"
 DEPLOY_PATH = ROOT / "scripts" / "deploy_supabase_phase1.sh"
 
 RESULT_KEYS = {
@@ -632,6 +633,7 @@ def validate_delivery_contracts(
     server: str,
     gitignore: str,
     workflow: str,
+    release_gate: str,
     deploy: str,
 ) -> None:
     normalized_requirements = requirements.replace("\\\n", " ")
@@ -677,13 +679,20 @@ def validate_delivery_contracts(
         "!.env.worker.example",
         ".venv*/",
     ])
-    require_tokens("scanner CI", workflow, [
+    require_tokens("scanner CI entrypoint", workflow, [
         "python3 -m pip install --disable-pip-version-check --require-hashes -r requirements-scanner.txt",
         "source .env.worker.example",
         'test "$MT_SCANNER_CLAMAV_COMMAND" = "clamdscan --fdpass --no-summary"',
-        "python3 scripts/validate_workspace_asset_scanner.py",
-        "python3 scripts/test_workspace_asset_scanner.py",
-        "python3 scripts/test_configure_development_scanner.py",
+        "bash scripts/release_gate.sh",
+    ])
+    require_tokens("scanner release gate contract", release_gate, [
+        "scripts/validate_workspace_asset_scanner.py",
+        "scripts/test_workspace_asset_scanner.py",
+        "scripts/test_configure_development_scanner.py",
+        'for validator in "${static_validators[@]}"; do',
+        'run_group "Static contract: $validator" python3 "$validator"',
+        'for test_file in "${boundary_tests[@]}"; do',
+        'run_group "Boundary test: $test_file" python3 "$test_file"',
     ])
     require_tokens("scanner deployment preflight", deploy, [
         'python3 "$root/scripts/validate_workspace_asset_scanner.py"',
@@ -729,6 +738,7 @@ def main() -> None:
     server = read_required(SERVER_PATH)
     gitignore = read_required(GITIGNORE_PATH)
     workflow = read_required(WORKFLOW_PATH)
+    release_gate = read_required(RELEASE_GATE_PATH)
     deploy = read_required(DEPLOY_PATH)
 
     validate_migration(migration)
@@ -748,6 +758,7 @@ def main() -> None:
         server,
         gitignore,
         workflow,
+        release_gate,
         deploy,
     )
 

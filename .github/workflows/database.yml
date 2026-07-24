@@ -1,4 +1,4 @@
-name: Database Checks
+name: Production Release Gate
 
 on:
   pull_request:
@@ -9,8 +9,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  local-archive-sqlite:
-    name: Local Archive SQLite
+  release-gate:
+    name: Production Release Gate
     runs-on: ubuntu-latest
 
     steps:
@@ -37,42 +37,5 @@ jobs:
           set +a
           test "$MT_SCANNER_CLAMAV_COMMAND" = "clamdscan --fdpass --no-summary"
 
-      - name: Seed and validate local archive database
-        run: python3 scripts/validate_local_archive_db.py
-
-      - name: Validate product and Supabase security contracts
-        run: |
-          python3 scripts/validate_product_phase0.py
-          python3 scripts/validate_auth_foundation.py
-          python3 scripts/validate_supabase_phase1_rls.py
-          python3 scripts/validate_workspace_phase2.py
-          python3 scripts/validate_workspace_asset_scanner.py
-          python3 scripts/validate_review_queue_phase3.py
-          python3 scripts/validate_public_delivery.py
-          python3 scripts/validate_user_dashboard.py
-
-      - name: Validate protected browser script syntax
-        run: |
-          node --check auth.js
-          node --check mfa.js
-          node --check account-settings.js
-          node --check upload-studio.js
-          node --check admin-reviews.js
-          node --check dashboard.js
-          node --check account-menu.js
-          node --check public-navigation.js
-          node --check archive.js
-          node --check public-archive.js
-          node --check creator.js
-          node --check manage.js
-
-      - name: Exercise local Auth security boundary
-        run: |
-          python3 scripts/test_auth_security_boundary.py
-          python3 scripts/test_workspace_phase2_boundary.py
-          python3 scripts/test_configure_development_scanner.py
-          python3 scripts/test_workspace_asset_scanner.py
-          python3 scripts/test_review_queue_boundary.py
-          python3 scripts/test_public_delivery_boundary.py
-          python3 scripts/test_user_dashboard_boundary.py
-          python3 scripts/test_supabase_deploy_script.py
+      - name: Run production release gate
+        run: bash scripts/release_gate.sh

@@ -1,0 +1,11 @@
+# Install as /etc/mt-presence/database.env with root:root ownership and 0600.
+# Source only in an operator shell for migration or backup; no service reads it.
+PGHOST=db.your-project-ref.supabase.co
+PGPORT=5432
+PGDATABASE=postgres
+PGUSER=postgres
+PGPASSWORD=replace_with_production_database_password
+PGSSLMODE=require
+MT_DEPLOY_ENVIRONMENT=production
+MT_APPLY_PHASE1_BASELINE=no
+MT_BACKUP_DIR=/var/backups/mt-presence

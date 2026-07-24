@@ -6,7 +6,8 @@
     <title>Account Settings | MT Presence</title>
     <meta name="description" content="Manage your MT Presence profile, authorship preferences, and secure sessions." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260723-global-footer-3" />
+    <link rel="stylesheet" href="/styles.css?v=20260723-profile-avatar-3" />
+    <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="account-settings-page">
     <a class="auth-skip" href="#account-content">Skip to account settings</a>
@@ -24,6 +25,13 @@
         <rect x="3" y="4" width="18" height="14" rx="1.8" />
         <path d="M8 22h8M12 18v4" />
       </symbol>
+      <symbol id="icon-camera" viewBox="0 0 24 24">
+        <path d="M4 7.5h3l1.4-2h7.2l1.4 2h3v11H4z" />
+        <circle cx="12" cy="13" r="3.25" />
+      </symbol>
+      <symbol id="icon-trash" viewBox="0 0 24 24">
+        <path d="M4 7h16M9 3h6l1 4H8zM7 7l1 14h8l1-14" />
+      </symbol>
     </svg>
 
     <header class="site-header account-settings-header" aria-label="Workspace navigation">
@@ -34,8 +42,11 @@
       <nav class="site-nav" aria-label="Workspace navigation">
         <a href="/dashboard">Dashboard</a>
         <a href="/workspace/images">Upload</a>
-        <a href="/admin/reviews" data-admin-only hidden>Review</a>
+        <a href="/admin/reviews" data-review-nav hidden>Review</a>
+        <a href="/admin/works" data-governance-nav hidden>Governance</a>
+        <a href="/admin/users" data-users-nav hidden>Users</a>
       </nav>
+      <div class="header-identity-slot" data-header-identity-slot></div>
     </header>
 
     <main id="account-content" class="account-settings-shell">
@@ -50,7 +61,10 @@
           </a>
         </div>
         <div class="account-identity-summary" data-account-summary hidden>
-          <a class="account-avatar" href="/dashboard" aria-label="Return to personal profile" data-account-initials>MT</a>
+          <a class="account-avatar" href="/dashboard" aria-label="Return to personal profile" data-account-avatar-visual>
+            <span data-account-initials>MT</span>
+            <img alt="" decoding="async" data-account-avatar-image hidden />
+          </a>
           <span class="account-identity-copy">
             <strong data-account-display-name>Member</strong>
             <small data-account-email></small>
@@ -87,11 +101,36 @@
                 <legend>Identity</legend>
                 <div class="account-profile-identity-layout">
                   <div class="account-profile-avatar-summary" aria-label="Profile avatar">
-                    <span class="account-profile-avatar" aria-hidden="true" data-profile-initials>MT</span>
-                    <span>
-                      <strong data-profile-summary-name>Member</strong>
-                      <small>Initials from your display name</small>
+                    <span class="account-profile-avatar" aria-hidden="true" data-profile-avatar-visual>
+                      <span data-profile-initials>MT</span>
+                      <img alt="" decoding="async" data-profile-avatar-image hidden />
                     </span>
+                    <span class="account-profile-avatar-copy">
+                      <strong data-profile-summary-name>Member</strong>
+                      <small>Shown across your profile and workspace.</small>
+                    </span>
+                    <input
+                      id="account-profile-avatar-input"
+                      class="visually-hidden"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      aria-describedby="account-profile-avatar-help"
+                      data-profile-avatar-input
+                    />
+                    <span class="account-profile-avatar-actions">
+                      <button class="account-profile-avatar-action" type="button" data-profile-avatar-choose>
+                        <svg class="ui-icon" aria-hidden="true"><use href="#icon-camera"></use></svg>
+                        Upload photo
+                      </button>
+                      <button class="account-profile-avatar-action is-danger" type="button" data-profile-avatar-remove hidden>
+                        <svg class="ui-icon" aria-hidden="true"><use href="#icon-trash"></use></svg>
+                        Remove
+                      </button>
+                    </span>
+                    <small class="account-profile-avatar-help" id="account-profile-avatar-help">
+                      JPG, PNG, or WebP. Center-cropped to a square; the original file is not uploaded.
+                    </small>
+                    <small class="account-profile-avatar-status" role="status" aria-live="polite" data-profile-avatar-status></small>
                   </div>
                   <div class="account-profile-grid">
                     <label class="account-field" for="account-display-name">
@@ -311,8 +350,8 @@
       </form>
     </dialog>
 
-    <script src="/site-footer.js?v=20260723-global-footer-3"></script>
-    <script src="/account-menu.js?v=20260722-creator-profile"></script>
-    <script src="/account-settings.js?v=20260722-compact-account-settings"></script>
+    <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
+    <script src="/account-menu.js?v=20260723-profile-avatar-3"></script>
+    <script src="/account-settings.js?v=20260723-profile-avatar-3"></script>
   </body>
 </html>

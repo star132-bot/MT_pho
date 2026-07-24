@@ -1,0 +1,18 @@
+[Unit]
+Description=Check MT Presence provider readiness
+After=mt-presence.service
+
+[Service]
+Type=oneshot
+User=mtpresence
+Group=mtpresence
+ExecStart=/usr/bin/curl --fail --silent --show-error --max-time 8 http://127.0.0.1:8131/readyz
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=

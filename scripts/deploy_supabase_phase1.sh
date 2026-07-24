@@ -55,6 +55,12 @@ python3 "$root/scripts/validate_workspace_asset_scanner.py"
 python3 "$root/scripts/validate_review_queue_phase3.py"
 python3 "$root/scripts/validate_public_delivery.py"
 python3 "$root/scripts/validate_user_dashboard.py"
+python3 "$root/scripts/validate_profile_avatar.py"
+python3 "$root/scripts/validate_admin_works.py"
+python3 "$root/scripts/validate_admin_users.py"
+python3 "$root/scripts/validate_communications_audit.py"
+python3 "$root/scripts/validate_interaction_integrity.py"
+python3 "$root/scripts/test_header_identity_boundary.py"
 
 if [[ "${MT_APPLY_PHASE1_BASELINE:-yes}" == "yes" ]]; then
   echo "Applying the Phase 0 schema and Phase 1 Auth/RLS baseline atomically to ${MT_DEPLOY_ENVIRONMENT:-development}..."

@@ -28,8 +28,8 @@ def main() -> None:
     account_menu = read("account-menu.js")
     styles = read("styles.css")
     home_html = read("index.html")
-    home_js = read("script.js")
     workflow = read(".github/workflows/database.yml")
+    release_gate = read("scripts/release_gate.sh")
     deploy = read("scripts/deploy_supabase_phase1.sh")
     database_test = read("scripts/test_user_dashboard_database.py")
     project_map = read("docs/architecture/project-map.md")
@@ -104,7 +104,7 @@ def main() -> None:
         'if parsed.path == "/api/dashboard":',
         'if parsed.path == "/dashboard.html":',
         'self.send_header("Location", "/dashboard")',
-        'self.path = "/dashboard.html"',
+        'self.serve_header_html("dashboard.html", user=user, authorization=authorization)',
         '"DASHBOARD_PROVIDER_FAILED"',
         '"DASHBOARD_ASSET_UNAVAILABLE"',
         "def clean_profile_result(value)",
@@ -162,16 +162,18 @@ def main() -> None:
         raise RuntimeError("Dashboard client must consume the aggregate DTO instead of walking image rows")
 
     require(account_menu, {
-        'fetch("/api/me"',
+        'new URLSearchParams({ header_identity: "1" })',
+        'fetch(`/api/me?${params.toString()}`',
         'fetch("/api/auth/csrf"',
         'fetch("/api/auth/sign-out"',
         'profileLink.href = "/dashboard"',
-        'profileLink.setAttribute("aria-label", "Open personal profile")',
+        'container.querySelector("[data-account-profile-link]").setAttribute("aria-label", `Open personal profile for ${displayName}`)',
         'avatar.href = "/dashboard"',
         'destination("Dashboard", "/dashboard")',
         'destination("Workspace", "/workspace/images")',
         'destination("Account Settings", "/settings/account")',
-        'reviewLink.hidden = true',
+        'document.querySelectorAll("[data-review-nav]").forEach',
+        'link.hidden = !identity.can_review',
         'event.key === "Escape"',
         'event.key === "ArrowDown"',
         'event.key === "ArrowUp"',
@@ -194,18 +196,23 @@ def main() -> None:
         ".dashboard-draft-grid",
         "@media (max-width: 760px)",
     }, "Dashboard styles")
-    require(home_html, {'class="home-account-entry"', 'data-home-account-entry'}, "Homepage account entry")
-    require(home_js, {
-        'homeAccountEntry.href = "/dashboard"',
-        'homeAccountEntry.classList.add("is-avatar")',
-        'Open personal profile for',
-    }, "Homepage signed-in avatar enhancement")
-    require(workflow, {
-        "python3 scripts/validate_user_dashboard.py",
-        "python3 scripts/test_user_dashboard_boundary.py",
-        "node --check dashboard.js",
-        "node --check account-menu.js",
-    }, "Dashboard CI wiring")
+    require(home_html, {
+        '<template id="mt-header-identity" data-header-identity>',
+        'data-public-header',
+        'class="header-identity-slot"',
+        'data-header-identity-slot',
+        'src="/account-menu.js',
+    }, "Homepage shared header identity shell")
+    require(workflow, {"bash scripts/release_gate.sh"}, "Dashboard CI release-gate wiring")
+    require(release_gate, {
+        "scripts/validate_user_dashboard.py",
+        "scripts/test_user_dashboard_boundary.py",
+        "dashboard.js",
+        "account-menu.js",
+        'run_group "Static contract: $validator" python3 "$validator"',
+        'run_group "JavaScript syntax: $script" node --check "$script"',
+        'run_group "Boundary test: $test_file" python3 "$test_file"',
+    }, "Dashboard release-gate wiring")
     require(deploy, {"python3 \"$root/scripts/validate_user_dashboard.py\""}, "Dashboard deployment preflight")
     compile(database_test, "scripts/test_user_dashboard_database.py", "exec")
     require(database_test, {

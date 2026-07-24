@@ -1,0 +1,44 @@
+[Unit]
+Description=MT Presence web application
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mtpresence
+Group=mtpresence
+WorkingDirectory=/opt/mt-presence/current
+EnvironmentFile=/etc/mt-presence/web.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStartPre=/usr/bin/python3 /opt/mt-presence/current/scripts/production_preflight.py --runtime web
+ExecStart=/usr/bin/python3 /opt/mt-presence/current/server.py --host 127.0.0.1 --port 8131
+Restart=on-failure
+RestartSec=3
+TimeoutStartSec=30
+TimeoutStopSec=20
+KillSignal=SIGINT
+UMask=0027
+
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/mt-presence
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

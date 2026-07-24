@@ -9,7 +9,8 @@
       content="A secure workspace for importing images, organizing folders, and editing private MT Presence Drafts."
     />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260723-global-footer-3" />
+    <link rel="stylesheet" href="/styles.css?v=20260723-interaction-integrity" />
+    <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="upload-studio-page">
     <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -114,12 +115,6 @@
           </svg>
           <span class="archive-rail-copy">Upload</span>
         </a>
-        <a class="archive-rail-button" href="/admin/reviews" aria-label="Review Center" data-admin-only hidden>
-          <svg class="ui-icon" aria-hidden="true" focusable="false">
-            <use href="#icon-pen"></use>
-          </svg>
-          <span class="archive-rail-copy">Review</span>
-        </a>
       </nav>
       <div class="archive-rail-footer">
         <a class="archive-rail-button" href="/settings/account" aria-label="Account settings">
@@ -139,8 +134,11 @@
       <nav class="site-nav" aria-label="Workflow navigation">
         <a href="/dashboard">Dashboard</a>
         <a href="/works.html">Works</a>
-        <a href="/admin/reviews" data-admin-only hidden>Review</a>
+        <a href="/admin/reviews" data-review-nav hidden>Review</a>
+        <a href="/admin/works" data-governance-nav hidden>Governance</a>
+        <a href="/admin/users" data-users-nav hidden>Users</a>
       </nav>
+      <div class="header-identity-slot" data-header-identity-slot></div>
     </header>
 
     <main class="upload-studio-shell">
@@ -242,7 +240,7 @@
           <form class="upload-studio-form" data-studio-form hidden novalidate>
             <header class="upload-studio-inspector">
               <figure class="upload-studio-preview">
-                <img src="" alt="" decoding="async" data-studio-preview />
+                <img alt="" decoding="async" data-studio-preview />
               </figure>
               <div class="upload-studio-summary">
                 <p data-studio-kicker>Uploaded record</p>
@@ -464,8 +462,8 @@
 
     <script src="/archive-data.js?v=20260610-works-viewer-editor"></script>
     <script src="/archive-upload.js?v=20260610-works-viewer-editor"></script>
-    <script src="/site-footer.js?v=20260723-global-footer-3"></script>
-    <script src="/account-menu.js?v=20260722-creator-profile"></script>
+    <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
+    <script src="/account-menu.js?v=20260723-interaction-integrity-2"></script>
     <script src="/upload-studio.js?v=20260722-trash-restore"></script>
   </body>
 </html>

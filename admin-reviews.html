@@ -6,7 +6,8 @@
     <title>Review Queue | MT Presence</title>
     <meta name="description" content="Protected review queue for MT Presence submissions." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260723-global-footer-3" />
+    <link rel="stylesheet" href="/styles.css?v=20260723-interaction-integrity" />
+    <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="admin-review-page">
     <a class="admin-review-skip" href="#admin-review-main">Skip to review workspace</a>
@@ -46,6 +47,7 @@
       <symbol id="icon-shield" viewBox="0 0 24 24">
         <path d="M12 3 5 6v5c0 4.5 2.7 7.8 7 10 4.3-2.2 7-5.5 7-10V6z" /><path d="m9 12 2 2 4-5" />
       </symbol>
+      <symbol id="icon-audit" viewBox="0 0 24 24"><path d="M7 3h10v4H7z" /><path d="M5 5H4v16h16V5h-1" /><path d="M8 12h8M8 16h5" /></symbol>
       <symbol id="icon-expand" viewBox="0 0 24 24">
         <path d="M8 3H3v5M16 3h5v5M21 16v5h-5M3 16v5h5" />
       </symbol>
@@ -71,6 +73,14 @@
           <svg class="ui-icon" aria-hidden="true"><use href="#icon-pen"></use></svg>
           <span class="archive-rail-copy">Review</span>
         </a>
+        <a class="archive-rail-button" href="/admin/users" aria-label="User Administration" title="User Administration" data-users-nav hidden>
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-user"></use></svg>
+          <span class="archive-rail-copy">Users</span>
+        </a>
+        <a class="archive-rail-button" href="/admin/audit" aria-label="Audit Ledger" title="Audit Ledger" data-governance-nav hidden>
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-audit"></use></svg>
+          <span class="archive-rail-copy">Audit</span>
+        </a>
       </nav>
       <div class="archive-rail-footer">
         <a class="archive-rail-button" href="/settings/account" aria-label="Account settings">
@@ -85,8 +95,12 @@
       <nav class="site-nav" aria-label="Workflow navigation">
         <a href="/dashboard">Dashboard</a>
         <a href="/workspace/images">Upload</a>
-        <a href="/admin/reviews" aria-current="page">Review</a>
+        <a href="/admin/reviews" aria-current="page" data-review-nav hidden>Review</a>
+        <a href="/admin/works" data-governance-nav hidden>Governance</a>
+        <a href="/admin/users" data-users-nav hidden>Users</a>
+        <a href="/admin/audit" data-governance-nav hidden>Audit</a>
       </nav>
+      <div class="header-identity-slot" data-header-identity-slot></div>
     </header>
 
     <main class="admin-review-shell" id="admin-review-main" tabindex="-1">
@@ -176,7 +190,7 @@
             <div class="admin-review-detail-grid">
               <section class="admin-review-media" aria-label="Submitted image assets">
                 <div class="admin-review-image-stage" data-review-image-stage>
-                  <img src="" alt="" decoding="async" data-review-image />
+                  <img alt="" decoding="async" data-review-image />
                   <div class="admin-review-image-error" data-review-image-error role="status" hidden>
                     <p>The private preview expired or could not be loaded.</p>
                     <button type="button" data-review-image-retry>Reload asset</button>
@@ -266,8 +280,8 @@
     </dialog>
 
     <div class="contact-toast" role="status" aria-live="polite" aria-atomic="true" data-review-live></div>
-    <script src="/site-footer.js?v=20260723-global-footer-3"></script>
-    <script src="/account-menu.js?v=20260722-creator-profile"></script>
+    <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
+    <script src="/account-menu.js?v=20260723-interaction-integrity-2"></script>
     <script src="/admin-reviews.js?v=20260722-review-workflow-ui"></script>
   </body>
 </html>

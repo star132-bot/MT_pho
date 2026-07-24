@@ -477,6 +477,12 @@ def error_code(result: dict) -> str:
     return str(result.get("error", {}).get("code") or "")
 
 
+def has_no_store(headers: object) -> bool:
+    value = headers.get("Cache-Control", "")
+    directives = {part.strip().split("=", 1)[0].lower() for part in value.split(",")}
+    return "no-store" in directives
+
+
 def decision_body(key: str, decision: str = "approve") -> dict:
     return {
         "confirmation": f"review-{decision.replace('_', '-')}",
@@ -551,7 +557,7 @@ def main() -> None:
             if (
                 status != HTTPStatus.SEE_OTHER
                 or headers.get("Location") != "/admin/reviews"
-                or headers.get("Cache-Control") != "no-store"
+                or not has_no_store(headers)
             ):
                 raise RuntimeError("A normalized Review HTML alias bypassed the protected canonical route")
         for private_alias, canary in (
@@ -564,7 +570,7 @@ def main() -> None:
             if status != HTTPStatus.NOT_FOUND or canary in json.dumps(result):
                 raise RuntimeError("An encoded private static path bypassed the deny-by-default boundary")
             head_status, _, head_headers = request(anonymous, base_url, private_alias, method="HEAD")
-            if head_status != HTTPStatus.NOT_FOUND or head_headers.get("Cache-Control") != "no-store":
+            if head_status != HTTPStatus.NOT_FOUND or not has_no_store(head_headers):
                 raise RuntimeError("HEAD exposed private static-path metadata")
         for protected_head_path in (
             "/admin/reviews",
@@ -574,10 +580,10 @@ def main() -> None:
             "/assets/uploads/private/display-private.jpg",
         ):
             status, _, headers = request(anonymous, base_url, protected_head_path, method="HEAD")
-            if status != HTTPStatus.NOT_FOUND or headers.get("Cache-Control") != "no-store":
+            if status != HTTPStatus.NOT_FOUND or not has_no_store(headers):
                 raise RuntimeError("HEAD bypassed an authenticated or private route")
         raw_status, raw_headers = raw_head(base_url, "/data#ignored/archive.db")
-        if raw_status != HTTPStatus.NOT_FOUND or raw_headers.get("Cache-Control") != "no-store":
+        if raw_status != HTTPStatus.NOT_FOUND or not has_no_store(raw_headers):
             raise RuntimeError("A literal fragment-like HEAD target bypassed private-path normalization")
 
         member = session(base_url, USER_TOKEN)
@@ -604,13 +610,13 @@ def main() -> None:
 
         reviewer = session(base_url, REVIEWER_A_TOKEN)
         status, _, headers = request(reviewer, base_url, "/admin/reviews")
-        if status != HTTPStatus.OK or headers.get("Cache-Control") != "no-store":
+        if status != HTTPStatus.OK or not has_no_store(headers):
             raise RuntimeError("Reviewer page was unavailable or cacheable")
         status, _, headers = request(reviewer, base_url, "/admin-reviews.js")
-        if status != HTTPStatus.OK or headers.get("Cache-Control") != "no-store":
+        if status != HTTPStatus.OK or not has_no_store(headers):
             raise RuntimeError("Review client script was cacheable")
         status, _, headers = request(reviewer, base_url, "/admin%2dreviews.js")
-        if status != HTTPStatus.OK or headers.get("Cache-Control") != "no-store":
+        if status != HTTPStatus.OK or not has_no_store(headers):
             raise RuntimeError("A normalized Review client alias bypassed no-store")
 
         status, result, _ = request(reviewer, base_url, "/api/admin/review-submissions?status=open&assignment=all")
@@ -645,9 +651,12 @@ def main() -> None:
         if FakeSupabaseHandler.storage_sign_calls != signs_before:
             raise RuntimeError("Cross-reviewer list data was signed before authorization validation")
 
+        signs_before = FakeSupabaseHandler.storage_sign_calls
         status, result, _ = request(reviewer, base_url, f"/api/admin/review-submissions/{SUBMISSION_A}")
         if status != HTTPStatus.OK or len(result.get("assets", [])) != 3:
             raise RuntimeError("Assigned reviewer could not load Review Detail")
+        if FakeSupabaseHandler.storage_sign_calls != signs_before + 3:
+            raise RuntimeError("Assigned reviewer did not retain all three Review Detail assets")
         if any(set(item).intersection({"storage_bucket", "storage_key", "provider_secret"}) for item in result["assets"]):
             raise RuntimeError("Review Detail leaked private Storage coordinates")
         if "gps" in result.get("image", {}).get("version", {}).get("public_exif", {}):
@@ -674,9 +683,12 @@ def main() -> None:
             raise RuntimeError("Completed queue filter was not forwarded through the stable API")
         if FakeSupabaseHandler.review_calls[-1][1].get("status_filter") != "completed":
             raise RuntimeError("Completed filter changed before reaching the provider RPC")
+        signs_before = FakeSupabaseHandler.storage_sign_calls
         status, result, _ = request(admin, base_url, f"/api/admin/review-submissions/{SUBMISSION_DONE}")
-        if status != HTTPStatus.OK:
-            raise RuntimeError("Admin AAL2 could not read completed Review Detail")
+        if status != HTTPStatus.OK or {asset.get("kind") for asset in result.get("assets", [])} != {"display", "thumbnail"}:
+            raise RuntimeError("Admin AAL2 did not receive the derivative-only Review Detail")
+        if FakeSupabaseHandler.storage_sign_calls != signs_before + 2:
+            raise RuntimeError("Admin AAL2 attempted to sign the Review Detail original")
 
         no_csrf = session(base_url, REVIEWER_A_TOKEN, csrf=False)
         calls_before = len(FakeSupabaseHandler.review_calls)

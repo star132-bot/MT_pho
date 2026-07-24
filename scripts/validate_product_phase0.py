@@ -16,6 +16,7 @@ def require(source: str, tokens: set[str], label: str) -> None:
 
 def main() -> None:
     sql = SCHEMA.read_text()
+    server = (ROOT / "server.py").read_text()
     require(sql, {
         "CREATE TABLE users", "CREATE TABLE folders", "CREATE TABLE images",
         "CREATE TABLE image_versions", "CREATE TABLE review_submissions",
@@ -33,11 +34,18 @@ def main() -> None:
             raise RuntimeError(f"{name} still exposes the removed Collections/Series route")
         if any(token in html for token in ("public-site-rail", "public-rail-page", '<aside class="archive-rail')):
             raise RuntimeError(f"{name} still exposes or reserves the retired public navigation rail")
+        identity_shells = (
+            '<template id="mt-header-identity" data-header-identity>',
+            '<script id="mt-header-identity" type="application/json">',
+        )
+        if not any(shell in html for shell in identity_shells):
+            raise RuntimeError(f"{name} unified public navigation is missing a Header Identity bootstrap")
         require(html, {
             "data-public-header",
             "data-public-nav",
             "data-public-nav-toggle",
-            "data-public-sign-in",
+            'class="header-identity-slot"',
+            "data-header-identity-slot",
             'href="/"',
             'href="/works.html"',
             'href="/about.html"',
@@ -46,6 +54,23 @@ def main() -> None:
             'src="/account-menu.js',
             'src="/public-navigation.js',
         }, f"{name} unified public navigation")
+
+    require(server, {
+        "HEADER_IDENTITY_BOOTSTRAP_MARKER",
+        "HEADER_IDENTITY_SLOT_MARKER",
+        "HEADER_IDENTITY_PUBLIC_PAGES",
+        "def render_header_identity(self, identity: dict)",
+        'if identity.get("status") == "anonymous":',
+        "data-public-sign-in",
+        "def serve_header_html(",
+        "HEADER_IDENTITY_BOOTSTRAP_FALLBACK_MARKER",
+        "rendered_bootstrap = f'<template id=\"mt-header-identity\" data-header-identity>{bootstrap}</template>'",
+        "source = source.replace(bootstrap_marker, rendered_bootstrap, 1)",
+        "source = source.replace(HEADER_IDENTITY_SLOT_MARKER, self.render_header_identity(identity), 1)",
+        'self.send_header("Cache-Control", "private, no-store")',
+        "public_header_page = HEADER_IDENTITY_PUBLIC_PAGES.get(parsed.path)",
+        "self.serve_header_html(public_header_page)",
+    }, "server-rendered public header identity boundary")
 
     public_navigation = (ROOT / "public-navigation.js").read_text()
     require(public_navigation, {

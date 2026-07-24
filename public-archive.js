@@ -5,6 +5,7 @@
   const DB_VERSION = 4;
   const DB_STORE = "images";
   const LIGHTBOX_STORAGE_KEY = "mt-presence-lightbox-v1";
+  const INQUIRY_SELECTION_STORAGE_KEY = "mt-presence-inquiry-selection-v1";
   const LEGACY_LIGHTBOX_KEYS = ["mt-presence-collection-works-v1", "mt-presence-saved-works-v1"];
 
   function cleanText(value) {
@@ -250,9 +251,9 @@
     return { works, source, status, authoritative };
   }
 
-  function readIdArray(key) {
+  function readIdArray(storage, key) {
     try {
-      const parsed = JSON.parse(localStorage.getItem(key) || "[]");
+      const parsed = JSON.parse(storage.getItem(key) || "[]");
       return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string" && id) : [];
     } catch {
       return [];
@@ -260,33 +261,66 @@
   }
 
   function readLightboxIds() {
-    const current = readIdArray(LIGHTBOX_STORAGE_KEY);
+    const current = readIdArray(localStorage, LIGHTBOX_STORAGE_KEY);
     if (current.length || localStorage.getItem(LIGHTBOX_STORAGE_KEY) !== null) {
       return current;
     }
-    const migrated = [...new Set(LEGACY_LIGHTBOX_KEYS.flatMap(readIdArray))];
+    const migrated = [...new Set(LEGACY_LIGHTBOX_KEYS.flatMap((key) => readIdArray(localStorage, key)))];
     if (migrated.length) {
       writeLightboxIds(migrated);
     }
     return migrated;
   }
 
-  function writeLightboxIds(ids) {
-    const normalized = [...new Set((ids || []).filter((id) => typeof id === "string" && id))];
+  function normalizeIds(ids) {
+    return [...new Set((ids || []).filter((id) => typeof id === "string" && id))];
+  }
+
+  function readInquirySelectionIds() {
+    const lightboxIds = new Set(readLightboxIds());
+    return readIdArray(sessionStorage, INQUIRY_SELECTION_STORAGE_KEY).filter((id) => lightboxIds.has(id));
+  }
+
+  function writeInquirySelectionIds(ids) {
+    const lightboxIds = new Set(readLightboxIds());
+    const normalized = normalizeIds(ids).filter((id) => lightboxIds.has(id));
+    sessionStorage.setItem(INQUIRY_SELECTION_STORAGE_KEY, JSON.stringify(normalized));
+    global.dispatchEvent(new CustomEvent("mt:inquiry-selection-change", { detail: { ids: normalized } }));
+    return normalized;
+  }
+
+  function pruneInquirySelection(lightboxIds) {
+    try {
+      const allowed = new Set(lightboxIds);
+      const current = readIdArray(sessionStorage, INQUIRY_SELECTION_STORAGE_KEY);
+      const next = current.filter((id) => allowed.has(id));
+      if (next.length !== current.length) {
+        sessionStorage.setItem(INQUIRY_SELECTION_STORAGE_KEY, JSON.stringify(next));
+        global.dispatchEvent(new CustomEvent("mt:inquiry-selection-change", { detail: { ids: next } }));
+      }
+    } catch {
+      // Favorite persistence remains available when temporary session storage is blocked.
+    }
+  }
+
+  function writeLightboxIds(ids, { changedId = "" } = {}) {
+    const normalized = normalizeIds(ids);
     localStorage.setItem(LIGHTBOX_STORAGE_KEY, JSON.stringify(normalized));
-    global.dispatchEvent(new CustomEvent("mt:lightbox-change", { detail: { ids: normalized } }));
+    pruneInquirySelection(normalized);
+    global.dispatchEvent(new CustomEvent("mt:lightbox-change", { detail: { ids: normalized, changedId } }));
     return normalized;
   }
 
   function toggleLightboxId(id) {
     const ids = readLightboxIds();
     const next = ids.includes(id) ? ids.filter((itemId) => itemId !== id) : [...ids, id];
-    writeLightboxIds(next);
+    writeLightboxIds(next, { changedId: id });
     return { ids: next, added: next.includes(id) };
   }
 
   global.MTPresencePublicArchive = {
     LIGHTBOX_STORAGE_KEY,
+    INQUIRY_SELECTION_STORAGE_KEY,
     cleanText,
     escapeHtml,
     isAuthoritativeSource,
@@ -297,5 +331,7 @@
     readLightboxIds,
     writeLightboxIds,
     toggleLightboxId,
+    readInquirySelectionIds,
+    writeInquirySelectionIds,
   };
 })(window);

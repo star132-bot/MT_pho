@@ -9,7 +9,8 @@
       content="MT Presence is a fine art photography practice founded by MT, creating quiet images for long looking, collection, and encounter."
     />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="styles.css?v=20260723-global-footer-3" />
+    <link rel="stylesheet" href="styles.css?v=20260723-interaction-integrity" />
+    <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="home-page">
     <header class="site-header" aria-label="Primary navigation" data-public-header>
@@ -23,8 +24,10 @@
         <a href="/about.html">About</a>
         <a href="/lightbox.html">Lightbox</a>
         <a href="/contact.html">Contact</a>
+        <a href="/admin/reviews" data-review-nav hidden>Review</a>
+        <a href="/admin/works" data-governance-nav hidden>Governance</a>
       </nav>
-      <a class="home-account-entry" href="/auth/sign-in" data-home-account-entry data-public-sign-in>Sign In</a>
+      <div class="header-identity-slot" data-header-identity-slot></div>
       <button
         class="public-nav-toggle"
         type="button"
@@ -213,9 +216,9 @@
     <footer class="site-footer public-footer" aria-label="Site footer" data-site-footer data-footer-variant="public"></footer>
 
     <script src="archive-data.js?v=20260610-works-viewer-editor"></script>
-    <script src="script.js?v=20260722-profile-home"></script>
-    <script src="/site-footer.js?v=20260723-global-footer-3"></script>
-    <script src="/account-menu.js?v=20260722-public-shell"></script>
+    <script src="script.js?v=20260723-interaction-integrity"></script>
+    <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
+    <script src="/account-menu.js?v=20260723-interaction-integrity-2"></script>
     <script src="/public-navigation.js?v=20260722-public-shell"></script>
   </body>
 </html>

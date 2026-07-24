@@ -26,6 +26,7 @@ PAGE_PATH = ROOT / "admin-reviews.html"
 CLIENT_PATH = ROOT / "admin-reviews.js"
 STYLES_PATH = ROOT / "styles.css"
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "database.yml"
+RELEASE_GATE_PATH = ROOT / "scripts" / "release_gate.sh"
 PROJECT_MAP_PATH = ROOT / "docs" / "architecture" / "project-map.md"
 REVIEW_TESTING_PATH = ROOT / "docs" / "operations" / "review-testing.md"
 DATABASE_TEST_PATH = ROOT / "scripts" / "test_review_queue_database.sql"
@@ -1133,7 +1134,7 @@ def validate_server(server: str) -> None:
         serve_review,
         {
             'next_path: str = "/admin/reviews"',
-            'self.path = "/admin-reviews.html"',
+            'self.serve_header_html("admin-reviews.html", user=user, authorization=authorization)',
             'roles.intersection({"reviewer", "admin", "super_admin"})',
             'roles.intersection({"admin", "super_admin"}) and authorization.get("aal") != "aal2"',
         },
@@ -1177,6 +1178,29 @@ def validate_server(server: str) -> None:
                 rf"\b{re.escape(expected)}\s*=\s*[\"']{re.escape(CURRENT_SCAN_POLICY)}[\"']",
                 f"{handler_name} scan-policy constant",
             )
+
+    detail_handler = python_function(server, "handle_review_submission_get")
+    require(
+        detail_handler,
+        {
+            '"reviewer" in actor["roles"]',
+            'submission.get("assigned_reviewer")',
+            'submission["status"] in review_open_statuses',
+            'response["owner"]["id"] != actor["id"]',
+            'asset.get("kind") != "original" or can_read_original',
+        },
+        "Review Detail original permission projection",
+    )
+    require_order(
+        detail_handler,
+        [
+            "can_read_original =",
+            "review_assets =",
+            'asset.get("scan_status")',
+            "self.sign_review_asset(user, asset)",
+        ],
+        "Review Detail filter/scan/sign order",
+    )
 
     decision_handler = python_function(server, "handle_review_decision")
     require(
@@ -1361,6 +1385,7 @@ def validate_concurrency_test(concurrency_test: str) -> None:
 
 def validate_ci_and_docs(
     workflow: str,
+    release_gate: str,
     project_map: str,
     review_testing: str,
     product_spec: str,
@@ -1370,11 +1395,24 @@ def validate_ci_and_docs(
     require(
         workflow,
         {
-            "python3 scripts/validate_review_queue_phase3.py",
-            "node --check admin-reviews.js",
-            "python3 scripts/test_review_queue_boundary.py",
+            "bash scripts/release_gate.sh",
         },
-        "Review Queue CI",
+        "Review Queue CI entrypoint",
+    )
+    require(
+        release_gate,
+        {
+            "scripts/validate_review_queue_phase3.py",
+            "scripts/test_review_queue_boundary.py",
+            "admin-reviews.js",
+            'for validator in "${static_validators[@]}"; do',
+            'run_group "Static contract: $validator" python3 "$validator"',
+            'for script in "${browser_scripts[@]}"; do',
+            'run_group "JavaScript syntax: $script" node --check "$script"',
+            'for test_file in "${boundary_tests[@]}"; do',
+            'run_group "Boundary test: $test_file" python3 "$test_file"',
+        },
+        "Review Queue release gate contract",
     )
     require(
         project_map,
@@ -1457,6 +1495,7 @@ def main() -> None:
     client = read(CLIENT_PATH)
     styles = read(STYLES_PATH)
     workflow = read(WORKFLOW_PATH)
+    release_gate = read(RELEASE_GATE_PATH)
     project_map = read(PROJECT_MAP_PATH)
     review_testing = read(REVIEW_TESTING_PATH)
     database_test = read(DATABASE_TEST_PATH)
@@ -1490,7 +1529,7 @@ def main() -> None:
     validate_concurrency_test(concurrency_test)
     validate_server(server)
     validate_browser(page, client, styles)
-    validate_ci_and_docs(workflow, project_map, review_testing, product_spec, design_system, readme)
+    validate_ci_and_docs(workflow, release_gate, project_map, review_testing, product_spec, design_system, readme)
 
     print(
         "Phase 3 Review Queue static contracts validated. "

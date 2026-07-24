@@ -106,7 +106,7 @@ def main() -> None:
     }, "protected Workspace links")
     require(account_html, {'href="/admin/reviews"'}, "protected Account Review links")
     protected_review_links = (
-        ("Upload Studio", upload_html, 2),
+        ("Upload Studio", upload_html, 1),
         ("Account Settings", account_html, 1),
     )
     for label, source, expected_count in protected_review_links:

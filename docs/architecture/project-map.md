@@ -5,40 +5,48 @@
 - 每次新增、删除、移动或修改功能相关代码后，同步更新本文档。
 - 按功能/页面归档文件职责，不只按目录罗列。
 - 记录真实职责，不写愿景和过期计划。
+- 当前所有部署事实均止于 development；生产候选代码、部署模板和 runbook 不表示已激活生产。rollback-only fixture 数据库验收只允许连接 development 或隔离的 staging/生产恢复克隆，禁止连接生产主库。
 
 ## 全局结构
 
 - `index.html`：首页入口；承载英文 hero、无限横向精选作品带、四段图文 Statement，并在统一 Public Footer 的 inquiry band 中提供联系作者入口；首页只使用全宽顶部导航，不显示左侧 rail，hero 和 Statement 的主图/文字可由内部管理页写入的首页设置覆盖。
-- `works.html`：公开作品档案页；使用与 Home/About/Lightbox/Contact 一致的全宽顶部导航，按 Search、Type/Ratio 文本 tabs、标题/数量/数据状态、全宽 masonry 图片墙的顺序组织内容；公开 UI 不显示 Upload、Review 或 Arrange，Viewer 继续提供 Add to Lightbox、Inquire 和 Download。
+- `works.html`：公开作品档案页；使用与 Home/About/Lightbox/Contact 一致的全宽顶部导航，按 Search、Type/Ratio 文本 tabs、标题/数量/数据状态、全宽 masonry 图片墙的顺序组织内容；公开 UI 不显示 Upload、Governance 或 Arrange，权限允许时 Review 只出现在顶层导航，Viewer 继续提供 Add to Lightbox、Inquire 和 Download。
 - `creator.html` / `creator.js`：canonical `/creators/{public_slug}` 公开创作者主页；从 published-only API 渲染横向 cover、重叠 avatar、公开身份/可用性/链接和保留原比例的作品瀑布流，作品进入 `/works.html?work={id}`；loading、404、provider error 与移动单列均不使用私有 Dashboard 数据，并接入与其他公开页面一致的 Public Footer。
 - `collections.html` / `collections.js` / `series-data.js`：已从公开导航和运行时依赖移除的历史 Series 原型；当前保留文件仅用于未提交工作区兼容，目标产品不得链接或加载。
 - `about.html`：公开 About 页面；使用全站统一顶部导航，用作品图、作者实践说明、工作方法和可合作范围建立专业信息，并进入通用 Contact inquiry。
-- `lightbox.html`：访客浏览器本地 Lightbox；使用全站统一顶部导航，展示、移除、清空个人选择，并把所选作品上下文带入 Contact。
+- `lightbox.html`：访客浏览器本地 Lightbox；长期收藏与本次 Inquiry Selection 明确分离，默认 0 selected，只有临时选择的作品 ID 可以进入 Contact。
 - `archive-data.js`：Works Archive 的共享基础数据；保存本地样例作品 ID、路径、尺寸、内容类型和比例分类，供 `archive.js` 与 `manage.js` 用同一 ID 合并人工 metadata。
 - `archive-upload.js`：共享浏览器导入管线；读取上传图尺寸、checksum、基础 EXIF，生成 `original` / `display` / `thumbnail` / `square_slice` 资产记录，供 Upload Studio 等内部工具复用。
 - `manage.html`：内部 Archive Review 审核中心；作为本地作者 Publish 工作流入口出现在功能侧栏中，用紧凑操作栏和筛选 pill 审核作品 metadata、筛选待处理/未发布/已发布记录、一键发布，以及编辑首页 hero/Statement 图片和文字；Upload 链接统一进入受保护 `/workspace/images`，legacy Archive 非公开读取与 mutation 仅允许 Admin+AAL2。
 - `dashboard.html`：受保护 canonical `/dashboard` 的全宽个人资料页；复用统一顶部导航，以可编辑横向摄影 cover、重叠 avatar、profile identity、安静资料列表和明确的 Edit profile/Upload work 动作为首屏，随后提供 Overview/My works tabs，展示服务端聚合 Status、Needs Attention、Recent Images、Review Activity、Storage 与最近可编辑 Draft，并在首件作品发布后提供公开 creator profile 入口；该页本身仍是受保护账户视图。
 - `upload-studio.html`：受保护 `/workspace/images` 承载的渐进式 Upload Workspace；Loading/空状态只显示 Folder + 主导入区，选中 Draft 后展开编辑器；提供双并发队列、Cancel/Retry/Remove、分组 metadata、900ms 自动/手工保存、冲突 Reload、五项 Submission readiness、确认式 Submit for Review，以及只读 Trash/Restore 分段视图；不含 hard delete、Review decision 或 Publish 控件。
 - `admin-reviews.html`：受保护 `/admin/reviews` 与 `/admin/reviews/{submissionId}` 的 Supabase Review Queue/Detail 工作台；以紧凑 status/assignment queue、image-first submitted snapshot、rights/evidence/history inspector、policy checklist 和 decision dialog 承载审核；Reviewer 仅显示 Request Changes、Reject、Approve，Admin/Super Admin+AAL2 额外显示即时进入公开 Works/creator profile 的 Approve and publish，并可发布已批准但未公开的作品。
-- `contact.html`：联系作者独立页面；使用全站统一顶部导航，承载英文联系说明、作品图和结构化邮件草稿表单，可接收 Work、Series 或 Lightbox 上下文。
+- `admin-works.html`：受保护 `/admin/works` 与 `/admin/works/{imageId}` 的全量作品治理工作台；桌面使用 Admin 专用操作 rail、状态计数、搜索/排序表格和 sticky inspector，移动端切换 Inventory/Detail 单视图。仅 active Admin/Super Admin+AAL2 可进入，Published 与 Taken down 状态分别提供带原因、用户说明和内部备注的确认式 Takedown/Restore。
+- `contact.html`：联系作者独立页面；使用全站统一顶部导航，承载英文联系说明、作品图、持久化咨询表单与提交 reference，可接收 Work、Series 或显式 Lightbox selection 上下文。
+- `notifications.html` / `notifications.js`：受保护 `/workspace/notifications` 账户通知中心；只消费固定安全 DTO，提供 unread/all 本地筛选、mark one/all、刷新、对象游标分页、内部 `href` 校验和 loading/empty/error/permission 状态。
+- `inbox.html` / `inbox.js`：受保护 `/inbox` recipient conversation 工作台；提供状态筛选、本地搜索、对象游标列表、thread detail/read、versioned reply、Close/Reopen、409 Reload，以及 guest `provider_unavailable` 时真实的 mailto/copy fallback。
+- `admin-audit.html` / `admin-audit.js` / `admin-audit.css`：受保护 `/admin/audit` Ledger；active Admin/Super Admin+AAL2 才能使用 safe list/detail、actor/request/date 过滤、对象游标分页和 reason-bound audited CSV export；桌面为 inventory/inspector，移动为互斥单视图。
+- `privacy.html` / `privacy.css`：公开 Privacy notice；说明 account、artwork、inquiry、cookie、retention 与 immutable security record 边界，并从 Contact 与共享 Footer 可达。
 - `auth.html` / `auth.js`：Phase 1 统一用户入口；同一可访问 editorial shell 按 `/auth/sign-in`、`/auth/register`、`/auth/forgot-password`、`/auth/reset-password`、`/auth/verify-email` 的配置呈现字段、loading、invalid/expired、field error、success 与下一步；Forgot 使用防枚举成功文案；Reset/Verify 同时兼容 fragment `token_hash` 和 Supabase 默认 implicit fragment，先把敏感 fragment 读入函数内存并立即清除 URL，再由 same-origin 服务端换成 `HttpOnly` Cookie，禁止 local/session storage；所有 mutation 先获取 HttpOnly double-submit CSRF token，并校验 Origin；登录 200 后仍以 no-store `/api/me` 确认 Cookie，再执行 Admin MFA 或 `/workspace/images` 跳转。
 - `mfa.html` / `mfa.js`：Admin TOTP enrollment 与登录 challenge 页面；复用 editorial Auth shell，覆盖 factors loading、首次 QR/手工 secret、已有 factor、6 位验证码、provider error、invalid/expired code、success、sign-out 与移动端布局；发现旧的 unverified TOTP factor 时由受保护 enrollment API 自动重置并生成新的 QR/secret；QR data URI 兼容 `<svg>` 与带 XML declaration 的 Supabase SVG；MFA mutation 同样使用 Origin + CSRF token，所有 token 仍只存在于服务端 HttpOnly session。
 - `account-settings.html` / `account-settings.js`：受保护 `/settings/account` 账户页面；复用单一全局顶栏，以紧凑标题栏、sticky 本地导航和连续白色表单面板组织 Profile、Preferences、Security 与 Sessions。Profile 的十个 creator 字段按 Identity、Work、Location、About、Links 五组排列，维护滚动章节同步和 dirty/disabled/saving/error/success 状态，保留请求期间产生的更新输入，以显式安全导航避免成功注销被 dirty prompt 截断，使用 `/api/me/profile` 读写服务端 profile，并通过 provider 支持的 `others` / `all` scope 撤销会话；不伪造头像上传、远程设备列表或位置历史。
-- `styles.css`：全站视觉系统和响应式布局；定义 gallery palette、`--ui-*` 与 `--presentation-*` 状态/视觉 token、固定公开顶栏、移动展开菜单、Public/Workspace 两种统一页脚、首页图片覆盖过渡、紧凑 Statement、Infinite Marquee Gallery、无公开侧栏的 Works 全宽 masonry、图标式 hover 操作层、沉浸式作品查看器、创作者资料页的横向摄影 cover/重叠头像/安静事实列表与工作区、账户设置连续中性表单、Upload 渐进式布局、Supabase Review Queue/Detail/decision 状态、联系页、统一 focus-visible 和响应式规则。
+- `styles.css`：全站视觉系统和响应式布局；定义 gallery palette、`--ui-*` 与 `--presentation-*` token、固定公开顶栏、移动展开菜单、Public/Workspace 两种统一页脚、首页图片覆盖过渡、紧凑 Statement、Infinite Marquee Gallery、无公开侧栏的 Works 全宽 masonry、图标式 hover 操作层、沉浸式作品查看器、创作者资料页、账户设置、Upload、Supabase Review、Admin Works 与 Admin Users 的中性工作台、统一 focus-visible 和响应式规则。
 - `script.js`：首页短程滚动过渡、登录态 Dashboard 入口、IndexedDB 首页设置读取和应用、Statement 标题和每个图文 moment 的渐进显影、锚点点击平滑滚动逻辑；不再维护作品分类或比例筛选状态。
 - `public-navigation.js`：公开页与 Dashboard 共用的窄屏顶部导航控制器；在 `760px` 断点同步菜单 open/closed、`aria-expanded`、`aria-hidden` 与 `inert`，支持按钮点击、ArrowDown 首项聚焦、Escape 关闭并恢复触发器焦点、链接选择、焦点离开、外部点击和 viewport 切换；不读取登录状态，也不复制账户菜单或 Sign out 逻辑。
-- `public-archive.js`：Lightbox、Contact 与 Works 共用的公开作品读取层；统一 published DTO、比例样式和 `mt-presence-lightbox-v1` 读写，并兼容迁移旧 Saved/Collection keys；配置 Supabase 后把 `supabase-public` 视为权威源，200 空结果或 provider error 均保持真实空/错误，禁止 sample/IndexedDB 重新显示已下架作品，本地未配置环境才允许 preview fallback。
-- `contact.js`：结构化咨询表单逻辑；负责必填校验、条件 Budget 字段、Work/Series/Lightbox 上下文读取与移除、`mailto:` 草稿生成、loading 和 toast。
-- `archive.js`：公开 Works 逻辑；读取 `/api/archive/images` 的环境感知公开 DTO，生产 Supabase 空/错误 fail closed、本地 SQLite 未配置环境保留 preview fallback；处理 Search/Type/Ratio 与 URL 状态、Viewer、创作者署名、Add to Lightbox、Inquire、Download、Related Works 和 hover 操作；Draft 上传不再被兼容提升为 published。
+- `public-archive.js`：Lightbox、Contact 与 Works 共用的公开作品读取层；统一 published DTO、比例样式、持久 `mt-presence-lightbox-v1` 收藏和 session-scoped `mt-presence-inquiry-selection-v1`；移除收藏会同步剪除临时选择，并兼容迁移旧 Saved/Collection keys。配置 Supabase 后把 `supabase-public` 视为权威源，200 空结果或 provider error 均保持真实空/错误，禁止 sample/IndexedDB 重新显示已下架作品，本地未配置环境才允许 preview fallback。
+- `contact.js`：结构化咨询表单逻辑；负责字段校验、条件 Budget、published Work/Series/显式 Lightbox selection、honeypot、CSRF retry、UUID idempotency、真实 `POST /api/inquiries` 及 reference/error 状态。
+- `archive.js`：公开 Works 逻辑；读取 `/api/archive/images` 的环境感知公开 DTO，生产 Supabase 空/错误 fail closed、本地 SQLite 未配置环境保留 preview fallback；处理 Search/Type/Ratio 与 URL 状态、Viewer、创作者署名、Add to Lightbox、Inquire、Download、Related Works 和 hover 操作。收藏只 patch 被点击的原始 card/button、Viewer 与数量，不重新请求 Archive、不调用 Gallery render、不替换 Gallery DOM；Draft 上传不再被兼容提升为 published。
 - `collections.js`：历史 Series 索引/详情原型逻辑；文件仍可把 `series-data.js` 的 workIds 与 published archive 合并，但当前公开导航和运行时页面不加载或链接它。
-- `lightbox.js`：读取公开作品和 `mt-presence-lightbox-v1`，渲染个人选择、移除/清空、空态和咨询入口。
+- `lightbox.js`：读取公开作品和 `mt-presence-lightbox-v1`，渲染个人收藏与独立 Inquiry Selection、移除/清空、空态和咨询入口；收藏变更只在必要时重绘，并通过 `mt:lightbox-change`、`storage` 与 `pageshow` 对齐同页、跨标签页和 bfcache 恢复状态。
 - `dashboard.js`：并行读取 `/api/me/profile` 与单一 `/api/dashboard` 聚合 DTO，渲染身份、Status/Attention/Recent/Activity/Storage/Drafts、公开主页 capability 和 Overview/My works 键盘 tabs；通过 `GET/PATCH /api/me/profile/cover` 加载、选择或移除当前 owner 的合格封面并恢复 dialog 焦点；不遍历 `/api/images` 计算统计，不使用浏览器存储。
-- `account-menu.js`：公开顶部导航及 Dashboard、Upload、Review、Account 共用的 signed-in identity control；公开页默认显示 Sign In，`/api/me` 成功后替换为进入 `/dashboard` 的 initials 头像和 role-aware menu，失败时保留 Sign In；菜单支持方向键/Home/End/Escape/outside/focus restoration，并通过 CSRF 执行 Sign out。
-- `site-footer.js`：Home、Works、Creator、About、Contact、Lightbox 与四个受保护工作页面共用的页脚渲染器；按 `data-footer-variant` 生成 Public/Workspace 结构、动态年份与当前页状态，并只消费 `account-menu.js` 的 `mt:account-loaded` 事件更新 Account/Review 入口，不重复请求 `/api/me`，不从私有访问者 DTO 渲染公开社交资料。
+- `account-menu.js`：公开页与工作台唯一的 Header Identity controller；读取服务端最小 bootstrap model，首帧使用固定尺寸 initials，头像成功 `decode()` 后才 crossfade。只有明确 401 才切换 Sign In，普通请求错误保留已有身份；Review、Governance 与 Users 只在对应角色的工作区导航显示，账户菜单严格保留 Dashboard、Workspace、Account Settings、Sign out，并支持方向键/Home/End/Escape/outside/focus restoration 与 CSRF Sign out。
+- `site-footer.js`：Home、Works、Creator、About、Contact、Lightbox、Privacy 与受保护工作页面共用的页脚渲染器；按 `data-footer-variant` 生成 Public/Workspace 结构、动态年份与当前页状态，并只消费 Header Identity 事件更新 Account/Review/Governance/Audit 入口，不重复请求 `/api/me`。
 - `manage.js`：内部 legacy Archive Review 审核逻辑；同步 SQLite metadata/tag，保留 IndexedDB fallback，并维护筛选、checklist、Approve & Publish、Homepage 编辑与离开提示；Homepage dirty signature 只比较可编辑字段，`beforeunload` 只读取既有 dirty 状态，未修改页面不再被派生 `database_shape` 误判。当前不读取 Supabase `review_submissions`。
 - `upload-studio.js`：Phase 2A-2G Upload Workspace 客户端；双 worker 上传三类 private asset，900ms 串行 autosave 和手工 Save 共享 `expected_version`，409 保留本地表单；从服务端读取五项 readiness，仅在 pending 时 5 秒轮询；Drafts/Trash 视图分别加载 active/trashed DTO，Trash 卡片只读并提供 Restore 的 loading/error/conflict/permission 状态；IndexedDB 仅为离线只读缓存，浏览器不能写 scan verdict。
 - `admin-reviews.js`：Phase 3 Review Queue 客户端；维护 URL/deep-link queue state、移动 Queue/Detail 视图、唯一 queue accessible name、latest-wins list/detail fetch、Reviewer 原子 Start claim、signed preview、Actual size、checklist alert/focus、提交 busy/conflict recovery、CSRF retry、dialog focus restoration和 role-aware 决定；只有 Admin/Super Admin 会看到明确即时公开影响的 Approve and publish，不把 Storage key 写进 DOM 或浏览器存储。
-- `server.py`：Python 标准库本地开发服务器；提供静态文件与 legacy SQLite Archive API；Supabase 边界覆盖 Auth/MFA/Profile/Session、Dashboard、Workspace、Review Queue 与匿名公开交付；公开响应严格清洗 Works/creator DTO，仅以 publishable provider identity 为 approved+published+clean display/thumbnail 签发短期 URL，原图、owner UUID、Storage 坐标、审核证据和私有 EXIF 不进入浏览器；配置态 provider 空/错误不回退本地数据，legacy Archive 非公开读取与 mutation 继续仅允许 Admin+AAL2。
+- `admin-works.js`：Phase 4A Works Governance 客户端；维护 publication-status/search/sort/pagination URL 状态、详情 deep link、移动单视图、latest-wins fetch、短期 derivative preview、版本冲突恢复和 CSRF/idempotent Takedown/Restore。所有 provider 文本以 DOM text node 渲染，不读取或显示 owner UUID、Storage 坐标、original descriptor、checksum 或内部审计字段。
+- `admin-users.html` / `admin-users.js`：Phase 4B User Governance 工作台；维护 account-status/search/role/sort/pagination URL 状态、详情 deep link、移动单视图、latest-wins fetch、版本冲突恢复和 action-specific CSRF/idempotent status/role/session-intent mutation。所有 provider 文本使用 DOM text node，MFA/session/quota 缺失时只显示 unavailable/provider-managed。
+- `server.py`：Python 标准库 Web/BFF；只从显式 allowlist 提供运行时 HTML/CSS/JS 与公开图片，拒绝 migration/scripts/deploy/docs/repository 下载；Supabase 边界覆盖 Auth、Profile、Workspace、Review、public delivery、Admin Works/Users/Audit、Inquiry、Notifications/Inbox；生产态提供 bounded threads、trusted-proxy request identity、`/healthz` 与 `/readyz`。
 - `workers/scan_adapters.py`：Phase 2F scanner I/O 边界；当前实现只调用三条 scanner RPC，使用隔离 secret 流式读取 private Storage，拒绝 redirect，限制字节并核对 SHA-256/magic/MIME；ClamAV 使用无凭据最小环境，临时文件为 `0600` 且完成后删除。
 - `workers/image_scanner.py`：Phase 2F 独立扫描进程与 CLI；执行单任务或持续轮询，把确定性文件问题落为 failed、恶意命中落为 flagged、依赖/网络问题落为 retry；校验 download/scan/decode/request 总预算不超过 lease，使用每 Worker `0700` 临时目录并启动清理，结构化日志仅允许非敏感字段；不得被 `server.py` 导入或共享 secret。
 - `workers/image_probe.py`：无凭据 Pillow 子进程；以 JPEG/PNG/WebP allowlist 完整 decode，处理 EXIF-oriented dimensions、多帧与 decompression bomb，并应用 timeout、CPU/core/NOFILE 及操作系统支持时的内存限制。
@@ -70,10 +78,14 @@
 - `database/migrations/20260722_public_delivery.sql`：published-only 公开交付 migration；为 profile 建立不可逆且稳定的 `public_slug`，撤销 anon/authenticated 对基础 image/version 行的绕过读取，仅通过 strict SECURITY DEFINER RPC 返回 active creator 的 approved+published+ready current version；匿名 Storage 读取只允许 current-policy clean、exact-object-matched 的 public display/thumbnail，原图永不公开，并提供 Dashboard 的个人公开状态 RPC。
 - `database/migrations/20260722_user_dashboard.sql`：用户 Dashboard transaction-wrapped read model；authenticated-only `get_my_dashboard()` 调用 active-account guard，在数据库聚合 counts、Changes Requested-first attention、recent work/review activity 与 storage usage，并返回未配置 quota/public delivery 的明确 capability flags。
 - `database/migrations/20260722_z_creator_profile.sql`：protected creator profile transaction-wrapped migration；扩展十字段资料合同与 availability enum，以 strict `update_my_profile(jsonb)` 拒绝未知字段/非 HTTPS 或非官方 social host，并提供 owner-scoped current-ready/current-policy-clean cover helper 及 authenticated-only `get_my_profile_cover()` / `set_my_profile_cover(uuid)`；helper 不授予 authenticated，recovery/inactive/Admin AAL1 fail closed。
+- `database/migrations/20260723_admin_works_governance.sql`：Phase 4A transaction-wrapped migration；提供全量作品列表/详情 read model、publication status filter/search/sort/pagination、image version CAS 与 UUID idempotent Takedown/Restore；同一事务写入 immutable governance action、takedown case、用户通知和 audit event，并只允许 Admin Works 为 current-policy clean display/thumbnail 读取精确匹配的 private Storage object，original 需要独立 Review assignment 权限。
+- `database/migrations/20260723_b_admin_user_governance.sql`：Phase 4B transaction-wrapped migration；提供账户列表/详情、user version/system identity、baseline role repair 和 CAS/idempotent status/role/session-intent governance；同一事务写通知、immutable action 与 success/failure audit，并以全局 advisory lock 保护同 key 与最后 active Super Admin。
+- `database/migrations/20260723_c_profile_avatar_upload.sql`：私有 Profile Avatar 垂直切片 migration；使用 512x512 JPEG、1 MiB 上限和 `{owner}/{intent}/avatar.jpg` 版本化路径，提供 owner-scoped create/complete/cancel/remove RPC、Storage object metadata 核验、旧对象清理定位和 public-current-only read policy；数据库只保存稳定 locator，不保存 signed URL。
 - `scripts/validate_public_delivery.py` / `scripts/test_public_delivery_boundary.py`：公开交付静态合同与无密钥 Fake Supabase HTTP 验收；覆盖匿名 publishable identity、Approve 不公开、Admin+AAL2 Approve and publish 立即可见、严格 DTO、derivative-only signing、provider fail-closed 和权威空数据不回退。
 - `scripts/test_public_delivery_database.py`：development-only、rollback-only PostgreSQL 验收；验证公开 RPC/Storage ACL、active/published/current/clean 条件、suspended/deletion-requested/未发布/原图隔离、creator/owner cover/status 投影与事务外 fixture 清零。
 - `docs/operations/public-delivery-testing.md`：公开 Works/creator 的无密钥门禁、development 真库验收、必需 marker 和已签 URL 短时撤销窗口说明。
 - `scripts/validate_product_phase0.py`：Phase 0 契约检查；验证目标 schema 核心表/状态/append-only 规则，并检查五个公开页面不再链接 Series/Collections、不包含或预留 public rail、完整加载统一顶栏/账户入口/移动导航，以及 `public-navigation.js` 的 ARIA/inert/键盘合同。
+- `scripts/validate_interaction_integrity.py` / `scripts/test_public_interaction_state.js` / `scripts/test_header_identity_boundary.py`：收藏、Inquiry Selection 与 Header Identity 的静态/状态/服务端边界回归；禁止收藏路径重载或 Gallery rebuild，验证 Contact 仅消费显式选中 ID、账户菜单无 Review、服务端 identity bootstrap 无 session secret、签名头像按原 Storage 对象重签，以及删除收藏会剪除临时选择。
 - `scripts/validate_auth_foundation.py`：Phase 1 Auth/Account 契约检查；验证认证与 Account Settings 页面/API、Cookie/CSRF、Profile/Session client、增量部署入口和可访问性钩子，并禁止 token 使用 localStorage/sessionStorage/IndexedDB。
 - `scripts/validate_supabase_phase1_rls.py`：Phase 1 数据权限契约检查；验证 auth user trigger、全部私有表 RLS、owner isolation、Reviewer/Admin 角色、Admin AAL2、Profile RPC baseline/增量 migration、Published-only 公开读取、Storage 用户目录与角色禁止直写规则。
 - `scripts/validate_workspace_phase2.py`：Phase 2A-2E 静态契约检查；验证 schema/migrations、私有 bucket、Draft/Folder/Submit RPC 权限、autosave/conflict、五项 readiness、idempotent Submit、snapshot/Storage retention、Works 统一公开 shell，以及登录后从账户菜单进入 Workspace 的 destination 和 CI wiring。
@@ -87,8 +99,15 @@
 - `scripts/test_user_dashboard_database.py`：development-only、rollback-only Dashboard/Trash/creator-profile 真库发布门禁；十二个成功 marker 检查八个函数的 `SECURITY DEFINER`、空 `search_path` 和精确 EXECUTE ACL，其中三个 helper 仅 `postgres` owner 可执行，五个公开 RPC 仅 `postgres + authenticated`；以真实 authenticated JWT claims 覆盖双 owner 聚合隔离、资料字段/社交 URL 约束、current-clean cover eligibility、inactive/recovery/stacked Admin AAL1 拒绝、Admin AAL2 成功及 Trash owner/deleted/workflow 过滤；事务回滚后用独立连接确认固定 fixture UUID 不存在。
 - `scripts/test_review_queue_database.sql`：development-only、rollback-only Phase 3 数据库验收；用事务级 advisory lock 和完整 Workspace fixture 真实覆盖 role/AAL/role stacking、self-review、direct RLS、current-scan Storage 生命周期、stale CAS、Approve + Admin Publish 后仍稳定的 replay snapshot、冲突重放、notification/audit，并恢复临时禁用的 scanner insert trigger 后回滚全部数据。
 - `scripts/test_review_queue_browser.py`：development-only 真实 disposable Reviewer/Admin 多身份浏览器验收；覆盖 Reviewer A claim、Reviewer B cross-assignment 拒绝、Request Changes、Admin AAL2 Approve、三类 private asset、桌面/移动 responsive、focus/dialog、console/session 与 fixture cleanup，且不持久化测试状态。
+- `scripts/validate_admin_works.py` / `scripts/test_admin_works_boundary.py`：Admin Works 静态合同与 secret-free Fake Supabase HTTP 验收；覆盖路由/角色/AAL2/recovery/CSRF、严格 DTO、非 clean preview 降级、Storage signer allowlist、deep link、CAS/idempotency/provider drift fail-closed 和下架/恢复公开影响。
+- `scripts/test_admin_works_database.py`：development-only、rollback-only PostgreSQL 验收；覆盖精确函数 ACL、角色/AAL2/recovery、列表/详情、Admin/Review Storage original 边界、CAS/幂等冲突、公开投递即时隐藏与恢复、restore clean gate、append-only action 和 fixture absence。
+- `scripts/validate_admin_users.py` / `scripts/test_admin_users_boundary.py` / `scripts/test_admin_users_database.py`：Admin Users 静态、secret-free HTTP 与 development-only rollback PostgreSQL 三层门禁；覆盖 route/AAL2/recovery/CSRF、strict DTO/关系绑定、角色范围、profile-less user、CAS/幂等、identity/Super guard、truthful session intent、append-only/audit 和 fixture absence。
 - `scripts/test_workspace_asset_scanner_database.sql`：development-only、rollback-only 数据库状态机测试；覆盖三个 disjoint claim、token replay/conflict、retry、lease reclaim、old-token 拒绝和 attempt exhaustion，不保存 verdict。
 - `scripts/deploy_supabase_phase1.sh`：Phase 0/1 Supabase 数据库部署入口；执行 Phase 0-3 静态 migration contract 门禁，使用 libpq `PG*` 环境变量避免密码出现在进程参数，fresh database 默认执行 baseline 后按文件名顺序执行 `database/migrations/*.sql`；已有数据库使用 `MT_APPLY_PHASE1_BASELINE=no` 只执行幂等增量 migration；默认拒绝未确认的 production 部署。
+- `scripts/validate_communications_audit.py` / `scripts/test_communications_audit_boundary.py` / `scripts/test_communications_audit_database.py`：Phase 5 通信与 Audit 的静态、secret-free HTTP 和 development rollback-only PostgreSQL 三层门禁；覆盖 exact ACL/RLS、匿名最小 response、owner isolation、CAS/idempotency、rate limits、safe DTO、审计导出与 fixture absence。
+- `scripts/release_gate.sh` / `scripts/database_acceptance_gate.sh`：本地与 CI 共用的无凭据生产候选门禁，以及必须显式使用 `MT_TEST_ENVIRONMENT=development`、拒绝 production 的五项 rollback-only 数据库验收编排；前者运行全量静态 contract、JS syntax/state、secret-free boundary、production artifact tests、Python/shell syntax 和 `git diff --check`，两者均不替代浏览器视觉验收。
+- `deploy/` / `scripts/production_release_contract.py` / `scripts/production_preflight.py` / `scripts/manage_production_release.py` / `scripts/build_production_release.sh`：生产 Nginx/systemd/env 模板、Web/Scanner 运行时 fail-closed 配置检查、共享不可变发布文件清单、archive 安全检查、exact-tag build、checksum、atomic activation/rollback 与 bounded service isolation；Scanner 合同统一使用 `MT_SCANNER_ID` 和 `MT_SCANNER_CLAMAV_COMMAND`。
+- `scripts/backup_production_database.sh` / `scripts/verify_production_backup.sh` / `scripts/verify_production.py` / `scripts/test_verify_production.py` / `docs/operations/production-deployment.md`：数据库备份/manifest 校验、公开 HTTPS health/route/sensitive-field smoke、仅回环访问的 protected readiness、迁移/证书/激活/回滚/首小时观察 runbook；对象 Storage 需要独立恢复策略。
 - `scripts/test_supabase_phase1_isolation.py`：只读远程集成测试；使用两个已验证开发用户的普通 access token，验证双方只能读取自己的 user/profile/role，以及 `current_authorization` 与身份一致，不使用会绕过 RLS 的 service-role key。
 - `scripts/test_supabase_admin_mfa.py`：可逆的真实 Supabase TOTP/AAL2 集成测试；临时复用明确 disposable 的开发用户并恢复其 hash/roles/factors/sessions，验证 Admin+AAL1 denied、真实 TOTP enrollment/verify、Admin+AAL2 allowed 与 non-Admin+AAL2 denied，且不输出凭据、secret 或 token。
 - `scripts/test_local_auth_session_refresh.py`：本地 Auth 实时回归；使用 gitignored development Admin 建立独立 AAL1 session，故意破坏 access Cookie 后通过 refresh Cookie 触发轮换，断言 `/api/me` 回写两枚新 Cookie 且 `/auth/mfa` 不发生回登录页的 303；输出只含状态，不打印凭据或 token，并尽力撤销测试 session。
@@ -118,6 +137,13 @@
 - `.claude/settings.local.json`：本地 Claude 配置；仅用于作者本机环境设置，不影响项目页面功能。
 - `image.png`：仓库根目录临时图片文件；当前无运行时职责。
 
+## 页面壳与导航归属
+
+- Public Gallery：`index.html`、`works.html`、`about.html`、`lightbox.html`、`contact.html`、`creator.html`。统一顶部品牌导航和 Public Footer，不渲染左 rail；Review 可按权限作为顶层入口出现，Governance、Users、Upload 等内部入口不得出现。
+- Creator Workspace：`dashboard.html`、`upload-studio.html`、`account-settings.html`。Dashboard 与 Account Settings 使用顶部导航及本地章节结构；Upload Studio 等高密度任务页可使用内部 rail，但不能把该 rail 带回公开页面。
+- Admin Operations：`admin-reviews.html`、`admin-works.html`、`admin-users.html`。使用 Admin 专用操作导航、列表和 inspector；Works/User Governance 只属于该壳，不能放入公开顶栏或账户菜单。
+- Header Identity：`account-menu.js` 是唯一身份控制器；服务端 bootstrap 提供首帧 initials，图片只在 decode 成功后替换。Review 属于导航权限，不属于账户菜单；显示头像代表已登录时不得同时显示 Sign In。
+
 ## 1. 首页与品牌介绍
 
 ### 功能说明
@@ -130,7 +156,7 @@
 
 - `index.html`：定义 hero、Selected Works、Current Series、Statement、Contact；hero 主/次 CTA 为 Enter Works / View Series；Current Series 当前链接到 `weather-at-the-threshold`。
 - `styles.css`：实现参考图式摄影背景、右侧主标题、斜切下沿、按钮样式、Selected Works 作品带、紧凑双列 Statement 和移动端单列布局；hero 使用非 sticky 双层图片过渡，桌面高度上限约 `92svh`、移动端约 `82svh`，各视口首屏都露出下一段内容。
-- `script.js`：启动时读取 IndexedDB `site_settings.homepage`，用 `--home-hero-abstract-image` / `--home-hero-concrete-image` CSS 变量和 `data-home-*` DOM 钩子覆盖首页 hero/Statement 图片与文字；根据 hero 自身的短程滚动进度设置图片和两套文案的分段淡出/淡入变量，并在 hero 接近结束时切换导航栏状态；登录态把首页 Sign In 更新为 Dashboard；用 IntersectionObserver 渐进增强 Statement 显影，未触发动画时内容仍可读；拦截页内锚点点击并扣除 header 高度后执行 ease-in-out 纵向滚动。
+- `script.js`：启动时读取 IndexedDB `site_settings.homepage`，用 `--home-hero-abstract-image` / `--home-hero-concrete-image` CSS 变量和 `data-home-*` DOM 钩子覆盖首页 hero/Statement 图片与文字；根据 hero 自身的短程滚动进度设置图片和两套文案的分段淡出/淡入变量，并在 hero 接近结束时切换导航栏状态；身份只由 `account-menu.js` 管理；用 IntersectionObserver 渐进增强 Statement 显影，未触发动画时内容仍可读；拦截页内锚点点击并扣除 header 高度后执行 ease-in-out 纵向滚动。
 - `docs/design/design-system.md`：记录首页的视觉定位、字体、色彩、按钮和布局规则。
 - `docs/design/image-sources.md`：记录首页主视觉当前素材来源和替换规则。
 - `assets/art/hero-ci-jian.jpg`：首页主视觉临时样张。
@@ -194,12 +220,12 @@
 - 抽象图片以黑白展示；具体图片以低饱和彩色展示。
 - 页面不再渲染或预留公开左侧 rail；固定全局顶栏之后依次是全宽 Search、可横向滚动的 Type/Ratio 文本 tabs、Works Archive 标题/Count/数据状态和作品区。
 - Gallery 提供 Search、Type、Ratio 三组叠加过滤器，并把状态写入 URL；公开页面不提供 Arrange。Type 固定为 All Works/Abstract/Concrete，Ratio 固定为 All Ratios/Square/Classic/Portrait/Vertical/Landscape/Cinema/Panorama，当前项使用细下划线而不是胶囊块。
-- 点击作品卡片会打开可由 `?work={id}` 直达的放大鉴赏层；固定纯色工具栏显示序号和 Fit/Actual 状态，炭黑舞台完整承托图片，独立白色 Info 面板展示标题、策展说明、Add to Lightbox/Inquire/Download、metadata、标签和 Related Works。
+- 点击作品卡片会打开可由 `?work={id}` 直达的放大鉴赏层；固定纯色工具栏显示序号和 Fit/Actual 状态，炭黑舞台完整承托图片，独立 Info 面板展示标题、策展说明、Add to Lightbox/Inquire/Download、metadata、标签和 Related Works。
 - `All` 模式使用协调的 masonry 图墙，让不同尺寸图片自然错落并保持整体平衡。选择具体比例后切换为比例专用网格，图片按当前比例组等宽缩放并铺满行宽，不裁切、不拉伸、不加黑边。
 
 ### 相关文件
 
-- `works.html`：统一顶部导航、Search/Type/Ratio、标题/Count/数据状态、gallery、空态/toast，以及按 toolbar/stage/details 三层组织并保留 Info、Fit/Actual、Add to Lightbox/Inquire/Download/Related Works 的全屏 Viewer；公开 UI 不含 Upload、Review、Arrange。
+- `works.html`：统一顶部导航、Search/Type/Ratio、标题/Count/数据状态、gallery、空态/toast，以及按 toolbar/stage/details 三层组织并保留 Info、Fit/Actual、Add to Lightbox/Inquire/Download/Related Works 的全屏 Viewer；公开 UI 不含 Upload、Governance、Arrange，Review 只按权限显示在顶层导航。
 - `archive-data.js`：定义本地样例作品基础数据，`archive.js` 启动时按同 ID 合并 IndexedDB 中保存的 manual metadata。
 - `archive-upload.js`：定义上传读取尺寸/EXIF/checksum、`original`/`display`/`thumbnail`/`square_slice` 资产生成、非方图 `1:1` 切片和内容分类，默认建立 Draft，供 `upload-studio.js` 调用。
 - `archive.js`：published 读取、叠加搜索/过滤与 URL 同步、Viewer sequence/visible mode/Info inert/focus/scroll、Lightbox、Inquiry、Related Works、Download、toast 和 gallery reveal；历史 arrange/upload helper 仍在文件内但公开 DOM 不挂载入口。
@@ -224,7 +250,7 @@
 - 作品查看器：`?work={id}` 可直达；桌面详情使用不覆盖舞台的 360-460px 独立侧列，移动端使用舞台下方可收起的独立滚动区；Info 包含展签、metadata、tags、statement、Related Works、Add to Lightbox、Inquire 和 Download；Fit 完整适配当前舞台，Actual Size 只滚动舞台，Inquire 使用 `contact.html?source=work&work={id}`。
 - 标签可视化：`normalizeWorkDetail()` 优先读取 `title`、`description`、`curatorial_note`、`artist_statement`、`content_type`、`ratio_label`、`original_width`、`original_height`、`captured_at`、`series`、`tags[]`、`tag_groups[]`、`image_url`、`thumbnail_url`、`display_mode`；没有标签数据时按作品标题、类型、比例和 display mode 派生 Subject、Place、Form / Ratio、Mood、Material / Surface、Palette / Tone、Series / Collection 等轻量分组，主体标签覆盖 Landscape、House / Building、Architecture、Animal、Object、Coast / Water、Mountain / Valley、Stone、Surface / Pattern 等内容类别。
 - 联系：导航 `Contact` 链接到 `contact.html`。
-- 状态：过滤器与 Viewer 使用 URL，可恢复当前搜索和指定作品；Prev/Next 与跨筛选 Related Works 共用稳定 Viewer sequence 并同步当前 `?work=`；Lightbox 使用 `mt-presence-lightbox-v1` 并通过 `mt:lightbox-change` 同步当前页面；鉴赏层维护背景滚动锁、焦点陷阱和 Gallery 重绘后的触发卡片焦点恢复。
+- 状态：过滤器与 Viewer 使用 URL，可恢复当前搜索和指定作品；Prev/Next 与跨筛选 Related Works 共用稳定 Viewer sequence 并同步当前 `?work=`；Lightbox 使用 `mt-presence-lightbox-v1`，`mt:lightbox-change` 只协调已存在节点。收藏动作不得触发 `renderGallery()` 或替换 `gallery.innerHTML`，因此 URL、滚动、筛选、图片节点与加载状态保持；鉴赏层维护背景滚动锁与焦点陷阱。
 
 ## 4. About、Lightbox 与历史 Series 文件
 
@@ -238,13 +264,13 @@
 
 - `collections.html` / `collections.js` / `series-data.js`：历史 Series 原型文件；当前公开导航、`public-navigation.js` 和运行时页面不得加载或链接。
 - `about.html`：Practice、Availability 和 Contact CTA。
-- `lightbox.html` / `lightbox.js`：本地选择清单、移除/清空、空态、Works Viewer 和 Contact 入口。
+- `lightbox.html` / `lightbox.js`：编辑式私人选片桌、本地收藏、独立 Inquiry Selection、移除/清空、空态、跨标签/bfcache 同步、Works Viewer 和 Contact 入口。
 - `public-archive.js`：Lightbox 与 Contact 共享 published archive 读取和 Lightbox key 迁移。
 - `styles.css`：定义 `.series-*`、`.about-*`、`.lightbox-*` 和公开页面响应式规则。
 
 ### 页面内部结构
 
-- Lightbox：`mt-presence-lightbox-v1` 保存有序 work IDs；首次读取兼容合并旧 Saved/Collection keys；`?source=lightbox` 把清单带入 Contact。
+- Lightbox：`mt-presence-lightbox-v1` 保存长期有序收藏；`mt-presence-inquiry-selection-v1` 在 sessionStorage 保存本次询价子集，默认空。页面使用标题/收藏数、单一 selection toolband、方形 checkbox 和自然比例 gallery；Contact URL 使用重复 `work=` 参数显式传递选中 ID，`source=lightbox` 没有 `work` 时必须为空，绝不回退全部收藏。`mt:lightbox-change`、`storage` 和 `pageshow` 负责同页、跨标签页与 bfcache 恢复。
 - About：事实型 Practice 与 Availability 内容，不复制 Home 四段 Statement，也不展示虚构经历。
 - 状态：API 不可用时显示 sample fallback；空 Lightbox 有单一有效下一步；所有公开页桌面/移动端无横向溢出。
 
@@ -254,7 +280,7 @@
 
 - Home、Works、About、Lightbox、Contact 和 Dashboard 共用一套固定顶部导航；公开页面不渲染左侧 rail，也不保留 `padding-left`、margin、grid track 或定位宽度。桌面顺序固定为 MT Presence、Home、Works、About、Lightbox、Contact、Sign In/账户身份。
 - 当前公开路由通过 `aria-current="page"` 和细下划线标识；导航高度桌面固定 64px、移动端固定 56px。移动端顶栏只保留品牌、Sign In 或账户身份和菜单按钮，主导航在按钮下方展开，不允许链接换行挤压或页面横向溢出。
-- 未登录公开页保留 Sign In；`account-menu.js` 成功读取 `/api/me` 后才把它替换为进入 `/dashboard` 的头像和账户菜单。Workspace/Review/Account/Sign out 继续存在于 role-aware 账户菜单，不作为第二套公开导航常驻展示。
+- 未登录公开页只显示 Sign In；已登录 HTML 由服务器注入不含 token/email 的最小身份 model 和 initials shell，Sign In 与头像永不同时存在。Review 是可信 role DTO 控制的顶部主导航；账户菜单只保留 Dashboard、Workspace、Account Settings、Sign out，不形成第二套权限导航。
 - Home 与内部工具的登录态头像统一进入受保护 `/dashboard` 个人资料；资料页的 Edit profile 再进入 `/settings/account#profile`。头像是目的地链接，旁边的账户菜单按钮继续承担 Dashboard/Workspace/Account/Review/Sign out 导航。
 - Upload/Review 内部 rail 提供 Dashboard、Works、Upload、Review、Account destinations；Review 按 Admin 权限显示，active 项仅改变当前入口状态。
 - 78px rail 只属于 Upload/Review 等内部工作区；不得重新用于 Works、About、Contact、Lightbox 或 Dashboard。
@@ -265,7 +291,7 @@
 - `index.html` / `works.html` / `about.html` / `contact.html` / `lightbox.html`：共享同一顶部信息架构、Sign In fallback、账户菜单挂载点和移动菜单钩子，桌面/移动端都不包含公开左侧 rail。
 - `dashboard.html`：复用同一全局顶部信息架构的 protected personal profile，不显示左侧 rail。
 - `public-navigation.js`：只负责公开/资料页移动导航的 open/close、ARIA/inert、键盘和外部关闭行为。
-- `account-menu.js`：读取登录状态并在 Sign In 与账户身份之间切换，保留 role-aware destinations 和 CSRF Sign out。
+- `account-menu.js`：hydration 服务端 Header Identity model，在 Sign In 与账户身份之间严格互斥；控制顶部 Review/Governance 权限入口、头像 decode/fallback 和 CSRF Sign out。
 - `upload-studio.html` / `manage.html`：Artist Workspace rail；Review 入口保留权限控制。`account-settings.html` 使用自己的单一全局顶栏与本地章节导航，不再渲染第二条桌面 rail。
 - `styles.css`：固定 64/56px 公开 header、桌面文字导航、移动展开菜单、公开页零 rail 宽度和内部工作区 rail 的独立规则。
 - `scripts/validate_product_phase0.py`：静态检查五个公开页面不存在 public rail/占位，并都包含统一路由、账户入口、移动触发器和导航脚本；同时检查移动菜单的 ARIA/键盘合同。
@@ -374,18 +400,21 @@
 
 - 首页联系段和所有公开导航提供 Contact；Work Viewer、Series 和 Lightbox 提供带上下文 inquiry。
 - `contact.html` 是独立联系页，首屏直接显示说明、黑白作品图视觉锚点和表单。
-- 表单字段：Name、Email、Inquiry Type、Project / Intended Use、Message 必填；Organization、Timeline 可选；Commission/Licensing 条件显示 Budget Range。
-- 提交后调用浏览器 `mailto:` 打开给作者邮箱的邮件草稿；成功或失败用 toast 提示，页面不刷新。
-- 站点不保存访客联系内容，不提供本地消息中心、回复后台或 `/api/messages`。
+- 表单字段：Name、Email、Inquiry Type、Project / Intended Use、Message 必填；Organization、Timeline 可选；Commission/Licensing 条件显示 Budget Range；隐藏 `website` 为 honeypot。
+- 提交调用 `POST /api/inquiries`，携带显式 published work IDs、CSRF token 和 UUID idempotency key；成功后显示 opaque reference，不把 conversation/recipient/owner UUID 暴露给匿名访客。
+- active recipient 在 `/inbox` 查看隔离 conversation，执行已读、versioned reply 与 Close/Reopen；无 outbound provider 时 guest reply 只记录 `provider_unavailable` 并提供 manual mailto/copy，不虚假显示已发送。
 
 ### 相关文件
 
 - `index.html`：首页 hero 和联系段的 `Contact Artist` 链接入口。
 - `works.html`：档案页导航的 `Contact` 链接入口。
 - `contact.html`：结构化表单和 Selected Works 上下文容器。
-- `contact.js`：必填校验、条件字段、Work/Series/Lightbox 公开数据摘要、逐项移除、结构化 `mailto:`、loading 和 toast。
+- `contact.js`：必填校验、条件字段、Work/Series/Lightbox 公开数据摘要、逐项移除、CSRF retry、幂等提交、reference success 和错误恢复。
+- `notifications.html` / `notifications.js`：账户通知中心、unread/read、对象游标和安全内部 deep link。
+- `inbox.html` / `inbox.js`：recipient list/detail、local search、status filter、read/reply/status mutation、冲突恢复和 guest manual delivery。
 - `public-archive.js` / `series-data.js`：Contact 上下文所需的 published works 与 Series 定义。
-- `server.py`：静态服务器；拒绝 `/api/` 和 `/data/` 等私有路径。
+- `server.py`：Inquiry/Notifications/Inbox BFF、身份/CSRF/输入边界、safe DTO 与显式静态 allowlist。
+- `database/migrations/20260723_d_communications_audit.sql`：conversation/message/notification/audit 数据、owner/participant RLS、幂等/CAS/rate-limit/append-only RPC。
 - `styles.css`：联系页、表单、字段状态、提交 loading spinner、toast 和响应式规则。
 - `docs/architecture/database-design.md`：记录联系作者不入库的当前边界，数据库设计仅保留作品档案相关结构。
 
@@ -393,21 +422,20 @@
 
 - 联系页：`contact.html` 左侧说明和黑白作品图，右侧 `.contact-page-form` 表单。
 - 表单：`sender_name`、`sender_email`、`inquiry_type`、`organization`、`project_use`、`timeline`、`budget_range`、`message`；字段状态同步 `.is-focused`、`.is-filled`、`.has-error` 和 `aria-invalid`。
-- Toast：`[data-contact-toast]` 使用 `role="status"` 和 `aria-live="polite"`，成功/失败共享同一个容器。
-- 邮件草稿：包含访客信息、咨询类型、用途、时间、预算、Series 和公开 work ID/title，不把私人信息写入 URL query。
-- API：无联系表单 API；`server.py` 对 `/api/` 返回 404 JSON。
-- 安全边界：站点不保存访客联系内容；`/data/` 路径不提供静态访问。
-- 测试：启动 `python3 server.py --port 8131` 后测试 Contact 表单校验、邮件草稿跳转和 toast。
+- Toast：`[data-contact-toast]` 使用 `role="status"` 和 `aria-live="polite"`；success panel 独立聚焦并显示 reference。
+- API：`POST /api/inquiries`、`GET/POST /api/notifications*`、`GET/POST /api/inbox*`；浏览器 DTO 不含 raw notification payload、email 之外的内部 identity 或 Storage/provider diagnostics。
+- 安全边界：跨源 CSRF、inactive/recovery、控制字符、unknown keys、超长字段、跨 owner works、stale version、idempotency conflict 和多层 rate limit 均 fail closed；私有仓库路径不提供静态访问。
+- 测试：`validate_communications_audit.py`、`test_communications_audit_boundary.py` 与 rollback-only `test_communications_audit_database.py` 分别覆盖静态、HTTP/DTO 和真库权限/事务合同。
 
 ## 9. Legacy 作品档案与生产数据库边界
 
 ### 功能说明
 
-- Phase 2A-2G 已把用户 Folder、Draft、Version、三类 Asset metadata、private Storage、可信扫描、自动保存、乐观并发、readiness、Submit transaction 与 Trash/Restore 接入 Workspace；Phase 3 Review Queue/Detail/decision、Dashboard/creator editor 和 published-only derivative delivery 已组成同一 Supabase 生产链路。Admin+AAL2 发布后，作品立即进入匿名 Works 与 `/creators/{public_slug}`。
+- Phase 2A-2G 已把用户 Folder、Draft、Version、三类 Asset metadata、private Storage、可信扫描、自动保存、乐观并发、readiness、Submit transaction 与 Trash/Restore 接入 development Workspace；Phase 3 Review Queue/Detail/decision、Dashboard/creator editor 和 published-only derivative delivery 已组成同一 Supabase 生产候选链路。Admin+AAL2 发布后，作品立即进入该环境的匿名 Works 与 `/creators/{public_slug}`；这不表示生产已部署。
 - `works.html` 在配置 Supabase 时读取严格 published-only DTO；权威 API 为空或失败时保持真实空/错误，不合并样例或 IndexedDB。只有未配置 Supabase 的本地开发环境继续使用 SQLite/sample preview，便于无凭据视觉开发。
 - 当前 `manage.html` 保存 legacy seed/upload 作品 metadata 时仍同步写入 `data/archive.db`；这些 Admin+AAL2 Archive API 仅为旧 Review/public prototype 服务。`upload-studio.html` 已不调用 legacy multipart/PATCH/DELETE API，也不写本地 `assets/uploads/`。
 - 本地开发可执行 `python3 scripts/seed_local_archive_db.py` 生成 `data/archive.db`，用于验证图片 metadata、资产表、标签分组、图-标签关联和 collection 设计。
-- Phase 3 双会话 race、secret-free fake-provider 和 2026-07-22 真实 disposable Reviewer/Admin 多身份浏览器验收均已通过；公开交付的静态、Fake Supabase HTTP、响应式浏览器与 rollback-only PostgreSQL 验收进入独立门禁。后续工作是通知中心、站内邮箱/项目咨询和 Admin 用户/全量作品/下架/审计管理，不再回退到 legacy SQLite 作为生产权威源。
+- Phase 3 双会话 race、secret-free fake-provider、真实 disposable Reviewer/Admin 多身份浏览器，以及公开交付的静态、HTTP、响应式和 development rollback PostgreSQL 验收均已通过。Phase 4A Admin Works 已接管全量 publication inventory、下架/恢复与治理审计；Phase 4B Admin Users 已接管账户状态、Reviewer/Admin 角色和 provider session intent；Phase 5 已补齐通知中心、站内 Inbox、项目咨询和 Audit Ledger 的生产候选边界。正式提升仍需在 development 或隔离 staging/恢复克隆完成数据库门禁，不能直接在生产主库运行 fixture 验收。
 - 图片二进制文件不直接进入关系表；数据库只保存对象存储 bucket/path/url、尺寸、MIME、checksum 和分类元数据。
 - 首页精选作品和未来专题作品通过 `collections` 与 `collection_images` 表管理，不再依赖硬编码图片列表。
 
@@ -452,7 +480,7 @@
 
 - `auth.html` / `auth.js`：统一 Auth shell、各认证模式字段和 callback 处理；mutation 使用 same-origin CSRF，敏感 token 仅在函数内存短暂存在并立即清理 URL。
 - `mfa.html` / `mfa.js`：Admin TOTP enrollment/challenge/verify 和失败恢复；Admin AAL1 不能进入受保护管理范围。
-- `account-settings.html` / `account-settings.js`：无重复全局 rail 的 Account Settings 页面；紧凑标题栏、sticky Profile/Preferences/Security/Sessions 本地导航和连续白色内容面板；五组十字段 creator Profile、Preferences 表单、Security 摘要、current-only Session 列表、确认弹窗、滚动章节同步、dirty/save/error 状态、field error 和 bulk revoke。
+- `account-settings.html` / `account-settings.js`：无重复全局 rail 的 Account Settings 页面；紧凑标题栏、sticky Profile/Preferences/Security/Sessions 本地导航和连续白色内容面板；头像选择在浏览器中心裁切、去除原文件并重编码为 512x512 JPEG，经 owner-scoped signed upload intent 完成/取消/删除后通过共享事件即时更新 Header；同时保留五组十字段 creator Profile、Preferences、Security、Sessions、dirty/save/error 与 bulk revoke。
 - `server.py`：Supabase Auth/PostgREST 代理、access/refresh rotation、CSRF/Origin、recovery grant、strict Profile/cover allowlist、Account/Workspace route guard、Admin role+AAL2 和 Session scope revoke。
 - `database/supabase_phase1_auth_rls.sql`：fresh database Auth/RLS/Profile RPC baseline。
 - `database/migrations/20260713_admin_mfa_hardening.sql`：已有环境的 inactive privileged user 加固。
@@ -488,7 +516,7 @@
 
 - `dashboard.html` / `dashboard.js` / `styles.css`：无左侧 rail 的全宽摄影 cover、重叠 avatar、identity/actions、安静资料列表、Overview/My works tabs、状态聚合和桌面/平板/移动响应式个人资料页。
 - `public-navigation.js`：Dashboard 与公开页共享的移动全局导航控制器；不处理资料或账户数据。
-- `account-menu.js`：公开及内部页面共享 identity/destination/sign-out menu；Review 按 Reviewer/Admin/Super Admin role 显示。
+- `account-menu.js`：公开及内部页面共享唯一 identity/destination/sign-out controller；Reviewer/Admin/Super Admin 的 Review 显示在顶部主导航，绝不写入头像菜单 DOM。
 - `server.py`：`/dashboard`、`/api/dashboard` 与 `/api/me/profile/cover` guard，严格 aggregate/cover allowlist、owner-prefixed private asset signing 和 no-store protected assets。
 - `database/migrations/20260722_user_dashboard.sql`：owner-scoped aggregate read model；helper 仅 `postgres` owner 可执行，公开 Dashboard RPC 仅 `postgres + authenticated`，不授予 anon/public/service_role 执行权限。
 - `database/migrations/20260722_z_creator_profile.sql`：strict creator fields 与 cover read/write boundary；两个 helper 仅 `postgres` owner，三条 exposed profile RPC 仅 `postgres + authenticated`。
@@ -512,7 +540,7 @@
 - 为已提交的 immutable submission snapshot 提供独立的企业级摄影审核工作台，不复用 legacy `manage.html` 或 SQLite visibility。
 - canonical 入口为 `/admin/reviews`，deep link 为 `/admin/reviews/{submissionId}`；未登录进入 Sign In，recovery/普通 User 拒绝，Admin/Super Admin AAL1 进入 MFA。
 - 纯 Reviewer 只看到未分配的 Submitted queue 与自己的 open assignment；未领取项只使用 thumbnail，打开时必须先原子 Start/Claim，再读取 Original/Display。Admin/Super Admin 达到 AAL2 后可查看完整授权历史。
-- 当前浏览器动作是 Request Changes、Reject、Approve；数据库/API 保留 Admin+AAL2-only publish boundary，但公开 Works 仍读 SQLite，因此不在 UI 中显示或宣称真实 Publish。
+- 当前浏览器动作是 Request Changes、Reject、Approve；Admin/Super Admin+AAL2 还能 Approve and publish，使 current-policy-clean display/thumbnail 进入公开 Works 与创作者主页。纯 Reviewer 的 Approve 不公开。
 
 ### 相关文件
 
@@ -533,7 +561,63 @@
 - Review Detail：submitted image 为视觉主角，Inspector 依次显示 copy、rights、asset evidence、readiness、history 与 decision；图片只用签名 URL，Actual size 不裁切原作。
 - Mutation：Start 与 decision 在请求中禁用相关控件；409/assignment conflict 保留本地输入并提供 Reload；checklist 首错项的 invalid/description/focus、dialog 首焦点、Escape、关闭后焦点恢复和 alert 宣告都有明确合同。
 - 安全：角色叠加不能让 Admin+AAL1 借 Reviewer policy 绕过 MFA；Reviewer 完成/失去 assignment 后 private detail/asset 权限立即失效；same-key/same-payload 返回首次完整结果，不同 payload 冲突。
-- 验收状态：migration 已部署 development，rollback-only User/Reviewer/stacked Admin AAL1/Admin AAL2 的 RLS/Storage/CAS/幂等/通知/审计验收通过；六个独立 `psql` 会话完成三组双会话 Start/decision race，每组 backend PID 不同且 fixture 已清理；真实多身份浏览器的 Reviewer A claim、Reviewer B 越权拒绝、Request Changes、Admin AAL2 Approve、private 三变体、responsive/focus/console、session close 与 fixture cleanup 全部通过。当前真实未完成的是 public DTO、derivative delivery、Works migration 与 public creator portfolio/delivery；Escalate/Quarantine/Withdraw、bulk/risk filters 属于后续运营切片。
+- 验收状态：migration 已部署 development，rollback-only User/Reviewer/stacked Admin AAL1/Admin AAL2 的 RLS/Storage/CAS/幂等/通知/审计验收通过；六个独立 `psql` 会话完成三组双会话 Start/decision race，每组 backend PID 不同且 fixture 已清理；真实多身份浏览器的 Reviewer A claim、Reviewer B 越权拒绝、Request Changes、Admin AAL2 Approve、private 三变体、responsive/focus/console、session close 与 fixture cleanup 全部通过。Public DTO、derivative delivery、Works migration 与 public creator portfolio 已由 2026-07-22 公开交付切片接通；全量 publication inventory 与 Takedown/Restore 已由 Phase 4A 接管。Withdraw、bulk/risk filters 仍属于后续运营切片。
+
+## 11A. Supabase Admin Works Governance
+
+### 功能说明
+
+- `/admin/works` 提供系统内全部作品的 publication inventory；支持状态计数、title/filename/email/display-name/ID 搜索、排序、有界分页和 `/admin/works/{imageId}` 详情 deep link。
+- 详情只投影运营所需的 publication、processing、workflow、review、version、takedown 和 audit 信息。浏览器不接收 owner UUID、original asset descriptor、Storage bucket/key、checksum、release URL、private EXIF 或内部 provider debug。
+- Published 作品可执行 Takedown，Taken down 作品可执行 Restore。两者均要求 active Admin/Super Admin+AAL2、same-origin CSRF、当前 image version、UUID idempotency key、reason code 和面向创作者的说明；冲突必须 reload 后重试。
+- Takedown 在同一事务中撤销公开衍生图、更新 publication 状态、创建 active takedown case、通知创作者并写 append-only governance/audit；Restore 只有在 owner active、current version ready+approved+locked、三类资产和 scan job 均为 current-policy clean 且精确匹配 Storage object 时才恢复公开 display/thumbnail，original 始终 private。
+
+### 相关文件
+
+- `admin-works.html` / `admin-works.js`：全量列表、状态筛选、搜索/排序/分页、详情 inspector、移动单视图、确认 dialog、冲突恢复和可访问性状态。
+- `styles.css`：`.admin-works-*` 中性运营工作台；桌面 Admin rail + 双栏 inspector、1024 紧凑列、900 单视图、760 移动无 rail 和无横向溢出规则。
+- `server.py`：Admin Works 页面/API guard、strict provider DTO、derivative-only signed preview、CAS/idempotency mutation 结果关联校验和 provider drift fail-closed。
+- `database/migrations/20260723_admin_works_governance.sql`：列表/详情/治理 RPC、immutable action、Storage RLS、notification/takedown/audit transaction 和 exact ACL。
+- `scripts/validate_admin_works.py` / `scripts/test_admin_works_boundary.py` / `scripts/test_admin_works_database.py`：静态、secret-free HTTP 和 development rollback-only PostgreSQL 三层门禁。
+
+### 安全边界
+
+- Admin Works 只签 current-policy clean display/thumbnail；pending/flagged/failed 衍生图降级为 preview unavailable，结构或关联漂移则整条响应 502 fail closed。
+- Review Detail 的 original 访问与 Admin Works 分离：纯 Admin 即使拥有全量 review history 也只得到 display/thumbnail；只有 non-self、open、assigned Reviewer 才能通过 server projection 与 Storage RLS 双重条件读取 original。
+- `image_governance_actions` 为 append-only；mutation 响应同时绑定 image、actor、actor role、policy version、reason、expected version、latest action 和 takedown case，防止跨记录或旧响应被误认成成功。
+
+### 验收状态
+
+- `20260723_admin_works_governance.sql` 已部署 development；rollback-only PostgreSQL 验收覆盖精确函数 ACL、Admin/Super Admin+AAL2/recovery、跨 owner Storage RLS、列表/详情、Unpublish/Restore、Takedown/legal hold、CAS/幂等、恢复资产门禁、受控失败审计和 append-only，并确认事务回滚及独立 fixture absence。
+- 静态合同、secret-free Fake Supabase HTTP、Review/Public Delivery 回归、Python/JavaScript 语法和 `git diff --check` 通过；fresh v2 浏览器在 1440x900、1024x768、390x844 的列表、详情和确认 dialog 验收均无页面横向溢出、遮挡或控制台错误，移动 sticky toolbar 与 preview 几何相邻且零重叠。
+
+## 11B. Supabase Admin User Governance
+
+### 功能说明
+
+- `/admin/users` 提供系统账户目录、状态计数、email/name/UUID 搜索、角色筛选、排序、有界分页和 `/admin/users/{userId}` deep link。桌面为可扫描表格与 sticky inspector，900px 以下切换为列表/详情互斥视图。
+- active Admin/Super Admin+AAL2 可暂停 active 普通账户、恢复 suspended 普通账户并记录 session revoke provider intent；只有 Super Admin 可授予或撤销 Reviewer/Admin。客户端和 BFF 只接受 action-specific 精确请求体、current user version 和 UUID idempotency key。
+- MFA、active session count 和 quota 不由当前 Web 进程掌握，DTO 固定表达 `unavailable` / `provider_managed`；session revoke 返回 HTTP 202 与 `provider_action_required=true`，不声称 Supabase Auth session 已关闭。
+
+### 相关文件
+
+- `admin-users.html` / `admin-users.js`：账户列表/详情、状态/角色/排序筛选、状态 metrics、history、移动单视图、确认 dialog、冲突恢复和 capability truth UI。
+- `styles.css`：`.admin-users-*` 中性运营工作台；森林绿仅用于 active/focus，暗红仅用于真实危险动作，1px 分隔线、最大 2px 控件圆角和 1440/1024/390 响应式规则。
+- `server.py`：受保护页面、list/detail/status/roles/revoke-sessions API、AAL2/recovery/CSRF guard、strict DTO/关系绑定、稳定错误映射和 provider drift fail-closed。
+- `database/migrations/20260723_b_admin_user_governance.sql`：依赖 Phase 4A actor guard，增加 user version/system identity、baseline role repair、read model、CAS/idempotent governance、notification、append-only action/success+failure audit 和 last-Super-Admin 全局事务锁。
+- `scripts/validate_admin_users.py` / `scripts/test_admin_users_boundary.py` / `scripts/test_admin_users_database.py`：静态、secret-free HTTP 与 development rollback-only PostgreSQL 三层门禁。
+
+### 安全边界
+
+- Admin 只能治理非 privileged 普通账户；Super Admin 才能治理 Admin/Super Admin 目标和管理角色。self mutation、system identity、baseline `user` role revoke、inactive target privileged grant 均失败关闭。
+- 数据库对所有用户治理事务使用同一 advisory xact lock，串行关闭同 key idempotency race 和最后一名 active non-system Super Admin 的并发移除风险；版本 CAS 防止 inspector stale write。
+- BFF 重新构造固定 browser allowlist，并逐层绑定 profile user、recent-image owner、governance action target/actor 和 audit target。Auth subject、avatar locator、social/bio、original filename、raw audit before/after/request/IP、session token 与 provider debug 不离开服务端。
+- 实际 system/service identity 仍必须由 provisioning 显式设置 `is_system_identity=true`；当前 Web 进程没有 Supabase Auth Admin credential，因此 session intent 必须由独立 provider operation 完成。
+
+### 验收状态
+
+- migration 已部署 development 并完成三次幂等重放。rollback-only 真库验收通过 12 个核心 marker 与独立 fixture absence，覆盖 exact ACL/RLS、角色/AAL2/recovery、profile-less legacy user、CAS/幂等、状态/角色、identity/Super guard、session intent、failure audit 和 append-only。
+- 静态 58 checks、secret-free HTTP 13 markers、fresh/incremental deploy 与 Works-before-Users 顺序、Admin Works/Review/Public/Auth 回归和语法检查通过；浏览器在 1440x900、1024x768、390x844 完成列表、详情、确认 dialog、焦点恢复、console 与无横向溢出验收，截图保存在 `/private/tmp/admin-users-*.png`。
 
 ## 12. 本地企业级开发护栏 Skill
 
@@ -558,6 +642,17 @@
 
 ## 修改记录
 
+- 2026-07-24：修复 Works 比例筛选在中等桌面宽度退化为两列、造成右侧大面积空白的问题。`styles.css` 现在让比例筛选态在桌面固定四列等宽横排，`760px` 以下降为两列、`519px` 以下降为一列；`works.html` 同步更新样式版本以立即失效旧缓存，All Works 的 masonry 布局保持不变。
+- 2026-07-24：修复本机 Supabase 已配置但尚无公开发布作品时 Works 只能显示空态的问题。`MT_LOCAL_ARCHIVE_PREVIEW=1` 现在仅在 `MT_RUNTIME_ENVIRONMENT=development` 且请求来自 loopback 时，从 SQLite 读取 `source_type=local_sample` 的 27 张仓库示例；旧上传记录、Supabase Draft 与原始资产均不会进入预览。默认及生产仍以 Supabase 公开 RPC 为唯一权威来源，production preflight 显式拒绝开启该开关。
+- 2026-07-24：按用户反馈完整撤回本轮 Home、About 与 Works 视觉实验。Home 恢复全幅摄影 hero、横向 Selected Works marquee 和双列 Statement；About 恢复原 Practice/Availability 版式；Works 恢复 Search、Type/Ratio tabs、Works Archive 标题与既有四列 masonry/Viewer 视觉。收藏局部更新、Lightbox Inquiry Selection、Header Identity、Review 顶层入口和其他功能修复继续保留。
+- 2026-07-24：完成 development Scanner 首次真实队列消费：用户通过隐藏提示把 current Supabase secret 写入 Git ignored、权限 `0600` 的 `.env.worker`，Web `.env` 与浏览器仍不持有 privileged credential；隔离 Python 3.11/Pillow 12.3.0 Worker 使用 ClamAV 1.5.3 和官方签名逐条扫描 original/display/thumbnail，三条任务均首轮 `clean`。远程核对 assets/jobs 均为 3 clean，events 为 queued/claimed/clean 各 3，current-policy clean 为 3；五项 readiness 中 image assets、security scan、submission state 已 pass，当前 Draft 仅由 work details 与 rights/disclosures 阻塞。Production 常驻 Worker、监控与告警仍未交付。
+- 2026-07-23：完成 Phase 5 生产候选收口。新增持久化 project inquiry、Notifications、recipient-isolated Inbox、versioned reply/Close/Reopen、guest manual delivery、Admin Audit safe list/detail/audited export；通信与审计具备静态、secret-free HTTP、development-only rollback PostgreSQL 三层门禁。仓库新增显式静态 allowlist、bounded threads、health/readiness、Nginx/TLS/rate-limit/systemd hardening、分离 secrets、数据库备份验证、immutable checksummed release、atomic rollback 和 `scripts/release_gate.sh`；这不是生产部署记录，正式激活仍要求隔离克隆验收、域名/TLS、生产 secrets、Storage recovery、干净 tag 与线上 smoke acceptance。
+- 2026-07-23：补齐 Lightbox 生命周期同步。收藏页在同页事件、跨标签页 `storage` 和浏览器 bfcache `pageshow` 恢复时重新比对保存 ID，只在集合确实变化时重绘；本页 Remove/Remove All 忽略同步事件并继续局部更新，Inquiry Selection 不受收藏同步重建影响。
+- 2026-07-23：完成 Private Lightbox 视觉切片。移除 dashboard 式标题操作簇，改为编辑式 Lightbox 标题/收藏状态、单一选择工具带、方形 checkbox、深森林绿已选边界和自然比例选片墙；桌面/移动端都让 Contact Artist 成为选择后的主命令，Remove all 保持低声量且确认式。1024x768 与 390x844 下无横向溢出，选中/禁用/空态和 Contact 单 ID 传递通过。
+- 2026-07-23：新增真实 Profile Avatar 上传。Account Settings 接受 JPG/PNG/WebP，但仅把浏览器中心裁切、白底扁平化、重编码后的 512x512 JPEG 上传到私有 `profile-avatars`；服务端以 CSRF、active account/Admin AAL2、owner UUID 路径和 intent complete 核验保护写入，数据库验证 Storage owner/MIME/size 后才原子切换当前头像并清理旧对象。Header 保持首帧 initials，上传完成后通过唯一 identity controller decode/crossfade；公开 creator 只重签当前允许公开的对象，稳定 locator 不进入浏览器 DTO。
+- 2026-07-23：完成 Phase 4B Admin User Governance：新增 `/admin/users` 状态目录、搜索/角色/排序/分页、deep-link inspector 与移动单视图；Admin/Super Admin+AAL2 可执行版本化、UUID 幂等的 Suspend/Reactivate 和 session revoke intent，角色变化仅限 Super Admin。数据库保护 self/system/baseline role/privileged target/最后 active Super Admin，并原子写 notification、immutable action 和 success/failure audit；BFF 固定 DTO 并绑定所有父记录，MFA/session/quota 缺失时明确 unavailable/provider-managed。development migration、rollback-only 12 markers+fixture absence、静态 58 checks、HTTP 13 markers、fresh/incremental dependency order 与既有 Admin Works/Review/Public/Auth 回归通过；1440/1024/390 浏览器列表、详情、弹窗、焦点、console 和无溢出验收通过。
+- 2026-07-23：完成 Phase 4A Admin Works Governance：新增 `/admin/works` 全量 publication inventory、状态计数、搜索/排序/分页、deep-link 详情和移动单视图；Admin/Super Admin+AAL2 可用 current version、UUID idempotency key、受控理由和创作者消息执行 Takedown/Restore。服务端仅投影并签名精确 current-policy-clean display/thumbnail，阻断 original、owner UUID、Storage locator、checksum、内部说明和 provider drift；数据库把 publication、active takedown case、通知、success/failure audit 与 append-only governance action 纳入事务。development migration、rollback-only ACL/RLS/CAS/幂等/legal-hold/asset-gate/audit 验收及静态/HTTP/Review/Public 回归均通过；fresh v2 浏览器在 1440/1024/390 完成列表、详情、弹窗、焦点、console 与无溢出验收。
+- 2026-07-23：修复 Works 收藏、Lightbox 询价选择与 Header Identity 根因。Works 收藏从双重 `renderGallery()`/`gallery.innerHTML` 改为原 card/button/viewer/count 节点 patch，加入同步防连点、失败回滚、实心书签和 reduced-motion；Lightbox 新增独立 session Inquiry Selection，Contact 仅接收重复 `work=` 中的显式 ID；服务端为全部共享 header 页面注入 secret-free identity model 与首帧 initials，图片 decode 后 crossfade，普通错误不翻回 Sign In。Review 从账户菜单 DOM 移至 role-aware 顶部主导航，菜单只保留 Dashboard、Workspace、Account Settings、Sign out。
 - 2026-07-23：新增全站共享 `site-footer.js` 和 Public/Workspace 双变体页脚。Home、Works、About、Contact、Lightbox 使用炭黑“画册封底”，Contact 省略重复 inquiry band；Dashboard、Upload、Account Settings、Review 使用正常文档流的紧凑浅色栏。Account 入口复用 `mt:account-loaded` 而不重复请求身份，所有受保护入口按 active/role 严格 fail closed；未创建不存在的法律、语言或社交链接，并覆盖 1440x900、1024x768、390x844 的响应式、focus、reduced-motion、Viewer 层级与无横向溢出验收。
 - 2026-07-22：打通 Admin Approve and publish 到匿名 Works/creator profile：新增稳定 opaque `public_slug`、strict public RPC/Storage derivative policy、公开 DTO/signing proxy、`/creators/{slug}` 封面/身份/作品页、Works Viewer 创作者入口与 Dashboard 公开主页 capability；生产权威空/错误不再回退 sample/IndexedDB，原图/owner/Storage/review/GPS 字段被严格隔离。Reviewer 仍只能 Approve，只有 Admin/Super Admin+AAL2 可即时发布；静态、无密钥 HTTP、既有 Auth/Workspace/Review/Dashboard 回归与 1440/1024/390 视觉验收通过，development 真库 migration/rollback 验收作为部署门禁执行。
 - 2026-07-22：把 Works 全屏 Viewer 重构为美术馆阅片室：移除 backdrop/detail blur、顶部渐变、玻璃面板和圆形浮动按钮，改为 60-64px 纯色工具栏、`#171717` contain 舞台和独立白色展签；桌面展签占真实网格列，390px 详情进入舞台下方可收起滚动区，Fit/Actual 状态可见。同步修复隐藏详情的 dialog 名称、Info inert/focus、Lightbox 重绘后的关闭焦点、Prev/Next/Related URL 与序列；1920、1440、1024、390 下横/竖/方/全景、详情开关和 Actual Size 几何矩阵通过。

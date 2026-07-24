@@ -1,0 +1,10 @@
+# Install as /etc/mt-presence/scanner.env with root:mtpresence-scanner ownership and 0640.
+# This credential belongs only to the isolated scanner process.
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_SECRET_KEY=replace_with_scanner_secret
+MT_SCANNER_ID=production-scanner-01
+MT_SCANNER_CLAMAV_COMMAND=clamdscan --fdpass --no-summary
+MT_SCANNER_TEMP_DIR=/var/lib/mt-presence-scanner
+MT_SCANNER_POLL_SECONDS=5
+MT_SCANNER_LEASE_SECONDS=300
+MT_SCANNER_RETRY_SECONDS=30
