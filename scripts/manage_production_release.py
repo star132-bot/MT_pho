@@ -103,6 +103,7 @@ def install(args: argparse.Namespace) -> None:
                 member_names.add(normalized_name)
             bundle.extractall(staging)
         validate_release_tree(staging)
+        staging.chmod(0o755)
         staging.rename(destination)
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)

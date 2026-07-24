@@ -71,6 +71,7 @@ def main() -> None:
         second, second_hash = archive(temp, "v1.1.0")
 
         run(base, "install", "--archive", str(first), "--sha256", first_hash, "--release-id", "v1.0.0")
+        assert (base / "releases" / "v1.0.0").stat().st_mode & 0o055 == 0o055
         run(base, "activate", "--release-id", "v1.0.0")
         assert (base / "current").resolve().name == "v1.0.0"
 
