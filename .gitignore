@@ -20,6 +20,7 @@ scripts/__pycache__/
 tmp/
 shots/
 opention/
+output/
 assets/uploads/
 .browser-profiles/
 .scanner-runtime/
