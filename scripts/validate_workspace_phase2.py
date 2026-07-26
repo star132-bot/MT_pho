@@ -219,7 +219,8 @@ def main() -> None:
     }, "Phase 2 Upload Studio client")
     require(works_html, {
         "data-public-header",
-        "data-public-nav",
+        "data-global-header",
+        'src="/global-header.js',
         'src="/account-menu.js',
     }, "Works public shell")
     require(account_menu, {

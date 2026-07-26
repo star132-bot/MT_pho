@@ -32,6 +32,7 @@ static_validators=(
 )
 
 browser_scripts=(
+  global-header.js
   auth.js
   mfa.js
   account-settings.js
@@ -76,6 +77,11 @@ production_tests=(
   scripts/test_verify_production.py
 )
 
+credentialed_browser_tests=(
+  scripts/test_profile_avatar_browser.py
+  scripts/test_review_queue_browser.py
+)
+
 run_group "Python syntax" python3 -m py_compile \
   server.py \
   workers/image_probe.py \
@@ -87,7 +93,8 @@ run_group "Python syntax" python3 -m py_compile \
   scripts/verify_production.py \
   "${static_validators[@]}" \
   "${boundary_tests[@]}" \
-  "${production_tests[@]}"
+  "${production_tests[@]}" \
+  "${credentialed_browser_tests[@]}"
 
 run_group "Shell syntax" bash -n \
   scripts/release_gate.sh \

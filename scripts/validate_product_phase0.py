@@ -42,18 +42,25 @@ def main() -> None:
             raise RuntimeError(f"{name} unified public navigation is missing a Header Identity bootstrap")
         require(html, {
             "data-public-header",
-            "data-public-nav",
-            "data-public-nav-toggle",
+            "data-global-header",
             'class="header-identity-slot"',
             "data-header-identity-slot",
-            'href="/"',
-            'href="/works.html"',
-            'href="/about.html"',
-            'href="/lightbox.html"',
-            'href="/contact.html"',
+            'src="/global-header.js',
             'src="/account-menu.js',
             'src="/public-navigation.js',
         }, f"{name} unified public navigation")
+
+    global_header = (ROOT / "global-header.js").read_text()
+    require(global_header, {
+        "dataset.publicNav = \"\"",
+        "dataset.publicNavToggle = \"\"",
+        '["home", "Home", "/"]',
+        '["works", "Works", "/works.html"]',
+        '["about", "About", "/about.html"]',
+        '["lightbox", "Lightbox", "/lightbox.html"]',
+        '["contact", "Contact", "/contact.html"]',
+        '["review", "Review", "/admin/reviews"]',
+    }, "reusable GlobalHeader navigation")
 
     require(server, {
         "HEADER_IDENTITY_BOOTSTRAP_MARKER",

@@ -18,6 +18,10 @@ HEADER_PAGES = (
     "admin-reviews.html",
     "admin-works.html",
 )
+GLOBAL_HEADER_PAGES = {
+    "index.html", "works.html", "about.html", "contact.html", "lightbox.html",
+    "creator.html", "dashboard.html", "admin-reviews.html",
+}
 
 
 def read(path: str) -> str:
@@ -43,6 +47,7 @@ def main() -> None:
     lightbox = read("lightbox.js")
     contact = read("contact.js")
     account_menu = read("account-menu.js")
+    global_header = read("global-header.js")
     site_footer = read("site-footer.js")
     server = read("server.py")
     styles = read("styles.css")
@@ -88,6 +93,8 @@ def main() -> None:
         "data-contact-selected disabled",
         "data-remove-all-lightbox",
         "Remove all",
+        "Selected 0 of 0",
+        "Inquire about selected (0)",
     }, "Lightbox controls")
     require(lightbox, {
         "function persistInquirySelection(",
@@ -138,6 +145,7 @@ def main() -> None:
         "avatar_url:",
         "roles,",
         "can_review:",
+        "email:",
         "await image.decode()",
         'error.status === 401',
         'refresh_avatar", "1"',
@@ -146,8 +154,13 @@ def main() -> None:
         'destination("Dashboard", "/dashboard")',
         'destination("Workspace", "/workspace/images")',
         'destination("Account Settings", "/settings/account")',
+        "dataset.accountMenuAvatarInitials",
+        "Active account",
     }, "Header Identity controller")
-    forbidden_menu = ("dataAccountMenuReview", "data-account-menu-review", 'destination("Review"')
+    forbidden_menu = (
+        "dataAccountMenuReview", "data-account-menu-review", 'destination("Review"',
+        'destination("Notifications"', 'destination("Inbox"',
+    )
     if any(token in account_menu for token in forbidden_menu):
         raise RuntimeError("Review must not be created inside the account menu")
 
@@ -164,6 +177,9 @@ def main() -> None:
         'query.get("refresh_avatar") == ["1"]',
         'parsed.path in {"/manage", "/manage/", "/manage.html"}',
         'self.send_header("Location", "/admin/reviews")',
+        '"email": email',
+        "data-account-menu-email",
+        "data-account-menu-status",
     }, "server Header Identity bootstrap")
     rendered_identity = block(server, "def render_header_identity(", "def serve_header_html(")
     if any(secret in rendered_identity for secret in ("access_token", "refresh_token", "ACCESS_COOKIE", "REFRESH_COOKIE")):
@@ -185,9 +201,25 @@ def main() -> None:
             raise RuntimeError(f"{page} Header Identity shell is missing a bootstrap element")
         require(html, {
             "data-header-identity-slot",
-            "data-review-nav",
             'src="/account-menu.js',
         }, f"{page} Header Identity shell")
+        if page in GLOBAL_HEADER_PAGES:
+            require(html, {
+                "data-global-header",
+                'src="/global-header.js',
+            }, f"{page} GlobalHeader shell")
+        else:
+            require(html, {"data-review-nav"}, f"{page} legacy workspace navigation")
+
+    require(global_header, {
+        "dataset.globalHeaderReady",
+        "Search works, artists, tags",
+        "SEARCH_DELAY_MS = 260",
+        'link.dataset.reviewNav = ""',
+        'window.dispatchEvent(new CustomEvent("mt:global-search-change"',
+        'setSearchMessage("No matching works."',
+        'event.key === "Escape"',
+    }, "GlobalHeader component")
 
     require(styles, {
         ".header-identity-slot",

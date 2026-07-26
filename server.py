@@ -176,6 +176,7 @@ HEADER_IDENTITY_PUBLIC_PAGES = {
     "/about.html": "about.html",
     "/contact.html": "contact.html",
     "/lightbox.html": "lightbox.html",
+    "/collections.html": "collections.html",
     "/privacy.html": "privacy.html",
 }
 PUBLIC_CREATOR_SLUG_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,94}[a-z0-9])?$")
@@ -538,7 +539,7 @@ PUBLIC_ROOT_STATIC_FILES = {
     "dashboard.html", "upload-studio.html", "notifications.html", "inbox.html", "admin-reviews.html",
     "admin-works.html", "admin-users.html", "admin-audit.html", "manage.html",
     "styles.css", "privacy.css", "admin-audit.css",
-    "script.js", "archive.js", "archive-data.js", "archive-upload.js", "public-archive.js",
+    "script.js", "global-header.js", "archive.js", "archive-data.js", "archive-upload.js", "public-archive.js",
     "public-navigation.js", "series-data.js", "lightbox.js", "contact.js", "creator.js",
     "collections.js", "auth.js", "mfa.js", "account-menu.js", "account-settings.js",
     "dashboard.js", "upload-studio.js", "notifications.js", "inbox.js", "site-footer.js",
@@ -5292,6 +5293,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 "authenticated": False,
                 "status": status,
                 "display_name": "",
+                "email": "",
                 "initials": "",
                 "avatar_url": None,
                 "roles": [],
@@ -5304,6 +5306,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         metadata = user.get("user_metadata") if isinstance(user.get("user_metadata"), dict) else {}
         display_name = clean_text((profile or {}).get("display_name"), 120)
         display_name = display_name or clean_text(metadata.get("display_name"), 120) or "Member"
+        email = clean_text(user.get("email"), 320).lower()
         raw_roles = authorization.get("roles") if isinstance(authorization, dict) else []
         roles = sorted({clean_text(role, 40) for role in raw_roles if isinstance(role, str)})
         account_status = clean_text((authorization or {}).get("account_status"), 40)
@@ -5319,6 +5322,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             "authenticated": True,
             "status": status,
             "display_name": display_name,
+            "email": email,
             "initials": self.header_initials(display_name),
             "avatar_url": avatar_url or None,
             "roles": roles,
@@ -5458,8 +5462,10 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             )
 
         display_name = html.escape(clean_text(identity.get("display_name"), 120) or "Member", quote=True)
+        email = html.escape(clean_text(identity.get("email"), 320), quote=True)
         initials = html.escape(clean_text(identity.get("initials"), 8) or "MT", quote=True)
-        role_label = html.escape(self.header_role_label(identity.get("roles") or []), quote=True)
+        account_status = clean_text(identity.get("account_status"), 40)
+        status_label = "Active account" if account_status == "active" else "Account access limited"
         avatar_url = clean_text(identity.get("avatar_url"), 2048)
         avatar_markup = ""
         if avatar_url:
@@ -5470,17 +5476,24 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         return f"""
 <div class="header-identity-slot" data-header-identity-slot>
   <div class="account-menu" data-account-menu>
-    <a class="account-profile-link" href="/dashboard" aria-label="Open personal profile for {display_name}" data-account-profile-link>
+    <button class="account-profile-link" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="account-menu-actions" aria-label="Open account menu for {display_name}" data-account-profile-link>
       <span data-account-menu-initials aria-hidden="true">{initials}</span>
       {avatar_markup}
-    </a>
+    </button>
     <button class="account-menu-trigger" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="account-menu-actions" aria-label="Open account menu" title="Account menu" data-account-menu-trigger>
       <span class="account-menu-trigger-icon" aria-hidden="true"><span></span><span></span><span></span></span>
     </button>
     <div class="account-menu-popover" data-account-menu-popover hidden>
       <div class="account-menu-identity">
-        <a class="account-menu-avatar" href="/dashboard" aria-label="Open personal profile" data-account-menu-avatar>{initials}</a>
-        <span><strong data-account-menu-name>{display_name}</strong><em data-account-menu-role>{role_label}</em></span>
+        <a class="account-menu-avatar" href="/dashboard" aria-label="Open personal profile" data-account-menu-avatar>
+          <span data-account-menu-avatar-initials aria-hidden="true">{initials}</span>
+          {avatar_markup}
+        </a>
+        <span class="account-menu-identity-copy">
+          <strong data-account-menu-name>{display_name}</strong>
+          <span data-account-menu-email>{email}</span>
+          <em data-account-menu-status>{status_label}</em>
+        </span>
       </div>
       <div class="account-menu-actions" id="account-menu-actions" role="menu" aria-label="Account">
         <nav class="account-menu-links" role="none">
@@ -5661,6 +5674,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             "/upload-studio.js",
             "/manage.js",
             "/account-menu.js",
+            "/global-header.js",
         }:
             self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")

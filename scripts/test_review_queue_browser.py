@@ -1256,8 +1256,15 @@ def mobile_queue_navigation_check(browser: Browser, session: str) -> None:
     browser.command(session, "set", "viewport", "1440", "1000")
 
 
-def private_image_check(browser: Browser, session: str, supabase_url: str) -> None:
+def private_image_check(
+    browser: Browser,
+    session: str,
+    supabase_url: str,
+    *,
+    expected_kinds: tuple[str, ...],
+) -> None:
     origin = urllib.parse.urlparse(supabase_url).netloc
+    normalized_kinds = sorted(expected_kinds)
     browser.wait_condition(
         session,
         "document.querySelector('[data-review-image]')?.complete === true && "
@@ -1278,7 +1285,12 @@ def private_image_check(browser: Browser, session: str, supabase_url: str) -> No
     )
     browser.assert_condition(
         session,
-        "(() => {const kinds = Array.from(document.querySelectorAll('[data-review-asset-switcher] [data-asset-kind]'), (button) => button.dataset.assetKind).sort(); return kinds.length === 3 && kinds.join(',') === 'display,original,thumbnail';})()",
+        "(() => {"
+        "const kinds = Array.from(document.querySelectorAll('[data-review-asset-switcher] [data-asset-kind]'), "
+        "(button) => button.dataset.assetKind).sort();"
+        f"const expected = {json.dumps(normalized_kinds)};"
+        "return kinds.length === expected.length && kinds.every((kind, index) => kind === expected[index]);"
+        "})()",
         failure_code="private_image_variant_count_mismatch",
     )
 
@@ -1431,7 +1443,12 @@ def reviewer_a_claim(
         f"select status::text || '|' || assigned_reviewer_id::text from public.review_submissions where id='{SUBMISSION_IDS[0]}';",
         f"in_review|{reviewer_id}",
     )
-    private_image_check(browser, session, required(values, "SUPABASE_URL"))
+    private_image_check(
+        browser,
+        session,
+        required(values, "SUPABASE_URL"),
+        expected_kinds=("original", "display", "thumbnail"),
+    )
     queue_accessibility_check(browser, session)
     responsive_check(browser, session)
     mobile_queue_navigation_check(browser, session)
@@ -1537,7 +1554,12 @@ def admin_acceptance(
         "document.querySelector('[data-review-status]')?.textContent.trim() === 'Waiting'",
         timeout=35,
     )
-    private_image_check(browser, session, required(values, "SUPABASE_URL"))
+    private_image_check(
+        browser,
+        session,
+        required(values, "SUPABASE_URL"),
+        expected_kinds=("display", "thumbnail"),
+    )
     queue_accessibility_check(browser, session)
     responsive_check(browser, session)
     mobile_queue_navigation_check(browser, session)

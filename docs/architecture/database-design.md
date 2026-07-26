@@ -110,7 +110,7 @@ Archive 页面展示时读取 `archive_image_view.image_url`。该字段优先�
 - `scripts/validate_review_queue_phase3.py` / `scripts/test_review_queue_boundary.py`：Review SQL/UI/API/CI 静态合同和 secret-free fake-provider HTTP 回归。
 - `scripts/test_review_queue_database.sql`：development-only、rollback-only 数据库验收；真实覆盖 User/Reviewer/stacked Admin AAL1/Admin AAL2、self-review、direct RLS、current-scan Storage 生命周期、CAS、Approve 后 Publish 仍稳定的 same-payload replay、冲突重放、notification 与 audit。
 - `scripts/test_review_queue_concurrency.py`：development-only committed-fixture 双会话验收；启动六个独立 `psql` 会话并确保每组竞争使用不同 backend PID，覆盖 Start/claim、不同 key CAS 和 same-key replay 竞争，并在运行前后清理 fixture。
-- `scripts/test_review_queue_browser.py`：development-only 真实 disposable 多身份浏览器验收；覆盖 Reviewer A claim、Reviewer B 越权拒绝、Request Changes、Admin AAL2 Approve、三类 private asset、桌面/移动 responsive、focus/dialog、console/session 与 fixture cleanup。
+- `scripts/test_review_queue_browser.py`：development-only 真实 disposable 多身份浏览器验收；覆盖 Reviewer A claim、Reviewer B 越权拒绝、Request Changes、Admin AAL2 Approve、assigned Reviewer 的 original/display/thumbnail 与纯 Admin 的 derivative-only display/thumbnail 权限、桌面/移动 responsive、focus/dialog、console/session 与 fixture cleanup。
 - `workers/scan_adapters.py` / `workers/image_scanner.py` / `workers/image_probe.py`：不进入 Web 进程的 trusted scanner；使用隔离的高权限 secret 下载 private object，拒绝 redirect 并核对 size/checksum/magic；ClamAV 与 Pillow 在无凭据子进程中执行，完整 decode/EXIF-oriented dimensions 受 time/resource limit 约束，明确区分 terminal failure 与 transient retry。
 
 ## 数据表

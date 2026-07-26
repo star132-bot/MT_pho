@@ -9,7 +9,7 @@
       content="A quiet photography works archive for MT Presence, arranged by image type and ratio."
     />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="styles.css?v=20260724-ratio-layout" />
+    <link rel="stylesheet" href="styles.css?v=20260724-global-header-v1" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="archive-page">
@@ -130,54 +130,11 @@
         <path d="m4.5 7 7.5 6 7.5-6" />
       </symbol>
     </svg>
-    <header class="site-header archive-header public-site-header" aria-label="Primary navigation" data-public-header>
-      <a class="brand-mark" href="/" aria-label="MT Presence home"><span>MT</span><span>Presence</span></a>
-      <nav id="public-site-navigation" class="site-nav public-site-nav" aria-label="Primary" data-public-nav>
-        <a href="/">Home</a>
-        <a href="/works.html" aria-current="page">Works</a>
-        <a href="/about.html">About</a>
-        <a href="/lightbox.html">Lightbox <span data-lightbox-count>0</span></a>
-        <a href="/contact.html">Contact</a>
-        <a href="/admin/reviews" data-review-nav hidden>Review</a>
-        <a href="/admin/works" data-governance-nav hidden>Governance</a>
-      </nav>
+    <header class="site-header archive-header public-site-header global-header" aria-label="Primary navigation" data-public-header data-global-header>
       <div class="header-identity-slot" data-header-identity-slot></div>
-      <button
-        class="public-nav-toggle"
-        type="button"
-        aria-label="Open navigation"
-        aria-controls="public-site-navigation"
-        aria-expanded="false"
-        title="Open navigation"
-        data-public-nav-toggle
-      >
-        <span class="public-nav-toggle-icon" aria-hidden="true"><span></span><span></span><span></span></span>
-      </button>
     </header>
 
     <main class="archive-main">
-      <section class="archive-topbar" aria-label="Search the works archive">
-        <div class="archive-search-group">
-          <label class="visually-hidden" for="archive-search-input">Search works</label>
-          <div class="archive-search-control">
-            <svg class="ui-icon archive-search-icon" aria-hidden="true" focusable="false">
-              <use href="#icon-search"></use>
-            </svg>
-            <input
-              id="archive-search-input"
-              class="archive-search-input"
-              type="search"
-              inputmode="search"
-              autocomplete="off"
-              spellcheck="false"
-              placeholder="Search works, tags, ratios"
-              data-archive-search
-            />
-            <button class="archive-clear-search" type="button" aria-label="Clear search" data-clear-search hidden>Clear</button>
-          </div>
-        </div>
-      </section>
-
       <section class="archive-controls" aria-label="Archive filters">
         <div class="archive-discovery-bar">
           <div class="filter-group">
@@ -192,13 +149,9 @@
           <div class="filter-group">
             <span class="visually-hidden">Ratio</span>
             <div class="filter-options ratio-options" data-ratio-filters>
-              <button class="filter-button is-active" type="button" data-filter-ratio="All" aria-pressed="true">All Ratios</button>
-              <button class="filter-button" type="button" data-filter-ratio="1:1" aria-pressed="false">Square</button>
-              <button class="filter-button" type="button" data-filter-ratio="4:3" aria-pressed="false">Classic</button>
-              <button class="filter-button" type="button" data-filter-ratio="4:5" aria-pressed="false">Portrait</button>
-              <button class="filter-button" type="button" data-filter-ratio="2:3" aria-pressed="false">Vertical</button>
-              <button class="filter-button" type="button" data-filter-ratio="3:2" aria-pressed="false">Landscape</button>
-              <button class="filter-button" type="button" data-filter-ratio="16:9" aria-pressed="false">Cinema</button>
+              <button class="filter-button" type="button" data-filter-ratio="Square" aria-pressed="false">Square</button>
+              <button class="filter-button" type="button" data-filter-ratio="Portrait" aria-pressed="false">Portrait</button>
+              <button class="filter-button" type="button" data-filter-ratio="Landscape" aria-pressed="false">Landscape</button>
               <button class="filter-button" type="button" data-filter-ratio="Panorama" aria-pressed="false">Panorama</button>
             </div>
           </div>
@@ -206,13 +159,9 @@
       </section>
 
       <section class="archive-gallery-section" aria-labelledby="gallery-title">
-        <div class="archive-gallery-heading">
-          <h1 id="gallery-title">Works Archive</h1>
-          <div class="archive-gallery-meta">
-            <div class="archive-count" data-archive-count aria-live="polite"></div>
-            <p class="archive-data-status" data-archive-data-status role="status" aria-live="polite">Loading archive.</p>
-          </div>
-        </div>
+        <h1 id="gallery-title" class="visually-hidden">Works Archive</h1>
+        <div class="visually-hidden" data-archive-count aria-live="polite"></div>
+        <p class="visually-hidden" data-archive-data-status role="status" aria-live="polite">Loading archive.</p>
         <p class="archive-empty-state" data-archive-empty hidden>No works match this search.</p>
         <div class="archive-gallery" data-archive-gallery></div>
       </section>
@@ -311,6 +260,7 @@
       </section>
     </div>
 
+    <script src="/global-header.js?v=20260724-global-header-v1"></script>
     <script src="archive-data.js?v=20260610-works-viewer-editor"></script>
     <script src="public-archive.js?v=20260723-interaction-integrity"></script>
     <script src="archive.js?v=20260723-interaction-integrity"></script>

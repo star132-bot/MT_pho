@@ -46,15 +46,16 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 
 当前项目是静态站点，没有 React/Vue/Next 依赖。首版先使用自建轻量组件系统：
 
-- `site-header` / `public-site-header`：Home、Works、About、Lightbox、Contact 和 Creator Profile 共用的固定品牌顶栏。
-- `public-site-nav` / `public-nav-toggle`：桌面文字导航与移动展开菜单；移动状态由 `public-navigation.js` 同步 ARIA、`inert` 和焦点。
+- `global-header` / `global-header.js`：Home、Works、About、Lightbox、Contact、Review、Dashboard、Creator Profile 与其他公开直达页共用的 64px 顶栏；结构固定为品牌、居中搜索、公共导航、细分隔线、稳定身份和三点菜单，Home 只切换为照片上的深色版本。
+- `public-site-nav` / `public-nav-toggle`：GlobalHeader 的桌面文字导航与移动展开菜单；移动状态由 `public-navigation.js` 同步 ARIA、`inert` 和焦点。Review 是权限感知的顶级导航，不进入账户菜单。
 - `hero`：主视觉、品牌名、核心宣言、主按钮。
 - `button`：统一按钮样式。
 - `about-section`：品牌介绍长文案。
 - `marquee-gallery`：精选作品无限横向滚动带。
 - `marquee-item`：单张作品展示容器，统一高度、自然宽度。
 - `ui-icon`：作品档案页功能图标，使用单色细线 SVG symbol。
-- `archive-topbar` / `archive-controls`：公开作品档案页的 Search、Type、Ratio 文本 tabs；桌面可吸附、移动端分组横向滚动。
+- `global-header-search`：桌面约 500x40、`border-radius: 999px` 的全局作品搜索；Works 内 debounce 更新现有筛选状态，其他页显示克制建议层，支持 Enter/Escape/focus，并在移动端折叠为可展开搜索入口。
+- `archive-controls`：公开作品档案页只保留 Type、Ratio 文本 tabs；距 GlobalHeader 约 30px，之后直接进入图片墙，移动端保持单行横向滚动。
 - `archive-gallery`：全宽自然比例 masonry；公开页不挂载 Arrange 控件。
 - `contact-section`：联系作者。
 - `contact-page`：联系作者独立页面和表单。
@@ -76,6 +77,15 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 - Admin Operations：Review、Works Governance、User Governance。使用独立的后台操作导航和高密度列表/inspector；Governance 与 Users 只属于这里，不得出现在 Public Gallery。
 
 当前静态架构继续使用原生 HTML/CSS/JavaScript 和既有 Viewer，不为首轮视觉优化引入 PhotoSwipe、React 或通用组件库运行时。是否引入第三方组件以清晰的交互缺口为前提，不能用组件库外观替代品牌设计。
+
+### 2026-07-24 GlobalHeader 与 Works 视觉合同
+
+- 内容页顶栏固定 64px、近白底、极细下边线且不使用强阴影；首页允许透明深色 overlay，但 DOM 结构、尺寸与交互保持一致。
+- 桌面导航顺序固定为 Home / Works / About / Lightbox / Contact / Review；登录态显示固定头像容器和三点入口，不与 Sign In 同时出现。
+- 账户菜单宽 352px、6–8px 圆角、细边框与短阴影；展示头像、名称、邮箱和 Active account，菜单项只允许 Dashboard、Workspace、Account Settings、Sign out。
+- Works 正文从 30px 间距后的 Type/Ratio 筛选开始，不增加页面级搜索、巨大标题、统计横幅、介绍文案或空白 Hero；图片保留原比例，默认不叠加厚重卡片 UI。
+- 比例筛选使用 Square / Portrait / Landscape / Panorama 语义组；桌面筛选结果保持四列横向铺开，`760px` 以下两列、`519px` 以下一列。
+- 收藏在原节点 optimistic patch，成功使用森林绿并显示约 2.4 秒轻提示；不得 reload、重建 Gallery、改变滚动位置。Lightbox 收藏与本次 Inquiry Selection 分离，Contact 只接收显式选择 ID。
 
 ### 2026-07-23 外部参考与组件决策
 

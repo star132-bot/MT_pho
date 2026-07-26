@@ -6,33 +6,12 @@
     <title>Lightbox | MT Presence</title>
     <meta name="description" content="A private, browser-local lightbox of selected MT Presence works." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="styles.css?v=20260723-lightbox-editorial-1" />
+    <link rel="stylesheet" href="styles.css?v=20260724-global-header-v1" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="public-page lightbox-page">
-    <header class="site-header archive-header public-site-header" aria-label="Primary navigation" data-public-header>
-      <a class="brand-mark" href="/" aria-label="MT Presence home"><span>MT</span><span>Presence</span></a>
-      <nav id="public-site-navigation" class="site-nav public-site-nav" aria-label="Primary" data-public-nav>
-        <a href="/">Home</a>
-        <a href="/works.html">Works</a>
-        <a href="/about.html">About</a>
-        <a href="/lightbox.html" aria-current="page">Lightbox</a>
-        <a href="/contact.html">Contact</a>
-        <a href="/admin/reviews" data-review-nav hidden>Review</a>
-        <a href="/admin/works" data-governance-nav hidden>Governance</a>
-      </nav>
+    <header class="site-header archive-header public-site-header global-header" aria-label="Primary navigation" data-public-header data-global-header>
       <div class="header-identity-slot" data-header-identity-slot></div>
-      <button
-        class="public-nav-toggle"
-        type="button"
-        aria-label="Open navigation"
-        aria-controls="public-site-navigation"
-        aria-expanded="false"
-        title="Open navigation"
-        data-public-nav-toggle
-      >
-        <span class="public-nav-toggle-icon" aria-hidden="true"><span></span><span></span><span></span></span>
-      </button>
     </header>
 
     <main class="public-shell lightbox-main">
@@ -48,13 +27,13 @@
       </section>
 
       <div class="lightbox-actions" data-lightbox-actions hidden>
-        <span class="lightbox-selection-count" data-inquiry-selection-count aria-live="polite">0 selected</span>
+        <span class="lightbox-selection-count" data-inquiry-selection-count aria-live="polite">Selected 0 of 0</span>
         <div class="lightbox-selection-tools">
           <button class="button button-secondary" type="button" data-select-all>Select all</button>
           <button class="button button-secondary" type="button" data-clear-inquiry-selection disabled>Clear selection</button>
         </div>
         <div class="lightbox-primary-tools">
-          <button class="button button-primary" type="button" data-contact-selected disabled>Contact Artist (0)</button>
+          <button class="button button-primary" type="button" data-contact-selected disabled>Inquire about selected (0)</button>
           <button class="button button-secondary lightbox-remove-all" type="button" data-remove-all-lightbox>Remove all</button>
         </div>
       </div>
@@ -70,6 +49,7 @@
     <footer class="site-footer public-footer" aria-label="Site footer" data-site-footer data-footer-variant="public"></footer>
 
     <div class="archive-toast" role="status" aria-live="polite" data-lightbox-toast hidden></div>
+    <script src="/global-header.js?v=20260724-global-header-v1"></script>
     <script src="archive-data.js?v=20260610-works-viewer-editor"></script>
     <script src="public-archive.js?v=20260723-interaction-integrity"></script>
     <script src="lightbox.js?v=20260723-lightbox-editorial-2"></script>

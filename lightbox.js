@@ -83,7 +83,7 @@ function updateInquirySelectionUi() {
   });
 
   if (inquirySelectionCount) {
-    inquirySelectionCount.textContent = `${count} selected`;
+    inquirySelectionCount.textContent = `Selected ${count} of ${lightboxWorks.length}`;
   }
   if (selectAllButton) {
     selectAllButton.disabled = lightboxWorks.length === 0 || count === lightboxWorks.length;
@@ -93,7 +93,7 @@ function updateInquirySelectionUi() {
   }
   if (contactSelectedButton) {
     contactSelectedButton.disabled = count === 0;
-    contactSelectedButton.textContent = `Contact Artist (${count})`;
+    contactSelectedButton.textContent = `Inquire about selected (${count})`;
   }
 }
 

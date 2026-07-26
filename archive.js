@@ -8,6 +8,25 @@ const ratioProfiles = archiveSeedData.ratioProfiles || [
   { label: "16:9", ratio: 16 / 9 },
   { label: "Panorama", ratio: 2 / 1 },
 ];
+const ratioFilterGroups = {
+  Square: new Set(["1:1"]),
+  Portrait: new Set(["4:5", "2:3"]),
+  Landscape: new Set(["4:3", "3:2", "16:9"]),
+  Panorama: new Set(["Panorama"]),
+};
+
+function ratioFilterGroupFor(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  const group = Object.keys(ratioFilterGroups).find((label) => label.toLowerCase() === normalized);
+  if (group) return group;
+  return Object.entries(ratioFilterGroups).find(([, ratios]) => (
+    [...ratios].some((ratio) => ratio.toLowerCase() === normalized)
+  ))?.[0] || "All";
+}
+
+function itemMatchesRatioFilter(item) {
+  return activeRatio === "All" || ratioFilterGroups[activeRatio]?.has(item.ratio) === true;
+}
 
 const abstractKeywords = [
   "abstract",
@@ -329,7 +348,7 @@ const gallery = document.querySelector("[data-archive-gallery]");
 const count = document.querySelector("[data-archive-count]");
 const uploadInput = document.querySelector("[data-upload-input]");
 const uploadStatusList = document.querySelector("[data-upload-status-list]");
-const searchInput = document.querySelector("[data-archive-search]");
+const searchInput = document.querySelector("[data-global-search-input]");
 const clearSearchButton = document.querySelector("[data-clear-search]");
 const typeFilters = document.querySelector("[data-type-filters]");
 const ratioFilters = document.querySelector("[data-ratio-filters]");
@@ -414,9 +433,8 @@ function hydrateArchiveUrlState() {
   const requestedRatio = cleanText(params.get("ratio"));
   const requestedQuery = cleanText(params.get("q"));
   const typeMatch = ["Abstract", "Concrete"].find((value) => value.toLowerCase() === requestedType);
-  const ratioMatch = ratioProfiles.find((profile) => profile.label.toLowerCase() === requestedRatio.toLowerCase());
   activeType = typeMatch || "All";
-  activeRatio = ratioMatch?.label || "All";
+  activeRatio = ratioFilterGroupFor(requestedRatio);
   activeSearch = requestedQuery;
   if (searchInput) {
     searchInput.value = activeSearch;
@@ -1860,7 +1878,7 @@ async function createSquareSlices(imageId, imageSource, fileName, sourceAssetId)
 function filteredItems() {
   return orderedItems().filter((item) => {
     const typeMatch = activeType === "All" || item.type === activeType;
-    const ratioMatch = activeRatio === "All" || item.ratio === activeRatio;
+    const ratioMatch = itemMatchesRatioFilter(item);
     const savedMatch = !showSavedOnly || lightboxWorkIds.has(item.id);
     return savedMatch && typeMatch && ratioMatch && itemMatchesSearch(item);
   });
@@ -1868,7 +1886,7 @@ function filteredItems() {
 
 function itemMatchesActiveFilters(item) {
   const typeMatch = activeType === "All" || item.type === activeType;
-  const ratioMatch = activeRatio === "All" || item.ratio === activeRatio;
+  const ratioMatch = itemMatchesRatioFilter(item);
   const savedMatch = !showSavedOnly || lightboxWorkIds.has(item.id);
   return savedMatch && typeMatch && ratioMatch && itemMatchesSearch(item);
 }
@@ -2606,7 +2624,7 @@ function toggleLightboxWork(id, { sourceButton = null } = {}) {
   try {
     const result = publicArchive.toggleLightboxId(id);
     reconcileLightboxWorkIds(result.ids, { changedId: id });
-    showArchiveToast(result.added ? "Added to your lightbox." : "Removed from your lightbox.");
+    showArchiveToast(result.added ? "Saved to Lightbox" : "Removed from Lightbox");
     releaseLightboxPendingState(id);
     return result.added;
   } catch {
@@ -2793,20 +2811,14 @@ ratioFilters.addEventListener("click", (event) => {
     return;
   }
 
-  activeRatio = button.dataset.filterRatio;
+  activeRatio = activeRatio === button.dataset.filterRatio ? "All" : button.dataset.filterRatio;
   setActiveButton(ratioFilters, "data-filter-ratio", activeRatio);
   replaceArchiveUrl({ ratio: activeRatio === "All" ? "" : activeRatio });
   renderGallery();
 });
 
-searchInput?.addEventListener("input", () => {
-  activeSearch = cleanText(searchInput.value);
-  replaceArchiveUrl({ q: activeSearch });
-  renderGallery();
-});
-
-searchInput?.addEventListener("search", () => {
-  activeSearch = cleanText(searchInput.value);
+window.addEventListener("mt:global-search-change", (event) => {
+  activeSearch = cleanText(event.detail?.query);
   replaceArchiveUrl({ q: activeSearch });
   renderGallery();
 });

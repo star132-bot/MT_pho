@@ -12,9 +12,7 @@
   let signoutBusy = false;
   let avatarGeneration = 0;
   let avatarRefreshAttempted = false;
-  let notificationCountRequest = null;
-  let notificationCountGeneration = 0;
-  let notificationUnreadCount = null;
+  let menuInvoker = null;
 
   function cleanText(value) {
     return value === null || value === undefined ? "" : String(value).trim();
@@ -27,13 +25,6 @@
 
   function rolesFrom(value) {
     return Array.isArray(value) ? value.filter((role) => typeof role === "string") : [];
-  }
-
-  function roleLabel(roles) {
-    if (roles.includes("super_admin")) return "Super Admin";
-    if (roles.includes("admin")) return "Administrator";
-    if (roles.includes("reviewer")) return "Reviewer";
-    return "Member";
   }
 
   function safeAvatarUrl(value) {
@@ -59,6 +50,7 @@
       authenticated,
       status: cleanText(value.status) || (authenticated ? "authenticated" : "pending"),
       display_name: displayName,
+      email: cleanText(value.email),
       initials: cleanText(value.initials) || (authenticated ? initials(displayName) : ""),
       avatar_url: safeAvatarUrl(value.avatar_url),
       roles,
@@ -80,6 +72,7 @@
       authenticated: true,
       status: "authenticated",
       display_name: displayName,
+      email: account.email || payload.user?.email,
       initials: initials(displayName),
       avatar_url: profile.avatar_url,
       roles,
@@ -101,10 +94,11 @@
   function accountEventPayload(identity, payload = null) {
     if (payload && typeof payload === "object") return payload;
     return {
-      user: { display_name: identity.display_name },
+      user: { display_name: identity.display_name, email: identity.email },
       account: {
         roles: identity.roles,
         account_status: identity.account_status,
+        email: identity.email,
       },
       profile: {
         display_name: identity.display_name,
@@ -133,10 +127,13 @@
     container.className = "account-menu";
     container.dataset.accountMenu = "";
 
-    const profileLink = document.createElement("a");
+    const profileLink = document.createElement("button");
     profileLink.className = "account-profile-link";
-    profileLink.href = "/dashboard";
+    profileLink.type = "button";
     profileLink.dataset.accountProfileLink = "";
+    profileLink.setAttribute("aria-haspopup", "menu");
+    profileLink.setAttribute("aria-expanded", "false");
+    profileLink.setAttribute("aria-controls", "account-menu-actions");
     const profileInitials = document.createElement("span");
     profileInitials.dataset.accountMenuInitials = "";
     profileInitials.setAttribute("aria-hidden", "true");
@@ -168,12 +165,19 @@
     avatar.href = "/dashboard";
     avatar.dataset.accountMenuAvatar = "";
     avatar.setAttribute("aria-label", "Open personal profile");
+    const avatarInitials = document.createElement("span");
+    avatarInitials.dataset.accountMenuAvatarInitials = "";
+    avatarInitials.setAttribute("aria-hidden", "true");
+    avatar.append(avatarInitials);
     const identityCopy = document.createElement("span");
+    identityCopy.className = "account-menu-identity-copy";
     const accountName = document.createElement("strong");
     accountName.dataset.accountMenuName = "";
-    const accountRole = document.createElement("em");
-    accountRole.dataset.accountMenuRole = "";
-    identityCopy.append(accountName, accountRole);
+    const accountEmail = document.createElement("span");
+    accountEmail.dataset.accountMenuEmail = "";
+    const accountStatus = document.createElement("em");
+    accountStatus.dataset.accountMenuStatus = "";
+    identityCopy.append(accountName, accountEmail, accountStatus);
     identity.append(avatar, identityCopy);
 
     const actions = document.createElement("div");
@@ -184,19 +188,9 @@
     const links = document.createElement("nav");
     links.className = "account-menu-links";
     links.setAttribute("role", "none");
-    const notificationsLink = destination("Notifications", "/workspace/notifications");
-    notificationsLink.dataset.accountMenuNotifications = "";
-    const notificationBadge = document.createElement("span");
-    notificationBadge.className = "account-menu-notification-badge";
-    notificationBadge.dataset.accountMenuNotificationBadge = "";
-    notificationBadge.setAttribute("aria-hidden", "true");
-    notificationBadge.hidden = true;
-    notificationsLink.append(notificationBadge);
     links.append(
       destination("Dashboard", "/dashboard"),
       destination("Workspace", "/workspace/images"),
-      notificationsLink,
-      destination("Inbox", "/inbox"),
       destination("Account Settings", "/settings/account"),
     );
     const signout = document.createElement("button");
@@ -254,6 +248,7 @@
     if (!container) return null;
     return {
       container,
+      profile: container.querySelector("[data-account-profile-link]"),
       trigger: container.querySelector("[data-account-menu-trigger]"),
       popover: container.querySelector("[data-account-menu-popover]"),
       signout: container.querySelector("[data-account-menu-signout]"),
@@ -270,14 +265,18 @@
     if (!elements || elements.popover.hidden) return;
     elements.popover.hidden = true;
     elements.trigger.setAttribute("aria-expanded", "false");
-    if (restoreFocus) elements.trigger.focus();
+    elements.profile.setAttribute("aria-expanded", "false");
+    if (restoreFocus) (menuInvoker || elements.trigger).focus();
+    menuInvoker = null;
   }
 
-  function openMenu(focus = "first") {
+  function openMenu(focus = "first", invoker = null) {
     const elements = menuElements();
     if (!elements) return;
+    menuInvoker = invoker || menuInvoker || elements.trigger;
     elements.popover.hidden = false;
     elements.trigger.setAttribute("aria-expanded", "true");
+    elements.profile.setAttribute("aria-expanded", "true");
     const items = menuItems(elements);
     if (focus === "first") items[0]?.focus();
     if (focus === "last") items.at(-1)?.focus();
@@ -343,17 +342,20 @@
     if (container.dataset.accountMenuBound === "true") return;
     container.dataset.accountMenuBound = "true";
     const trigger = container.querySelector("[data-account-menu-trigger]");
+    const profile = container.querySelector("[data-account-profile-link]");
     const popover = container.querySelector("[data-account-menu-popover]");
     const signout = container.querySelector("[data-account-menu-signout]");
-    trigger.addEventListener("click", () => {
-      if (popover.hidden) openMenu();
-      else closeMenu(true);
-    });
-    trigger.addEventListener("keydown", (event) => {
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
-        openMenu(event.key === "ArrowUp" ? "last" : "first");
-      }
+    [profile, trigger].forEach((control) => {
+      control.addEventListener("click", () => {
+        if (popover.hidden) openMenu("first", control);
+        else closeMenu(true);
+      });
+      control.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          openMenu(event.key === "ArrowUp" ? "last" : "first", control);
+        }
+      });
     });
     popover.addEventListener("keydown", (event) => {
       const elements = menuElements();
@@ -390,85 +392,50 @@
 
   async function decodeAvatar(container, value) {
     const url = safeAvatarUrl(value);
-    const profileLink = container.querySelector("[data-account-profile-link]");
-    let image = container.querySelector("[data-account-menu-image]");
+    const targets = [
+      container.querySelector("[data-account-profile-link]"),
+      container.querySelector("[data-account-menu-avatar]"),
+    ].filter(Boolean);
     const generation = ++avatarGeneration;
-    profileLink.classList.remove("is-image-ready");
+    targets.forEach((target) => target.classList.remove("is-image-ready"));
     if (!url) {
-      image?.remove();
+      container.querySelectorAll("[data-account-menu-image]").forEach((image) => image.remove());
       return;
     }
-    if (!image) {
-      image = document.createElement("img");
-      image.alt = "";
-      image.decoding = "async";
-      image.dataset.accountMenuImage = "";
-      profileLink.append(image);
-    }
-    if (image.src !== url) image.src = url;
-    try {
-      if (typeof image.decode === "function") await image.decode();
-      else if (!image.complete || !image.naturalWidth) {
-        await new Promise((resolve, reject) => {
-          image.addEventListener("load", resolve, { once: true });
-          image.addEventListener("error", reject, { once: true });
-        });
+    const images = targets.map((target) => {
+      let image = target.querySelector("[data-account-menu-image]");
+      if (!image) {
+        image = document.createElement("img");
+        image.alt = "";
+        image.decoding = "async";
+        image.dataset.accountMenuImage = "";
+        target.append(image);
       }
-      if (generation !== avatarGeneration || !image.naturalWidth) return;
-      profileLink.classList.add("is-image-ready");
+      if (image.src !== url) image.src = url;
+      return image;
+    });
+    try {
+      await Promise.all(images.map(async (image) => {
+        if (typeof image.decode === "function") await image.decode();
+        else if (!image.complete || !image.naturalWidth) {
+          await new Promise((resolve, reject) => {
+            image.addEventListener("load", resolve, { once: true });
+            image.addEventListener("error", reject, { once: true });
+          });
+        }
+        if (!image.naturalWidth) throw new Error("Avatar image is unavailable.");
+      }));
+      if (generation !== avatarGeneration) return;
+      targets.forEach((target) => target.classList.add("is-image-ready"));
       avatarRefreshAttempted = false;
     } catch (_error) {
       if (generation !== avatarGeneration) return;
-      profileLink.classList.remove("is-image-ready");
+      targets.forEach((target) => target.classList.remove("is-image-ready"));
       if (!avatarRefreshAttempted) {
         avatarRefreshAttempted = true;
         loadAccount({ preserveIdentity: true, refreshAvatar: true });
       }
     }
-  }
-
-  function updateNotificationBadge() {
-    const link = slot.querySelector("[data-account-menu-notifications]");
-    const badge = slot.querySelector("[data-account-menu-notification-badge]");
-    if (!link || !badge) return;
-    const count = Number(notificationUnreadCount);
-    const available = Number.isFinite(count) && count > 0;
-    badge.hidden = !available;
-    badge.textContent = available ? (count > 99 ? "99+" : String(Math.trunc(count))) : "";
-    link.setAttribute("aria-label", available
-      ? `Notifications, ${Math.trunc(count)} unread`
-      : "Notifications");
-  }
-
-  async function loadNotificationCount() {
-    if (!currentIdentity?.authenticated) return null;
-    if (notificationCountRequest) return notificationCountRequest;
-    const generation = ++notificationCountGeneration;
-    notificationCountRequest = (async () => {
-      try {
-        const response = await fetch("/api/notifications/unread-count", {
-          credentials: "same-origin",
-          cache: "no-store",
-          headers: { Accept: "application/json" },
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error("Notification count is unavailable.");
-        if (generation !== notificationCountGeneration || !currentIdentity?.authenticated) return null;
-        const count = Number(payload.unread_count);
-        notificationUnreadCount = Number.isFinite(count) && count >= 0 ? Math.trunc(count) : null;
-        updateNotificationBadge();
-        return notificationUnreadCount;
-      } catch (_error) {
-        if (generation === notificationCountGeneration) {
-          notificationUnreadCount = null;
-          updateNotificationBadge();
-        }
-        return null;
-      } finally {
-        notificationCountRequest = null;
-      }
-    })();
-    return notificationCountRequest;
   }
 
   function renderAuthenticated(identity, payload = null) {
@@ -480,10 +447,13 @@
     const displayName = identity.display_name || "Member";
     const avatarText = identity.initials || initials(displayName);
     container.querySelector("[data-account-menu-initials]").textContent = avatarText;
-    container.querySelector("[data-account-menu-avatar]").textContent = avatarText;
+    container.querySelector("[data-account-menu-avatar-initials]").textContent = avatarText;
     container.querySelector("[data-account-menu-name]").textContent = displayName;
-    container.querySelector("[data-account-menu-role]").textContent = roleLabel(identity.roles);
-    container.querySelector("[data-account-profile-link]").setAttribute("aria-label", `Open personal profile for ${displayName}`);
+    container.querySelector("[data-account-menu-email]").textContent = identity.email;
+    container.querySelector("[data-account-menu-status]").textContent = identity.account_status === "active"
+      ? "Active account"
+      : "Account access limited";
+    container.querySelector("[data-account-profile-link]").setAttribute("aria-label", `Open account menu for ${displayName}`);
     markCurrentMenuLinks(container);
     bindAccountShell(container);
     currentIdentity = identity;
@@ -491,8 +461,6 @@
     updateTopNavigation(identity);
     decodeAvatar(container, identity.avatar_url);
     emitIdentity(identity, payload);
-    updateNotificationBadge();
-    loadNotificationCount();
   }
 
   function renderAnonymous() {
@@ -504,8 +472,6 @@
     slot.replaceChildren(link);
     currentIdentity = normalizeIdentity({ status: "anonymous" });
     currentPayload = null;
-    notificationCountGeneration += 1;
-    notificationUnreadCount = null;
     updateTopNavigation(currentIdentity);
     emitIdentity(currentIdentity);
   }
@@ -518,8 +484,6 @@
     fallback.textContent = "MT";
     slot.replaceChildren(fallback);
     currentIdentity = normalizeIdentity({ status: "unavailable" });
-    notificationCountGeneration += 1;
-    notificationUnreadCount = null;
     updateTopNavigation(currentIdentity);
     emitIdentity(currentIdentity);
   }
@@ -586,6 +550,7 @@
         ...(currentPayload?.account || {}),
         roles: currentIdentity.roles,
         account_status: currentIdentity.account_status,
+        email: currentIdentity.email,
       },
       profile: {
         ...(currentPayload?.profile || {}),
@@ -594,13 +559,6 @@
     };
     renderAuthenticated(identityFromPayload(payload), payload);
   });
-  window.addEventListener("mt:notifications-updated", (event) => {
-    const count = Number(event.detail?.unread_count);
-    if (!currentIdentity?.authenticated || !Number.isFinite(count) || count < 0) return;
-    notificationUnreadCount = Math.trunc(count);
-    updateNotificationBadge();
-  });
-
   const bootstrap = bootstrapIdentity();
   if (bootstrap.authenticated) {
     renderAuthenticated(bootstrap);

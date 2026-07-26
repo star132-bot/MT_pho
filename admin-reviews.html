@@ -6,7 +6,7 @@
     <title>Review Queue | MT Presence</title>
     <meta name="description" content="Protected review queue for MT Presence submissions." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260723-interaction-integrity" />
+    <link rel="stylesheet" href="/styles.css?v=20260724-global-header-v1" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="admin-review-page">
@@ -90,16 +90,7 @@
       </div>
     </aside>
 
-    <header class="site-header admin-review-header" aria-label="Review workspace navigation">
-      <a class="brand-mark" href="/dashboard" aria-label="Open Dashboard"><span>MT</span><span>Admin Platform</span></a>
-      <nav class="site-nav" aria-label="Workflow navigation">
-        <a href="/dashboard">Dashboard</a>
-        <a href="/workspace/images">Upload</a>
-        <a href="/admin/reviews" aria-current="page" data-review-nav hidden>Review</a>
-        <a href="/admin/works" data-governance-nav hidden>Governance</a>
-        <a href="/admin/users" data-users-nav hidden>Users</a>
-        <a href="/admin/audit" data-governance-nav hidden>Audit</a>
-      </nav>
+    <header class="site-header admin-review-header public-site-header global-header" aria-label="Primary navigation" data-public-header data-global-header>
       <div class="header-identity-slot" data-header-identity-slot></div>
     </header>
 
@@ -280,8 +271,10 @@
     </dialog>
 
     <div class="contact-toast" role="status" aria-live="polite" aria-atomic="true" data-review-live></div>
+    <script src="/global-header.js?v=20260724-global-header-v1"></script>
     <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
     <script src="/account-menu.js?v=20260723-interaction-integrity-2"></script>
+    <script src="/public-navigation.js?v=20260722-public-shell"></script>
     <script src="/admin-reviews.js?v=20260722-review-workflow-ui"></script>
   </body>
 </html>

@@ -6,33 +6,12 @@
     <title>About | MT Presence</title>
     <meta name="description" content="About MT Presence, a fine art photography practice shaped by quiet observation, weather, surface, and distance." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="styles.css?v=20260723-interaction-integrity" />
+    <link rel="stylesheet" href="styles.css?v=20260724-global-header-v1" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="public-page about-page">
-    <header class="site-header archive-header public-site-header" aria-label="Primary navigation" data-public-header>
-      <a class="brand-mark" href="/" aria-label="MT Presence home"><span>MT</span><span>Presence</span></a>
-      <nav id="public-site-navigation" class="site-nav public-site-nav" aria-label="Primary" data-public-nav>
-        <a href="/">Home</a>
-        <a href="/works.html">Works</a>
-        <a href="/about.html" aria-current="page">About</a>
-        <a href="/lightbox.html">Lightbox</a>
-        <a href="/contact.html">Contact</a>
-        <a href="/admin/reviews" data-review-nav hidden>Review</a>
-        <a href="/admin/works" data-governance-nav hidden>Governance</a>
-      </nav>
+    <header class="site-header archive-header public-site-header global-header" aria-label="Primary navigation" data-public-header data-global-header>
       <div class="header-identity-slot" data-header-identity-slot></div>
-      <button
-        class="public-nav-toggle"
-        type="button"
-        aria-label="Open navigation"
-        aria-controls="public-site-navigation"
-        aria-expanded="false"
-        title="Open navigation"
-        data-public-nav-toggle
-      >
-        <span class="public-nav-toggle-icon" aria-hidden="true"><span></span><span></span><span></span></span>
-      </button>
     </header>
 
     <main class="public-shell about-main">
@@ -82,6 +61,7 @@
     </main>
 
     <footer class="site-footer public-footer" aria-label="Site footer" data-site-footer data-footer-variant="public"></footer>
+    <script src="/global-header.js?v=20260724-global-header-v1"></script>
     <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
     <script src="/account-menu.js?v=20260723-interaction-integrity-2"></script>
     <script src="/public-navigation.js?v=20260722-public-shell"></script>
