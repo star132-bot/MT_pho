@@ -78,13 +78,23 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 
 当前静态架构继续使用原生 HTML/CSS/JavaScript 和既有 Viewer，不为首轮视觉优化引入 PhotoSwipe、React 或通用组件库运行时。是否引入第三方组件以清晰的交互缺口为前提，不能用组件库外观替代品牌设计。
 
+### 2026-07-27 Quiet Editorial 公开体验最终合同
+
+- Home 使用同一 GlobalHeader 的深色变体和单张沉浸式摄影首屏；白色左对齐标题、短陈述和两个低声量命令构成第一视口，不能叠加营销卡片、渐变装饰或左右分栏 Hero。
+- Works 顶栏后直接进入 Type 与 Ratio 文本页签，不显示可见 Hero、页面标题或指标横幅。默认宽屏五列，依次在 `1200px`、`900px`、`760px`、`480px` 降为四、三、二、一列；图片保留自然比例，标题、保存和下载只在 hover、focus 或触摸布局中出现。
+- Ratio 页签固定为 All Ratios / Square / Classic / Portrait / Vertical / Landscape / Cinema / Panorama，分别映射现有比例数据；选中态只使用文字与细下划线。
+- `work.html` 是独立作品记录，不替换 Works Viewer。桌面采用约 55/45 的图像与资料双列，提供 Previous/Next、Save、Inquire、Download、metadata、tags 和 related works；窄屏回到单列且不裁图。
+- About 是单张大图与实践文本的双列编辑式 spread，并在下方使用一条线性事实带；优先读取公开 creator DTO，没有已发布 creator 时必须显示可信 fallback，不能呈现空白身份卡。
+- Lightbox 把长期 Saved Works 与本次 Inquiry Selection 分开：桌面三列作品加右侧 sticky 摘要，圆形选择控件只影响本次询价，Clear all 经过确认；移动端摘要移到作品列表上方且不产生横向溢出。
+- 颜色限定为近白纸面、近黑正文、中性灰和深森林绿状态强调；正文无衬线、作品标题和编辑式标题使用衬线；分隔线 1px、圆角不超过 8px，不使用发光、装饰色块、多层阴影或降低文字对比度。
+
 ### 2026-07-24 GlobalHeader 与 Works 视觉合同
 
 - 内容页顶栏固定 64px、近白底、极细下边线且不使用强阴影；首页允许透明深色 overlay，但 DOM 结构、尺寸与交互保持一致。
 - 桌面导航顺序固定为 Home / Works / About / Lightbox / Contact / Review；登录态显示固定头像容器和三点入口，不与 Sign In 同时出现。
 - 账户菜单宽 352px、6–8px 圆角、细边框与短阴影；展示头像、名称、邮箱和 Active account，菜单项只允许 Dashboard、Workspace、Account Settings、Sign out。
 - Works 正文从 30px 间距后的 Type/Ratio 筛选开始，不增加页面级搜索、巨大标题、统计横幅、介绍文案或空白 Hero；图片保留原比例，默认不叠加厚重卡片 UI。
-- 比例筛选使用 Square / Portrait / Landscape / Panorama 语义组；桌面筛选结果保持四列横向铺开，`760px` 以下两列、`519px` 以下一列。
+- 比例筛选使用 All Ratios / Square / Classic / Portrait / Vertical / Landscape / Cinema / Panorama 语义组；桌面筛选结果按五/四/三列铺开，`760px` 以下两列、`480px` 以下一列。
 - 收藏在原节点 optimistic patch，成功使用森林绿并显示约 2.4 秒轻提示；不得 reload、重建 Gallery、改变滚动位置。Lightbox 收藏与本次 Inquiry Selection 分离，Contact 只接收显式选择 ID。
 
 ### 2026-07-23 外部参考与组件决策
@@ -146,9 +156,9 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 
 Works Archive：
 
-- 信息顺序固定为全局顶栏、Search、Type/Ratio tabs、Works Archive 标题/数量/数据状态、全宽作品区，不能出现第二套导航或 public rail 空位。
+- 信息顺序固定为包含 Search 的全局顶栏、Type/Ratio tabs、仅供辅助技术读取的数量/数据状态、全宽作品区，不能出现可见 Hero/标题横幅、第二套导航或 public rail 空位。
 - Search 高 42px；Type 与 Ratio 使用文字 tabs 和细下划线，桌面筛选层可吸附在顶栏下，移动端回到普通流并在各分组内横向滚动、隐藏滚动条。
-- Gallery 在 `>=1180px` 四列、`761-1179px` 三列、`520-760px` 两列、`<520px` 单列，间距约 16-18px。图片保留自然比例、无厚阴影和大圆角；收藏/下载等操作只在 hover、focus 或已选中时出现。
+- Gallery 在 `>1200px` 五列、`901-1200px` 四列、`761-900px` 三列、`481-760px` 两列、`<=480px` 单列，间距约 10-18px。图片保留自然比例、无厚阴影和大圆角；收藏/下载等操作只在 hover、focus、已选中或触摸布局中出现。
 - 收藏在原 card、Viewer 和计数节点上局部更新，不能刷新页面、重建 Gallery 或改变当前滚动/筛选/Viewer；成功使用实心图标、短促状态动效和低声量 toast 反馈。
 - Viewer、Search/Type/Ratio URL、Count、数据来源状态、Lightbox 与 Download 行为都属于既有合同，视觉重构不能改变。
 

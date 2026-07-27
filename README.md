@@ -16,16 +16,17 @@ MT Presence is a fine art photography portfolio and image-workflow prototype. Ve
 - Full-width, regular-flow homepage hero with no left rail, transitioning from abstract black-and-white scenery to concrete color scenery and revealing the start of Selected Works in the first viewport.
 - Infinite horizontal selected works gallery.
 - Four-moment image-led Statement section, placed after Selected Works, with one image per text passage and a final Enter Works call to action.
-- Compact Works Archive page with read-only local SQLite preview data when explicitly enabled, global-header search, underlined Type/Ratio text filters directly below the header, no title/metrics hero, and responsive four/three/two/one-column natural-ratio masonry. A ratio-filtered desktop result remains a four-column horizontal row rather than collapsing into a narrow left column.
+- Compact Works Archive page with read-only local SQLite preview data when explicitly enabled, global-header search, underlined Type/Ratio text filters directly below the header, no title/metrics hero, and responsive five/four/three/two/one-column natural-ratio masonry. Ratio filters expose the underlying `1:1`, `4:3`, `4:5`, `2:3`, `3:2`, `16:9`, and panorama groups without collapsing results into a narrow left column.
 - Works Archive work viewer with full-screen enlarged images, fit/actual-size zoom, catalog-style metadata, keyboard navigation, and grouped visual tags.
+- Standalone work detail route with a 55/45 image-and-record layout, previous/next navigation, synchronized Lightbox save state, inquiry/download actions, metadata, tags, and related works.
 - Internal Works Viewer Editor for importing works; maintaining the viewer title, series, notes, metadata, visibility, sort order, and grouped tags; and editing homepage hero images/text in the IndexedDB transition layer.
 - Upload flow that reads original image dimensions, checksum, and basic EXIF in the browser.
 - Local multi-version image asset generation for uploads: original, display, thumbnail, and square slices.
 - Automatic ratio classification: `1:1`, `4:3`, `4:5`, `2:3`, `3:2`, `16:9`, `Panorama`.
 - Abstract and Concrete filters.
 - Arrange mode for ordering Works Archive items, with drag controls, Earlier/Later buttons, and local order persistence.
-- Browser-local Lightbox with persistent saved works plus an explicit session-scoped Inquiry Selection; Contact receives only the selected work IDs.
-- About page for the artist practice and availability.
+- Browser-local Lightbox with persistent saved works plus an explicit session-scoped Inquiry Selection, three-column desktop gallery, visible selection summary, sorting, and selected-ID-only Contact handoff.
+- About page with an image-led editorial spread, published creator profile hydration when available, truthful fallback content, and a linear practice fact strip.
 - Protected Upload Studio with server-authoritative Supabase Folders and Drafts, a two-worker upload queue, per-item Cancel/Retry/Remove controls, owner-scoped signed uploads to three private Storage buckets, canceled-object cleanup, 900 ms debounced Draft autosave, version-conflict recovery, five-check submission readiness, idempotent Submit for Review, soft-delete Trash/Restore views, and read-only IndexedDB offline cache.
 - Independent trusted asset scanner with restricted leased jobs, private Storage streaming, SHA-256/magic/MIME checks, ClamAV malware detection, isolated Pillow full decoding, bounded retries, append-only scan events, and fail-closed current-policy readiness updates.
 - Contact Artist submits a persisted, idempotent project inquiry with optional selected published works, abuse controls, a visitor reference, and a privacy notice.
@@ -281,8 +282,9 @@ The contact form records the inquiry through `POST /api/inquiries` and returns a
 
 - `index.html`: homepage; reads editable hero and Statement content from local homepage settings when available.
 - `works.html`: compact public Works Archive shell with GlobalHeader, directly adjacent Type/Ratio filters, no visible title/count hero, responsive natural-ratio masonry, and the existing viewer/actions.
-- `about.html`: public artist practice and availability page using the unified header and no public rail.
-- `lightbox.html`: browser-local saved-work collection with a separate session Inquiry Selection and selected-ID-only Contact handoff.
+- `work.html` / `work-detail.js`: standalone public work record; loads the same published-only archive DTO, renders previous/next, metadata, tags and related works, and shares Lightbox/inquiry state without replacing the existing full-screen Viewer.
+- `about.html` / `about.js`: public artist practice and availability spread using the unified header, published creator profile hydration, stable fallback copy, and no public rail.
+- `lightbox.html`: browser-local saved-work collection with a separate session Inquiry Selection, visible selection summary, sorting, and selected-ID-only Contact handoff.
 - `public-archive.js`: shared public archive loading, persistent Lightbox migration, and session-scoped Inquiry Selection storage.
 - `public-navigation.js`: mobile controller for the shared public/Profile header; synchronizes menu visibility, `aria-expanded`, `aria-hidden`, `inert`, ArrowDown/Escape focus behavior, outside closing, and breakpoint changes without owning authentication.
 - `global-header.js`: reusable header renderer and global work-search controller; owns the shared brand/search/public-navigation structure, active-route state, responsive search expansion, debounced Works filtering, safe cross-page suggestions, keyboard submission/Escape behavior, and Lightbox count synchronization without duplicating identity requests.

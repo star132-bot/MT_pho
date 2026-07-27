@@ -10,8 +10,11 @@ const ratioProfiles = archiveSeedData.ratioProfiles || [
 ];
 const ratioFilterGroups = {
   Square: new Set(["1:1"]),
-  Portrait: new Set(["4:5", "2:3"]),
-  Landscape: new Set(["4:3", "3:2", "16:9"]),
+  Classic: new Set(["4:3"]),
+  Portrait: new Set(["4:5"]),
+  Vertical: new Set(["2:3"]),
+  Landscape: new Set(["3:2"]),
+  Cinema: new Set(["16:9"]),
   Panorama: new Set(["Panorama"]),
 };
 
@@ -2722,7 +2725,7 @@ function renderGallery() {
           data-type="${escapeHtml(item.type)}"
           data-ratio="${escapeHtml(item.ratio)}"
           data-lightbox="${String(isInLightbox)}"
-          ${isArrangeMode ? 'draggable="true"' : 'role="button" tabindex="0" aria-label="Open work viewer for ' + escapeHtml(item.title) + '"'}
+          ${isArrangeMode ? 'draggable="true"' : 'role="button" tabindex="0" aria-label="Open full-screen viewer for ' + escapeHtml(item.title) + '"'}
         >
           ${
             isArrangeMode
@@ -2749,7 +2752,7 @@ function renderGallery() {
                 ? ""
                 : `
                   <div class="archive-hover-layer">
-                    <div class="archive-hover-brand">MT</div>
+                    <a class="archive-hover-detail-link" href="/work.html?id=${encodeURIComponent(item.id)}" aria-label="View details for ${escapeHtml(item.title)}">${escapeHtml(item.title)}</a>
                     <div class="archive-hover-actions">
                       <button class="archive-hover-icon ${isInLightbox ? "is-active" : ""}" type="button" data-card-action="lightbox" aria-pressed="${String(isInLightbox)}" aria-label="${isInLightbox ? "Remove from Lightbox" : "Add to Lightbox"}" data-tooltip="${isInLightbox ? "Remove from Lightbox" : "Add to Lightbox"}">
                         ${iconSvg("bookmark")}

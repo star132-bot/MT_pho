@@ -6,7 +6,7 @@
     <title>Lightbox | MT Presence</title>
     <meta name="description" content="A private, browser-local lightbox of selected MT Presence works." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="styles.css?v=20260724-global-header-v1" />
+    <link rel="stylesheet" href="styles.css?v=20260727-final-ui" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="public-page lightbox-page">
@@ -14,45 +14,57 @@
       <div class="header-identity-slot" data-header-identity-slot></div>
     </header>
 
-    <main class="public-shell lightbox-main">
+    <main class="lightbox-main">
       <section class="lightbox-heading" aria-labelledby="lightbox-title">
         <div>
-          <p class="section-kicker">Private Selection</p>
+          <p class="section-kicker">Your Selection</p>
           <h1 id="lightbox-title">Lightbox</h1>
-        </div>
-        <div class="lightbox-heading-meta">
+          <p class="lightbox-intro">Choose the works you would like to discuss.</p>
           <p class="lightbox-summary" data-lightbox-summary aria-live="polite">Loading your lightbox.</p>
-          <p class="lightbox-local-note">Private to this browser.</p>
+        </div>
+        <div class="lightbox-heading-commands" data-lightbox-heading-commands hidden>
+          <button class="button button-secondary lightbox-remove-all" type="button" data-remove-all-lightbox>Clear all</button>
+          <button class="button button-primary" type="button" data-contact-selected disabled>Inquire about selected (0)</button>
         </div>
       </section>
 
       <div class="lightbox-actions" data-lightbox-actions hidden>
+        <button type="button" data-select-all>Select all</button>
         <span class="lightbox-selection-count" data-inquiry-selection-count aria-live="polite">Selected 0 of 0</span>
-        <div class="lightbox-selection-tools">
-          <button class="button button-secondary" type="button" data-select-all>Select all</button>
-          <button class="button button-secondary" type="button" data-clear-inquiry-selection disabled>Clear selection</button>
-        </div>
-        <div class="lightbox-primary-tools">
-          <button class="button button-primary" type="button" data-contact-selected disabled>Inquire about selected (0)</button>
-          <button class="button button-secondary lightbox-remove-all" type="button" data-remove-all-lightbox>Remove all</button>
-        </div>
+        <label class="lightbox-sort">
+          <span>Sort by</span>
+          <select data-lightbox-sort aria-label="Sort saved works">
+            <option value="saved">Date saved</option>
+            <option value="title">Title</option>
+          </select>
+        </label>
+        <button class="visually-hidden" type="button" data-clear-inquiry-selection disabled>Clear selection</button>
       </div>
 
       <p class="archive-data-status" data-lightbox-status role="status" aria-live="polite">Loading archive.</p>
-      <section class="lightbox-gallery" data-lightbox-gallery aria-label="Saved works" aria-busy="true"></section>
+      <div class="lightbox-workspace" data-lightbox-workspace hidden>
+        <section class="lightbox-gallery" id="lightbox-selection" data-lightbox-gallery aria-label="Saved works" aria-busy="true"></section>
+        <aside class="lightbox-selection-summary" aria-labelledby="lightbox-selection-summary-title">
+          <h2 id="lightbox-selection-summary-title" data-lightbox-selection-summary-title>0 works will be attached</h2>
+          <div class="lightbox-selection-summary-list" data-lightbox-selection-summary-list></div>
+          <a href="#lightbox-selection">Review selection</a>
+          <p>Only the works you select will be attached to your inquiry.</p>
+        </aside>
+      </div>
       <section class="lightbox-empty" data-lightbox-empty hidden>
-        <h2>Your lightbox is empty</h2>
-        <a class="button button-primary" href="works.html">Browse Works</a>
-      </section>
+          <h2>Your lightbox is empty</h2>
+          <p>Save works from the archive to assemble a private edit.</p>
+          <a class="button button-primary" href="works.html">Browse Works</a>
+        </section>
     </main>
 
     <footer class="site-footer public-footer" aria-label="Site footer" data-site-footer data-footer-variant="public"></footer>
 
     <div class="archive-toast" role="status" aria-live="polite" data-lightbox-toast hidden></div>
-    <script src="/global-header.js?v=20260724-global-header-v1"></script>
+    <script src="/global-header.js?v=20260727-final-ui"></script>
     <script src="archive-data.js?v=20260610-works-viewer-editor"></script>
     <script src="public-archive.js?v=20260723-interaction-integrity"></script>
-    <script src="lightbox.js?v=20260723-lightbox-editorial-2"></script>
+    <script src="lightbox.js?v=20260727-final-ui"></script>
     <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
     <script src="/account-menu.js?v=20260723-interaction-integrity-2"></script>
     <script src="/public-navigation.js?v=20260722-public-shell"></script>

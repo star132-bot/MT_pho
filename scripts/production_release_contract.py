@@ -5,13 +5,13 @@ from __future__ import annotations
 
 
 PUBLIC_RUNTIME_FILES = frozenset({
-    "index.html", "works.html", "about.html", "contact.html", "lightbox.html", "privacy.html",
+    "index.html", "works.html", "work.html", "about.html", "contact.html", "lightbox.html", "privacy.html",
     "creator.html", "collections.html", "auth.html", "mfa.html", "account-settings.html",
     "dashboard.html", "upload-studio.html", "notifications.html", "inbox.html", "admin-reviews.html",
     "admin-works.html", "admin-users.html", "admin-audit.html", "manage.html",
     "styles.css", "privacy.css", "admin-audit.css",
     "script.js", "global-header.js", "archive.js", "archive-data.js", "archive-upload.js", "public-archive.js",
-    "public-navigation.js", "series-data.js", "lightbox.js", "contact.js", "creator.js",
+    "public-navigation.js", "series-data.js", "lightbox.js", "contact.js", "creator.js", "work-detail.js", "about.js",
     "collections.js", "auth.js", "mfa.js", "account-menu.js", "account-settings.js",
     "dashboard.js", "upload-studio.js", "notifications.js", "inbox.js", "site-footer.js",
     "admin-reviews.js", "admin-works.js", "admin-users.js", "admin-audit.js", "manage.js",

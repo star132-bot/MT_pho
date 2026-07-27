@@ -173,6 +173,7 @@ HEADER_IDENTITY_PUBLIC_PAGES = {
     "/": "index.html",
     "/index.html": "index.html",
     "/works.html": "works.html",
+    "/work.html": "work.html",
     "/about.html": "about.html",
     "/contact.html": "contact.html",
     "/lightbox.html": "lightbox.html",
@@ -534,12 +535,13 @@ INQUIRY_RATE_BUCKETS: dict[str, list[float]] = {}
 INQUIRY_RATE_LOCK = threading.Lock()
 
 PUBLIC_ROOT_STATIC_FILES = {
-    "index.html", "works.html", "about.html", "contact.html", "lightbox.html", "privacy.html",
+    "index.html", "works.html", "work.html", "about.html", "contact.html", "lightbox.html", "privacy.html",
     "creator.html", "collections.html", "auth.html", "mfa.html", "account-settings.html",
     "dashboard.html", "upload-studio.html", "notifications.html", "inbox.html", "admin-reviews.html",
     "admin-works.html", "admin-users.html", "admin-audit.html", "manage.html",
     "styles.css", "privacy.css", "admin-audit.css",
     "script.js", "global-header.js", "archive.js", "archive-data.js", "archive-upload.js", "public-archive.js",
+    "work-detail.js", "about.js",
     "public-navigation.js", "series-data.js", "lightbox.js", "contact.js", "creator.js",
     "collections.js", "auth.js", "mfa.js", "account-menu.js", "account-settings.js",
     "dashboard.js", "upload-studio.js", "notifications.js", "inbox.js", "site-footer.js",

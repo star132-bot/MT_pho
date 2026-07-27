@@ -30,7 +30,7 @@
 
   function routeIsCurrent(route) {
     if (route === "home") return path === "/" || path === "/index.html";
-    if (route === "works") return worksPage || path === "/collections.html" || path.startsWith("/creators/");
+    if (route === "works") return worksPage || path === "/work.html" || path === "/collections.html" || path.startsWith("/creators/");
     if (route === "about") return path === "/about.html";
     if (route === "lightbox") return path === "/lightbox.html";
     if (route === "contact") return path === "/contact.html";
@@ -254,9 +254,9 @@
 
   function suggestionHref(item, query) {
     const params = new URLSearchParams();
-    if (item.id) params.set("work", cleanText(item.id));
+    if (item.id) params.set("id", cleanText(item.id));
     if (query) params.set("q", query);
-    return `/works.html?${params.toString()}`;
+    return `/work.html?${params.toString()}`;
   }
 
   function setActiveSuggestion(index) {

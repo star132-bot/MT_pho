@@ -48,6 +48,8 @@ browser_scripts=(
   archive.js
   public-archive.js
   lightbox.js
+  about.js
+  work-detail.js
   contact.js
   notifications.js
   inbox.js

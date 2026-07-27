@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = ROOT / "database" / "product_schema.sql"
-PUBLIC_PAGES = ["index.html", "works.html", "about.html", "contact.html", "lightbox.html"]
+PUBLIC_PAGES = ["index.html", "works.html", "work.html", "about.html", "contact.html", "lightbox.html"]
 
 
 def require(source: str, tokens: set[str], label: str) -> None:

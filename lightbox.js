@@ -4,18 +4,24 @@ const lightboxEmpty = document.querySelector("[data-lightbox-empty]");
 const lightboxSummary = document.querySelector("[data-lightbox-summary]");
 const lightboxStatus = document.querySelector("[data-lightbox-status]");
 const lightboxActions = document.querySelector("[data-lightbox-actions]");
+const lightboxHeadingCommands = document.querySelector("[data-lightbox-heading-commands]");
+const lightboxWorkspace = document.querySelector("[data-lightbox-workspace]");
 const lightboxToast = document.querySelector("[data-lightbox-toast]");
 const inquirySelectionCount = document.querySelector("[data-inquiry-selection-count]");
 const selectAllButton = document.querySelector("[data-select-all]");
 const clearInquirySelectionButton = document.querySelector("[data-clear-inquiry-selection]");
 const contactSelectedButton = document.querySelector("[data-contact-selected]");
 const removeAllLightboxButton = document.querySelector("[data-remove-all-lightbox]");
+const lightboxSort = document.querySelector("[data-lightbox-sort]");
+const selectionSummaryTitle = document.querySelector("[data-lightbox-selection-summary-title]");
+const selectionSummaryList = document.querySelector("[data-lightbox-selection-summary-list]");
 let allWorks = [];
 let lightboxWorks = [];
 let inquirySelectionIds = new Set();
 let toastTimer = null;
 let lightboxInitialized = false;
 let localLightboxMutation = false;
+let sortMode = "saved";
 
 function showLightboxToast(message, type = "default") {
   if (!lightboxToast) {
@@ -52,10 +58,37 @@ function currentInquiryIds() {
 
 function updateLightboxCollectionUi() {
   const count = lightboxWorks.length;
-  lightboxSummary.textContent = `${count} saved work${count === 1 ? "" : "s"}.`;
+  lightboxSummary.textContent = `${count} SAVED WORK${count === 1 ? "" : "S"}`;
   lightboxActions.hidden = count === 0;
+  lightboxHeadingCommands.hidden = count === 0;
+  lightboxWorkspace.hidden = count === 0;
   lightboxEmpty.hidden = count > 0;
   lightboxGallery.hidden = count === 0;
+}
+
+function renderSelectionSummary() {
+  const selected = lightboxWorks.filter((work) => inquirySelectionIds.has(work.id));
+  selectionSummaryTitle.textContent = `${selected.length} work${selected.length === 1 ? "" : "s"} will be attached`;
+  selectionSummaryList.replaceChildren();
+  selected.forEach((work) => {
+    const link = document.createElement("a");
+    link.href = `work.html?id=${encodeURIComponent(work.id)}&from=lightbox`;
+    link.setAttribute("aria-label", `View details for ${work.title}`);
+    const image = document.createElement("img");
+    image.src = work.thumbnail_url || work.src;
+    image.alt = "";
+    image.loading = "lazy";
+    image.decoding = "async";
+    const title = document.createElement("span");
+    title.textContent = work.title;
+    link.append(image, title);
+    selectionSummaryList.append(link);
+  });
+  if (!selected.length) {
+    const empty = document.createElement("p");
+    empty.textContent = "Select at least one saved work.";
+    selectionSummaryList.append(empty);
+  }
 }
 
 function updateInquirySelectionUi() {
@@ -95,6 +128,7 @@ function updateInquirySelectionUi() {
     contactSelectedButton.disabled = count === 0;
     contactSelectedButton.textContent = `Inquire about selected (${count})`;
   }
+  renderSelectionSummary();
 }
 
 function persistInquirySelection(ids, { reportError = true } = {}) {
@@ -115,6 +149,9 @@ function persistInquirySelection(ids, { reportError = true } = {}) {
 
 function renderLightbox({ reconcileSelection = true } = {}) {
   lightboxWorks = savedWorks();
+  if (sortMode === "title") {
+    lightboxWorks.sort((left, right) => left.title.localeCompare(right.title));
+  }
   const allowedIds = new Set(lightboxWorks.map((work) => work.id));
   const storedSelection = publicArchive.readInquirySelectionIds();
   inquirySelectionIds = new Set(storedSelection.filter((id) => allowedIds.has(id)));
@@ -129,7 +166,7 @@ function renderLightbox({ reconcileSelection = true } = {}) {
           <button class="lightbox-inquiry-toggle" type="button" data-toggle-inquiry-work aria-pressed="${String(inquirySelectionIds.has(work.id))}" aria-label="${inquirySelectionIds.has(work.id) ? "Remove" : "Select"} ${publicArchive.escapeHtml(work.title)} ${inquirySelectionIds.has(work.id) ? "from" : "for"} this inquiry">
             <span aria-hidden="true"></span>
           </button>
-          <a class="lightbox-image-link" href="works.html?work=${encodeURIComponent(work.id)}&from=lightbox" aria-label="View ${publicArchive.escapeHtml(work.title)} in Works">
+          <a class="lightbox-image-link" href="work.html?id=${encodeURIComponent(work.id)}&from=lightbox" aria-label="View details for ${publicArchive.escapeHtml(work.title)}">
             <figure style="--display-ratio: ${publicArchive.ratioCssValue(work.ratio)};">
               <img src="${publicArchive.escapeHtml(work.src)}" alt="${publicArchive.escapeHtml(work.title)}" loading="lazy" decoding="async" />
             </figure>
@@ -209,6 +246,11 @@ lightboxGallery?.addEventListener("click", (event) => {
 selectAllButton?.addEventListener("click", (event) => {
   event.preventDefault();
   persistInquirySelection(lightboxWorks.map((work) => work.id));
+});
+
+lightboxSort?.addEventListener("change", () => {
+  sortMode = lightboxSort.value === "title" ? "title" : "saved";
+  renderLightbox({ reconcileSelection: false });
 });
 
 clearInquirySelectionButton?.addEventListener("click", (event) => {

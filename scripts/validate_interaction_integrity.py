@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 HEADER_PAGES = (
     "index.html",
     "works.html",
+    "work.html",
     "about.html",
     "contact.html",
     "lightbox.html",
@@ -19,7 +20,7 @@ HEADER_PAGES = (
     "admin-works.html",
 )
 GLOBAL_HEADER_PAGES = {
-    "index.html", "works.html", "about.html", "contact.html", "lightbox.html",
+    "index.html", "works.html", "work.html", "about.html", "contact.html", "lightbox.html",
     "creator.html", "dashboard.html", "admin-reviews.html",
 }
 
@@ -92,7 +93,7 @@ def main() -> None:
         "data-clear-inquiry-selection disabled",
         "data-contact-selected disabled",
         "data-remove-all-lightbox",
-        "Remove all",
+        "Clear all",
         "Selected 0 of 0",
         "Inquire about selected (0)",
     }, "Lightbox controls")

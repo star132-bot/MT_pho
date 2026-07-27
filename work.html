@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Work | MT Presence</title>
+    <meta name="description" content="View a published MT Presence work and its archival details." />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="styles.css?v=20260727-final-ui" />
+    <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
+  </head>
+  <body class="public-page work-detail-page">
+    <svg class="ui-icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-bookmark" viewBox="0 0 24 24"><path d="M6 4h12v16l-6-4-6 4V4z" /></symbol>
+      <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 4v11" /><path d="m8 11 4 4 4-4" /><path d="M5 20h14" /></symbol>
+      <symbol id="icon-arrow-left" viewBox="0 0 24 24"><path d="m14 6-6 6 6 6" /></symbol>
+      <symbol id="icon-arrow-right" viewBox="0 0 24 24"><path d="m10 6 6 6-6 6" /></symbol>
+    </svg>
+
+    <header class="site-header archive-header public-site-header global-header" aria-label="Primary navigation" data-public-header data-global-header>
+      <div class="header-identity-slot" data-header-identity-slot></div>
+    </header>
+
+    <main class="work-detail-main" data-work-detail-main aria-busy="true">
+      <section class="work-detail-state" data-work-detail-state role="status" aria-live="polite">
+        <p class="section-kicker">Published work</p>
+        <h1>Loading work</h1>
+      </section>
+
+      <article class="work-detail-layout" data-work-detail-layout hidden>
+        <figure class="work-detail-media">
+          <img alt="" decoding="async" data-work-detail-image />
+        </figure>
+
+        <div class="work-detail-copy">
+          <div class="work-detail-sequence">
+            <span data-work-detail-position>01 / 01</span>
+            <div class="work-detail-pagination" aria-label="Browse works">
+              <a href="/works.html" data-work-detail-prev aria-label="Previous work" title="Previous work">
+                <svg class="ui-icon" aria-hidden="true"><use href="#icon-arrow-left"></use></svg>
+              </a>
+              <a href="/works.html" data-work-detail-next aria-label="Next work" title="Next work">
+                <svg class="ui-icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
+              </a>
+            </div>
+          </div>
+
+          <header class="work-detail-heading">
+            <h1 data-work-detail-title></h1>
+            <p data-work-detail-description></p>
+          </header>
+
+          <div class="work-detail-actions" aria-label="Work actions">
+            <button class="work-detail-action work-detail-save" type="button" data-work-detail-save aria-pressed="false">
+              <svg class="ui-icon" aria-hidden="true"><use href="#icon-bookmark"></use></svg>
+              <span>Add to Lightbox</span>
+            </button>
+            <a class="work-detail-action" href="/contact.html?source=work" data-work-detail-inquire>Inquire</a>
+            <button class="work-detail-action work-detail-download" type="button" data-work-detail-download>
+              <svg class="ui-icon" aria-hidden="true"><use href="#icon-download"></use></svg>
+              <span>Download</span>
+            </button>
+          </div>
+
+          <dl class="work-detail-metadata" data-work-detail-metadata></dl>
+
+          <section class="work-detail-tags" data-work-detail-tags-section hidden>
+            <h2 class="visually-hidden">Tags</h2>
+            <div data-work-detail-tags></div>
+          </section>
+
+          <section class="work-detail-related" data-work-detail-related-section hidden>
+            <p class="section-kicker">Related Works</p>
+            <div data-work-detail-related></div>
+          </section>
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer public-footer" aria-label="Site footer" data-site-footer data-footer-variant="public"></footer>
+    <div class="archive-toast" role="status" aria-live="polite" data-work-detail-toast hidden></div>
+
+    <script src="/global-header.js?v=20260727-final-ui"></script>
+    <script src="/archive-data.js?v=20260610-works-viewer-editor"></script>
+    <script src="/public-archive.js?v=20260723-interaction-integrity"></script>
+    <script src="/work-detail.js?v=20260727-final-ui"></script>
+    <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
+    <script src="/account-menu.js?v=20260723-interaction-integrity-2"></script>
+    <script src="/public-navigation.js?v=20260722-public-shell"></script>
+  </body>
+</html>
