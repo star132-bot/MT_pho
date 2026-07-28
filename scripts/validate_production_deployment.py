@@ -142,7 +142,7 @@ def main() -> None:
         reject(web_environment, forbidden, "web environment")
     require(scanner_environment, "SUPABASE_SECRET_KEY=", "scanner environment")
     require(scanner_environment, "MT_SCANNER_ID=production-scanner-01", "scanner environment")
-    require(scanner_environment, "MT_SCANNER_CLAMAV_COMMAND=clamscan --no-summary", "scanner environment")
+    require(scanner_environment, "MT_SCANNER_CLAMAV_COMMAND=clamdscan --stream --no-summary", "scanner environment")
     require(scanner_environment, "MT_SCANNER_TEMP_DIR=/var/lib/mt-presence-scanner", "scanner environment")
     reject(scanner_environment, "MT_SCANNER_WORKER_ID", "scanner environment")
     for marker in ("PGPASSWORD=", "PGSSLMODE=require", "MT_DEPLOY_ENVIRONMENT=production", "MT_APPLY_PHASE1_BASELINE=no"):
@@ -160,6 +160,7 @@ def main() -> None:
         'required_environment("MT_SCANNER_ID")',
         'required_environment("MT_SCANNER_CLAMAV_COMMAND")',
         'if "--fdpass" in scanner_command',
+        'if scanner_binary == "clamdscan" and "--stream" not in scanner_command',
         'from production_release_contract import FORBIDDEN_RELEASE_FILES, REQUIRED_RELEASE_FILES',
     ):
         require(preflight, marker, "runtime preflight")

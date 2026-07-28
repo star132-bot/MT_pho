@@ -35,7 +35,7 @@ VALID_SCANNER_ENVIRONMENT = {
     "SUPABASE_URL": "https://project.example.supabase.co",
     "SUPABASE_SECRET_KEY": "sb_secret_scanner_fixture",
     "MT_SCANNER_ID": "production-scanner-01",
-    "MT_SCANNER_CLAMAV_COMMAND": "clamscan --no-summary",
+    "MT_SCANNER_CLAMAV_COMMAND": "clamdscan --stream --no-summary",
 }
 
 
@@ -105,7 +105,7 @@ def main() -> None:
             }
             with (
                 environment(scanner_environment),
-                mock.patch.object(PREFLIGHT.shutil, "which", return_value="/usr/bin/clamscan"),
+                mock.patch.object(PREFLIGHT.shutil, "which", return_value="/usr/bin/clamdscan"),
                 mock.patch.object(PREFLIGHT.importlib.util, "find_spec", return_value=object()),
             ):
                 PREFLIGHT.check_scanner()
@@ -113,13 +113,14 @@ def main() -> None:
                 ("MT_SCANNER_ID", "invalid scanner id"),
                 ("MT_SCANNER_CLAMAV_COMMAND", "curl https://example.com"),
                 ("MT_SCANNER_CLAMAV_COMMAND", "clamdscan --fdpass --no-summary"),
+                ("MT_SCANNER_CLAMAV_COMMAND", "clamdscan --no-summary"),
                 ("SUPABASE_SECRET_KEY", "sb_publishable_wrong_boundary"),
             ):
                 invalid = {**scanner_environment, name: value}
                 try:
                     with (
                         environment(invalid),
-                        mock.patch.object(PREFLIGHT.shutil, "which", return_value="/usr/bin/clamscan"),
+                        mock.patch.object(PREFLIGHT.shutil, "which", return_value="/usr/bin/clamdscan"),
                         mock.patch.object(PREFLIGHT.importlib.util, "find_spec", return_value=object()),
                     ):
                         PREFLIGHT.check_scanner()

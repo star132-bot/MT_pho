@@ -3,9 +3,9 @@
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SECRET_KEY=replace_with_scanner_secret
 MT_SCANNER_ID=production-scanner-01
-# The hardened systemd unit creates a mount namespace. Use the standalone
-# scanner because clamd rejects file descriptors passed across that boundary.
-MT_SCANNER_CLAMAV_COMMAND=clamscan --no-summary
+# The hardened systemd unit creates a mount namespace. Stream file contents to
+# the resident daemon instead of passing descriptors across that boundary.
+MT_SCANNER_CLAMAV_COMMAND=clamdscan --stream --no-summary
 MT_SCANNER_TEMP_DIR=/var/lib/mt-presence-scanner
 MT_SCANNER_POLL_SECONDS=5
 MT_SCANNER_LEASE_SECONDS=300

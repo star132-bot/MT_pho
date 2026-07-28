@@ -112,8 +112,11 @@ def check_scanner() -> None:
         or not shutil.which(scanner_command[0])
     ):
         fail("MT_SCANNER_CLAMAV_COMMAND must select an available ClamAV scanner")
+    scanner_binary = Path(scanner_command[0]).name
     if "--fdpass" in scanner_command:
         fail("MT_SCANNER_CLAMAV_COMMAND must not use --fdpass inside the hardened production mount namespace")
+    if scanner_binary == "clamdscan" and "--stream" not in scanner_command:
+        fail("MT_SCANNER_CLAMAV_COMMAND must use --stream with clamdscan inside the hardened production mount namespace")
     temp_dir = Path(required_environment("MT_SCANNER_TEMP_DIR")).resolve()
     allowed_root = SCANNER_TEMP_ROOT.resolve()
     if temp_dir != allowed_root and allowed_root not in temp_dir.parents:
