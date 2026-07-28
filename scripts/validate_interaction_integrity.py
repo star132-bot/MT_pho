@@ -52,6 +52,7 @@ def main() -> None:
     site_footer = read("site-footer.js")
     server = read("server.py")
     styles = read("styles.css")
+    homepage = read("script.js")
 
     favorite_toggle = block(archive, "function toggleLightboxWork(", "function downloadWork(")
     favorite_event = block(
@@ -233,9 +234,27 @@ def main() -> None:
         ".lightbox-item.is-inquiry-selected",
     }, "interaction styles")
 
+    home_editorial = block(
+        styles,
+        "/* Home: a bounded sticky image stage followed by the archive in normal document flow. */",
+        "/* Works: unframed image wall with only a restrained hover command layer. */",
+    )
+    require(home_editorial, {
+        "height: 160svh;",
+        "overflow: visible;",
+        "position: sticky;",
+        "height: 100svh;",
+    }, "Home scroll image stage")
+    require(homepage, {
+        'const heroStage = document.querySelector(".hero-stage")',
+        "const stageTravel = Math.max(stageHeight - pinnedHeight, 1);",
+        "const copyProgress = reduceMotion.matches ? 0 : concreteProgress;",
+    }, "Home scroll image controller")
+
     print("works_favorite_original_nodes=yes")
     print("lightbox_inquiry_selection=yes")
     print("header_identity_bootstrap=yes")
+    print("home_hero_scroll_transition=yes")
 
 
 if __name__ == "__main__":

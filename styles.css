@@ -20056,23 +20056,24 @@ button.upload-studio-card-main:focus-visible {
 [data-global-header] .global-header-brand {
   display: inline-flex;
   align-items: baseline;
-  gap: 9px;
+  gap: 7px;
   margin: 0;
   color: inherit;
   font-family: Georgia, "Times New Roman", serif;
+  line-height: 1;
   white-space: nowrap;
 }
 
 [data-global-header] .global-header-brand span:first-child {
   font-size: 25px;
   font-weight: 700;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.025em;
 }
 
 [data-global-header] .global-header-brand span:last-child {
-  font-size: 15px;
+  font-size: 20px;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.015em;
 }
 
 .global-header-search {
@@ -20536,14 +20537,19 @@ button.upload-studio-card-main:focus-visible {
   letter-spacing: 0;
 }
 
-/* Home: one immersive image, dark reading field, and a first-viewport archive cue. */
+/* Home: a bounded sticky image stage followed by the archive in normal document flow. */
 .home-page .hero-stage {
-  height: min(88svh, 840px);
-  min-height: min(680px, 88svh);
+  height: 160svh;
+  min-height: 0;
+  overflow: visible;
   background: #101210;
 }
 
 .home-page .hero {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  min-height: 100svh;
   padding: calc(var(--global-header-height) + clamp(54px, 8vh, 92px)) clamp(28px, 7vw, 104px) clamp(48px, 7vh, 76px);
   background: #101210;
 }
@@ -20830,7 +20836,8 @@ button.upload-studio-card-main:focus-visible {
 }
 
 @media (max-width: 760px) {
-  .home-page .hero-stage { height: min(82svh, 720px); min-height: 620px; }
+  .home-page .hero-stage { height: 145svh; min-height: 0; }
+  .home-page .hero { height: 100svh; min-height: 100svh; }
   .home-page .hero { padding: calc(var(--global-header-height) + 44px) 22px 48px; }
   .home-page .hero::before { background: linear-gradient(90deg, rgba(8, 10, 9, 0.78), rgba(8, 10, 9, 0.22)), linear-gradient(180deg, transparent 42%, rgba(8, 10, 9, 0.72)); }
   .home-page .hero-copy { align-self: end; width: 100%; }
@@ -20882,4 +20889,16 @@ button.upload-studio-card-main:focus-visible {
   .work-detail-metadata > div { grid-template-columns: 104px minmax(0, 1fr); }
   .work-detail-related > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .lightbox-page .lightbox-heading-commands { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-page .hero-stage {
+    height: 100svh;
+    overflow: hidden;
+  }
+
+  .home-page .hero {
+    position: relative;
+    top: auto;
+  }
 }

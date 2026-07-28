@@ -1,5 +1,6 @@
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const hero = document.querySelector(".hero");
+const heroStage = document.querySelector(".hero-stage");
 const header = document.querySelector(".site-header");
 const root = document.documentElement;
 const HERO_CONCRETE_COMPLETE_PROGRESS = 0.62;
@@ -203,21 +204,22 @@ function applyHomepageSettings(payload) {
 }
 
 function updateHeroTransition() {
-  const stage = document.querySelector(".hero-stage");
   if (!hero) {
     return;
   }
 
-  const stageRect = stage ? stage.getBoundingClientRect() : hero.getBoundingClientRect();
-  const stageTravel = Math.max((stage?.offsetHeight || hero.offsetHeight) * 0.66, 1);
+  const stageRect = heroStage ? heroStage.getBoundingClientRect() : hero.getBoundingClientRect();
+  const stageHeight = heroStage?.offsetHeight || hero.offsetHeight;
+  const pinnedHeight = Math.min(hero.offsetHeight, stageHeight);
+  const stageTravel = Math.max(stageHeight - pinnedHeight, 1);
   const progress = Math.min(Math.max(-stageRect.top / stageTravel, 0), 1);
   const concreteProgress = reduceMotion.matches
-    ? 1
+    ? 0
     : easeInOutCubic(Math.min(Math.max(progress / HERO_CONCRETE_COMPLETE_PROGRESS, 0), 1));
   const headerOffset = (header?.offsetHeight || 84) + HERO_NAV_RELEASE_OFFSET;
   const navReleaseLine = headerOffset + HERO_NAV_RELEASE_OFFSET;
   const shouldUseScrolledHeader = stageRect.bottom <= navReleaseLine;
-  const copyProgress = reduceMotion.matches ? 1 : concreteProgress;
+  const copyProgress = reduceMotion.matches ? 0 : concreteProgress;
   const abstractCopyExit = smoothstep(0.08, 0.44, copyProgress);
   const concreteCopyEntry = smoothstep(0.56, 0.92, copyProgress);
 

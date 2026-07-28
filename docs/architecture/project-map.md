@@ -30,8 +30,8 @@
 - `auth.html` / `auth.js`：Phase 1 统一用户入口；同一可访问 editorial shell 按 `/auth/sign-in`、`/auth/register`、`/auth/forgot-password`、`/auth/reset-password`、`/auth/verify-email` 的配置呈现字段、loading、invalid/expired、field error、success 与下一步；Forgot 使用防枚举成功文案；Reset/Verify 同时兼容 fragment `token_hash` 和 Supabase 默认 implicit fragment，先把敏感 fragment 读入函数内存并立即清除 URL，再由 same-origin 服务端换成 `HttpOnly` Cookie，禁止 local/session storage；所有 mutation 先获取 HttpOnly double-submit CSRF token，并校验 Origin；登录 200 后仍以 no-store `/api/me` 确认 Cookie，再执行 Admin MFA 或 `/workspace/images` 跳转。
 - `mfa.html` / `mfa.js`：Admin TOTP enrollment 与登录 challenge 页面；复用 editorial Auth shell，覆盖 factors loading、首次 QR/手工 secret、已有 factor、6 位验证码、provider error、invalid/expired code、success、sign-out 与移动端布局；发现旧的 unverified TOTP factor 时由受保护 enrollment API 自动重置并生成新的 QR/secret；QR data URI 兼容 `<svg>` 与带 XML declaration 的 Supabase SVG；MFA mutation 同样使用 Origin + CSRF token，所有 token 仍只存在于服务端 HttpOnly session。
 - `account-settings.html` / `account-settings.js`：受保护 `/settings/account` 账户页面；复用单一全局顶栏，以紧凑标题栏、sticky 本地导航和连续白色表单面板组织 Profile、Preferences、Security 与 Sessions。Profile 的十个 creator 字段按 Identity、Work、Location、About、Links 五组排列；真实头像流程校验 JPG/PNG/WebP，在浏览器中心裁切并输出 512x512 JPEG，再通过 owner-scoped private Storage intent 更新。页面维护 dirty/disabled/saving/error/success 状态和 provider 支持的会话撤销，但不伪造远程设备列表或位置历史。
-- `styles.css`：全站视觉系统和响应式布局；定义 gallery palette、`--ui-*` 与 `--presentation-*` token、64px GlobalHeader、500x40 全圆搜索、352px 克制账户菜单、移动搜索/导航展开、Public/Workspace 两种统一页脚、首页摄影覆盖层、无公开侧栏的 Works 自然比例 masonry、图标式 hover 操作层、沉浸式作品查看器，以及统一 focus-visible/响应式/无横向溢出规则。
-- `script.js`：首页短程滚动过渡、登录态 Dashboard 入口、IndexedDB 首页设置读取和应用、Statement 标题和每个图文 moment 的渐进显影、锚点点击平滑滚动逻辑；不再维护作品分类或比例筛选状态。
+- `styles.css`：全站视觉系统和响应式布局；定义 gallery palette、`--ui-*` 与 `--presentation-*` token、64px GlobalHeader、500x40 全圆搜索、352px 克制账户菜单、移动搜索/导航展开、Public/Workspace 两种统一页脚、首页有界 sticky 摄影过渡舞台、无公开侧栏的 Works 自然比例 masonry、图标式 hover 操作层、沉浸式作品查看器，以及统一 focus-visible/响应式/无横向溢出规则。
+- `script.js`：首页有界 sticky 滚动过渡、登录态 Dashboard 入口、IndexedDB 首页设置读取和应用、Statement 标题和每个图文 moment 的渐进显影、锚点点击平滑滚动逻辑；不再维护作品分类或比例筛选状态。
 - `global-header.js`：公共浏览页与 Dashboard/Review 共用的 GlobalHeader renderer；复用服务端 Header Identity slot，生成品牌、居中全局搜索、公开导航、身份分隔线和移动入口。搜索在 Works 内以 260ms debounce 更新现有筛选/URL，在其他页面加载安全建议；支持 Enter、Escape、方向键、外部关闭、active route 与 Lightbox count，不重复请求用户资料。
 - `public-navigation.js`：公开页与 Dashboard 共用的窄屏顶部导航控制器；在 `760px` 断点同步菜单 open/closed、`aria-expanded`、`aria-hidden` 与 `inert`，支持按钮点击、ArrowDown 首项聚焦、Escape 关闭并恢复触发器焦点、链接选择、焦点离开、外部点击和 viewport 切换；不读取登录状态，也不复制账户菜单或 Sign out 逻辑。
 - `public-archive.js`：Lightbox、Contact 与 Works 共用的公开作品读取层；统一 published DTO、比例样式、持久 `mt-presence-lightbox-v1` 收藏和 session-scoped `mt-presence-inquiry-selection-v1`；移除收藏会同步剪除临时选择，并兼容迁移旧 Saved/Collection keys。配置 Supabase 后把 `supabase-public` 视为权威源，200 空结果或 provider error 均保持真实空/错误，禁止 sample/IndexedDB 重新显示已下架作品，本地未配置环境才允许 preview fallback。
@@ -157,22 +157,22 @@
 ### 相关文件
 
 - `index.html`：定义 hero、Selected Works、Current Series、Statement、Contact；hero 主/次 CTA 为 Enter Works / View Series；Current Series 当前链接到 `weather-at-the-threshold`。
-- `styles.css`：实现参考图式摄影背景、右侧主标题、斜切下沿、按钮样式、Selected Works 作品带、紧凑双列 Statement 和移动端单列布局；hero 使用非 sticky 双层图片过渡，桌面高度上限约 `92svh`、移动端约 `82svh`，各视口首屏都露出下一段内容。
-- `script.js`：启动时读取 IndexedDB `site_settings.homepage`，用 `--home-hero-abstract-image` / `--home-hero-concrete-image` CSS 变量和 `data-home-*` DOM 钩子覆盖首页 hero/Statement 图片与文字；根据 hero 自身的短程滚动进度设置图片和两套文案的分段淡出/淡入变量，并在 hero 接近结束时切换导航栏状态；身份只由 `account-menu.js` 管理；用 IntersectionObserver 渐进增强 Statement 显影，未触发动画时内容仍可读；拦截页内锚点点击并扣除 header 高度后执行 ease-in-out 纵向滚动。
+- `styles.css`：实现参考图式摄影背景、左侧主标题、按钮样式、Selected Works 作品带、紧凑双列 Statement 和移动端单列布局；hero 使用长度受限的 sticky 双层图片舞台，桌面滚动段为 `160svh`、移动端为 `145svh`，首帧完整由摄影画面占据，过渡结束后下一段内容才进入视口。
+- `script.js`：启动时读取 IndexedDB `site_settings.homepage`，用 `--home-hero-abstract-image` / `--home-hero-concrete-image` CSS 变量和 `data-home-*` DOM 钩子覆盖首页 hero/Statement 图片与文字；根据 `hero-stage` 高度减去 pinned hero 高度得到真实滚动行程，设置图片和两套文案的分段淡出/淡入变量，并在 hero 接近结束时切换导航栏状态；身份只由 `account-menu.js` 管理；用 IntersectionObserver 渐进增强 Statement 显影，未触发动画时内容仍可读；拦截页内锚点点击并扣除 header 高度后执行 ease-in-out 纵向滚动。
 - `docs/design/design-system.md`：记录首页的视觉定位、字体、色彩、按钮和布局规则。
 - `docs/design/image-sources.md`：记录首页主视觉当前素材来源和替换规则。
 - `assets/art/hero-ci-jian.jpg`：首页主视觉临时样张。
 
 ### 页面内部结构
 
-- 主视觉：`hero-stage` 桌面高度上限约 `92svh`、移动端约 `82svh`，`hero` 保持普通页面流而非 sticky；滚过主视觉时把 `assets/art/hero-ci-jian.jpg` 黑白抽象风景平滑切到 `assets/art/hero-concrete.jpg` 具体彩色风景，抽象文案和具象文案同步分段淡出/淡入、轻微上移，避免两套大标题叠字；首屏下沿必须露出 Selected Works，按钮不随滚动替换。
+- 主视觉：`hero-stage` 桌面为 `160svh`、移动端为 `145svh`，内部 `hero` 以 `100svh` 粘在视口；滚动时把 `assets/art/hero-ci-jian.jpg` 黑白抽象风景平滑切到 `assets/art/hero-concrete.jpg` 具体彩色风景，抽象文案和具象文案同步分段淡出/淡入、轻微上移，避免两套大标题叠字；首帧不提前露出白色 Selected Works，切换完成后作品区按正常文档流进入；按钮不随滚动替换。
 - 品牌文案：默认抽象阶段为 `Abstract Field`、`A Quiet Field for Images` 和 `Images are not records of the world...`；默认具象阶段为 `Concrete Field`、`Where Looking Becomes Presence` 和 `Light, weather, and distance settle into form...`；内部 `manage.html` 可覆盖两阶段图片、eyebrow、标题和说明。
 - Works：`#works` 在 Statement 前展示 `Works / Selected Works` 标题和 Infinite Marquee Gallery，为后续 Statement 留出视觉加载空间。
 - Current Series：`.home-series-feature` 使用一张明确作品、年份、系列标题、synopsis 和 View Series 入口连接公开 Series detail。
 - Statement：`#statement` 使用 `.statement-intro` 标题和 `.statement-moments` 四段图文；桌面以两列重复单元提升扫描密度，移动端回到单列；每个 `.statement-moment` 包含 `.statement-media`、`.statement-moment-copy`、`.statement-index` 和一段文案，最终 `.statement-cta` 链接到 `works.html`；内部 `manage.html` 可覆盖 Statement 标题、四段图片和四段文字。
 - 按钮：Hero 使用 `Enter Works` / `View Series`；Statement 保留 `Enter Works`；底部联系段使用 `Contact Artist`。
 - 状态：IndexedDB `site_settings.homepage` 是当前首页手工配置过渡层，未来可迁移到页面设置表和 `collections.slug = 'homepage-selected'`；滚动进度控制 `--hero-concrete-opacity`、`--hero-copy-shift`、`--hero-copy-abstract-opacity`、`--hero-copy-concrete-opacity`、`--hero-copy-abstract-panel-shift`、`--hero-copy-concrete-panel-shift`、`--hero-title-alpha`、`--hero-statement-alpha`、`--hero-copy-shadow-alpha` 和 `--hero-copy-shadow-blur`；`body.is-scrolled` 在 hero 底部接近 header 后触发导航换肤；Statement 由 `data-statement-section`、`data-statement-moment`、`.is-animating` 和 `.is-visible` 控制渐进显影，但初始透明度保持内容可读。
-- 响应式：桌面 Statement 使用两个稳定列轨，移动端图片和文字改为普通流单列，所有段落直接可读；`prefers-reduced-motion` 下关闭 Statement 过渡并直接显示内容。
+- 响应式：桌面 Statement 使用两个稳定列轨，移动端图片和文字改为普通流单列，所有段落直接可读；移动 hero 缩短为 `145svh`；`prefers-reduced-motion` 下取消额外 sticky 行程、保留抽象首图并直接显示 Statement 内容。
 - 测试：通过浏览器打开页面检查布局、锚点平滑滚动、下滑过渡、Selected Works 在 Statement 前、四段 Statement 图文分别入场、最终 CTA 和联系页跳转。
 
 ## 2. 无限横向作品带
@@ -651,6 +651,7 @@
 - 2026-07-24：修复本机 Supabase 已配置但尚无公开发布作品时 Works 只能显示空态的问题。`MT_LOCAL_ARCHIVE_PREVIEW=1` 现在仅在 `MT_RUNTIME_ENVIRONMENT=development` 且请求来自 loopback 时，从 SQLite 读取 `source_type=local_sample` 的 27 张仓库示例；旧上传记录、Supabase Draft 与原始资产均不会进入预览。默认及生产仍以 Supabase 公开 RPC 为唯一权威来源，production preflight 显式拒绝开启该开关。
 - 2026-07-27：修复 GlobalHeader 覆盖 Works 全屏 Viewer 工具栏的问题。`styles.css` 将 Works Viewer 提升到全局导航、搜索结果和账户菜单之上，恢复 Info、Fit/Actual、Prev/Next、Close 以及详情侧栏入口；`works.html` 更新样式缓存版本，确保浏览器立即加载修复。
 - 2026-07-27：按 `MT_Presence_UI_Implementation_Prompt.md` 完成 Quiet Editorial 公开体验最终重构。Home 改为深色沉浸式摄影首屏；Works 保留全屏 Viewer 与无刷新收藏，补齐八个比例页签并采用桌面五列到移动单列的自然比例图片墙；新增 `/work.html?id=...` 独立作品记录及 `work-detail.js`；About 通过 `about.js` 读取公开 creator DTO 并提供可信 fallback；Lightbox 新增排序、三列选片区和独立 inquiry sticky 摘要。共享 GlobalHeader、权限感知 Review、搜索、账户菜单、路由和发布 DTO 未被改写；1440x900、1024x768、390x844 五页无横向溢出，Works Viewer/Escape、筛选、搜索 URL、收藏同步、Lightbox selection 和模拟登录账户菜单验收通过，`scripts/release_gate.sh` 全部通过。
+- 2026-07-28：恢复首页清晰可感知的滚动换图机制。`hero-stage` 改为桌面 `160svh` / 移动 `145svh` 的有界舞台，`hero` 在 `100svh` 视口内 sticky，滚动进度按“舞台高度 - pinned hero 高度”计算；首帧不再提前露出 Selected Works 白色区，抽象图和文案过渡完成后正文才进入。`prefers-reduced-motion` 取消额外滚动行程并稳定显示抽象首图；GlobalHeader 的 `MT Presence` 字标同步调整字号、字重和间距，修复品牌两段比例失衡。
 - 2026-07-24：按用户反馈完整撤回本轮 Home、About 与 Works 视觉实验。Home 恢复全幅摄影 hero、横向 Selected Works marquee 和双列 Statement；About 恢复原 Practice/Availability 版式；Works 恢复 Search、Type/Ratio tabs、Works Archive 标题与既有四列 masonry/Viewer 视觉。收藏局部更新、Lightbox Inquiry Selection、Header Identity、Review 顶层入口和其他功能修复继续保留。
 - 2026-07-24：完成 development Scanner 首次真实队列消费：用户通过隐藏提示把 current Supabase secret 写入 Git ignored、权限 `0600` 的 `.env.worker`，Web `.env` 与浏览器仍不持有 privileged credential；隔离 Python 3.11/Pillow 12.3.0 Worker 使用 ClamAV 1.5.3 和官方签名逐条扫描 original/display/thumbnail，三条任务均首轮 `clean`。远程核对 assets/jobs 均为 3 clean，events 为 queued/claimed/clean 各 3，current-policy clean 为 3；五项 readiness 中 image assets、security scan、submission state 已 pass，当前 Draft 仅由 work details 与 rights/disclosures 阻塞。Production 常驻 Worker、监控与告警仍未交付。
 - 2026-07-23：完成 Phase 5 生产候选收口。新增持久化 project inquiry、Notifications、recipient-isolated Inbox、versioned reply/Close/Reopen、guest manual delivery、Admin Audit safe list/detail/audited export；通信与审计具备静态、secret-free HTTP、development-only rollback PostgreSQL 三层门禁。仓库新增显式静态 allowlist、bounded threads、health/readiness、Nginx/TLS/rate-limit/systemd hardening、分离 secrets、数据库备份验证、immutable checksummed release、atomic rollback 和 `scripts/release_gate.sh`；这不是生产部署记录，正式激活仍要求隔离克隆验收、域名/TLS、生产 secrets、Storage recovery、干净 tag 与线上 smoke acceptance。
