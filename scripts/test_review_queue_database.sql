@@ -12,6 +12,10 @@ begin
     'authenticated',
     'public.review_decide_submission(uuid,integer,text,jsonb,text,text,jsonb,uuid)',
     'EXECUTE'
+  ) or not has_function_privilege(
+    'authenticated',
+    'public.review_super_admin_self_publish(uuid,integer,jsonb,text,text,jsonb,uuid)',
+    'EXECUTE'
   ) or has_function_privilege(
     'anon',
     'public.review_decide_submission(uuid,integer,text,jsonb,text,text,jsonb,uuid)',
@@ -19,6 +23,14 @@ begin
   ) or has_function_privilege(
     'service_role',
     'public.review_decide_submission(uuid,integer,text,jsonb,text,text,jsonb,uuid)',
+    'EXECUTE'
+  ) or has_function_privilege(
+    'anon',
+    'public.review_super_admin_self_publish(uuid,integer,jsonb,text,text,jsonb,uuid)',
+    'EXECUTE'
+  ) or has_function_privilege(
+    'service_role',
+    'public.review_super_admin_self_publish(uuid,integer,jsonb,text,text,jsonb,uuid)',
     'EXECUTE'
   ) then
     raise exception 'review decision RPC grant boundary is invalid';
@@ -174,6 +186,30 @@ insert into public.image_assets (
     'thumbnail', '00000000-0000-4000-8000-00000000f301/phase3/thumbnail.jpg',
     'image/jpeg', 300, 400, 300, repeat('c', 64), 'clean', 'clean', now(),
     'mt-asset-scan-2026-07-v1', 'private'
+  ),
+  (
+    '00000000-0000-4000-8000-00000000f344',
+    '00000000-0000-4000-8000-00000000f312',
+    '00000000-0000-4000-8000-00000000f302',
+    'original', '00000000-0000-4000-8000-00000000f302/phase3-self/original.jpg',
+    'image/jpeg', 1200, 1200, 1600, repeat('d', 64), 'clean', 'clean', now(),
+    'mt-asset-scan-2026-07-v1', 'private'
+  ),
+  (
+    '00000000-0000-4000-8000-00000000f345',
+    '00000000-0000-4000-8000-00000000f312',
+    '00000000-0000-4000-8000-00000000f302',
+    'display', '00000000-0000-4000-8000-00000000f302/phase3-self/display.jpg',
+    'image/jpeg', 900, 675, 900, repeat('e', 64), 'clean', 'clean', now(),
+    'mt-asset-scan-2026-07-v1', 'private'
+  ),
+  (
+    '00000000-0000-4000-8000-00000000f346',
+    '00000000-0000-4000-8000-00000000f312',
+    '00000000-0000-4000-8000-00000000f302',
+    'thumbnail', '00000000-0000-4000-8000-00000000f302/phase3-self/thumbnail.jpg',
+    'image/jpeg', 300, 225, 300, repeat('f', 64), 'clean', 'clean', now(),
+    'mt-asset-scan-2026-07-v1', 'private'
   );
 alter table public.image_assets enable trigger image_assets_enqueue_scan_job;
 
@@ -291,6 +327,14 @@ begin
   );
   if response #>> '{error,code}' <> 'REVIEW_SELF_REVIEW_FORBIDDEN' then
     raise exception 'Reviewer decided a self-owned submission';
+  end if;
+  response := public.review_super_admin_self_publish(
+    '00000000-0000-4000-8000-00000000f332', 1,
+    '["policy_complete"]'::jsonb, 'Self publish must require Super Admin.', '', checklist,
+    '00000000-0000-4000-8000-00000000f367'
+  );
+  if response #>> '{error,code}' <> 'REVIEW_SELF_PUBLISH_FORBIDDEN' then
+    raise exception 'Reviewer reached the Super Admin self-publish action';
   end if;
 
   response := public.review_start_submission('00000000-0000-4000-8000-00000000f331', 1);
@@ -535,6 +579,107 @@ begin
 end
 $$;
 
+-- The owner is elevated only inside this rollback-only fixture. Verify that
+-- role stacking still requires AAL2, the normal Review RPC still rejects
+-- self-review, and only the explicit audited action can publish the work.
+insert into public.user_roles (user_id, role, assigned_by, reason) values (
+  '00000000-0000-4000-8000-00000000f302',
+  'super_admin',
+  '00000000-0000-4000-8000-00000000f303',
+  'Phase 3 Super Admin self-publish acceptance'
+);
+
+select pg_temp.set_review_claims('00000000-0000-4000-8000-00000000f302', 'aal1');
+do $$
+begin
+  begin
+    perform public.review_super_admin_self_publish(
+      '00000000-0000-4000-8000-00000000f332', 1,
+      '["policy_complete"]'::jsonb, 'AAL1 must not publish this work.', '',
+      '{"file_integrity":true,"rights":true,"privacy":true,"minors":true,"sensitive_content":true,"hate_illegal":true,"property_release":true,"third_party_ip":true,"ai_disclosure":true,"public_metadata":true}'::jsonb,
+      '00000000-0000-4000-8000-00000000f368'
+    );
+    raise exception 'Super Admin AAL1 self-published a work';
+  exception when sqlstate '42501' then
+    null;
+  end;
+end
+$$;
+
+select pg_temp.set_review_claims('00000000-0000-4000-8000-00000000f302', 'aal2');
+do $$
+declare
+  response jsonb;
+  replay jsonb;
+  conflict jsonb;
+  self_publish_audit public.audit_logs%rowtype;
+  checklist constant jsonb := '{
+    "file_integrity": true,
+    "rights": true,
+    "privacy": true,
+    "minors": true,
+    "sensitive_content": true,
+    "hate_illegal": true,
+    "property_release": true,
+    "third_party_ip": true,
+    "ai_disclosure": true,
+    "public_metadata": true
+  }'::jsonb;
+begin
+  response := public.review_decide_submission(
+    '00000000-0000-4000-8000-00000000f332', 1, 'approve_and_publish',
+    '["policy_complete"]'::jsonb, 'Normal self review must remain forbidden.', '', checklist,
+    '00000000-0000-4000-8000-00000000f369'
+  );
+  if response #>> '{error,code}' <> 'REVIEW_SELF_REVIEW_FORBIDDEN' then
+    raise exception 'Super Admin bypassed the normal self-review RPC';
+  end if;
+
+  response := public.review_super_admin_self_publish(
+    '00000000-0000-4000-8000-00000000f332', 1,
+    '["policy_complete"]'::jsonb, 'Super Admin policy checks complete.', 'Audited owner publication.', checklist,
+    '00000000-0000-4000-8000-00000000f366'
+  );
+  replay := public.review_super_admin_self_publish(
+    '00000000-0000-4000-8000-00000000f332', 1,
+    '["policy_complete"]'::jsonb, 'Super Admin policy checks complete.', 'Audited owner publication.', checklist,
+    '00000000-0000-4000-8000-00000000f366'
+  );
+  conflict := public.review_super_admin_self_publish(
+    '00000000-0000-4000-8000-00000000f332', 1,
+    '["policy_complete"]'::jsonb, 'Different payload cannot reuse the key.', 'Audited owner publication.', checklist,
+    '00000000-0000-4000-8000-00000000f366'
+  );
+
+  if response is distinct from replay
+     or response #>> '{submission,status}' <> 'approved'
+     or response #>> '{submission,lock_version}' <> '2'
+     or response #>> '{decision,decision}' <> 'approve_and_publish'
+     or response #>> '{image,workflow_status}' <> 'approved'
+     or response #>> '{image,publication_status}' <> 'published'
+     or conflict #>> '{error,code}' <> 'REVIEW_IDEMPOTENCY_CONFLICT' then
+    raise exception 'Super Admin self-publish result or idempotency contract is invalid';
+  end if;
+  if (select assigned_reviewer_id from public.review_submissions where id = '00000000-0000-4000-8000-00000000f332') is not null
+     or (select storage_visibility from public.image_assets where id = '00000000-0000-4000-8000-00000000f344') <> 'private'
+     or (select count(*) from public.image_assets where image_id = '00000000-0000-4000-8000-00000000f312' and kind in ('display', 'thumbnail') and storage_visibility = 'public') <> 2 then
+    raise exception 'Super Admin self-publish changed assignment or the wrong asset visibility';
+  end if;
+  select * into self_publish_audit
+  from public.audit_logs a
+  where a.request_id = '00000000-0000-4000-8000-00000000f366';
+  if self_publish_audit.id is null
+     or self_publish_audit.actor_role <> 'super_admin'::public.role_code
+     or self_publish_audit.action <> 'review.super_admin_self_publish'
+     or self_publish_audit.before_state ->> 'self_publish_override' <> 'true'
+     or self_publish_audit.after_state ->> 'self_publish_override' <> 'true'
+     or self_publish_audit.before_state ->> 'submission_status' <> 'submitted'
+     or self_publish_audit.after_state ->> 'publication_status' <> 'published' then
+    raise exception 'Super Admin self-publish audit evidence is invalid';
+  end if;
+end
+$$;
+
 rollback;
 
 \echo review_database_role_aal_rls=yes
@@ -543,4 +688,5 @@ rollback;
 \echo review_database_cas_and_idempotency=yes
 \echo review_database_stable_result_snapshot=yes
 \echo review_database_notification_audit=yes
+\echo review_database_super_admin_self_publish=yes
 \echo review_database_fixtures_rolled_back=yes

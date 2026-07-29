@@ -592,15 +592,31 @@ function actionButton(label, action, className, { atomic = false } = {}) {
   return button;
 }
 
+function canSuperAdminSelfPublish(detail) {
+  return detail?.actor?.can_self_publish === true
+    && detail?.owner?.id === detail?.actor?.id
+    && detail?.submission?.status === "submitted"
+    && !detail?.submission?.assigned_reviewer?.id
+    && !detail?.submission?.review_started_at
+    && detail?.image?.workflow_status === "submitted"
+    && detail?.image?.publication_status !== "published";
+}
+
 function renderAssignmentActions(detail) {
   assignmentActions.replaceChildren();
   const submission = detail.submission;
   const actorId = detail.actor.id;
   const assignedId = submission.assigned_reviewer?.id || "";
   if (detail.owner.id === actorId) {
+    if (canSuperAdminSelfPublish(detail)) {
+      assignmentActions.append(actionButton("Prepare self-publish", "decision", "button-primary"));
+      return;
+    }
     const note = document.createElement("span");
     note.className = "admin-review-assigned-note";
-    note.textContent = "Self-review is not permitted.";
+    note.textContent = assignedId
+      ? `Independent review assigned to ${submission.assigned_reviewer.display_name}`
+      : "Self-review is not permitted.";
     assignmentActions.append(note);
     return;
   }
@@ -747,7 +763,8 @@ function renderDetail(detail) {
     && submission.status === "approved"
     && detail.image.publication_status !== "published"
     && detail.owner.id !== detail.actor.id;
-  const canDecide = canReview || canPublishApproved;
+  const canSelfPublish = canSuperAdminSelfPublish(detail);
+  const canDecide = canReview || canPublishApproved || canSelfPublish;
   decisionForm.hidden = !canDecide;
   if (canDecide) setupDecisionForm(detail);
   renderQueueItems();
@@ -830,13 +847,16 @@ async function loadDetail(id, { focus = false } = {}) {
 
 function setupDecisionForm(detail) {
   decisionSelect.replaceChildren();
+  const selfPublish = canSuperAdminSelfPublish(detail);
   const publishOnly = detail.submission.status === "approved";
-  const decisions = publishOnly ? [] : [
-    ["request_changes", "Request changes"],
-    ["reject", "Reject"],
-    ["approve", "Approve"],
-  ];
-  if (detail.actor.can_publish === true) {
+  const decisions = selfPublish
+    ? [["approve_and_publish", "Approve and publish"]]
+    : publishOnly ? [] : [
+      ["request_changes", "Request changes"],
+      ["reject", "Reject"],
+      ["approve", "Approve"],
+    ];
+  if (!selfPublish && detail.actor.can_publish === true) {
     decisions.push(["approve_and_publish", publishOnly ? "Publish approved work" : "Approve and publish"]);
   }
   decisions.forEach(([value, label]) => decisionSelect.add(new Option(label, value)));
@@ -860,7 +880,9 @@ function setupDecisionForm(detail) {
     input.removeAttribute("aria-describedby");
   });
   delete formNotice.dataset.tone;
-  formNotice.textContent = publishOnly
+  formNotice.textContent = selfPublish
+    ? "Super Admin self-publish is restricted to this untouched submission and creates immutable audit evidence."
+    : publishOnly
     ? "Publishing makes this work immediately visible in Works and on the creator's public profile."
     : "Complete each policy check before submitting a decision.";
   decisionSubmit.disabled = mutationBusy;
@@ -997,8 +1019,10 @@ function submitDecision() {
   });
   delete formNotice.dataset.tone;
   const decision = decisionSelect.value;
+  const selfPublish = decision === "approve_and_publish" && canSuperAdminSelfPublish(selectedDetail);
+  const action = selfPublish ? "super_admin_self_publish" : decision;
   const body = {
-    confirmation: `review-${decision.replaceAll("_", "-")}`,
+    confirmation: `review-${action.replaceAll("_", "-")}`,
     expected_version: selectedDetail.submission.lock_version,
     idempotency_key: createIdempotencyKey(),
     reason_codes: [reasonSelect.value],
@@ -1007,9 +1031,11 @@ function submitDecision() {
     checklist_result: checklistResult,
   };
   openDialog(
-    { action: decision, body, submissionId: selectedDetail.submission.id },
+    { action, body, submissionId: selectedDetail.submission.id },
     `Confirm ${displayDecision(decision).toLowerCase()}`,
-    decision === "approve_and_publish"
+    selfPublish
+      ? "This uses the explicit Super Admin exception for your own untouched submission, records immutable audit evidence, and immediately publishes the work."
+      : decision === "approve_and_publish"
       ? "This records an immutable approval decision and immediately publishes the work in Works and on the creator's public profile."
       : "The decision, reason, checklist, and user message will be written to immutable review history.",
   );

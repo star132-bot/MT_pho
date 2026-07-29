@@ -12,6 +12,7 @@ Included:
 - atomic reviewer claim/start, optimistic `lock_version` checks, and immutable review decisions;
 - Request Changes, Reject, and Approve UI for Reviewer;
 - Admin/Super Admin+AAL2-only browser and database/API boundary for `approve_and_publish`;
+- explicit Super Admin+AAL2-only self-publish RPC for an owned, untouched, unassigned Submitted work;
 - signed, short-lived access to submitted private assets;
 - notifications and append-only audit evidence.
 
@@ -25,9 +26,10 @@ The browser exposes Approve and publish only to Admin/Super Admin sessions at AA
 | Recovery session | Denied | Denied | Denied |
 | Pure Reviewer | Unassigned waiting items and their own open assignments, excluding their submissions | Own open non-self assignment only | Request Changes, Reject, or Approve on own active non-self assignment; no publish |
 | Admin or Super Admin at AAL1 | Denied | Denied | Denied |
-| Admin or Super Admin at AAL2 | Full queue/history, including read-only visibility of own submissions | Full authorized review history | Supported Admin actions including Approve and publish, but never self-review |
+| Admin at AAL2 | Full queue/history, including read-only visibility of own submissions | Full authorized review history | Supported Admin actions including Approve and publish on non-self submissions; never self-review |
+| Super Admin at AAL2 | Full queue/history | Full authorized review history | Normal decisions remain non-self; the dedicated self-publish action may publish only an owned, untouched, unassigned Submitted work |
 
-Role stacking must not let an Admin who also has `reviewer` bypass AAL2. Self-review is denied in assignment, start, and decision RPCs for every role; a future override would require a separate, explicitly audited policy action.
+Role stacking must not let an Admin who also has `reviewer` bypass AAL2. Self-review remains denied in assignment, start, and the normal decision RPCs for every role. The only exception is `review_super_admin_self_publish`: it requires a current AAL2 Super Admin, exact owner identity, an untouched/unassigned Submitted state, current version/readiness, three current-policy-clean assets, complete checklist, CAS and idempotency; it records `review.super_admin_self_publish` and never exposes original storage.
 
 ## Local Contract Tests
 
@@ -98,8 +100,12 @@ Never run this fixture workflow against production. A passing result requires bo
 
 The rollback-only development test passed on 2026-07-20. It covers:
 
+The Super Admin self-publish extension was re-run on 2026-07-29 in an isolated PostgreSQL 15 container: the ordered baseline/migrations parsed successfully, every self-publish marker passed, and the fixture transaction ended with `ROLLBACK`. The local `.env` was not used for this test because it resolves to the production Supabase project.
+
 - User, Reviewer, Admin AAL1, Admin AAL2, and stacked-role direct table/RPC/Storage access;
 - self-review rejection for assignment, start, approval, and future publish actions;
+- ordinary Admin denial plus AAL1 denial for the dedicated self-publish action;
+- Super Admin self-publish only through the explicit RPC, with stable replay, immutable audit evidence, original-private and derivative-public assertions;
 - clean/current scan-policy revocation at Queue Detail and Storage object access;
 - same-key/same-payload idempotency and same-key/different-payload conflict;
 - stable same-payload replay after a later Admin Publish changes live state;

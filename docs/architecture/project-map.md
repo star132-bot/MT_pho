@@ -542,7 +542,7 @@
 - 为已提交的 immutable submission snapshot 提供独立的企业级摄影审核工作台，不复用 legacy `manage.html` 或 SQLite visibility。
 - canonical 入口为 `/admin/reviews`，deep link 为 `/admin/reviews/{submissionId}`；未登录进入 Sign In，recovery/普通 User 拒绝，Admin/Super Admin AAL1 进入 MFA。
 - 纯 Reviewer 只看到未分配的 Submitted queue 与自己的 open assignment；未领取项只使用 thumbnail，打开时必须先原子 Start/Claim，再读取 Original/Display。Admin/Super Admin 达到 AAL2 后可查看完整授权历史。
-- 当前浏览器动作是 Request Changes、Reject、Approve；Admin/Super Admin+AAL2 还能 Approve and publish，使 current-policy-clean display/thumbnail 进入公开 Works 与创作者主页。纯 Reviewer 的 Approve 不公开。
+- 当前浏览器动作是 Request Changes、Reject、Approve；Admin/Super Admin+AAL2 还能 Approve and publish，使 current-policy-clean display/thumbnail 进入公开 Works 与创作者主页。纯 Reviewer 的 Approve 不公开。另有一条独立的 Super Admin self-publish 动作：仅限本人、未分配、未开始审核的 Submitted submission，仍要求 AAL2、完整 checklist、当前 clean assets、CAS 与幂等键，并写入专用 immutable audit；普通 Admin 和常规 Review RPC 都不能借此自审。
 
 ### 相关文件
 
@@ -550,6 +550,7 @@
 - `styles.css`：`.admin-review-*` gallery-white 高密度布局；桌面自然高度/sticky media、12px evidence 与 13px body、1024px 上下折叠、760px Queue/Detail 单视图和 390px 无横向溢出规则。
 - `server.py`：保护页面与 Review API，执行 identity/active account/role/AAL/CSRF/JSON/version/idempotency 边界，把 PostgREST/provider 响应投影为不泄露 bucket/key/internal note 的稳定 DTO，并为允许的 asset 生成短时签名 URL。
 - `database/migrations/20260717_review_queue.sql`：scoped list/detail、assignment/start/decision RPC，Reviewer/Admin+AAL2 RLS、private Storage 生命周期与 bucket-kind 绑定、CAS、immutable result replay、notification、publication boundary 和 immutable audit。
+- `database/migrations/20260729_super_admin_self_publish.sql`：独立 authenticated-only `review_super_admin_self_publish` RPC；固定 Super Admin+AAL2、owner、untouched/unassigned Submitted、current version/readiness/current-policy-clean 三资产门禁，只公开 display/thumbnail，并记录 `review.super_admin_self_publish` 审计证据。
 - `scripts/validate_review_queue_phase3.py` / `scripts/test_review_queue_boundary.py`：静态 SQL/UI/API/CI contract 与 secret-free fake-provider HTTP integration。
 - `scripts/test_review_queue_database.sql`：rollback-only development 数据库角色/AAL/RLS/Storage/CAS/幂等/通知/审计验收。
 - `scripts/test_review_queue_concurrency.py`：development-only 双会话真实并发验收；用 process-level advisory run lock 和 shared start gate 同步独立 PostgreSQL backend，覆盖 Start/claim 竞争、不同 key decision CAS 竞争、same-key replay 单副作用，并在前置与 `finally` 清理 committed fixture。
@@ -562,8 +563,8 @@
 - Queue list：thumbnail、title、Submission ID 尾段、owner、waiting time、category、rights、assignment 与 status；accessible name 同时包含可区分任务的 title/status/owner/waiting/ID 尾段，分页与选中项同步 URL。
 - Review Detail：submitted image 为视觉主角，Inspector 依次显示 copy、rights、asset evidence、readiness、history 与 decision；图片只用签名 URL，Actual size 不裁切原作。
 - Mutation：Start 与 decision 在请求中禁用相关控件；409/assignment conflict 保留本地输入并提供 Reload；checklist 首错项的 invalid/description/focus、dialog 首焦点、Escape、关闭后焦点恢复和 alert 宣告都有明确合同。
-- 安全：角色叠加不能让 Admin+AAL1 借 Reviewer policy 绕过 MFA；Reviewer 完成/失去 assignment 后 private detail/asset 权限立即失效；same-key/same-payload 返回首次完整结果，不同 payload 冲突。
-- 验收状态：migration 已部署 development，rollback-only User/Reviewer/stacked Admin AAL1/Admin AAL2 的 RLS/Storage/CAS/幂等/通知/审计验收通过；六个独立 `psql` 会话完成三组双会话 Start/decision race，每组 backend PID 不同且 fixture 已清理；真实多身份浏览器的 Reviewer A claim、Reviewer B 越权拒绝、Request Changes、Admin AAL2 Approve、private 三变体、responsive/focus/console、session close 与 fixture cleanup 全部通过。Public DTO、derivative delivery、Works migration 与 public creator portfolio 已由 2026-07-22 公开交付切片接通；全量 publication inventory 与 Takedown/Restore 已由 Phase 4A 接管。Withdraw、bulk/risk filters 仍属于后续运营切片。
+- 安全：角色叠加不能让 Admin+AAL1 借 Reviewer policy 绕过 MFA；Reviewer 完成/失去 assignment 后 private detail/asset 权限立即失效；same-key/same-payload 返回首次完整结果，不同 payload 冲突。常规 assignment/start/decision 始终拒绝本人作品；唯一例外是专用 Super Admin self-publish 原子动作，且不能接管已分配给独立 Reviewer 的 submission。
+- 验收状态：原 Phase 3 migration 已部署 development；2026-07-29 新增 self-publish migration 已在隔离 PostgreSQL 15 中完成有序解析和 rollback-only User/Reviewer/Admin/Super Admin AAL1/AAL2、常规 self-review、CAS/幂等、通知、original-private/derivative-public 与专用审计验收。六个独立 `psql` 会话完成三组双会话 Start/decision race，每组 backend PID 不同且 fixture 已清理；真实多身份浏览器的 Reviewer A claim、Reviewer B 越权拒绝、Request Changes、Admin AAL2 Approve、private 三变体、responsive/focus/console、session close 与 fixture cleanup 全部通过。Public DTO、derivative delivery、Works migration 与 public creator portfolio 已由 2026-07-22 公开交付切片接通；全量 publication inventory 与 Takedown/Restore 已由 Phase 4A 接管。Withdraw、bulk/risk filters 仍属于后续运营切片。
 
 ## 11A. Supabase Admin Works Governance
 

@@ -333,6 +333,7 @@ REVIEW_ERROR_STATUS = {
     "REVIEW_ALREADY_ASSIGNED": HTTPStatus.CONFLICT,
     "REVIEW_ASSIGNMENT_REQUIRED": HTTPStatus.CONFLICT,
     "REVIEW_SELF_REVIEW_FORBIDDEN": HTTPStatus.FORBIDDEN,
+    "REVIEW_SELF_PUBLISH_FORBIDDEN": HTTPStatus.FORBIDDEN,
     "REVIEW_STATE_CONFLICT": HTTPStatus.CONFLICT,
     "REVIEW_ASSETS_NOT_READY": HTTPStatus.CONFLICT,
     "REVIEW_ALREADY_PUBLISHED": HTTPStatus.CONFLICT,
@@ -2503,6 +2504,7 @@ def clean_review_actor(
         "id": actor_id,
         "roles": roles,
         "can_publish": bool(set(roles).intersection({"admin", "super_admin"})),
+        "can_self_publish": "super_admin" in roles,
     }
 
 
@@ -9170,11 +9172,13 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         body = self.read_json_body()
         if body is None:
             return
+        self_publish = action == "super-admin-self-publish"
         decision = {
             "request-changes": "request_changes",
             "reject": "reject",
             "approve": "approve",
             "approve-and-publish": "approve_and_publish",
+            "super-admin-self-publish": "approve_and_publish",
         }.get(action)
         try:
             submission_id = clean_uuid(submission_id, "review submission id")
@@ -9242,24 +9246,35 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if not allowed or not user or authorization is None:
             return
         roles = set(authorization.get("roles") or [])
-        if decision == "approve_and_publish" and not roles.intersection({"admin", "super_admin"}):
+        if self_publish and "super_admin" not in roles:
+            self.send_json(
+                HTTPStatus.FORBIDDEN,
+                auth_error(
+                    "REVIEW_SELF_PUBLISH_FORBIDDEN",
+                    "Only a Super Admin may use the audited self-publish action.",
+                ),
+            )
+            return
+        if not self_publish and decision == "approve_and_publish" and not roles.intersection({"admin", "super_admin"}):
             self.send_json(
                 HTTPStatus.FORBIDDEN,
                 auth_error("REVIEW_PUBLISH_ADMIN_REQUIRED", "Administrator approval is required to publish."),
             )
             return
+        rpc_payload = {
+            "submission_id": submission_id,
+            "expected_lock_version": expected_version,
+            "reason_codes": reason_codes,
+            "user_message": user_message.strip(),
+            "internal_note": internal_note.strip(),
+            "checklist_result": checklist,
+            "idempotency_key": idempotency_key,
+        }
+        if not self_publish:
+            rpc_payload["decision"] = decision
         _, _, result = self.review_rpc(
-            "review_decide_submission",
-            {
-                "submission_id": submission_id,
-                "expected_lock_version": expected_version,
-                "decision": decision,
-                "reason_codes": reason_codes,
-                "user_message": user_message.strip(),
-                "internal_note": internal_note.strip(),
-                "checklist_result": checklist,
-                "idempotency_key": idempotency_key,
-            },
+            "review_super_admin_self_publish" if self_publish else "review_decide_submission",
+            rpc_payload,
             principal=(user, authorization),
         )
         if result is None:
@@ -11212,7 +11227,13 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             if action == "start":
                 self.handle_review_start(submission_id)
                 return
-            if action in {"request-changes", "reject", "approve", "approve-and-publish"}:
+            if action in {
+                "request-changes",
+                "reject",
+                "approve",
+                "approve-and-publish",
+                "super-admin-self-publish",
+            }:
                 self.handle_review_decision(submission_id, action)
                 return
         if len(parts) == 5 and parts[:3] == ["api", "admin", "works"] and parts[4] in {"takedown", "restore"}:

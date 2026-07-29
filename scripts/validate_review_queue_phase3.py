@@ -21,6 +21,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 MIGRATION_PATH = ROOT / "database" / "migrations" / "20260717_review_queue.sql"
+SELF_PUBLISH_MIGRATION_PATH = ROOT / "database" / "migrations" / "20260729_super_admin_self_publish.sql"
 SERVER_PATH = ROOT / "server.py"
 PAGE_PATH = ROOT / "admin-reviews.html"
 CLIENT_PATH = ROOT / "admin-reviews.js"
@@ -998,6 +999,91 @@ def validate_decision(functions: dict[str, SqlFunction]) -> None:
         raise RuntimeError("Decision replay evidence must be inserted before any workflow mutation")
 
 
+def validate_super_admin_self_publish(migration: str) -> None:
+    normalized = migration.strip().lower()
+    if not normalized.startswith("begin;") or not normalized.endswith("commit;"):
+        raise RuntimeError("Super Admin self-publish migration must be one explicit transaction")
+
+    functions = extract_sql_functions(migration)
+    self_publish_function = sql_function(functions, "review_super_admin_self_publish")
+    assert_security_definer(self_publish_function, "Super Admin self-publish RPC")
+    body = self_publish_function.body
+    lowered = body.lower()
+    require(
+        body,
+        {
+            "actor_id := public.review_require_actor()",
+            "actor_role := public.review_actor_role(actor_id)",
+            "actor_role <> 'super_admin'::public.role_code",
+            "review_self_publish_forbidden",
+            "submission_row.submitted_by_user_id is distinct from actor_id",
+            "submission_row.assigned_reviewer_id is not null",
+            "submission_row.review_started_at is not null",
+            "submission_row.status <> 'submitted'::public.submission_status",
+            "submission_row.lock_version <> target_expected_lock_version",
+            "image_row.workflow_status <> 'submitted'::public.workflow_status",
+            "image_row.current_version_id is distinct from submission_row.image_version_id",
+            "version_row.locked_at is null",
+            "submission_row.readiness_snapshot -> 'ready' is distinct from 'true'::jsonb",
+            "submitted_reason_codes <> '[\"policy_complete\"]'::jsonb",
+            "review_assets_not_ready",
+            "active_asset_count <> 3",
+            "active_asset_kind_count <> 3",
+            f"a.scan_policy_version = '{CURRENT_SCAN_POLICY}'",
+            "decision_result_snapshot := jsonb_build_object",
+            "'approve_and_publish'",
+            "update public.review_submissions",
+            "update public.images",
+            "update public.image_assets",
+            "a.kind in ('display', 'thumbnail')",
+            "'self_publish_override', true",
+            "'review.super_admin_self_publish'",
+            "return public.review_decision_result(decision_row.id)",
+        },
+        "Super Admin self-publish authorization/state/scan/publication/audit contract",
+    )
+    forbid(
+        body,
+        {
+            "review_decide_submission(",
+            "assigned_reviewer_id = actor_id",
+            "storage_visibility = 'public' where a.image_id = image_row.id and a.kind in ('original'",
+        },
+        "Super Admin self-publish independent action boundary",
+    )
+    if lowered.count("where d.idempotency_key = request_key::text") < 3:
+        raise RuntimeError("Super Admin self-publish must check idempotency before lock, after lock, and after conflict")
+    require_order(
+        lowered,
+        [
+            "actor_id := public.review_require_actor()",
+            "actor_role <> 'super_admin'::public.role_code",
+            "where d.idempotency_key = request_key::text",
+            "where s.id = target_submission_id",
+            "submission_row.submitted_by_user_id is distinct from actor_id",
+            "submission_row.assigned_reviewer_id is not null",
+            "submission_row.status <> 'submitted'::public.submission_status",
+            "submission_row.lock_version <> target_expected_lock_version",
+            "insert into public.review_decisions",
+            "update public.review_submissions",
+            "update public.images",
+            "update public.image_assets",
+            "insert into public.audit_logs",
+        ],
+        "Super Admin self-publish lock/CAS/mutation/audit order",
+    )
+    require(
+        migration,
+        {
+            "revoke all on function public.review_super_admin_self_publish(",
+            ") from public, anon, authenticated, service_role",
+            "grant execute on function public.review_super_admin_self_publish(",
+            ") to authenticated",
+        },
+        "Super Admin self-publish RPC grant boundary",
+    )
+
+
 def validate_database_test(database_test: str) -> None:
     normalized = database_test.strip().lower()
     if not normalized.startswith("\\set on_error_stop on"):
@@ -1012,6 +1098,7 @@ def validate_database_test(database_test: str) -> None:
             "set local role authenticated",
             "stacked Admin AAL1 bypassed MFA through Reviewer",
             "REVIEW_SELF_REVIEW_FORBIDDEN",
+            "REVIEW_SELF_PUBLISH_FORBIDDEN",
             "REVIEW_VERSION_CONFLICT",
             "REVIEW_PUBLISH_ADMIN_REQUIRED",
             "same-payload replay drifted after a later publish decision",
@@ -1019,6 +1106,11 @@ def validate_database_test(database_test: str) -> None:
             "d.result_snapshot = approval_result",
             "legacy-policy",
             "review.approve_and_publish",
+            "public.review_super_admin_self_publish",
+            "review.super_admin_self_publish",
+            "Super Admin AAL1 self-published a work",
+            "Super Admin bypassed the normal self-review RPC",
+            "review_database_super_admin_self_publish=yes",
             "alter table public.image_assets enable trigger image_assets_enqueue_scan_job",
             "rollback;",
             "review_database_fixtures_rolled_back=yes",
@@ -1046,6 +1138,7 @@ def validate_server(server: str) -> None:
         server,
         {
             '"REVIEW_SELF_REVIEW_FORBIDDEN": HTTPStatus.FORBIDDEN',
+            '"REVIEW_SELF_PUBLISH_FORBIDDEN": HTTPStatus.FORBIDDEN',
             '"REVIEW_ASSETS_NOT_READY": HTTPStatus.CONFLICT',
             '"REVIEW_ALREADY_PUBLISHED": HTTPStatus.CONFLICT',
             "def canonical_url_path(value: str)",
@@ -1210,6 +1303,10 @@ def validate_server(server: str) -> None:
             '"reject": "reject"',
             '"approve": "approve"',
             '"approve-and-publish": "approve_and_publish"',
+            '"super-admin-self-publish": "approve_and_publish"',
+            'self_publish = action == "super-admin-self-publish"',
+            '"review_super_admin_self_publish" if self_publish else "review_decide_submission"',
+            'if self_publish and "super_admin" not in roles',
             'set(body) != expected_fields',
             'body.get("confirmation") != f"review-{action}"',
             'response.get("decision", {}).get("decision") != decision',
@@ -1227,7 +1324,11 @@ def validate_server(server: str) -> None:
             "if not self.require_csrf()",
             'if action == "assign"',
             'if action == "start"',
-            '{"request-changes", "reject", "approve", "approve-and-publish"}',
+            '"request-changes"',
+            '"reject"',
+            '"approve"',
+            '"approve-and-publish"',
+            '"super-admin-self-publish"',
         },
         "Review mutation routes and CSRF boundary",
     )
@@ -1265,6 +1366,12 @@ def validate_browser(page: str, client: str, styles: str) -> None:
             'approve_and_publish: [["policy_complete", "Policy checks complete"]]',
             'decisions.push(["approve_and_publish", publishOnly ? "Publish approved work" : "Approve and publish"])',
             'detail.actor.can_publish === true',
+            'detail?.actor?.can_self_publish === true',
+            'function canSuperAdminSelfPublish(detail)',
+            'const canSelfPublish = canSuperAdminSelfPublish(detail)',
+            'const selfPublish = decision === "approve_and_publish" && canSuperAdminSelfPublish(selectedDetail)',
+            'const action = selfPublish ? "super_admin_self_publish" : decision',
+            'Super Admin self-publish is restricted to this untouched submission',
             'submission.status === "approved"',
             'detail.image.publication_status !== "published"',
             'decision === "approve_and_publish"',
@@ -1490,6 +1597,7 @@ def validate_ci_and_docs(
 
 def main() -> None:
     migration = read(MIGRATION_PATH)
+    self_publish_migration = read(SELF_PUBLISH_MIGRATION_PATH)
     server = read(SERVER_PATH)
     page = read(PAGE_PATH)
     client = read(CLIENT_PATH)
@@ -1525,6 +1633,7 @@ def main() -> None:
     validate_rls_and_storage(functions, policies)
     validate_assignment_start_and_constraint(migration, functions)
     validate_decision(functions)
+    validate_super_admin_self_publish(self_publish_migration)
     validate_database_test(database_test)
     validate_concurrency_test(concurrency_test)
     validate_server(server)

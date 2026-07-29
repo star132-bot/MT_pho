@@ -38,6 +38,7 @@ REVIEWER_B_ID = "10000000-0000-4000-8000-000000000004"
 ADMIN_AAL1_ID = "10000000-0000-4000-8000-000000000005"
 ADMIN_AAL2_ID = "10000000-0000-4000-8000-000000000006"
 OWNER_ID = "10000000-0000-4000-8000-000000000007"
+SUPER_ADMIN_ID = OWNER_ID
 
 SUBMISSION_PUBLIC = "20000000-0000-4000-8000-000000000001"
 SUBMISSION_A = "20000000-0000-4000-8000-000000000002"
@@ -58,6 +59,7 @@ REVIEWER_A_TOKEN = token(REVIEWER_A_ID)
 REVIEWER_B_TOKEN = token(REVIEWER_B_ID)
 ADMIN_AAL1_TOKEN = token(ADMIN_AAL1_ID)
 ADMIN_AAL2_TOKEN = token(ADMIN_AAL2_ID, aal="aal2", method="totp")
+SUPER_ADMIN_TOKEN = token(SUPER_ADMIN_ID, aal="aal2", method="totp")
 
 AUTHORIZATIONS = {
     USER_TOKEN: {"user_id": USER_ID, "account_status": "active", "roles": ["user"], "aal": "aal1"},
@@ -66,6 +68,7 @@ AUTHORIZATIONS = {
     REVIEWER_B_TOKEN: {"user_id": REVIEWER_B_ID, "account_status": "active", "roles": ["reviewer"], "aal": "aal1"},
     ADMIN_AAL1_TOKEN: {"user_id": ADMIN_AAL1_ID, "account_status": "active", "roles": ["reviewer", "admin"], "aal": "aal1"},
     ADMIN_AAL2_TOKEN: {"user_id": ADMIN_AAL2_ID, "account_status": "active", "roles": ["user", "admin"], "aal": "aal2"},
+    SUPER_ADMIN_TOKEN: {"user_id": SUPER_ADMIN_ID, "account_status": "active", "roles": ["user", "super_admin"], "aal": "aal2"},
 }
 
 
@@ -158,7 +161,7 @@ def detail(access_token: str, submission_id: str, status: str, assigned_id: str 
         },
         "image": {
             "id": IMAGE_ID,
-            "workflow_status": "in_review" if status == "in_review" else "approved",
+            "workflow_status": "submitted" if status == "submitted" else "in_review" if status == "in_review" else "approved",
             "publication_status": "never_published",
             "processing_status": "ready",
             "published_at": None,
@@ -350,7 +353,10 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                 "review_started_at": "2026-07-20T00:05:00Z",
             }})
             return
-        if self.path == "/rest/v1/rpc/review_decide_submission":
+        if self.path in {
+            "/rest/v1/rpc/review_decide_submission",
+            "/rest/v1/rpc/review_super_admin_self_publish",
+        }:
             if type(self).next_decision_result is not None:
                 result = type(self).next_decision_result
                 type(self).next_decision_result = None
@@ -366,7 +372,11 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                     return
                 self.send_json(HTTPStatus.OK, type(self).decision_results[key])
                 return
-            decision = body.get("decision")
+            decision = body.get("decision") or (
+                "approve_and_publish"
+                if self.path == "/rest/v1/rpc/review_super_admin_self_publish"
+                else None
+            )
             status_by_decision = {
                 "request_changes": "changes_requested",
                 "reject": "rejected",
@@ -811,6 +821,60 @@ def main() -> None:
         if status != HTTPStatus.OK or result.get("image", {}).get("publication_status") != "published":
             raise RuntimeError("Admin AAL2 could not Approve and Publish")
 
+        provider_calls_before = len(FakeSupabaseHandler.review_calls)
+        admin_self_publish = decision_body(
+            "70000000-0000-4000-8000-000000000006",
+            "approve_and_publish",
+        )
+        admin_self_publish["confirmation"] = "review-super-admin-self-publish"
+        status, result, _ = request(
+            admin,
+            base_url,
+            f"/api/admin/review-submissions/{SUBMISSION_PUBLIC}/super-admin-self-publish",
+            payload=admin_self_publish,
+            origin=base_url,
+        )
+        if status != HTTPStatus.FORBIDDEN or error_code(result) != "REVIEW_SELF_PUBLISH_FORBIDDEN":
+            raise RuntimeError("Ordinary Admin reached the Super Admin self-publish RPC")
+        if len(FakeSupabaseHandler.review_calls) != provider_calls_before:
+            raise RuntimeError("Ordinary Admin self-publish reached the provider")
+
+        super_admin = session(base_url, SUPER_ADMIN_TOKEN)
+        status, result, _ = request(
+            super_admin,
+            base_url,
+            f"/api/admin/review-submissions/{SUBMISSION_PUBLIC}",
+        )
+        if (
+            status != HTTPStatus.OK
+            or result.get("actor", {}).get("can_self_publish") is not True
+            or result.get("owner", {}).get("id") != SUPER_ADMIN_ID
+            or result.get("submission", {}).get("status") != "submitted"
+        ):
+            raise RuntimeError("Super Admin self-publish capability was not projected into Review Detail")
+
+        self_publish_payload = decision_body(
+            "70000000-0000-4000-8000-000000000007",
+            "approve_and_publish",
+        )
+        self_publish_payload["confirmation"] = "review-super-admin-self-publish"
+        status, result, _ = request(
+            super_admin,
+            base_url,
+            f"/api/admin/review-submissions/{SUBMISSION_PUBLIC}/super-admin-self-publish",
+            payload=self_publish_payload,
+            origin=base_url,
+        )
+        if status != HTTPStatus.OK or result.get("image", {}).get("publication_status") != "published":
+            raise RuntimeError("AAL2 Super Admin could not self-publish an owned submitted work")
+        rpc_path, rpc_payload, rpc_token = FakeSupabaseHandler.review_calls[-1]
+        if (
+            rpc_path != "/rest/v1/rpc/review_super_admin_self_publish"
+            or "decision" in rpc_payload
+            or rpc_token != SUPER_ADMIN_TOKEN
+        ):
+            raise RuntimeError("Super Admin self-publish did not use its dedicated provider RPC")
+
         for provider_status, expected_status, expected_code in (
             (HTTPStatus.UNAUTHORIZED, HTTPStatus.UNAUTHORIZED, "AUTH_REQUIRED"),
             (HTTPStatus.FORBIDDEN, HTTPStatus.FORBIDDEN, "REVIEW_ACCESS_REVOKED"),
@@ -828,6 +892,7 @@ def main() -> None:
             USER_TOKEN,
             REVIEWER_A_TOKEN,
             ADMIN_AAL2_TOKEN,
+            SUPER_ADMIN_TOKEN,
             f"{OWNER_ID}/{IMAGE_ID}/original.jpg",
             "token=fake",
             "provider detail must not escape",
@@ -846,6 +911,7 @@ def main() -> None:
         print("review_assignment_and_cas=yes")
         print("review_decision_idempotency=yes")
         print("review_publish_admin_preflight=yes")
+        print("review_super_admin_self_publish_boundary=yes")
         print("review_provider_error_mapping=yes")
         print("secrets_logged=no")
     finally:
