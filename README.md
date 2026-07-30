@@ -1,11 +1,11 @@
 # MT Presence
 
-MT Presence is a fine art photography portfolio and image-workflow application. Version `v1.0.0` started as a static first version; the current `v1.4.0` workspace combines the public gallery, legacy SQLite compatibility tooling, and a Supabase-backed account, private Draft, review, publication, and governance workflow.
+MT Presence is a fine art photography portfolio and image-workflow application. Version `v1.0.0` started as a static first version; the current `v1.4.1` workspace combines the public gallery, legacy SQLite compatibility tooling, and a Supabase-backed account, private Draft, review, publication, and governance workflow.
 
 ## Current Version
 
-- Version: `1.4.0`
-- Release label: `v1.4.0`
+- Version: `1.4.1`
+- Release label: `v1.4.1`
 - Status: public frontend, server-managed Supabase Auth/Account, protected creator workspace, Review/public delivery, Admin Works/Users, project inquiries, Notifications/Inbox, protected Audit Ledger, and production-deployment tooling. This repository is a production candidate; it does not record an active production deployment.
 - Database: Phase 0/1 through Phase 4B are deployed to development. The Phase 5 communications/audit migration and its development-only rollback acceptance remain gates before production promotion. Public Works and creator profiles read strict published-only Supabase DTOs; the SQLite Archive remains development/legacy tooling rather than the production authority.
 
@@ -17,7 +17,7 @@ MT Presence is a fine art photography portfolio and image-workflow application. 
 - Infinite horizontal selected works gallery.
 - Four-moment image-led Statement section, placed after Selected Works, with one image per text passage and a final Enter Works call to action.
 - Compact Works Archive page with read-only local SQLite preview data when explicitly enabled, global-header search, underlined Type/Ratio text filters directly below the header, no title/metrics hero, and responsive five/four/three/two/one-column natural-ratio masonry. Ratio filters expose the underlying `1:1`, `4:3`, `4:5`, `2:3`, `3:2`, `16:9`, and panorama groups without collapsing results into a narrow left column.
-- Works Archive work viewer with full-screen enlarged images, fit/actual-size zoom, catalog-style metadata, keyboard navigation, and grouped visual tags.
+- Works Archive work viewer with full-screen enlarged images, fit/actual-size zoom, catalog-style metadata, keyboard navigation, and grouped visual tags. Lightbox save and display-image download commands require an authenticated account across cards, Viewer, and standalone detail.
 - Standalone work detail route with a 55/45 image-and-record layout, previous/next navigation, synchronized Lightbox save state, inquiry/download actions, metadata, tags, and related works.
 - Internal Works Viewer Editor for importing works; maintaining the viewer title, series, notes, metadata, visibility, sort order, and grouped tags; and editing homepage hero images/text in the IndexedDB transition layer.
 - Upload flow that reads original image dimensions, checksum, and basic EXIF in the browser.
@@ -285,7 +285,7 @@ The contact form records the inquiry through `POST /api/inquiries` and returns a
 - `work.html` / `work-detail.js`: standalone public work record; loads the same published-only archive DTO, renders previous/next, metadata, tags and related works, and shares Lightbox/inquiry state without replacing the existing full-screen Viewer.
 - `about.html` / `about.js`: public artist practice and availability spread using the unified header, published creator profile hydration, stable fallback copy, and no public rail.
 - `lightbox.html`: browser-local saved-work collection with a separate session Inquiry Selection, visible selection summary, sorting, and selected-ID-only Contact handoff.
-- `public-archive.js`: shared public archive loading, persistent Lightbox migration, and session-scoped Inquiry Selection storage.
+- `public-archive.js`: shared public archive loading, persistent Lightbox migration, session-scoped Inquiry Selection storage, and the fail-closed public-action authentication gate sourced from Header Identity.
 - `public-navigation.js`: mobile controller for the shared public/Profile header; synchronizes menu visibility, `aria-expanded`, `aria-hidden`, `inert`, ArrowDown/Escape focus behavior, outside closing, and breakpoint changes without owning authentication.
 - `global-header.js`: reusable header renderer and global work-search controller; owns the shared brand/search/public-navigation structure, active-route state, responsive search expansion, debounced Works filtering, safe cross-page suggestions, keyboard submission/Escape behavior, and Lightbox count synchronization without duplicating identity requests.
 - `site-footer.js`: shared Public/Workspace footer renderer with dynamic year, current-route state, real inquiry destinations, and permission-aware account links driven by the existing account-loaded event without a duplicate identity request.
@@ -364,7 +364,7 @@ The contact form records the inquiry through `POST /api/inquiries` and returns a
 - `database/supabase_phase1_auth_rls.sql`: Phase 1 Supabase baseline for `auth.users` business-user synchronization, owner-scoped RLS, strict owner-only profile RPC, reviewer/admin policies, Admin AAL2 enforcement, public Works isolation, and private Storage namespaces.
 - `database/migrations/`: ordered, transaction-wrapped patches for existing environments, including Admin hardening, strict Account Settings, private Draft/Folders/Storage, cancellation/cleanup, compliance metadata, optimistic versioning/Folder integrity, authoritative readiness/submission snapshots, trusted leased asset scanning, Review decisions, Dashboard/creator settings, published-only public delivery, Admin Works governance, and Admin User governance.
 - `scripts/validate_product_phase0.py`: validates the Phase 0 schema contract and confirms public pages expose neither Series/Collections nor the retired public rail, and all load the unified public header/account/mobile-navigation contract.
-- `scripts/validate_interaction_integrity.py`: enforces original-node Works favorites, explicit Inquiry Selection handoff, server-rendered Header Identity, and top-navigation Review contracts.
+- `scripts/validate_interaction_integrity.py`: enforces original-node Works favorites, authenticated save/download actions, single-mark Lightbox selection, explicit Inquiry Selection handoff, server-rendered Header Identity, and top-navigation Review contracts.
 - `scripts/test_public_interaction_state.js`: dependency-free state regression for persistent Lightbox favorites, session Inquiry Selection, and automatic selection pruning.
 - `scripts/test_header_identity_boundary.py`: verifies signed profile avatars are reissued through the authenticated Storage boundary and rejects origin or object-path substitution.
 - `scripts/validate_profile_avatar.py`: enforces the private Storage, owner binding, strict browser DTO, image preparation, lifecycle API, shared Header Identity synchronization, accessibility, and reduced-motion contracts for profile photos.

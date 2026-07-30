@@ -318,6 +318,32 @@
     return { ids: next, added: next.includes(id) };
   }
 
+  function headerIdentity() {
+    const current = global.MTPresenceHeaderIdentity;
+    if (current && typeof current === "object") return current;
+    const bootstrap = document.querySelector("#mt-header-identity");
+    try {
+      return JSON.parse(bootstrap?.content?.textContent || bootstrap?.textContent || "{}");
+    } catch (_error) {
+      return {};
+    }
+  }
+
+  function isAuthenticated() {
+    return headerIdentity().authenticated === true;
+  }
+
+  function signInHref() {
+    const next = `${global.location.pathname}${global.location.search}${global.location.hash}`;
+    return `/auth/sign-in?next=${encodeURIComponent(next)}`;
+  }
+
+  function requireAuthentication() {
+    if (isAuthenticated()) return true;
+    global.location.assign(signInHref());
+    return false;
+  }
+
   global.MTPresencePublicArchive = {
     LIGHTBOX_STORAGE_KEY,
     INQUIRY_SELECTION_STORAGE_KEY,
@@ -331,6 +357,9 @@
     readLightboxIds,
     writeLightboxIds,
     toggleLightboxId,
+    isAuthenticated,
+    signInHref,
+    requireAuthentication,
     readInquirySelectionIds,
     writeInquirySelectionIds,
   };

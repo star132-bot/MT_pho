@@ -86,6 +86,7 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 - `work.html` 是独立作品记录，不替换 Works Viewer。桌面采用约 55/45 的图像与资料双列，提供 Previous/Next、Save、Inquire、Download、metadata、tags 和 related works；窄屏回到单列且不裁图。
 - About 是单张大图与实践文本的双列编辑式 spread，并在下方使用一条线性事实带；优先读取公开 creator DTO，没有已发布 creator 时必须显示可信 fallback，不能呈现空白身份卡。
 - Lightbox 把长期 Saved Works 与本次 Inquiry Selection 分开：桌面三列作品加右侧 sticky 摘要，圆形选择控件只影响本次询价，Clear all 经过确认；移动端摘要移到作品列表上方且不产生横向溢出。
+- 公开图片可以匿名浏览，但 Save to Lightbox 与 Download 是登录后能力。卡片、全屏 Viewer 和独立详情必须复用 Header Identity 的同一 fail-closed 判断；匿名触发时进入 Sign In 并携带当前页面 `next`，不能先写 localStorage 或启动下载。
 - 颜色限定为近白纸面、近黑正文、中性灰和深森林绿状态强调；正文无衬线、作品标题和编辑式标题使用衬线；分隔线 1px、圆角不超过 8px，不使用发光、装饰色块、多层阴影或降低文字对比度。
 
 ### 2026-07-24 GlobalHeader 与 Works 视觉合同
@@ -138,6 +139,7 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 
 - Lightbox 是浏览器本地的私人选片桌，不是账户 dashboard。页面使用编辑式标题、收藏数量、单一选择工具带和自然比例作品墙；不使用统计卡片、彩色 tile、胶囊按钮或第二套导航。
 - 长期 Lightbox 收藏与本次 Inquiry Selection 必须在视觉和存储上分离。默认 `0 selected`；只有 checkbox 明确勾选的作品显示深森林绿细边界、勾号和计数，并能进入 Contact。
+- 选择按钮只能由内部 `span` 绘制一个勾；禁止再通过 `::after` 生成第二个勾，最终样式必须显式清除遗留伪元素内容。
 - 选择控件使用熟悉的方形 checkbox，不使用无语义圆点；桌面 32px 并保留足够周边点击区域，移动端至少 40px 且工具按钮高度 44px。选择不能导航到 Viewer，也不能重建整个页面。
 - 桌面工具带依次呈现 selected count、Select all/Clear selection、Contact Artist 和低声量 Remove all；移动端重排为两列但保持 Contact 主命令最明确。Remove all 必须经过确认，普通 Remove 保持作品展签中的文字命令。
 - 集合在 `mt:lightbox-change`、跨标签页 `storage` 和 bfcache `pageshow` 后重新比对，只在真实变化时重绘；Inquiry Selection 同步剪除已不在 Lightbox 的 ID。同步反馈使用短 toast，不刷新页面。

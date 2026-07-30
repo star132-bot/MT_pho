@@ -46,6 +46,7 @@ def main() -> None:
     public_archive = read("public-archive.js")
     lightbox_html = read("lightbox.html")
     lightbox = read("lightbox.js")
+    work_detail = read("work-detail.js")
     contact = read("contact.js")
     account_menu = read("account-menu.js")
     global_header = read("global-header.js")
@@ -76,6 +77,7 @@ def main() -> None:
         "pendingLightboxWorkIds",
         "patchLightboxWorkState",
         "reconcileLightboxWorkIds",
+        "publicArchive.requireAuthentication()",
         "is-bookmark-popping",
         'aria-label="${isInLightbox ? "Remove from Lightbox" : "Add to Lightbox"}"',
     }, "Works favorite controller")
@@ -86,7 +88,20 @@ def main() -> None:
         "function readInquirySelectionIds()",
         "function writeInquirySelectionIds(ids)",
         "pruneInquirySelection(normalized)",
+        "function isAuthenticated()",
+        "function requireAuthentication()",
+        "global.location.assign(signInHref())",
     }, "public interaction state")
+
+    require(work_detail, {
+        'save?.addEventListener("click"',
+        'download?.addEventListener("click"',
+        "publicArchive.requireAuthentication()",
+    }, "Work detail authentication gate")
+
+    require(styles, {
+        ".lightbox-page .lightbox-inquiry-toggle::after { content: none; }",
+    }, "Lightbox single selection mark")
 
     require(lightbox_html, {
         "data-inquiry-selection-count",
@@ -158,6 +173,7 @@ def main() -> None:
         'destination("Account Settings", "/settings/account")',
         "dataset.accountMenuAvatarInitials",
         "Active account",
+        "window.MTPresenceHeaderIdentity = identity",
     }, "Header Identity controller")
     forbidden_menu = (
         "dataAccountMenuReview", "data-account-menu-review", 'destination("Review"',

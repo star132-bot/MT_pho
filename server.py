@@ -5282,6 +5282,8 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
     @staticmethod
     def header_initials(display_name: str) -> str:
         words = [word for word in clean_text(display_name, 120).split() if word]
+        if words and words[0].upper() == "MT":
+            return "MT"
         return "".join(word[0].upper() for word in words[:2]) or "MT"
 
     def header_identity_model(

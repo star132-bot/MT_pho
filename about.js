@@ -13,7 +13,9 @@
   }
 
   function initials(value) {
-    return cleanText(value || "MT").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() || "").join("") || "MT";
+    const parts = cleanText(value || "MT").split(/\s+/).filter(Boolean);
+    if (parts[0]?.toUpperCase() === "MT") return "MT";
+    return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() || "").join("") || "MT";
   }
 
   function applyProfile(profile) {

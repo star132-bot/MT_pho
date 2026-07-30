@@ -162,6 +162,7 @@ function announce(message) {
 
 function initials(value) {
   const words = String(value || "MT").trim().split(/\s+/).filter(Boolean);
+  if (words[0]?.toUpperCase() === "MT") return "MT";
   return words.slice(0, 2).map((word) => word[0]?.toUpperCase() || "").join("") || "MT";
 }
 

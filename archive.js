@@ -2600,6 +2600,9 @@ function releaseLightboxPendingState(id, immediate = false) {
 }
 
 function toggleLightboxWork(id, { sourceButton = null } = {}) {
+  if (!publicArchive.requireAuthentication()) {
+    return false;
+  }
   if (!id) {
     return false;
   }
@@ -2648,9 +2651,12 @@ function toggleLightboxWork(id, { sourceButton = null } = {}) {
 }
 
 function downloadWork(item) {
+  if (!publicArchive.requireAuthentication()) {
+    return false;
+  }
   if (!item?.src) {
     showArchiveToast("This work does not have a downloadable image.", "error");
-    return;
+    return false;
   }
   const link = document.createElement("a");
   link.href = item.src;
@@ -2659,6 +2665,7 @@ function downloadWork(item) {
   link.click();
   link.remove();
   showArchiveToast("Download started.");
+  return true;
 }
 
 function handleWorkAction(action, itemId, { sourceButton = null } = {}) {

@@ -20,6 +20,7 @@
 
   function initials(value) {
     const parts = cleanText(value || "MT").split(/\s+/).filter(Boolean);
+    if (parts[0]?.toUpperCase() === "MT") return "MT";
     return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() || "").join("") || "MT";
   }
 
@@ -108,6 +109,7 @@
   }
 
   function emitIdentity(identity, payload = null) {
+    window.MTPresenceHeaderIdentity = identity;
     window.dispatchEvent(new CustomEvent("mt:header-identity-change", { detail: identity }));
     if (identity.authenticated) {
       window.dispatchEvent(new CustomEvent("mt:account-loaded", { detail: accountEventPayload(identity, payload) }));

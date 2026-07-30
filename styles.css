@@ -21024,7 +21024,6 @@ button.upload-studio-card-main:focus-visible {
 .about-page .about-intro-copy { position: relative; max-width: 650px; }
 .about-page .about-intro-copy .section-kicker { margin-bottom: 34px; color: var(--editorial-accent); font: 650 10px/1 var(--editorial-sans); }
 .about-page .about-intro h1 { margin: 0 0 46px; font: 400 clamp(54px, 5.3vw, 78px)/1 var(--editorial-serif); letter-spacing: 0; text-transform: none; }
-.about-page .about-connector { position: absolute; top: 178px; left: clamp(-176px, -11vw, -116px); width: clamp(110px, 12vw, 190px); height: 2px; background: var(--editorial-accent); }
 .about-page .about-lede { max-width: 650px; margin: 0 0 36px; color: var(--editorial-ink); font: 400 clamp(25px, 2.25vw, 34px)/1.35 var(--editorial-serif); }
 .about-page .about-intro-copy > p:not(.section-kicker):not(.about-lede) { max-width: 620px; margin: 0 0 24px; color: var(--editorial-muted); font: 450 15px/1.72 var(--editorial-sans); }
 .about-page .about-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(290px, 1.25fr); margin-top: 18px; padding-top: 32px; border-top: 1px solid var(--editorial-line); }
@@ -21065,7 +21064,7 @@ button.upload-studio-card-main:focus-visible {
 .lightbox-page .lightbox-item.is-inquiry-selected .lightbox-image-link { outline-width: 1px; }
 .lightbox-page .lightbox-item figure { margin: 0; }
 .lightbox-page .lightbox-inquiry-toggle { top: 10px; left: 10px; width: 34px; height: 34px; border-radius: 50%; }
-.lightbox-page .lightbox-inquiry-toggle[aria-pressed="true"]::after { color: #fff; content: "\2713"; font: 700 17px/1 var(--editorial-sans); }
+.lightbox-page .lightbox-inquiry-toggle::after { content: none; }
 .lightbox-page .lightbox-item-copy { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 14px; padding-top: 11px; }
 .lightbox-page .lightbox-item h2 { margin-bottom: 4px; }
 .lightbox-page .lightbox-item-copy button { min-height: 30px; text-decoration: underline; text-underline-offset: 3px; }
@@ -21102,7 +21101,6 @@ button.upload-studio-card-main:focus-visible {
   .work-detail-media img { max-height: 74svh; }
   .work-detail-copy { padding-top: 40px; }
   .about-page .about-intro { grid-template-columns: minmax(0, 0.9fr) minmax(340px, 1.1fr); gap: 44px; }
-  .about-page .about-connector { display: none; }
   .about-page .about-intro h1 { font-size: 54px; }
   .about-page .about-facts { grid-template-columns: 1fr 1fr; }
   .about-page .about-facts article { border-bottom: 1px solid var(--editorial-line); }

@@ -141,6 +141,7 @@
 
   save?.addEventListener("click", () => {
     if (!work) return;
+    if (!publicArchive.requireAuthentication()) return;
     const wasSaved = publicArchive.readLightboxIds().includes(work.id);
     setSavedState();
     try {
@@ -158,6 +159,7 @@
 
   download?.addEventListener("click", () => {
     if (!work?.src) return;
+    if (!publicArchive.requireAuthentication()) return;
     const link = document.createElement("a");
     link.href = work.src;
     link.download = `${cleanText(work.title).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "mt-presence-work"}.jpg`;

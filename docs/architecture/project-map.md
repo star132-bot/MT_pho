@@ -57,7 +57,7 @@
 - `scripts/test_review_batch_browser.py`：secret-free Super Admin 快捷审核浏览器验收；在 loopback fake provider 上验证两个 eligible 自有 submission 的选择、单次十项 attestation、逐件 dedicated self-publish request/独立 idempotency、单件 checklist shortcut、桌面/移动响应式与 console clean，并固定关闭命名浏览器 session。
 - `README.md`：GitHub 项目首页说明；记录版本、功能、运行方式、静态浏览和联系页邮件草稿行为。
 - `CHANGELOG.md`：版本记录；`Unreleased` 记录从静态初版到当前生产功能切片的变更事实。
-- `VERSION`：当前项目版本号，发布 `v1.4.0` 时与 exact Git tag 保持一致。
+- `VERSION`：当前项目版本号，发布 `v1.4.1` 时与 exact Git tag 保持一致。
 - `.gitignore`：Git 忽略规则；排除临时源图、截图、本地缓存、本地 skill 目录、环境变量文件和本地运行产物。
 - `project-development-guardrails/SKILL.md`：本地企业级项目开发护栏 skill；定义开发前读代码、文档闭环、垂直切片、验收、验证和自审规则。
 - `docs/README.md`：项目文档统一索引；定义 Product、Architecture、Design、Operations 分类和维护规则。
@@ -646,6 +646,9 @@
 
 ## 修改记录
 
+- 2026-07-30：准备 `v1.4.1` 生产修复发布，版本元数据与 exact Git tag 同步；该版本不包含数据库迁移，部署保留 `v1.4.0` 作为原子回滚点。
+- 2026-07-30：修复生产 Lightbox 选中作品出现双勾，并为公开作品操作增加登录门禁。`styles.css` 显式清除 inquiry toggle 的遗留 `::after`，只保留按钮内部单一 CSS 勾；Lightbox/Works 更新缓存版本。`account-menu.js` 发布当前 Header Identity，`public-archive.js` 提供 fail-closed 登录判断与保留当前地址的 Sign In URL，`archive.js` 和 `work-detail.js` 在写入收藏或启动下载前统一校验；匿名用户不会改变 Lightbox storage 或创建下载，卡片、Viewer、独立详情均进入登录页，登录状态继续走既有 optimistic 收藏和下载流程。静态契约新增单勾和认证门禁检查，本地浏览器验证匿名收藏/下载/详情全部被拦截、模拟登录收藏成功、选中态 `::after=none` 且仅一个 span。
+- 2026-07-30：移除 About 桌面版图片与文字栏之间的绝对定位绿色装饰连接线。该元素会因视口和字体排版差异覆盖 headline 首字母；`about.html` 不再渲染 `.about-connector`，`styles.css` 同步删除桌面定位与窄屏隐藏死规则，并更新 About 样式缓存版本。
 - 2026-07-30：修复品牌账户未上传头像时显示 `MD` 的回退 initials 漂移。开发管理员显示名 `MT Development Admin` 过去按前两个单词生成 `MD`；现在服务端 Header 首帧与 Account Menu、Dashboard、Account Settings、About、Creator 的前端 fallback 都把首个完整品牌词 `MT` 保持为 `MT`，普通姓名仍按双词首字母生成。真实头像 decode 成功后继续覆盖 initials，删除头像或图片不可用时才回退 `MT`；相关脚本缓存版本同步失效。
 - 2026-07-26：复测真实 Supabase Review 浏览器门禁时修复权限断言漂移。服务端继续按既有安全合同只向 non-self open assignment 的 Reviewer 签名 original/display/thumbnail，纯 Admin+AAL2 只能得到 display/thumbnail；`scripts/test_review_queue_browser.py` 不再错误要求 Admin DOM 出现 original，而是分别断言两类角色的精确 asset kind。修正后 Reviewer claim/cross-denial/Request Changes、Admin AAL2 Approve、private images、responsive、focus、console、session close 和 fixture cleanup 全部通过。
 - 2026-07-26：新增真实 Profile Avatar 浏览器门禁 `scripts/test_profile_avatar_browser.py`，使用短期普通用户与真实 development Storage 验证 JPG 输入经前端 512x512 中心裁切后上传、顶栏立即同步、刷新持久化、UI Remove、Storage/Auth/business fixture 完整清理；不覆盖开发管理员现有头像，不持久化测试凭据。

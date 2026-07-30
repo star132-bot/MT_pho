@@ -107,6 +107,7 @@
 
   function initials(value) {
     const parts = cleanText(value).split(/\s+/).filter(Boolean);
+    if (parts[0]?.toUpperCase() === "MT") return "MT";
     return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() || "").join("") || "MT";
   }
 
