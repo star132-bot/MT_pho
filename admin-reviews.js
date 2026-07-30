@@ -48,6 +48,17 @@ const dialogMessage = document.querySelector("[data-review-dialog-message]");
 const dialogCancel = document.querySelector("[data-review-dialog-cancel]");
 const dialogConfirm = document.querySelector("[data-review-dialog-confirm]");
 const backToQueueButton = document.querySelector("[data-review-back-to-queue]");
+const checkAllButton = document.querySelector("[data-review-check-all]");
+const bulkTools = document.querySelector("[data-review-bulk-tools]");
+const bulkSelectAll = document.querySelector("[data-review-bulk-select-all]");
+const bulkPublishButton = document.querySelector("[data-review-bulk-publish]");
+const bulkDialog = document.querySelector("[data-review-bulk-dialog]");
+const bulkForm = document.querySelector("[data-review-bulk-form]");
+const bulkDescription = document.querySelector("[data-review-bulk-description]");
+const bulkPolicy = document.querySelector(".admin-review-bulk-policy");
+const bulkNotice = document.querySelector("[data-review-bulk-notice]");
+const bulkCancel = document.querySelector("[data-review-bulk-cancel]");
+const bulkConfirm = document.querySelector("[data-review-bulk-confirm]");
 
 const CHECKLIST_ITEMS = [
   ["file_integrity", "File integrity and decode"],
@@ -103,6 +114,7 @@ let queueController = null;
 let detailController = null;
 let queueRequestSerial = 0;
 let detailRequestSerial = 0;
+const selectedBulkIds = new Set();
 
 const initialParams = new URLSearchParams(window.location.search);
 let queueStatus = FILTER_STATUSES.has(initialParams.get("status")) ? initialParams.get("status") : "open";
@@ -337,6 +349,8 @@ function setQueueBusy(busy) {
   queueRegion.setAttribute("aria-busy", String(busy));
   loadMoreButton.disabled = busy || mutationBusy;
   refreshButton.disabled = busy || mutationBusy;
+  if (bulkSelectAll) bulkSelectAll.disabled = busy || mutationBusy;
+  if (bulkPublishButton) bulkPublishButton.disabled = busy || mutationBusy || selectedBulkIds.size === 0;
 }
 
 function setDetailBusy(busy) {
@@ -348,12 +362,15 @@ function setMutationBusy(busy) {
   document.body.toggleAttribute("data-review-busy", busy);
   refreshButton.disabled = busy || queueLoading;
   loadMoreButton.disabled = busy || queueLoading;
-  listElement.querySelectorAll("button").forEach((button) => { button.disabled = busy; });
+  listElement.querySelectorAll("button, input").forEach((control) => { control.disabled = busy; });
   assignmentActions.querySelectorAll("button").forEach((button) => { button.disabled = busy; });
   decisionForm.querySelectorAll("input, select, textarea, button").forEach((control) => { control.disabled = busy; });
   dialogCancel.disabled = busy;
   dialogConfirm.disabled = busy;
   dialogConfirm.textContent = busy ? "Working…" : "Confirm";
+  if (bulkForm) bulkForm.querySelectorAll("input, textarea, button").forEach((control) => { control.disabled = busy; });
+  if (bulkConfirm) bulkConfirm.textContent = busy ? "Publishing…" : "Publish selected";
+  updateBulkControls();
 }
 
 function showConflict(message) {
@@ -391,12 +408,50 @@ function appendQueueFact(container, value, className = "") {
   container.append(fact);
 }
 
+function canSelectSelfPublishSummary(item) {
+  return queueActor?.can_self_publish === true
+    && item?.owner?.id === queueActor?.id
+    && item?.status === "submitted"
+    && !item?.assigned_reviewer?.id
+    && !item?.review_started_at
+    && item?.image?.publication_status !== "published";
+}
+
+function updateBulkControls() {
+  if (!bulkTools || !bulkSelectAll || !bulkPublishButton) return;
+  const eligible = queueItems.filter(canSelectSelfPublishSummary);
+  for (const id of [...selectedBulkIds]) {
+    if (!queueItems.some((item) => item.id === id && canSelectSelfPublishSummary(item))) selectedBulkIds.delete(id);
+  }
+  bulkTools.hidden = queueActor?.can_self_publish !== true || !eligible.length;
+  const selectedCount = eligible.filter((item) => selectedBulkIds.has(item.id)).length;
+  bulkSelectAll.checked = eligible.length > 0 && selectedCount === eligible.length;
+  bulkSelectAll.indeterminate = selectedCount > 0 && selectedCount < eligible.length;
+  bulkSelectAll.disabled = mutationBusy || !eligible.length;
+  bulkPublishButton.disabled = mutationBusy || selectedCount === 0;
+  bulkPublishButton.textContent = `Publish selected (${selectedCount})`;
+}
+
 function renderQueueItems() {
   listElement.replaceChildren();
   queueItems.forEach((item) => {
     const active = item.id === selectedId;
     const entry = document.createElement("li");
     entry.className = `admin-review-list-item${active ? " is-active" : ""}`;
+    if (canSelectSelfPublishSummary(item)) {
+      const selection = document.createElement("label");
+      selection.className = "admin-review-bulk-select";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.dataset.reviewBulkItem = item.id;
+      checkbox.checked = selectedBulkIds.has(item.id);
+      checkbox.disabled = mutationBusy;
+      const selectionText = document.createElement("span");
+      selectionText.className = "visually-hidden";
+      selectionText.textContent = `Select ${item.image.title || item.image.original_filename || "submission"} for batch publication`;
+      selection.append(checkbox, selectionText);
+      entry.append(selection);
+    }
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.reviewSubmission = item.id;
@@ -461,6 +516,7 @@ function renderQueueItems() {
   listCount.textContent = `${queueItems.length} of ${queueTotal}`;
   loadMoreButton.hidden = queueItems.length >= queueTotal;
   loadMoreButton.disabled = queueLoading || mutationBusy;
+  updateBulkControls();
 }
 
 async function loadQueue({ append = false, skipDetail = false, selectFirst = true } = {}) {
@@ -996,6 +1052,118 @@ function currentChecklist() {
   );
 }
 
+function completedChecklist() {
+  return Object.fromEntries(CHECKLIST_ITEMS.map(([code]) => [code, true]));
+}
+
+function confirmAllChecklistItems() {
+  checklist.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+    input.checked = true;
+    input.removeAttribute("aria-invalid");
+    input.removeAttribute("aria-describedby");
+  });
+  delete formNotice.dataset.tone;
+  formNotice.textContent = "All policy checklist items are complete.";
+}
+
+function openBulkPublishDialog() {
+  const selected = queueItems.filter((item) => selectedBulkIds.has(item.id) && canSelectSelfPublishSummary(item));
+  if (!selected.length || mutationBusy || !bulkDialog || !bulkForm) return;
+  bulkForm.reset();
+  bulkNotice.textContent = "";
+  bulkDescription.textContent = `${selected.length} selected work${selected.length === 1 ? "" : "s"} will be revalidated individually. Each successful publication receives its own immutable decision and audit entry.`;
+  bulkPolicy.replaceChildren();
+  const list = document.createElement("ul");
+  CHECKLIST_ITEMS.forEach(([, label]) => {
+    const item = document.createElement("li");
+    item.textContent = label;
+    list.append(item);
+  });
+  bulkPolicy.append(list);
+  bulkConfirm.textContent = `Publish selected (${selected.length})`;
+  if (typeof bulkDialog.showModal === "function") bulkDialog.showModal();
+  else bulkDialog.setAttribute("open", "");
+  window.requestAnimationFrame(() => bulkForm.elements.policy_attestation.focus());
+}
+
+function closeBulkPublishDialog() {
+  if (typeof bulkDialog?.close === "function") bulkDialog.close();
+  else bulkDialog?.removeAttribute("open");
+}
+
+async function publishSelectedSubmissions() {
+  if (mutationBusy || !bulkForm?.reportValidity()) return;
+  const selected = queueItems.filter((item) => selectedBulkIds.has(item.id) && canSelectSelfPublishSummary(item));
+  if (!selected.length) {
+    bulkNotice.textContent = "Select at least one eligible submission.";
+    return;
+  }
+  const userMessage = bulkForm.elements.user_message.value.trim();
+  const internalNote = bulkForm.elements.internal_note.value.trim();
+  const checklistResult = completedChecklist();
+  setMutationBusy(true);
+  bulkNotice.textContent = `Publishing 0 of ${selected.length}…`;
+  let published = 0;
+  const publishedIds = new Set();
+  const failed = [];
+  try {
+    for (const [index, summary] of selected.entries()) {
+      bulkNotice.textContent = `Publishing ${published + failed.length + 1} of ${selected.length}…`;
+      try {
+        const detail = await reviewRequest(`/api/admin/review-submissions/${encodeURIComponent(summary.id)}`);
+        if (!canSuperAdminSelfPublish(detail)) {
+          throw new Error("This submission is no longer eligible for Super Admin self-publish.");
+        }
+        await reviewRequest(
+          `/api/admin/review-submissions/${encodeURIComponent(summary.id)}/${mutationEndpoint("super_admin_self_publish")}`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              confirmation: "review-super-admin-self-publish",
+              expected_version: detail.submission.lock_version,
+              idempotency_key: createIdempotencyKey(),
+              reason_codes: ["policy_complete"],
+              user_message: userMessage,
+              internal_note: internalNote,
+              checklist_result: checklistResult,
+            }),
+          },
+        );
+        published += 1;
+        publishedIds.add(summary.id);
+        selectedBulkIds.delete(summary.id);
+      } catch (error) {
+        failed.push({ id: summary.id, message: error?.message || "Publication failed." });
+        if (error?.status === 401 || (error?.status === 403 && ["MFA_REQUIRED", "RECOVERY_SESSION_RESTRICTED"].includes(error?.code))) {
+          selected.slice(index + 1).forEach((remaining) => {
+            failed.push({ id: remaining.id, message: "Publication was not attempted because authorization changed." });
+          });
+          handleRequestError(error);
+          break;
+        }
+      }
+    }
+  } finally {
+    setMutationBusy(false);
+  }
+  closeBulkPublishDialog();
+  if (publishedIds.has(selectedId)) {
+    selectedId = "";
+    selectedDetail = null;
+    syncRoute();
+    setDetailState("Publication complete", "empty", {
+      message: "The selected work is now visible in Works and on the creator profile.",
+    });
+  }
+  await loadQueue({ skipDetail: true, selectFirst: false });
+  showToast(
+    failed.length
+      ? `${published} published; ${failed.length} remained in Review and need attention.`
+      : `${published} work${published === 1 ? "" : "s"} published.`,
+    failed.length ? "error" : "success",
+  );
+}
+
 function submitDecision() {
   if (!selectedDetail || mutationBusy) return;
   const checklistResult = currentChecklist();
@@ -1150,6 +1318,29 @@ listElement.addEventListener("click", (event) => {
   openQueueSubmission(item);
 });
 
+listElement.addEventListener("change", (event) => {
+  const checkbox = event.target.closest("[data-review-bulk-item]");
+  if (!checkbox) return;
+  if (checkbox.checked) selectedBulkIds.add(checkbox.dataset.reviewBulkItem);
+  else selectedBulkIds.delete(checkbox.dataset.reviewBulkItem);
+  updateBulkControls();
+});
+
+bulkSelectAll?.addEventListener("change", () => {
+  queueItems.filter(canSelectSelfPublishSummary).forEach((item) => {
+    if (bulkSelectAll.checked) selectedBulkIds.add(item.id);
+    else selectedBulkIds.delete(item.id);
+  });
+  renderQueueItems();
+});
+
+bulkPublishButton?.addEventListener("click", openBulkPublishDialog);
+bulkCancel?.addEventListener("click", closeBulkPublishDialog);
+bulkForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  publishSelectedSubmissions();
+});
+
 loadMoreButton.addEventListener("click", () => loadQueue({ append: true, skipDetail: true }));
 refreshButton.addEventListener("click", reloadSelected);
 sizeToggle.addEventListener("click", () => setActualSize(!reviewImageStage.classList.contains("is-actual-size")));
@@ -1191,6 +1382,7 @@ assignmentActions.addEventListener("click", async (event) => {
 });
 
 decisionSelect.addEventListener("change", renderReasonOptions);
+checkAllButton?.addEventListener("click", confirmAllChecklistItems);
 checklist.addEventListener("change", (event) => {
   const input = event.target.closest('input[type="checkbox"]');
   if (!input || !input.checked) return;

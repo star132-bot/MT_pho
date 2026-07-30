@@ -13,6 +13,7 @@ Included:
 - Request Changes, Reject, and Approve UI for Reviewer;
 - Admin/Super Admin+AAL2-only browser and database/API boundary for `approve_and_publish`;
 - explicit Super Admin+AAL2-only self-publish RPC for an owned, untouched, unassigned Submitted work;
+- explicit multi-selection shortcut for eligible Super Admin-owned submissions; one visible ten-check attestation starts per-item Detail revalidation and dedicated self-publish requests, so every work retains independent CAS, idempotency, decision, and audit evidence;
 - signed, short-lived access to submitted private assets;
 - notifications and append-only audit evidence.
 
@@ -38,6 +39,7 @@ Run the focused checks before browser testing:
 ```bash
 python3 scripts/validate_review_queue_phase3.py
 python3 scripts/test_review_queue_boundary.py
+python3 scripts/test_review_batch_browser.py
 python3 -m py_compile scripts/test_review_queue_concurrency.py
 node --check admin-reviews.js
 python3 scripts/test_supabase_deploy_script.py
@@ -76,6 +78,8 @@ It must print all five `review_concurrency_*=yes` markers, including `review_con
 ## Real Browser Acceptance
 
 Secret-free fake-provider acceptance passed on 2026-07-20 at `1440 x 1000` and `390 x 844`: signed images rendered, mobile document width matched the viewport, missing fields/checklist restored useful focus, the confirmation dialog focused Cancel and restored its opener on Escape, and the browser reported no console/page errors.
+
+The secret-free Super Admin batch acceptance passed on 2026-07-29 at `1440 x 1000` and `390 x 844`. It selected two eligible owned untouched submissions, required one explicit attestation covering all ten visible policy checks, fetched each current Detail, issued two dedicated self-publish requests with independent request keys, verified the single-item ten-check shortcut, found no horizontal overflow, reported no page errors, and closed its named browser session. This test uses only a loopback fake provider and never mutates development or production data.
 
 The real disposable Reviewer/Admin multi-identity acceptance passed on 2026-07-22. It is development-only, creates disposable Auth/database fixtures, holds an advisory run lock, and removes its sessions and fixtures before reporting success:
 
@@ -126,5 +130,5 @@ The database, concurrency, fake-provider, and real disposable multi-identity bro
 
 - Escalate, Quarantine, Withdraw, appeal, and legal-hold workflows;
 - risk/date/category/release filters beyond the first status/assignment queue slice;
-- bulk assignment or bulk approval;
+- bulk assignment or general Reviewer/Admin bulk approval; the implemented shortcut is limited to Super Admin+AAL2 self-publication of explicitly selected, owned, untouched/unassigned Submitted works and still executes the existing secure boundary per item;
 - production notification delivery and scheduled SLA monitoring.

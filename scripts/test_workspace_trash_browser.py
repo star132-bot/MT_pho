@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Secret-free browser acceptance for the Workspace Trash/Restore slice."""
+"""Secret-free browser acceptance for Workspace Trash/Restore and quick upload."""
 
 from __future__ import annotations
 
@@ -27,12 +27,12 @@ class BrowserFailure(RuntimeError):
 
 
 class Browser:
-    def __init__(self) -> None:
+    def __init__(self, session_prefix: str = "mt-workspace-trash") -> None:
         binary = shutil.which("agent-browser")
         if not binary:
             raise BrowserFailure("agent-browser is required for Workspace browser acceptance")
         self.binary = binary
-        self.session = f"mt-workspace-trash-{os.getpid()}"
+        self.session = f"{session_prefix}-{os.getpid()}"
 
     def command(self, *args: str, timeout: int = 20) -> str:
         completed = subprocess.run(
@@ -189,6 +189,58 @@ def main() -> None:
             "Restored Draft did not return to the active Inbox",
         )
         print("workspace_trash_restore=yes")
+
+        browser.command("set", "viewport", "1440", "900")
+        browser.command("click", "[data-quick-upload-open]")
+        browser.wait_for("document.querySelector('[data-quick-upload-dialog]')?.open === true")
+        assert_browser(
+            browser,
+            "document.querySelector('[data-quick-upload-input]')?.multiple === true && document.querySelector('[data-quick-upload-form] [name=copyright_year]')?.value.length === 4 && document.querySelector('[data-quick-upload-form] [name=content_category]')?.value === 'auto' && document.querySelector('[data-quick-upload-form] [name=rights_declared]')?.required === true && document.querySelector('[data-quick-upload-form] .upload-studio-confirm-actions')?.getBoundingClientRect().bottom <= innerHeight + 1",
+            "Quick Upload did not expose one reusable declaration form for a multi-file batch",
+        )
+        browser.command("screenshot", "/tmp/mt-workspace-quick-upload-desktop.png")
+        browser.command("click", "[data-quick-upload-cancel]")
+        browser.wait_for("document.querySelector('[data-quick-upload-dialog]')?.open === false")
+
+        browser.command("set", "viewport", "390", "844")
+        browser.command("click", "[data-quick-upload-open]")
+        browser.wait_for("document.querySelector('[data-quick-upload-dialog]')?.open === true")
+        assert_browser(
+            browser,
+            "document.documentElement.scrollWidth <= window.innerWidth && document.querySelector('[data-quick-upload-dialog]').scrollWidth <= window.innerWidth && document.querySelector('[data-quick-upload-form] .upload-studio-confirm-actions')?.getBoundingClientRect().bottom <= innerHeight + 1",
+            "Quick Upload dialog overflowed the mobile viewport",
+        )
+        browser.command("screenshot", "/tmp/mt-workspace-quick-upload-mobile.png")
+        browser.command("click", "[data-quick-upload-cancel]")
+        browser.wait_for("document.querySelector('[data-quick-upload-dialog]')?.open === false")
+        print("workspace_quick_upload_defaults=yes")
+
+        FakeSupabaseHandler.draft_version_patch = {
+            "alt_text": "A quiet field beneath a pale sky.",
+            "copyright_holder": "MT Presence",
+            "copyright_year": 2026,
+            "contains_recognizable_people": False,
+            "model_release_status": "not_applicable",
+            "property_release_status": "not_applicable",
+            "rights_declared": True,
+            "ai_disclosure": "none",
+            "sensitive_content_disclosure": "none",
+        }
+        FakeSupabaseHandler.asset_scan_statuses = {
+            "original": "clean",
+            "display": "clean",
+            "thumbnail": "clean",
+        }
+        browser.command("click", "[data-studio-submit-ready]")
+        browser.wait_for("document.querySelector('[data-studio-submit-dialog]')?.open === true")
+        assert_browser(
+            browser,
+            "document.querySelector('[data-studio-submit-dialog-title]')?.textContent.includes('Submit 1 ready Draft') && document.querySelector('[data-studio-submit-dialog-description]')?.textContent.includes('Only ready Drafts')",
+            "Batch submission did not recheck readiness before presenting its bounded confirmation",
+        )
+        browser.command("click", "[data-studio-submit-dialog] button[value=cancel]")
+        browser.wait_for("document.querySelector('[data-studio-submit-dialog]')?.open === false")
+        print("workspace_batch_submit_ready=yes")
 
         error_payload = browser.json_command("errors")
         error_data = error_payload.get("data") if isinstance(error_payload.get("data"), dict) else error_payload

@@ -148,13 +148,20 @@
           <h1 id="upload-studio-title">Upload Studio</h1>
         </div>
         <div class="upload-studio-actions">
-          <label class="upload-studio-primary" for="upload-studio-input">
+          <button class="upload-studio-primary" type="button" data-quick-upload-open>
             <svg class="ui-icon" aria-hidden="true" focusable="false">
               <use href="#icon-upload-cloud"></use>
             </svg>
-            Import Images
+            Quick Upload
+          </button>
+          <label class="upload-studio-secondary" for="upload-studio-input">
+            <svg class="ui-icon" aria-hidden="true" focusable="false">
+              <use href="#icon-upload-cloud"></use>
+            </svg>
+            Import as Drafts
           </label>
           <input id="upload-studio-input" class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" multiple data-upload-studio-input />
+          <input id="quick-upload-input" class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" multiple data-quick-upload-input />
           <a class="upload-studio-secondary" href="/works.html">
             View Works
             <svg class="ui-icon" aria-hidden="true" focusable="false">
@@ -218,6 +225,14 @@
               <span data-studio-status>Loading</span>
               <small>state</small>
             </div>
+          </div>
+
+          <div class="upload-studio-batch-bar" data-studio-drafts-only>
+            <div>
+              <strong>Batch submission</strong>
+              <span>Checks every Draft in this folder and submits only the ones whose metadata and security scan are ready.</span>
+            </div>
+            <button type="button" data-studio-submit-ready disabled>Check &amp; submit ready</button>
           </div>
 
           <div class="upload-studio-queue" data-studio-queue aria-live="polite">
@@ -449,12 +464,111 @@
             <h2 id="studio-submit-dialog-title" data-studio-submit-dialog-title>Submit this Draft?</h2>
           </div>
         </header>
-        <p id="studio-submit-dialog-description">The saved version will be locked and added to the review queue.</p>
+        <p id="studio-submit-dialog-description" data-studio-submit-dialog-description>The saved version will be locked and added to the review queue.</p>
         <div class="upload-studio-confirm-actions">
           <button class="upload-studio-secondary" type="submit" value="cancel">Cancel</button>
-          <button class="upload-studio-submit" type="submit" value="confirm">
+          <button class="upload-studio-submit" type="submit" value="confirm" data-studio-submit-dialog-confirm>
             <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-arrow-right"></use></svg>
-            Submit for Review
+            <span data-studio-submit-dialog-label>Submit for Review</span>
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="upload-studio-confirm upload-studio-quick-dialog" data-quick-upload-dialog aria-labelledby="quick-upload-title" aria-describedby="quick-upload-description">
+      <form data-quick-upload-form novalidate>
+        <div class="upload-studio-quick-scroll">
+          <header>
+          <span class="upload-studio-confirm-icon" aria-hidden="true">
+            <svg class="ui-icon"><use href="#icon-upload-cloud"></use></svg>
+          </span>
+          <div>
+            <p>Reusable batch defaults</p>
+            <h2 id="quick-upload-title">Quick Upload</h2>
+          </div>
+          </header>
+          <p id="quick-upload-description">These declarations are applied to every selected image. Titles come from filenames and alt text uses the title template; each Draft remains editable.</p>
+          <div class="upload-studio-quick-fields">
+          <label class="form-field">
+            <span>Copyright Holder</span>
+            <input name="copyright_holder" type="text" maxlength="160" autocomplete="name" required />
+          </label>
+          <label class="form-field">
+            <span>Copyright Year</span>
+            <input name="copyright_year" type="number" min="1000" inputmode="numeric" required />
+          </label>
+          <label class="form-field upload-studio-span">
+            <span>Content Category</span>
+            <select name="content_category" required>
+              <option value="auto">Auto from filename</option>
+              <option value="concrete">Concrete</option>
+              <option value="abstract">Abstract</option>
+            </select>
+          </label>
+          <label class="form-field upload-studio-span">
+            <span>Alt Text Template</span>
+            <input name="alt_text_template" type="text" maxlength="500" value="Photograph titled “{title}”." required />
+            <small>Use {title} to insert each filename-based title.</small>
+          </label>
+          <label class="form-field upload-studio-span">
+            <span>Shared Tags <small>Optional</small></span>
+            <input name="tags" type="text" maxlength="1000" placeholder="landscape, archive, 2026" />
+          </label>
+          <label class="form-field upload-studio-span">
+            <span>Shared Location <small>Optional</small></span>
+            <input name="location_name" type="text" maxlength="500" />
+          </label>
+          <label class="form-field">
+            <span>Recognizable People</span>
+            <select name="contains_recognizable_people" data-quick-recognizable-people required>
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </label>
+          <label class="form-field" data-quick-model-release hidden>
+            <span>Model Release</span>
+            <select name="model_release_status">
+              <option value="available">Available</option>
+              <option value="pending">Pending</option>
+              <option value="not_available">Not Available</option>
+            </select>
+          </label>
+          <label class="form-field">
+            <span>Property Release</span>
+            <select name="property_release_status" required>
+              <option value="not_applicable">Not Applicable</option>
+              <option value="available">Available</option>
+              <option value="pending">Pending</option>
+              <option value="not_available">Not Available</option>
+            </select>
+          </label>
+          <label class="form-field">
+            <span>AI Disclosure</span>
+            <select name="ai_disclosure" required>
+              <option value="none">No AI Generation or Editing</option>
+              <option value="ai_edited">AI Edited</option>
+              <option value="ai_generated">AI Generated</option>
+            </select>
+          </label>
+          <label class="form-field">
+            <span>Sensitive Content</span>
+            <select name="sensitive_content_disclosure" required>
+              <option value="none">None</option>
+              <option value="contains_sensitive_content">Contains Sensitive Content</option>
+            </select>
+          </label>
+          <label class="upload-studio-check upload-studio-span">
+            <input name="rights_declared" type="checkbox" required />
+            <span>I confirm that I own or control the required rights for every selected image.</span>
+          </label>
+          </div>
+          <p class="upload-studio-quick-note">Quick Upload does not bypass private storage, malware scanning, submission readiness, review, or publication audit.</p>
+        </div>
+        <div class="upload-studio-confirm-actions">
+          <button class="upload-studio-secondary" type="button" data-quick-upload-cancel>Cancel</button>
+          <button class="upload-studio-submit" type="submit">
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-upload-cloud"></use></svg>
+            Choose Images
           </button>
         </div>
       </form>
@@ -464,6 +578,6 @@
     <script src="/archive-upload.js?v=20260610-works-viewer-editor"></script>
     <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
     <script src="/account-menu.js?v=20260723-interaction-integrity-2"></script>
-    <script src="/upload-studio.js?v=20260722-trash-restore"></script>
+    <script src="/upload-studio.js?v=20260729-quick-upload"></script>
   </body>
 </html>

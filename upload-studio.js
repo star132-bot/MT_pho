@@ -81,7 +81,14 @@ async function workspaceRequest(url, options = {}) {
 const LOCAL_STORAGE_BUCKET = "indexeddb-local";
 
 const uploadInput = document.querySelector("[data-upload-studio-input]");
-const primaryImport = document.querySelector(".upload-studio-primary");
+const primaryImport = document.querySelector('label[for="upload-studio-input"]');
+const quickUploadOpen = document.querySelector("[data-quick-upload-open]");
+const quickUploadInput = document.querySelector("[data-quick-upload-input]");
+const quickUploadDialog = document.querySelector("[data-quick-upload-dialog]");
+const quickUploadForm = document.querySelector("[data-quick-upload-form]");
+const quickUploadCancel = document.querySelector("[data-quick-upload-cancel]");
+const quickRecognizablePeople = document.querySelector("[data-quick-recognizable-people]");
+const quickModelReleaseField = document.querySelector("[data-quick-model-release]");
 const dropzone = document.querySelector("[data-upload-dropzone]");
 const queueElement = document.querySelector("[data-studio-queue]");
 const countElement = document.querySelector("[data-studio-count]");
@@ -108,6 +115,10 @@ const submitRecordButton = document.querySelector("[data-studio-submit-record]")
 const submitRecordLabel = document.querySelector("[data-studio-submit-label]");
 const submitDialog = document.querySelector("[data-studio-submit-dialog]");
 const submitDialogTitle = document.querySelector("[data-studio-submit-dialog-title]");
+const submitDialogDescription = document.querySelector("[data-studio-submit-dialog-description]");
+const submitDialogConfirm = document.querySelector("[data-studio-submit-dialog-confirm]");
+const submitDialogLabel = document.querySelector("[data-studio-submit-dialog-label]");
+const submitReadyButton = document.querySelector("[data-studio-submit-ready]");
 const toastElement = document.querySelector("[data-studio-toast]");
 const studioGrid = document.querySelector(".upload-studio-grid");
 const workspaceViewButtons = [...document.querySelectorAll("[data-studio-view]")];
@@ -151,6 +162,9 @@ const submissionIdempotencyKeys = new Map();
 const objectUrls = new Set();
 const restoringTrashIds = new Set();
 const trashRestoreErrors = new Map();
+let pendingQuickUploadDefaults = null;
+let rememberedQuickUploadDefaults = null;
+let bulkSubmissionInFlight = false;
 
 function cleanText(value) {
   return value === null || value === undefined ? "" : String(value).trim();
@@ -363,6 +377,55 @@ function uniqueTextList(values = []) {
 
 function splitTags(value) {
   return uniqueTextList(cleanText(value).split(/[\n,;|]/));
+}
+
+function hydrateQuickUploadForm() {
+  if (!quickUploadForm) return;
+  const stored = rememberedQuickUploadDefaults || {};
+  const elements = quickUploadForm.elements;
+  elements.namedItem("copyright_holder").value = cleanText(stored.copyright_holder);
+  elements.namedItem("copyright_year").value = String(stored.copyright_year || new Date().getFullYear());
+  elements.namedItem("content_category").value = ["concrete", "abstract"].includes(stored.content_category)
+    ? stored.content_category
+    : "auto";
+  elements.namedItem("alt_text_template").value = cleanText(stored.alt_text_template) || "Photograph titled “{title}”.";
+  elements.namedItem("tags").value = uniqueTextList(stored.tags || []).join(", ");
+  elements.namedItem("location_name").value = cleanText(stored.location_name);
+  elements.namedItem("contains_recognizable_people").value = stored.contains_recognizable_people === true ? "true" : "false";
+  elements.namedItem("model_release_status").value = cleanText(stored.model_release_status) || "available";
+  elements.namedItem("property_release_status").value = cleanText(stored.property_release_status) || "not_applicable";
+  elements.namedItem("ai_disclosure").value = cleanText(stored.ai_disclosure) || "none";
+  elements.namedItem("sensitive_content_disclosure").value = cleanText(stored.sensitive_content_disclosure) || "none";
+  elements.namedItem("rights_declared").checked = false;
+  syncQuickModelReleaseVisibility();
+}
+
+function quickUploadDefaultsFromForm() {
+  const formData = new FormData(quickUploadForm);
+  const containsRecognizablePeople = formData.get("contains_recognizable_people") === "true";
+  return {
+    copyright_holder: cleanText(formData.get("copyright_holder")),
+    copyright_year: Number.parseInt(formData.get("copyright_year"), 10),
+    content_category: cleanText(formData.get("content_category")) || "auto",
+    alt_text_template: cleanText(formData.get("alt_text_template")),
+    tags: splitTags(formData.get("tags")),
+    location_name: cleanText(formData.get("location_name")),
+    contains_recognizable_people: containsRecognizablePeople,
+    model_release_status: containsRecognizablePeople
+      ? cleanText(formData.get("model_release_status")) || null
+      : "not_applicable",
+    property_release_status: cleanText(formData.get("property_release_status")) || null,
+    rights_declared: formData.get("rights_declared") === "on",
+    ai_disclosure: cleanText(formData.get("ai_disclosure")) || null,
+    sensitive_content_disclosure: cleanText(formData.get("sensitive_content_disclosure")) || null,
+  };
+}
+
+function syncQuickModelReleaseVisibility() {
+  if (!quickRecognizablePeople || !quickModelReleaseField) return;
+  quickModelReleaseField.hidden = quickRecognizablePeople.value !== "true";
+  const select = quickModelReleaseField.querySelector("select");
+  if (select) select.required = quickRecognizablePeople.value === "true";
 }
 
 function titleCase(value) {
@@ -687,6 +750,36 @@ function normalizeRecord(item, folder = activeFolder()) {
     squareSlices: normalizeSquareSlices(item, imageId),
     squareSliceCount: item.squareSliceCount || item.squareSlices?.length || 0,
   };
+}
+
+function applyQuickUploadDefaults(record, defaults) {
+  if (!defaults) return record;
+  const folder = folderById(record.folder_id);
+  const title = cleanText(record.title) || "Untitled Work";
+  const altText = cleanText(defaults.alt_text_template).replaceAll("{title}", title);
+  const contentCategory = ["concrete", "abstract"].includes(defaults.content_category)
+    ? defaults.content_category
+    : contentTypeCode(record.imageRecord?.content_type || record.type);
+  return normalizeRecord({
+    ...record,
+    type: contentCategory,
+    imageRecord: {
+      ...(record.imageRecord || {}),
+      content_type: contentCategory,
+      display_mode: displayModeForType(contentCategory),
+    },
+    alt_text: altText,
+    location_name: cleanText(defaults.location_name) || record.location_name || "",
+    copyright_holder: defaults.copyright_holder,
+    copyright_year: defaults.copyright_year,
+    contains_recognizable_people: defaults.contains_recognizable_people,
+    model_release_status: defaults.model_release_status,
+    property_release_status: defaults.property_release_status,
+    rights_declared: defaults.rights_declared === true,
+    ai_disclosure: defaults.ai_disclosure,
+    sensitive_content_disclosure: defaults.sensitive_content_disclosure,
+    customTags: uniqueTextList([...(record.customTags || []), ...(defaults.tags || [])]),
+  }, folder);
 }
 
 function ratioFromDimensions(width, height) {
@@ -1169,13 +1262,14 @@ function taskLabel(stage) {
   return labels[stage] || "Working";
 }
 
-function createTask(file, index, folder) {
+function createTask(file, index, folder, quickDefaults = null) {
   const task = {
     id: crypto.randomUUID ? `studio-task-${crypto.randomUUID()}` : `studio-task-${Date.now()}-${index}`,
     name: file.name || `Image ${index + 1}`,
     file,
     folder_id: folder.id,
     folder_name: folder.name,
+    quickDefaults,
     stage: "queued",
     progress: 0,
     message: "Waiting to start.",
@@ -1583,7 +1677,9 @@ function setWorkspaceControls() {
   const workspaceBusy = submissionPreparing || submissionInFlight || restoringTrashIds.size > 0;
   const importDisabled = workspaceLoading || activeWorkspaceView !== "drafts" || !workspaceOnline || workspaceBusy;
   if (uploadInput) uploadInput.disabled = importDisabled;
+  if (quickUploadInput) quickUploadInput.disabled = importDisabled;
   if (primaryImport) primaryImport.setAttribute("aria-disabled", String(importDisabled));
+  if (quickUploadOpen) quickUploadOpen.disabled = importDisabled;
   if (dropzone) dropzone.setAttribute("aria-disabled", String(importDisabled));
   folderForm?.querySelectorAll("input, button").forEach((control) => { control.disabled = importDisabled; });
   folderList?.querySelectorAll("button").forEach((control) => { control.disabled = workspaceBusy; });
@@ -1636,6 +1732,12 @@ function setWorkspaceControls() {
       || record?.readiness?.status !== "ready"
       || record?.readiness?.ready !== true
       || !["draft", "changes_requested"].includes(record?.workflow_status || "draft");
+  }
+  if (submitReadyButton) {
+    submitReadyButton.disabled = importDisabled || !recordsForActiveFolder().length;
+    submitReadyButton.textContent = bulkSubmissionInFlight
+      ? (submissionInFlight ? "Submitting ready Drafts…" : "Checking readiness…")
+      : "Check & submit ready";
   }
 }
 
@@ -1887,16 +1989,26 @@ async function reloadActiveRecord() {
   }
 }
 
-function confirmDraftSubmission(record) {
-  const title = record?.title || "Untitled Work";
+function confirmSubmission({ title, message, confirmLabel }) {
   if (!submitDialog || typeof submitDialog.showModal !== "function") {
-    return Promise.resolve(window.confirm(`Submit "${title}" for review?`));
+    return Promise.resolve(window.confirm(`${title}\n\n${message}`));
   }
-  if (submitDialogTitle) submitDialogTitle.textContent = `Submit "${title}"?`;
+  if (submitDialogTitle) submitDialogTitle.textContent = title;
+  if (submitDialogDescription) submitDialogDescription.textContent = message;
+  if (submitDialogLabel) submitDialogLabel.textContent = confirmLabel;
   submitDialog.returnValue = "";
   submitDialog.showModal();
   return new Promise((resolve) => {
     submitDialog.addEventListener("close", () => resolve(submitDialog.returnValue === "confirm"), { once: true });
+  });
+}
+
+function confirmDraftSubmission(record) {
+  const title = record?.title || "Untitled Work";
+  return confirmSubmission({
+    title: `Submit "${title}"?`,
+    message: "The saved version will be locked and added to the review queue.",
+    confirmLabel: "Submit for Review",
   });
 }
 
@@ -2018,6 +2130,131 @@ async function submitActiveRecord() {
   }
 }
 
+async function mapWithConcurrency(items, limit, operation) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await operation(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+  return results;
+}
+
+async function removeSubmittedWorkspaceRecord(record) {
+  let cacheDeleted = true;
+  try {
+    await deleteStoredItem(record.id);
+  } catch (_error) {
+    cacheDeleted = false;
+  }
+  (record.assets || []).forEach((asset) => {
+    if (!asset.objectUrl) return;
+    URL.revokeObjectURL(asset.objectUrl);
+    objectUrls.delete(asset.objectUrl);
+  });
+  const completedTask = taskByRecordId.get(record.id);
+  taskByRecordId.delete(record.id);
+  uploadTasks = uploadTasks.filter((task) => task !== completedTask);
+  records = records.filter((item) => item.id !== record.id);
+  return cacheDeleted;
+}
+
+async function submitReadyRecordsInFolder() {
+  if (
+    bulkSubmissionInFlight
+    || submissionPreparing
+    || submissionInFlight
+    || !workspaceOnline
+    || activeWorkspaceView !== "drafts"
+  ) return;
+  if (!(await flushDraftBeforeNavigation())) {
+    showToast("Save the active Draft before starting batch submission.", "error");
+    return;
+  }
+  const folder = activeFolder();
+  const candidates = [...recordsForActiveFolder()];
+  if (!candidates.length) {
+    showToast(`There are no Drafts in ${folder.name}.`, "error");
+    return;
+  }
+
+  bulkSubmissionInFlight = true;
+  submissionPreparing = true;
+  setWorkspaceControls();
+  try {
+    const readinessResults = await mapWithConcurrency(candidates, 4, async (record) => {
+      try {
+        const readiness = normalizeReadiness(await getWorkspaceDraftReadiness(record.id), record);
+        replaceRecordReadiness(record.id, readiness);
+        return { record, readiness, error: null };
+      } catch (error) {
+        return { record, readiness: null, error };
+      }
+    });
+    renderAll();
+    const ready = readinessResults
+      .filter((result) => result.readiness?.ready === true && result.readiness.status === "ready")
+      .map((result) => records.find((record) => record.id === result.record.id) || result.record);
+    const checkingFailed = readinessResults.filter((result) => result.error).length;
+    if (!ready.length) {
+      const pending = readinessResults.length - checkingFailed;
+      showToast(
+        checkingFailed
+          ? `No Draft is ready; ${checkingFailed} readiness check${checkingFailed === 1 ? "" : "s"} failed.`
+          : `${pending} Draft${pending === 1 ? " is" : "s are"} still waiting for metadata or security scanning.`,
+        "error",
+      );
+      return;
+    }
+
+    const confirmed = await confirmSubmission({
+      title: `Submit ${ready.length} ready Draft${ready.length === 1 ? "" : "s"}?`,
+      message: `Only ready Drafts in ${folder.name} will be locked and added to Review. Pending or blocked Drafts stay here.`,
+      confirmLabel: `Submit ${ready.length} for Review`,
+    });
+    if (!confirmed) return;
+
+    submissionInFlight = true;
+    setWorkspaceControls();
+    const submittedResults = await mapWithConcurrency(ready, 2, async (record) => {
+      const idempotencyKey = createSubmissionIdempotencyKey(record.id);
+      try {
+        const result = await submitWorkspaceDraft(record, idempotencyKey);
+        submissionIdempotencyKeys.delete(record.id);
+        const cacheDeleted = await removeSubmittedWorkspaceRecord(record);
+        return { record, result, cacheDeleted, error: null };
+      } catch (error) {
+        if (error?.status && error.status < 500) submissionIdempotencyKeys.delete(record.id);
+        if (error?.readiness) replaceRecordReadiness(record.id, normalizeReadiness(error.readiness, record));
+        return { record, result: null, cacheDeleted: true, error };
+      }
+    });
+    const submitted = submittedResults.filter((result) => !result.error).length;
+    const failed = submittedResults.length - submitted;
+    const cacheWarnings = submittedResults.filter((result) => !result.error && !result.cacheDeleted).length;
+    activeRecordId = recordsForActiveFolder()[0]?.id || null;
+    resetDraftEditState(activeRecordId ? "All changes saved." : "");
+    showToast(
+      failed
+        ? `${submitted} submitted; ${failed} stayed in Drafts and need attention.`
+        : cacheWarnings
+          ? `${submitted} submitted; offline cache cleanup is pending.`
+          : `${submitted} Draft${submitted === 1 ? "" : "s"} submitted for review.`,
+      failed ? "error" : "info",
+    );
+  } finally {
+    bulkSubmissionInFlight = false;
+    submissionPreparing = false;
+    submissionInFlight = false;
+    renderAll();
+    if (activeRecordId) refreshActiveReadiness({ silent: true });
+  }
+}
+
 async function deleteActiveRecord() {
   if (submissionPreparing || submissionInFlight) return;
   const recordId = activeRecordId;
@@ -2131,6 +2368,7 @@ async function prepareUploadTask(task) {
     },
     folder,
   );
+  task.localRecord = applyQuickUploadDefaults(task.localRecord, task.quickDefaults);
   task.uploadAssets = phase2UploadAssets(task.localRecord);
 }
 
@@ -2161,7 +2399,18 @@ async function processUploadTask(task) {
       throwIfTaskCanceled(task);
     }
     task.update("uploading", 97, "Verifying assets and creating the server Draft.");
-    const record = await completeWorkspaceUpload(task.intent, task.localRecord, task.abortController.signal);
+    let record = await completeWorkspaceUpload(task.intent, task.localRecord, task.abortController.signal);
+    task.intent = null;
+    let quickDefaultsApplied = false;
+    if (task.quickDefaults) {
+      task.update("uploading", 99, "Applying shared rights and disclosure defaults.");
+      try {
+        record = await saveWorkspaceDraft(applyQuickUploadDefaults(record, task.quickDefaults));
+        quickDefaultsApplied = true;
+      } catch (error) {
+        task.message = error?.message || "Shared defaults could not be saved; the private Draft remains editable.";
+      }
+    }
     task.recordId = record.id;
     taskByRecordId.set(record.id, task);
     records = [record, ...records.filter((existing) => existing.id !== record.id)];
@@ -2177,11 +2426,24 @@ async function processUploadTask(task) {
     }
     releaseTaskRuntime(task);
     task.inFlight = false;
-    task.update("complete", 100, "Server Draft ready.");
+    task.update(
+      "complete",
+      100,
+      quickDefaultsApplied
+        ? "Quick Draft ready; security scan continues."
+        : task.quickDefaults
+          ? "Draft ready; review the shared defaults before submission."
+          : "Server Draft ready.",
+    );
     if (activeRecordId === record.id) refreshActiveReadiness();
-    showToast(cacheSaved
-      ? "Image uploaded as a private Draft."
-      : "Image uploaded as a private Draft; offline cache is unavailable.");
+    showToast(
+      task.quickDefaults && !quickDefaultsApplied
+        ? "Image is safe as a private Draft, but shared defaults need review."
+        : cacheSaved
+          ? "Image uploaded as a private Draft."
+          : "Image uploaded as a private Draft; offline cache is unavailable.",
+      task.quickDefaults && !quickDefaultsApplied ? "error" : "info",
+    );
   } catch (error) {
     if (task.intent?.upload_id) {
       await cleanupTaskIntent(task);
@@ -2254,7 +2516,7 @@ async function processTasksWithLimit(tasks, limit) {
   await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, () => worker()));
 }
 
-async function handleFiles(fileList) {
+async function handleFiles(fileList, { quickDefaults = null } = {}) {
   const files = Array.from(fileList || []).filter(Boolean);
   if (!files.length) {
     return;
@@ -2271,7 +2533,7 @@ async function handleFiles(fileList) {
     archiveDb = await openArchiveDatabase();
   }
   const folder = activeFolder();
-  const tasks = files.map((file, index) => createTask(file, index, folder));
+  const tasks = files.map((file, index) => createTask(file, index, folder, quickDefaults));
   uploadTasks = [...tasks, ...uploadTasks];
   renderAll();
   await processTasksWithLimit(tasks, UPLOAD_CONCURRENCY);
@@ -2514,6 +2776,41 @@ uploadInput?.addEventListener("change", async (event) => {
   uploadInput.value = "";
 });
 
+quickUploadOpen?.addEventListener("click", () => {
+  if (quickUploadOpen.disabled) return;
+  hydrateQuickUploadForm();
+  if (typeof quickUploadDialog?.showModal === "function") quickUploadDialog.showModal();
+  else quickUploadDialog?.setAttribute("open", "");
+  window.requestAnimationFrame(() => quickUploadForm?.elements.namedItem("copyright_holder")?.focus());
+});
+
+quickUploadCancel?.addEventListener("click", () => {
+  pendingQuickUploadDefaults = null;
+  if (typeof quickUploadDialog?.close === "function") quickUploadDialog.close();
+  else quickUploadDialog?.removeAttribute("open");
+});
+
+quickRecognizablePeople?.addEventListener("change", syncQuickModelReleaseVisibility);
+
+quickUploadForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!quickUploadForm.reportValidity()) return;
+  pendingQuickUploadDefaults = quickUploadDefaultsFromForm();
+  rememberedQuickUploadDefaults = pendingQuickUploadDefaults;
+  if (typeof quickUploadDialog?.close === "function") quickUploadDialog.close();
+  else quickUploadDialog?.removeAttribute("open");
+  quickUploadInput?.click();
+});
+
+quickUploadInput?.addEventListener("change", async (event) => {
+  const defaults = pendingQuickUploadDefaults;
+  pendingQuickUploadDefaults = null;
+  await handleFiles(event.target.files, { quickDefaults: defaults });
+  quickUploadInput.value = "";
+});
+
+submitReadyButton?.addEventListener("click", submitReadyRecordsInFolder);
+
 dropzone?.addEventListener("dragover", (event) => {
   event.preventDefault();
   if (activeWorkspaceView !== "drafts" || submissionPreparing || submissionInFlight || !workspaceOnline) return;
@@ -2583,6 +2880,8 @@ async function initUploadStudio() {
   if (copyrightYearInput) {
     copyrightYearInput.max = String(new Date().getFullYear() + 1);
   }
+  const quickCopyrightYear = quickUploadForm?.elements.namedItem("copyright_year");
+  if (quickCopyrightYear) quickCopyrightYear.max = String(new Date().getFullYear() + 1);
   workspaceLoading = true;
   renderAll();
   try {

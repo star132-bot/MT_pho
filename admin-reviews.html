@@ -135,8 +135,17 @@
       <section class="admin-review-workspace" aria-label="Review submissions" data-review-workspace data-mobile-view="queue">
         <aside class="admin-review-queue" aria-labelledby="review-list-title" aria-busy="true" data-review-queue>
           <header>
-            <h2 id="review-list-title">Submissions</h2>
-            <span data-review-list-count>0</span>
+            <div>
+              <h2 id="review-list-title">Submissions</h2>
+              <span data-review-list-count>0</span>
+            </div>
+            <div class="admin-review-bulk-tools" data-review-bulk-tools hidden>
+              <label>
+                <input type="checkbox" data-review-bulk-select-all />
+                <span>Select eligible</span>
+              </label>
+              <button type="button" data-review-bulk-publish disabled>Publish selected (0)</button>
+            </div>
           </header>
           <div class="admin-review-list-state" data-review-list-state role="status" aria-atomic="true">
             <span data-review-list-state-message>Loading submissions</span>
@@ -223,6 +232,7 @@
                 <form class="admin-review-decision" data-review-decision-form hidden novalidate>
                   <fieldset>
                     <legend>Policy Checklist</legend>
+                    <button class="admin-review-check-all" type="button" data-review-check-all>Confirm all 10 checks</button>
                     <div class="admin-review-checklist" data-review-checklist></div>
                   </fieldset>
                   <div class="admin-review-decision-grid">
@@ -270,11 +280,37 @@
       </form>
     </dialog>
 
+    <dialog class="admin-review-dialog admin-review-bulk-dialog" data-review-bulk-dialog aria-labelledby="review-bulk-title" aria-describedby="review-bulk-description">
+      <form data-review-bulk-form novalidate>
+        <p class="section-kicker">Super Admin batch publication</p>
+        <h2 id="review-bulk-title">Publish selected works?</h2>
+        <p id="review-bulk-description" data-review-bulk-description></p>
+        <div class="admin-review-bulk-policy" aria-label="Policy checks covered by this attestation"></div>
+        <label class="admin-review-bulk-attestation">
+          <input type="checkbox" name="policy_attestation" required />
+          <span>I confirm every policy check above for every selected work.</span>
+        </label>
+        <label>
+          <span>Message to user</span>
+          <textarea name="user_message" rows="3" minlength="5" maxlength="1000" required>Approved for publication after policy and rights review.</textarea>
+        </label>
+        <label>
+          <span>Internal note <small>Optional</small></span>
+          <textarea name="internal_note" rows="2" maxlength="2000"></textarea>
+        </label>
+        <p class="admin-review-form-notice" data-review-bulk-notice role="alert" aria-live="assertive"></p>
+        <div class="admin-review-dialog-actions">
+          <button class="button button-secondary" type="button" data-review-bulk-cancel>Cancel</button>
+          <button class="button button-primary" type="submit" data-review-bulk-confirm>Publish selected</button>
+        </div>
+      </form>
+    </dialog>
+
     <div class="contact-toast" role="status" aria-live="polite" aria-atomic="true" data-review-live></div>
     <script src="/global-header.js?v=20260724-global-header-v1"></script>
     <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
     <script src="/account-menu.js?v=20260723-interaction-integrity-2"></script>
     <script src="/public-navigation.js?v=20260722-public-shell"></script>
-    <script src="/admin-reviews.js?v=20260729-super-admin-self-publish"></script>
+    <script src="/admin-reviews.js?v=20260729-batch-self-publish"></script>
   </body>
 </html>

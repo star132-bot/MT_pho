@@ -17,6 +17,8 @@
 11. authenticated 不能直接 mutation `review_submissions`；owner 不能直接删除已经登记到 `image_assets` 的 Storage object，未完成 intent 的临时对象仍可通过受控取消清理。
 12. `image_assets` INSERT 自动建立 restricted scan job；独立 worker 通过仅授予 service_role 的 scanner RPC 领取 lease，流式核对 private object，并在无凭据子进程中执行 ClamAV/Pillow，token-bound complete/retry 最终更新 scan status、event、notification 与 audit。
 13. Trash 分段视图通过 owner-scoped read RPC 只列出已 soft-delete 的可编辑 Draft；页面只提供 Restore，原 Folder 已删除时服务端回退到 Inbox。
+14. Quick Upload 允许一次选择多张图片并复用同一批 content category（或 filename auto-classification）、copyright、release、rights、AI/sensitive disclosure、tags/location 和 Alt Text template；共享值随每张 private Draft 通过现有 versioned Draft API 保存，浏览器只在当前 tab 内记忆本次非权威默认值。
+15. `Check & submit ready` 逐张重新调用权威 readiness，只有明确 `ready` 的当前 Folder Draft 才进入一次确认；之后仍逐张使用原有 CAS/idempotent Submit endpoint，成功项移除，Pending、Blocked 或失败项留在 Drafts。
 
 当前 Upload 切片不包含 scheduled orphan repair、TUS/断点续传或 user quota/rate limit。真实上传资产从 `scan_status=pending` 开始，trusted scanner 按当前策略明确写入三个 `clean` 前 Submit 必须 disabled；这不是 quota/capacity 限制。Development 已安全 provision Git ignored `.env.worker` 与 ClamAV，本轮三个既有任务均从 `queued` 经真实领取和扫描进入 `clean`，Security scan readiness 为 `pass`；production 常驻 Worker、监控与告警仍未交付。浏览器上传 Retry 仍是明确的用户操作，scanner 基础设施失败则使用独立的有界后台 retry。
 
@@ -42,7 +44,7 @@ node --check dashboard.js
 node --check account-settings.js
 ```
 
-With `agent-browser` installed, run `python3 scripts/test_workspace_trash_browser.py` for the 1440px/390px Trash/Restore visual and interaction acceptance.
+With `agent-browser` installed, run `python3 scripts/test_workspace_trash_browser.py` for the 1440px/390px Trash/Restore, Quick Upload defaults, and batch-ready submission visual/interaction acceptance.
 
 `test_workspace_phase2_boundary.py` 使用本地 fake Auth/REST/Storage provider，不读取真实凭据，覆盖：
 
@@ -209,6 +211,8 @@ python3 server.py --port 8131
 6. 重发同一 idempotency key 不得创建第二条 submission；stale `expected_version` 返回 409。submitted image 的 Draft PATCH 和 Move to Trash 返回 423。
 7. Submit response 只包含公开 submission/image 状态，不得包含 asset key、owner、internal note、provider debug、session token 或完整 snapshot。
 8. 当前没有 user quota/capacity check；不要把 readiness pending/blocked 文案解释为 quota。
+9. Quick Upload 选择多图前只填写一次共享声明；上传完成后逐张打开 Draft，确认共享字段已经保存且每张仍保持独立 title、asset、version 和 readiness。关闭/刷新 tab 后不能依赖浏览器记住这些默认值。
+10. 在同一 Folder 放入 Ready、Pending、Blocked 三种 Draft；点击 `Check & submit ready` 后确认 dialog 只统计 Ready，确认后仅 Ready 被提交并移出，其他项位置和内容不变。任一单项 CAS/API 失败不得回滚已成功项或删除失败项。
 
 ### 6. 验证 Trash 与离线 cache
 

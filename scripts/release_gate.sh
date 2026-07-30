@@ -93,6 +93,8 @@ run_group "Python syntax" python3 -m py_compile \
   scripts/production_preflight.py \
   scripts/manage_production_release.py \
   scripts/verify_production.py \
+  scripts/test_workspace_trash_browser.py \
+  scripts/test_review_batch_browser.py \
   "${static_validators[@]}" \
   "${boundary_tests[@]}" \
   "${production_tests[@]}" \

@@ -204,6 +204,7 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
     inject_stale_scan_list = False
     inject_self_owned_detail = False
     inject_stale_scan_detail = False
+    browser_batch_mode = False
     next_review_status: int | None = None
     next_review_error_code: str | None = None
     next_decision_result: dict | None = None
@@ -293,6 +294,8 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                     summary(SUBMISSION_B, "in_review", REVIEWER_B_ID),
                     summary(SUBMISSION_DONE, "approved", REVIEWER_A_ID),
                 ]
+                if access_token == SUPER_ADMIN_TOKEN and type(self).browser_batch_mode:
+                    scoped_items[1] = summary(SUBMISSION_A, "submitted", None)
             if type(self).inject_self_owned_list and scoped_items:
                 scoped_items[0]["owner"]["id"] = AUTHORIZATIONS[access_token]["user_id"]
             if type(self).inject_stale_scan_list and scoped_items:
@@ -330,6 +333,12 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                 SUBMISSION_DONE: ("approved", REVIEWER_A_ID),
             }
             status, assigned_id = assignments.get(submission_id, ("in_review", REVIEWER_A_ID))
+            if (
+                access_token == SUPER_ADMIN_TOKEN
+                and type(self).browser_batch_mode
+                and submission_id in {SUBMISSION_PUBLIC, SUBMISSION_A}
+            ):
+                status, assigned_id = "submitted", None
             result = detail(access_token, submission_id, status, assigned_id)
             if type(self).inject_self_owned_detail:
                 result["owner"]["id"] = AUTHORIZATIONS[access_token]["user_id"]
@@ -531,6 +540,7 @@ def main() -> None:
     FakeSupabaseHandler.inject_stale_scan_list = False
     FakeSupabaseHandler.inject_self_owned_detail = False
     FakeSupabaseHandler.inject_stale_scan_detail = False
+    FakeSupabaseHandler.browser_batch_mode = False
     FakeSupabaseHandler.next_review_status = None
     FakeSupabaseHandler.next_review_error_code = None
     FakeSupabaseHandler.next_decision_result = None

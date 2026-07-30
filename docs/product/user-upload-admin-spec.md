@@ -6,7 +6,7 @@
 - 设计语言：本文档使用中文；页面可见 UI、代码、数据库字段、API、事件名和开发注释使用英文。
 - 需求优先级：本文档是用户系统、上传工作台和管理员平台的唯一主规格；需求冲突时以本文为准。
 - 明确取消：目标产品不需要公开 `Series` 功能；`collections.html`、`collections.js`、`series-data.js` 在后续实施中应从导航和运行时移除，不在本轮文档阶段直接删除代码。
-- 当前实现基线（2026-07-29）：Supabase Auth/Account、owner-scoped Upload Workspace、Draft autosave/CAS、Trash/Restore、五项 server-authoritative readiness、idempotent Submit、trusted asset scanner、protected creator profile/Dashboard、Admin Review Queue/Detail/decision，以及 published-only Works/public creator delivery 已实现。Reviewer 只能处理 non-self assignment 且只能 Request Changes、Reject 或 Approve；常规 assignment/start/decision 对所有角色继续禁止 self-review。Admin/Super Admin 必须达到 AAL2 才可执行 Approve and publish；另有独立的 Super Admin self-publish 例外，只允许本人未分配、未开始审核的 Submitted submission，经完整 checklist、CAS、幂等、readiness 与 current-policy-clean 三资产校验后发布，并写专用 immutable audit。发布事务只把 display/thumbnail 切为 public，并立即通过 strict DTO 出现在 Works 与 `/creators/{public_slug}`。MT Web API 浏览器 DTO 不包含 original、owner UUID、显式 Storage bucket/key、review evidence 或 private GPS/EXIF；权威空数据或 provider 错误不回退 SQLite/sample/IndexedDB。Supabase signed URL 与匿名交付 RPC 的 provider locator 仍可能包含当前公开衍生图 object path；若业务要求隐藏该 locator，后续必须采用 owner-independent opaque public path 或 server-only credential + image-byte proxy。rollback-only 数据库、双会话并发、无密钥 HTTP 与真实多身份浏览器门禁覆盖上述边界。
+- 当前实现基线（2026-07-29）：Supabase Auth/Account、owner-scoped Upload Workspace、Quick Upload 共享声明、多 Draft readiness 批量提交、Draft autosave/CAS、Trash/Restore、trusted asset scanner、protected creator profile/Dashboard、Admin Review Queue/Detail/decision，以及 published-only Works/public creator delivery 已实现。Quick Upload 与批量 Submit 只编排既有 per-Draft API，不能绕过 private storage、scanner、readiness、CAS 或审核。Reviewer 只能处理 non-self assignment 且只能 Request Changes、Reject 或 Approve；常规 assignment/start/decision 对所有角色继续禁止 self-review。Admin/Super Admin 必须达到 AAL2 才可执行 Approve and publish；另有独立的 Super Admin self-publish 例外，只允许本人未分配、未开始审核的 Submitted submission，经完整 checklist、CAS、幂等、readiness 与 current-policy-clean 三资产校验后发布，并写专用 immutable audit。Super Admin 可显式多选 eligible 自有作品并一次确认十项 checklist，但客户端逐件重新读取 Detail、逐件调用 dedicated endpoint，成功和失败独立。发布事务只把 display/thumbnail 切为 public，并立即通过 strict DTO 出现在 Works 与 `/creators/{public_slug}`。MT Web API 浏览器 DTO 不包含 original、owner UUID、显式 Storage bucket/key、review evidence 或 private GPS/EXIF；权威空数据或 provider 错误不回退 SQLite/sample/IndexedDB。Supabase signed URL 与匿名交付 RPC 的 provider locator 仍可能包含当前公开衍生图 object path；若业务要求隐藏该 locator，后续必须采用 owner-independent opaque public path 或 server-only credential + image-byte proxy。rollback-only 数据库、双会话并发、无密钥 HTTP 与真实多身份浏览器门禁覆盖上述边界。
 
 ## 2. 产品目标
 
@@ -458,11 +458,14 @@ Submit 后：
 
 - `GET /api/images/{imageId}/readiness` 由服务端固定返回 Work details、Rights & disclosures、Image assets、Security scan、Submission state 五项检查；客户端只展示/轮询结果，不能替代提交事务内的再次校验。
 - `POST /api/images/{imageId}/submit` 要求显式 `submit-for-review` confirmation、current `expected_version` 和 UUID `idempotency_key`；同 key retry 返回首次成功结果，stale version 返回 conflict。
+- Quick Upload 允许一次填写本批 content category（或 filename auto-classification）、copyright、release、rights、AI/sensitive disclosure、tags/location 与 Alt Text template，再选择多文件；每张图片仍创建独立 Draft/version/assets，默认值随 Draft 保存且只在当前 tab 非权威记忆。
+- `Check & submit ready` 对当前 Folder 每张 Draft 重新读取 readiness，只把明确 Ready 的记录纳入一次确认；之后逐件调用同一 versioned/idempotent Submit API，成功项移除，Pending、Blocked 和失败项保留。
 - 成功事务锁定当前 `image_versions`，创建带 readiness/asset snapshot 的 `review_submissions`，更新 `images.workflow_status/version`，并写入 notification 与 append-only audit。authenticated 不能直接创建/改写/删除 submission，owner 不能直删已登记为 asset 的 Storage object。
 - Upload Studio 展示 blocked/pending/ready/checking/error/submitting，pending 时轮询，提交前保存并再次检查，确认后提交，成功后从 Draft list 移除；submitted 后 Draft update/Trash 拒绝。
 - 当前真实上传的三个 asset 均从 `scan_status=pending` 开始；INSERT 自动 enqueue restricted job，独立 worker 以 SKIP LOCKED lease 领取，校验 private Storage bytes/checksum/magic，ClamAV clean 后再由 Pillow 完整解码并核对 EXIF-oriented dimensions。只有三个 token-bound completion 都为 `clean` 才能启用 Submit；malware 为 flagged，确定性损坏为 failed，依赖/网络不确定性 retry 且绝不 clean。
 - Browser、普通 authenticated user 与 `server.py` 都不能读写 scan job/event 或 verdict，也不持有 Supabase secret/service-role key。Phase 2F 不实现或宣称 user quota/submission capacity。
 - `/admin/reviews` 与 `/admin/reviews/{submissionId}` 已通过服务端 DTO 接入 Supabase submission snapshot，支持 status/assignment queue、原子 claim/start、submitted-version Detail、checklist，以及 Request Changes/Reject/Approve；Reviewer 的 detail/private asset 权限只在自己的 open non-self assignment 内有效，Admin/Super Admin 仍要求 AAL2。常规 mutation 都拒绝 self-review；仅 `review_super_admin_self_publish` 允许 Super Admin 对本人 untouched/unassigned Submitted 作品执行显式、可确认、可审计的发布。
+- Super Admin+AAL2 可以显式选择多个 eligible 自有 Submitted 作品并一次确认全部十项 policy checklist；客户端必须逐件重新读取 Detail、逐件使用最新 lock version 和独立 idempotency key 调用 dedicated self-publish endpoint，成功项与失败项不能互相覆盖。该快捷入口不是普通 bulk approval，也不扩大 Admin/Reviewer 权限。
 - 决定 mutation 要求 current `expected_version`、UUID idempotency key 和 action-specific fields；same-key/same-payload 返回首次完整结果，same-key/different-payload、stale version 或 reviewer conflict 必须拒绝，历史 decision 与 audit 不可覆盖。
 - Admin/Super Admin 在 AAL2 下可以从浏览器执行 `approve_and_publish`，立即进入 Supabase published-only DTO、公开 Works 与 creator profile；Reviewer 仍不能 publish。Withdraw、Escalate、Quarantine 和风险/批量筛选仍是后续切片；legacy `manage.html` 保持独立 SQLite 原型。
 
@@ -1267,7 +1270,7 @@ SQLite + 静态页面适合本地原型，不适合作为多用户生产系统�
 - 已完成并向 development 部署 Supabase Review Queue、status/assignment filter、atomic assignment/start、image-first Review Detail、checklist，以及 Request Changes、Reject、Approve；Reviewer 与 Admin+AAL2 使用不同的最小权限范围。
 - 决定采用 current-version compare-and-swap、same-payload immutable result replay、immutable decision、Review notification 和 append-only audit；migration 已部署 development，rollback-only 数据库验收、三组双会话并发 race、secret-free fake-provider 桌面/移动浏览器，以及 2026-07-22 真实 disposable Reviewer/Admin 多身份浏览器验收均已通过。真实流程覆盖 Reviewer A claim、Reviewer B cross-assignment denial、Request Changes、Admin AAL2 Approve、private 三变体、responsive/focus/console、session close 与 fixture cleanup。
 - `approve_and_publish` 已作为 Admin/Super Admin+AAL2 浏览器能力开放，并接入 Supabase public DTO、derivative delivery、公开 Works 与 creator profile；Reviewer 不显示该动作，普通 Approve 也不会公开作品。
-- Escalate、Quarantine、Withdraw、批量分配、风险/日期/类别/release filters 与生产 SLA/通知投递保留给后续切片。
+- Escalate、Quarantine、Withdraw、普通批量审批/批量分配、风险/日期/类别/release filters 与生产 SLA/通知投递保留给后续切片；现有 batch self-publish 仅是 Super Admin 自有 eligible 作品对 dedicated per-item endpoint 的受限编排。
 
 验收：审核历史不可覆盖；并发 reviewer 不冲突；只有 approved/published 进入 Works。
 

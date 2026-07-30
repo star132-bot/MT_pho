@@ -183,11 +183,13 @@ def main() -> None:
         'name="contains_recognizable_people"', 'data-model-release-field',
         'name="property_release_status"', 'name="rights_declared"',
         'name="ai_disclosure"', 'name="sensitive_content_disclosure"',
-        "data-studio-reload-record", "20260722-trash-restore",
+        "data-studio-reload-record", "20260729-quick-upload",
         "data-studio-readiness", "data-studio-readiness-refresh", "data-studio-readiness-list",
         "Submission readiness", "Submission state", "data-studio-submit-record",
         "Submit for Review", "data-studio-submit-dialog",
         'data-studio-view="drafts"', 'data-studio-view="trash"', "data-studio-trash-count",
+        "data-quick-upload-open", "data-quick-upload-dialog", "data-quick-upload-form",
+        "data-quick-upload-input", "data-studio-submit-ready", "Quick Upload does not bypass",
     }, "Phase 2 Upload Studio page")
     require(upload_js, {
         'const WORKSPACE_FOLDERS_API = "/api/folders"',
@@ -216,6 +218,10 @@ def main() -> None:
         "submissionIdempotencyKeys", "createSubmissionIdempotencyKey", "confirmDraftSubmission",
         "performActiveRecordSubmission", "submitWorkspaceDraft", 'confirmation: "submit-for-review"',
         "error?.details", 'window.addEventListener("beforeunload"',
+        "applyQuickUploadDefaults", "quickUploadDefaultsFromForm", "rememberedQuickUploadDefaults",
+        "record = await saveWorkspaceDraft(applyQuickUploadDefaults(record, task.quickDefaults))",
+        "submitReadyRecordsInFolder", "getWorkspaceDraftReadiness", "mapWithConcurrency",
+        "Only ready Drafts in", "submitWorkspaceDraft(record, idempotencyKey)",
     }, "Phase 2 Upload Studio client")
     require(works_html, {
         "data-public-header",
