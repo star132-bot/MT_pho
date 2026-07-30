@@ -6,7 +6,7 @@
     <title>Account Settings | MT Presence</title>
     <meta name="description" content="Manage your MT Presence profile, authorship preferences, and secure sessions." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260723-profile-avatar-3" />
+    <link rel="stylesheet" href="/styles.css?v=20260730-profile-workbench" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="account-settings-page">
@@ -98,7 +98,10 @@
             </div>
             <form class="account-form account-profile-form" data-profile-form novalidate>
               <fieldset class="account-profile-group account-profile-group-identity">
-                <legend>Identity</legend>
+                <legend>
+                  <span>Identity</span>
+                  <small>Name, portrait, and the roles shown on your public profile.</small>
+                </legend>
                 <div class="account-profile-identity-layout">
                   <div class="account-profile-avatar-summary" aria-label="Profile avatar">
                     <span class="account-profile-avatar" aria-hidden="true" data-profile-avatar-visual>
@@ -138,17 +141,36 @@
                       <input id="account-display-name" name="display_name" type="text" autocomplete="name" required maxlength="120" aria-describedby="account-display-name-error" />
                       <small id="account-display-name-error" data-field-error="display_name"></small>
                     </label>
-                    <label class="account-field" for="account-headline">
-                      <span>Professional headline</span>
-                      <input id="account-headline" name="professional_headline" type="text" autocomplete="organization-title" maxlength="160" placeholder="Photographer, artist, creative director" aria-describedby="account-headline-error" />
-                      <small id="account-headline-error" data-field-error="professional_headline"></small>
-                    </label>
+                    <fieldset class="account-field account-role-picker account-field-wide" data-professional-role-picker>
+                      <legend id="account-professional-roles-label">Professional roles</legend>
+                      <p id="account-professional-roles-hint">Choose up to three. These become your public professional headline.</p>
+                      <div class="account-role-options" aria-labelledby="account-professional-roles-label" aria-describedby="account-professional-roles-hint account-headline-error" data-professional-role-options>
+                        <label class="account-role-option"><input type="checkbox" value="Photographer" data-professional-role /><span>Photographer</span></label>
+                        <label class="account-role-option"><input type="checkbox" value="Fine Art Photographer" data-professional-role /><span>Fine Art Photographer</span></label>
+                        <label class="account-role-option"><input type="checkbox" value="Documentary Photographer" data-professional-role /><span>Documentary Photographer</span></label>
+                        <label class="account-role-option"><input type="checkbox" value="Editorial Photographer" data-professional-role /><span>Editorial Photographer</span></label>
+                        <label class="account-role-option"><input type="checkbox" value="Commercial Photographer" data-professional-role /><span>Commercial Photographer</span></label>
+                        <label class="account-role-option"><input type="checkbox" value="Visual Artist" data-professional-role /><span>Visual Artist</span></label>
+                        <label class="account-role-option"><input type="checkbox" value="Creative Director" data-professional-role /><span>Creative Director</span></label>
+                        <label class="account-role-option"><input type="checkbox" value="Art Director" data-professional-role /><span>Art Director</span></label>
+                        <label class="account-role-option"><input type="checkbox" value="Photo Editor" data-professional-role /><span>Photo Editor</span></label>
+                        <label class="account-role-option"><input type="checkbox" value="Curator" data-professional-role /><span>Curator</span></label>
+                      </div>
+                      <input id="account-professional-headline-value" name="professional_headline" type="hidden" value="" />
+                      <span class="account-role-feedback">
+                        <em aria-live="polite" aria-atomic="true" data-professional-role-count>0 of 3 selected</em>
+                        <small id="account-headline-error" data-field-error="professional_headline"></small>
+                      </span>
+                    </fieldset>
                   </div>
                 </div>
               </fieldset>
 
               <fieldset class="account-profile-group account-profile-group-work">
-                <legend>Work</legend>
+                <legend>
+                  <span>Work</span>
+                  <small>Studio affiliation and commission availability.</small>
+                </legend>
                 <div class="account-profile-grid">
                   <label class="account-field" for="account-company">
                     <span>Company or studio</span>
@@ -168,7 +190,10 @@
               </fieldset>
 
               <fieldset class="account-profile-group account-profile-group-location">
-                <legend>Location</legend>
+                <legend>
+                  <span>Location</span>
+                  <small>Where your practice is currently based.</small>
+                </legend>
                 <div class="account-profile-grid">
                   <label class="account-field" for="account-country">
                     <span>Country / region</span>
@@ -185,7 +210,10 @@
               </fieldset>
 
               <fieldset class="account-profile-group account-profile-group-about">
-                <legend>About</legend>
+                <legend>
+                  <span>About</span>
+                  <small>A concise introduction to your practice and approach.</small>
+                </legend>
                 <div class="account-profile-grid">
                   <label class="account-field account-field-wide" for="account-bio">
                     <span>Biography</span>
@@ -197,7 +225,10 @@
               </fieldset>
 
               <fieldset class="account-profile-group account-profile-group-links">
-                <legend>Links</legend>
+                <legend>
+                  <span>Links</span>
+                  <small>External destinations connected to your practice.</small>
+                </legend>
                 <div class="account-profile-grid">
                   <label class="account-field account-field-wide" for="account-website">
                     <span>Website</span>
@@ -352,6 +383,6 @@
 
     <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
     <script src="/account-menu.js?v=20260730-auth-gate"></script>
-    <script src="/account-settings.js?v=20260730-brand-initials"></script>
+    <script src="/account-settings.js?v=20260730-profile-roles"></script>
   </body>
 </html>

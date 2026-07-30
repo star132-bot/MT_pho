@@ -85,6 +85,8 @@ def main() -> None:
         'data-session-action="others"', 'data-session-action="all"',
         'role="status"', 'aria-live="polite"', 'data-dialog-notice',
         'tabindex="-1"', 'src="/account-settings.js',
+        'data-professional-role-picker', 'data-professional-role-options',
+        'name="professional_headline" type="hidden"', 'data-professional-role-count',
     }, "Account Settings page")
     require(account_js, {
         'credentials: "same-origin"', 'cache: "no-store"', '/api/me/profile',
@@ -95,7 +97,12 @@ def main() -> None:
         'Newer edits remain unsaved.', 'suppressBeforeUnload',
         'navigateWithoutDirtyPrompt', 'Sign out failed. Your session remains active.',
         '}).catch((error) => {', 'dialogNotice.focus();',
+        'PROFESSIONAL_ROLE_LIMIT = 3', 'setProfessionalRoles(',
+        'syncProfessionalRolePicker()', 'addLegacyProfessionalRole(',
+        'professionalHeadlineValue.value = selected.map((input) => input.value).join(", ")',
     }, "Account Settings client")
+    if 'id="account-headline"' in account_html or 'name="professional_headline" type="text"' in account_html:
+        raise RuntimeError("Professional headline must use the bounded multi-select role picker, not free text")
     require(deploy_script, {
         'MT_APPLY_PHASE1_BASELINE', 'database/migrations/*.sql',
         'Skipping the Phase 0/1 baseline for an existing database',

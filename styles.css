@@ -12462,7 +12462,7 @@ button.upload-studio-card-main:focus-visible {
 }
 
 .account-settings-page .account-settings-shell {
-  width: min(1240px, calc(100% - 64px));
+  width: min(1360px, calc(100% - 64px));
   margin: 0 auto;
   padding: 96px 0 64px;
 }
@@ -12559,8 +12559,8 @@ button.upload-studio-card-main:focus-visible {
 }
 
 .account-settings-page .account-settings-layout {
-  grid-template-columns: 236px minmax(0, 1fr);
-  gap: 28px;
+  grid-template-columns: 204px minmax(0, 1fr);
+  gap: 24px;
   padding-top: 28px;
 }
 
@@ -12617,7 +12617,7 @@ button.upload-studio-card-main:focus-visible {
 
 .account-settings-page .account-settings-section {
   scroll-margin-top: 92px;
-  padding: 30px 32px 34px;
+  padding: 28px 30px 32px;
 }
 
 .account-settings-page .account-settings-section + .account-settings-section {
@@ -12626,10 +12626,10 @@ button.upload-studio-card-main:focus-visible {
 }
 
 .account-settings-page .account-section-heading {
-  grid-template-columns: minmax(270px, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(250px, 0.9fr) minmax(0, 1.1fr);
   gap: 24px;
   margin-bottom: 0;
-  padding-bottom: 22px;
+  padding-bottom: 24px;
   border-bottom: 1px solid var(--profile-line);
 }
 
@@ -12646,32 +12646,56 @@ button.upload-studio-card-main:focus-visible {
 }
 
 .account-settings-page .account-profile-form {
-  display: block;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  padding-top: 24px;
 }
 
 .account-settings-page .account-profile-group {
   min-inline-size: 0;
   margin: 0;
-  padding: 24px 0 26px;
-  border: 0;
-  border-top: 1px solid var(--profile-line);
-  border-radius: 0;
-  background: transparent;
+  padding: 20px 22px 22px;
+  border: 1px solid var(--profile-line);
+  border-radius: 4px;
+  background: #fff;
 }
 
-.account-settings-page .account-profile-group legend {
-  padding: 0 12px 0 0;
+.account-settings-page .account-profile-group > legend {
+  display: grid;
+  max-width: calc(100% - 16px);
+  gap: 3px;
+  margin-left: -8px;
+  padding: 0 8px;
   background: #fff;
+}
+
+.account-settings-page .account-profile-group > legend > span {
   color: var(--profile-ink);
   font-size: 13px;
   font-weight: 750;
 }
 
+.account-settings-page .account-profile-group > legend > small {
+  color: #747973;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.account-settings-page .account-profile-group-identity,
+.account-settings-page .account-profile-group-about,
+.account-settings-page .account-profile-group-links,
+.account-settings-page .account-profile-form > .account-form-actions {
+  grid-column: 1 / -1;
+}
+
 .account-settings-page .account-profile-identity-layout {
   display: grid;
-  grid-template-columns: 176px minmax(0, 1fr);
-  gap: 24px;
+  grid-template-columns: 184px minmax(0, 1fr);
+  gap: 26px;
   min-width: 0;
+  padding-top: 4px;
 }
 
 .account-settings-page .account-profile-avatar-summary {
@@ -12819,6 +12843,12 @@ button.upload-studio-card-main:focus-visible {
   min-width: 0;
 }
 
+.account-settings-page .account-profile-group-identity .account-profile-grid,
+.account-settings-page .account-profile-group-work .account-profile-grid,
+.account-settings-page .account-profile-group-location .account-profile-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .account-settings-page .account-field {
   align-content: start;
   gap: 6px;
@@ -12873,13 +12903,163 @@ button.upload-studio-card-main:focus-visible {
   display: none;
 }
 
+.account-settings-page .account-role-picker {
+  min-inline-size: 0;
+  margin: 2px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.account-settings-page .account-role-picker > legend {
+  margin: 0;
+  padding: 0;
+  color: #303531;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.account-settings-page .account-role-picker > p {
+  margin: 5px 0 13px;
+  color: #70756f;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.account-settings-page .account-role-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.account-settings-page .account-role-option {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.account-settings-page .account-role-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.account-settings-page .account-role-option > span {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px 12px 8px 32px;
+  border: 1px solid #c9ccc8;
+  border-radius: 3px;
+  background: #fff;
+  color: #303531;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.25;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.account-settings-page .account-role-option > span::before {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  width: 11px;
+  height: 11px;
+  border: 1px solid #9fa49f;
+  border-radius: 2px;
+  background: #fff;
+  content: "";
+  transform: translateY(-50%);
+}
+
+.account-settings-page .account-role-option > span::after {
+  position: absolute;
+  top: 50%;
+  left: 15px;
+  width: 5px;
+  height: 3px;
+  border-bottom: 1.5px solid #245f55;
+  border-left: 1.5px solid #245f55;
+  content: "";
+  opacity: 0;
+  transform: translateY(-65%) rotate(-45deg);
+}
+
+.account-settings-page .account-role-option input:checked + span {
+  border-color: var(--profile-teal);
+  background: #e8efec;
+  color: #173f37;
+}
+
+.account-settings-page .account-role-option input:checked + span::before {
+  border-color: #8ca79f;
+}
+
+.account-settings-page .account-role-option input:checked + span::after {
+  opacity: 1;
+}
+
+.account-settings-page .account-role-option input:focus-visible + span {
+  border-color: var(--profile-teal);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(36, 95, 85, 0.16);
+}
+
+.account-settings-page .account-role-option input:disabled:not(:checked) + span {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.account-settings-page .account-role-option.is-legacy > span {
+  border-style: dashed;
+}
+
+.account-settings-page .account-role-picker[aria-invalid="true"] .account-role-options {
+  border-radius: 3px;
+  outline: 2px solid rgba(166, 64, 54, 0.22);
+  outline-offset: 4px;
+}
+
+.account-settings-page .account-role-feedback {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: start;
+  margin-top: 10px;
+}
+
+.account-settings-page .account-role-feedback em {
+  color: #6b706b;
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.account-settings-page .account-role-feedback small {
+  min-height: 0;
+  color: #a64036;
+  text-align: right;
+}
+
 .account-settings-page .account-profile-form > .account-form-actions {
   min-height: 68px;
   margin-top: 0;
-  padding: 16px 0 0;
-  border-top: 1px solid var(--profile-line);
-  border-radius: 0;
-  background: #fff;
+  padding: 16px 18px;
+  border: 1px solid var(--profile-line);
+  border-radius: 4px;
+  background: #f8f9f7;
 }
 
 .account-settings-page .account-profile-form > .account-form-actions p {
@@ -12961,8 +13141,8 @@ button.upload-studio-card-main:focus-visible {
 
 @media (max-width: 940px) {
   .account-settings-page .account-settings-layout {
-    grid-template-columns: 190px minmax(0, 1fr);
-    gap: 24px;
+    grid-template-columns: 176px minmax(0, 1fr);
+    gap: 20px;
   }
 
   .account-settings-page .account-section-heading {
@@ -13093,7 +13273,19 @@ button.upload-studio-card-main:focus-visible {
   }
 
   .account-settings-page .account-profile-group {
-    padding: 22px 0 24px;
+    padding: 18px;
+  }
+
+  .account-settings-page .account-profile-form {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .account-settings-page .account-profile-group-identity,
+  .account-settings-page .account-profile-group-about,
+  .account-settings-page .account-profile-group-links,
+  .account-settings-page .account-profile-form > .account-form-actions {
+    grid-column: auto;
   }
 
   .account-settings-page .account-profile-identity-layout {
@@ -13131,6 +13323,16 @@ button.upload-studio-card-main:focus-visible {
 
   .account-settings-page .account-profile-grid .account-field-wide {
     grid-column: auto;
+  }
+
+  .account-settings-page .account-role-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .account-settings-page .account-role-option,
+  .account-settings-page .account-role-option > span {
+    width: 100%;
   }
 
   .account-settings-page .account-profile-form > .account-form-actions {
@@ -13171,6 +13373,27 @@ button.upload-studio-card-main:focus-visible {
 
   .account-settings-page .account-form-actions .button {
     width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .account-settings-page .account-role-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .account-settings-page .account-role-feedback {
+    display: grid;
+    gap: 4px;
+  }
+
+  .account-settings-page .account-role-feedback small {
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account-settings-page .account-role-option > span {
+    transition: none;
   }
 }
 

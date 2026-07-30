@@ -29,7 +29,7 @@
 - `privacy.html` / `privacy.css`：公开 Privacy notice；说明 account、artwork、inquiry、cookie、retention 与 immutable security record 边界，并从 Contact 与共享 Footer 可达。
 - `auth.html` / `auth.js`：Phase 1 统一用户入口；同一可访问 editorial shell 按 `/auth/sign-in`、`/auth/register`、`/auth/forgot-password`、`/auth/reset-password`、`/auth/verify-email` 的配置呈现字段、loading、invalid/expired、field error、success 与下一步；Forgot 使用防枚举成功文案；Reset/Verify 同时兼容 fragment `token_hash` 和 Supabase 默认 implicit fragment，先把敏感 fragment 读入函数内存并立即清除 URL，再由 same-origin 服务端换成 `HttpOnly` Cookie，禁止 local/session storage；所有 mutation 先获取 HttpOnly double-submit CSRF token，并校验 Origin；登录 200 后仍以 no-store `/api/me` 确认 Cookie，再执行 Admin MFA 或 `/workspace/images` 跳转。
 - `mfa.html` / `mfa.js`：Admin TOTP enrollment 与登录 challenge 页面；复用 editorial Auth shell，覆盖 factors loading、首次 QR/手工 secret、已有 factor、6 位验证码、provider error、invalid/expired code、success、sign-out 与移动端布局；发现旧的 unverified TOTP factor 时由受保护 enrollment API 自动重置并生成新的 QR/secret；QR data URI 兼容 `<svg>` 与带 XML declaration 的 Supabase SVG；MFA mutation 同样使用 Origin + CSRF token，所有 token 仍只存在于服务端 HttpOnly session。
-- `account-settings.html` / `account-settings.js`：受保护 `/settings/account` 账户页面；复用单一全局顶栏，以紧凑标题栏、sticky 本地导航和连续白色表单面板组织 Profile、Preferences、Security 与 Sessions。Profile 的十个 creator 字段按 Identity、Work、Location、About、Links 五组排列；真实头像流程校验 JPG/PNG/WebP，在浏览器中心裁切并输出 512x512 JPEG，再通过 owner-scoped private Storage intent 更新。页面维护 dirty/disabled/saving/error/success 状态和 provider 支持的会话撤销，但不伪造远程设备列表或位置历史。
+- `account-settings.html` / `account-settings.js`：受保护 `/settings/account` 账户页面；复用单一全局顶栏，以紧凑标题栏、sticky 本地导航和分组式资料工作台组织 Profile、Preferences、Security 与 Sessions。Profile 的十个 creator 字段按 Identity、Work、Location、About、Links 五组排列；专业角色以最多三项的多选生成既有 `professional_headline`，旧自定义值继续可见；真实头像流程校验 JPG/PNG/WebP，在浏览器中心裁切并输出 512x512 JPEG，再通过 owner-scoped private Storage intent 更新。页面维护 dirty/disabled/saving/error/success 状态和 provider 支持的会话撤销，但不伪造远程设备列表或位置历史。
 - `styles.css`：全站视觉系统和响应式布局；定义 gallery palette、`--ui-*` 与 `--presentation-*` token、64px GlobalHeader、500x40 全圆搜索、352px 克制账户菜单、移动搜索/导航展开、Public/Workspace 两种统一页脚、首页有界 sticky 摄影过渡舞台、无公开侧栏的 Works 自然比例 masonry、图标式 hover 操作层、沉浸式作品查看器，以及统一 focus-visible/响应式/无横向溢出规则。
 - `script.js`：首页有界 sticky 滚动过渡、登录态 Dashboard 入口、IndexedDB 首页设置读取和应用、Statement 标题和每个图文 moment 的渐进显影、锚点点击平滑滚动逻辑；不再维护作品分类或比例筛选状态。
 - `global-header.js`：公共浏览页与 Dashboard/Review 共用的 GlobalHeader renderer；复用服务端 Header Identity slot，生成品牌、居中全局搜索、公开导航、身份分隔线和移动入口。搜索在 Works 内以 260ms debounce 更新现有筛选/URL，在其他页面加载安全建议；支持 Enter、Escape、方向键、外部关闭、active route 与 Lightbox count，不重复请求用户资料。
@@ -57,7 +57,7 @@
 - `scripts/test_review_batch_browser.py`：secret-free Super Admin 快捷审核浏览器验收；在 loopback fake provider 上验证两个 eligible 自有 submission 的选择、单次十项 attestation、逐件 dedicated self-publish request/独立 idempotency、单件 checklist shortcut、桌面/移动响应式与 console clean，并固定关闭命名浏览器 session。
 - `README.md`：GitHub 项目首页说明；记录版本、功能、运行方式、静态浏览和联系页邮件草稿行为。
 - `CHANGELOG.md`：版本记录；`Unreleased` 记录从静态初版到当前生产功能切片的变更事实。
-- `VERSION`：当前项目版本号，发布 `v1.4.1` 时与 exact Git tag 保持一致。
+- `VERSION`：当前项目版本号，发布 `v1.4.2` 时与 exact Git tag 保持一致。
 - `.gitignore`：Git 忽略规则；排除临时源图、截图、本地缓存、本地 skill 目录、环境变量文件和本地运行产物。
 - `project-development-guardrails/SKILL.md`：本地企业级项目开发护栏 skill；定义开发前读代码、文档闭环、垂直切片、验收、验证和自审规则。
 - `docs/README.md`：项目文档统一索引；定义 Product、Architecture、Design、Operations 分类和维护规则。
@@ -483,7 +483,7 @@
 
 - `auth.html` / `auth.js`：统一 Auth shell、各认证模式字段和 callback 处理；mutation 使用 same-origin CSRF，敏感 token 仅在函数内存短暂存在并立即清理 URL。
 - `mfa.html` / `mfa.js`：Admin TOTP enrollment/challenge/verify 和失败恢复；Admin AAL1 不能进入受保护管理范围。
-- `account-settings.html` / `account-settings.js`：无重复全局 rail 的 Account Settings 页面；紧凑标题栏、sticky Profile/Preferences/Security/Sessions 本地导航和连续白色内容面板；头像选择在浏览器中心裁切、去除原文件并重编码为 512x512 JPEG，经 owner-scoped signed upload intent 完成/取消/删除后通过共享事件即时更新 Header；同时保留五组十字段 creator Profile、Preferences、Security、Sessions、dirty/save/error 与 bulk revoke。
+- `account-settings.html` / `account-settings.js`：无重复全局 rail 的 Account Settings 页面；紧凑标题栏、sticky Profile/Preferences/Security/Sessions 本地导航和分组式资料工作台；头像选择在浏览器中心裁切、去除原文件并重编码为 512x512 JPEG，经 owner-scoped signed upload intent 完成/取消/删除后通过共享事件即时更新 Header；专业角色使用最多三项的真实 checkbox 多选并序列化回既有 `professional_headline` 字段，同时保留旧自定义标题；页面继续覆盖 Preferences、Security、Sessions、dirty/save/error 与 bulk revoke。
 - `server.py`：Supabase Auth/PostgREST 代理、access/refresh rotation、CSRF/Origin、recovery grant、strict Profile/cover allowlist、Account/Workspace route guard、Admin role+AAL2 和 Session scope revoke。
 - `database/supabase_phase1_auth_rls.sql`：fresh database Auth/RLS/Profile RPC baseline。
 - `database/migrations/20260713_admin_mfa_hardening.sql`：已有环境的 inactive privileged user 加固。
@@ -494,11 +494,11 @@
 
 ### 页面内部结构
 
-- Creator Profile：十个字段分成 Identity（`display_name`、`professional_headline`）、Work（`company`、`availability_status`）、Location（`country_code`、`city`）、About（`bio`）、Links（HTTPS `website_url`、官方 host 的 `instagram_url`、`linkedin_url`）；client、server 和 SQL RPC 使用一致边界，未知字段拒绝。
+- Creator Profile：十个字段分成 Identity（`display_name`、`professional_headline`）、Work（`company`、`availability_status`）、Location（`country_code`、`city`）、About（`bio`）、Links（HTTPS `website_url`、官方 host 的 `instagram_url`、`linkedin_url`）；`professional_headline` 在 UI 中由最多三项的行业角色多选生成，按逗号分隔序列化到原字符串契约，读取旧自定义值时显示可移除的 Current 选项而不静默丢失；client、server 和 SQL RPC 继续使用一致边界，未知字段拒绝。
 - Preferences：`preferred_locale`、IANA `timezone`、`copyright_name`、`default_license_preference`；仅写入当前用户的 `user_profiles` 行。
 - Security：只读显示 verified email、服务端角色、account status 和当前 AAL；Admin AAL1 跳转 MFA。
 - Sessions：Supabase 当前能力只描述当前 session；明确返回 `scope=current_only` 和 capability flags，不伪造全部远程设备；支持 `others` 与 `all` bulk revoke，危险操作经过确认弹窗。
-- 页面布局：桌面使用约 236px sticky 本地导航与连续表单面板，Profile fieldset 仅由中性细线分组；760px 以下切换为顶栏下方横向滚动章节页签和单列表单。Identity 的 initials 头像只读展示，不提供未受后端支持的上传入口。
+- 页面布局：桌面使用约 204px sticky 本地导航与分组式 Profile 工作台；Identity、About、Links 占满内容列，Work 与 Location 并列，字段卡片只使用中性细线和克制的 4px 圆角。760px 以下切换为顶栏下方横向滚动章节页签、单列表单和全宽角色选项。Identity 支持真实头像上传、删除和 initials 回退，继续复用私有 Storage 与扫描边界。
 - 状态：页面覆盖 loading、retryable error、field error、dirty、saving、saved、disabled、permission/MFA、recovery restricted 和 signed-out redirect。
 - API：`GET/PATCH /api/me/profile`、`GET/PATCH /api/me/profile/cover`、`GET /api/me/sessions`、`DELETE /api/me/sessions/{others|all}`；所有 mutation 要求 JSON、same-origin、CSRF Cookie/header 双提交。Cover response 只返回固定 asset DTO 与短期 signed URL，不返回 bucket/key/owner/scan internals。
 - 部署：fresh database 运行完整 baseline；已有数据库设置 `MT_APPLY_PHASE1_BASELINE=no`，只按文件名顺序执行 transaction-wrapped 增量 migrations。
@@ -646,6 +646,8 @@
 
 ## 修改记录
 
+- 2026-07-30：重构 Account Settings 的 Profile 信息架构和专业角色输入。Identity、Work、Location、About、Links 从超宽连续字段改为桌面双列分组工作台与移动单列布局；头像上传和十字段 API 契约保持不变。`professional_headline` 取消自由文本框，改为最多三项的语义 checkbox 角色选择、选择计数、上限禁用、键盘焦点和错误状态，结果仍写回原字符串字段；旧自定义标题作为可见 Current 选项保留，避免资料升级时静默丢失。Auth 静态契约同步禁止标题退回文本输入。
+- 2026-07-30：准备 `v1.4.2` 生产发布，版本元数据与 exact Git tag 同步；该版本不包含数据库迁移，部署保留 `v1.4.1` 作为原子回滚点。
 - 2026-07-30：准备 `v1.4.1` 生产修复发布，版本元数据与 exact Git tag 同步；该版本不包含数据库迁移，部署保留 `v1.4.0` 作为原子回滚点。
 - 2026-07-30：修复生产 Lightbox 选中作品出现双勾，并为公开作品操作增加登录门禁。`styles.css` 显式清除 inquiry toggle 的遗留 `::after`，只保留按钮内部单一 CSS 勾；Lightbox/Works 更新缓存版本。`account-menu.js` 发布当前 Header Identity，`public-archive.js` 提供 fail-closed 登录判断与保留当前地址的 Sign In URL，`archive.js` 和 `work-detail.js` 在写入收藏或启动下载前统一校验；匿名用户不会改变 Lightbox storage 或创建下载，卡片、Viewer、独立详情均进入登录页，登录状态继续走既有 optimistic 收藏和下载流程。静态契约新增单勾和认证门禁检查，本地浏览器验证匿名收藏/下载/详情全部被拦截、模拟登录收藏成功、选中态 `::after=none` 且仅一个 span。
 - 2026-07-30：移除 About 桌面版图片与文字栏之间的绝对定位绿色装饰连接线。该元素会因视口和字体排版差异覆盖 headline 首字母；`about.html` 不再渲染 `.about-connector`，`styles.css` 同步删除桌面定位与窄屏隐藏死规则，并更新 About 样式缓存版本。

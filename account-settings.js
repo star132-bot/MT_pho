@@ -34,6 +34,10 @@ const profileAvatarInput = document.querySelector("[data-profile-avatar-input]")
 const profileAvatarChoose = document.querySelector("[data-profile-avatar-choose]");
 const profileAvatarRemove = document.querySelector("[data-profile-avatar-remove]");
 const profileAvatarStatus = document.querySelector("[data-profile-avatar-status]");
+const professionalRolePicker = document.querySelector("[data-professional-role-picker]");
+const professionalRoleOptions = document.querySelector("[data-professional-role-options]");
+const professionalRoleCount = document.querySelector("[data-professional-role-count]");
+const professionalHeadlineValue = profileForm.elements.professional_headline;
 
 const PROFILE_NAMES = [
   "display_name",
@@ -48,6 +52,7 @@ const PROFILE_NAMES = [
   "availability_status",
 ];
 const PREFERENCE_NAMES = ["preferred_locale", "timezone", "copyright_name", "default_license_preference"];
+const PROFESSIONAL_ROLE_LIMIT = 3;
 
 let csrfTokenPromise = null;
 let accountData = null;
@@ -463,6 +468,70 @@ function addSelectValue(select, value) {
   select.add(new Option(value, value));
 }
 
+function professionalRoleInputs() {
+  return Array.from(professionalRoleOptions.querySelectorAll("[data-professional-role]"));
+}
+
+function removeLegacyProfessionalRole() {
+  professionalRoleOptions.querySelectorAll("label[data-professional-role-legacy]")
+    .forEach((option) => option.remove());
+}
+
+function addLegacyProfessionalRole(value) {
+  const label = document.createElement("label");
+  label.className = "account-role-option is-legacy";
+  label.dataset.professionalRoleLegacy = "";
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.value = value;
+  input.checked = true;
+  input.dataset.professionalRole = "";
+  input.dataset.professionalRoleLegacy = "";
+  const copy = document.createElement("span");
+  copy.textContent = `Current: ${value}`;
+  label.append(input, copy);
+  professionalRoleOptions.prepend(label);
+}
+
+function syncProfessionalRolePicker() {
+  const inputs = professionalRoleInputs();
+  const selected = inputs.filter((input) => input.checked);
+  const limitReached = selected.length >= PROFESSIONAL_ROLE_LIMIT;
+  professionalHeadlineValue.value = selected.map((input) => input.value).join(", ");
+  inputs.forEach((input) => {
+    input.disabled = !input.checked && limitReached;
+  });
+  professionalRolePicker.dataset.selectionCount = String(selected.length);
+  professionalRolePicker.toggleAttribute("data-limit-reached", limitReached);
+  professionalRoleCount.textContent = limitReached
+    ? `${selected.length} of ${PROFESSIONAL_ROLE_LIMIT} selected — remove one to choose another`
+    : `${selected.length} of ${PROFESSIONAL_ROLE_LIMIT} selected`;
+}
+
+function setProfessionalRoles(value) {
+  const storedValue = String(value || "").trim();
+  removeLegacyProfessionalRole();
+  const knownInputs = professionalRoleInputs();
+  knownInputs.forEach((input) => { input.checked = false; });
+  if (!storedValue) {
+    syncProfessionalRolePicker();
+    return;
+  }
+
+  const aliases = new Map();
+  knownInputs.forEach((input) => aliases.set(input.value.toLowerCase(), input));
+  aliases.set("artist", aliases.get("visual artist"));
+  const tokens = storedValue.split(/\s*[,，;；]\s*/).filter(Boolean);
+  const matched = tokens.map((token) => aliases.get(token.toLowerCase()));
+  const uniqueMatches = Array.from(new Set(matched.filter(Boolean)));
+  if (tokens.length <= PROFESSIONAL_ROLE_LIMIT && matched.every(Boolean)) {
+    uniqueMatches.forEach((input) => { input.checked = true; });
+  } else {
+    addLegacyProfessionalRole(storedValue);
+  }
+  syncProfessionalRolePicker();
+}
+
 function renderAccountChrome(result) {
   const profile = result.profile || {};
   const account = result.account || {};
@@ -493,7 +562,7 @@ function populateAccount(result) {
   const profile = result.profile || {};
 
   profileForm.elements.display_name.value = profile.display_name || "";
-  profileForm.elements.professional_headline.value = profile.professional_headline || "";
+  setProfessionalRoles(profile.professional_headline || "");
   profileForm.elements.company.value = profile.company || "";
   profileForm.elements.country_code.value = profile.country_code || "";
   profileForm.elements.city.value = profile.city || "";
@@ -581,11 +650,20 @@ function applyFieldErrors(form, fieldErrors) {
   Object.entries(fieldErrors || {}).forEach(([name, message]) => {
     const field = form.elements[name];
     const error = form.querySelector(`[data-field-error="${CSS.escape(name)}"]`);
-    if (field) field.setAttribute("aria-invalid", "true");
+    if (name === "professional_headline" && form === profileForm) {
+      professionalRolePicker.setAttribute("aria-invalid", "true");
+    } else if (field) {
+      field.setAttribute("aria-invalid", "true");
+    }
     if (error) error.textContent = message;
   });
   const firstInvalid = form.querySelector("[aria-invalid='true']");
-  if (firstInvalid) firstInvalid.focus();
+  if (firstInvalid) {
+    const focusTarget = firstInvalid.matches("[data-professional-role-picker]")
+      ? firstInvalid.querySelector("[data-professional-role]:not(:disabled)") || firstInvalid.querySelector("[data-professional-role]")
+      : firstInvalid;
+    focusTarget?.focus();
+  }
 }
 
 async function saveForm(form) {
@@ -611,7 +689,11 @@ async function saveForm(form) {
     const savedPayload = valuesPayload(accountData.profile, names);
     names.forEach((name) => {
       if (currentPayload[name] === submittedPayload[name]) {
-        form.elements[name].value = savedPayload[name];
+        if (form === profileForm && name === "professional_headline") {
+          setProfessionalRoles(savedPayload[name]);
+        } else {
+          form.elements[name].value = savedPayload[name];
+        }
       }
     });
     renderAccountChrome(accountData);
@@ -791,6 +873,19 @@ async function revokeSessions() {
 profileForm.addEventListener("submit", (event) => {
   event.preventDefault();
   saveForm(profileForm);
+});
+
+professionalRoleOptions.addEventListener("change", (event) => {
+  if (!event.target.matches("[data-professional-role]")) return;
+  const selected = professionalRoleInputs().filter((input) => input.checked);
+  if (selected.length > PROFESSIONAL_ROLE_LIMIT) {
+    event.target.checked = false;
+    announce(`Choose no more than ${PROFESSIONAL_ROLE_LIMIT} professional roles.`);
+  }
+  professionalRolePicker.removeAttribute("aria-invalid");
+  const error = profileForm.querySelector('[data-field-error="professional_headline"]');
+  if (error) error.textContent = "";
+  syncProfessionalRolePicker();
 });
 
 preferencesForm.addEventListener("submit", (event) => {
