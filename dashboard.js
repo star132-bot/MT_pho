@@ -13,11 +13,18 @@ const dashboardCoverDialogState = document.querySelector("[data-dashboard-cover-
 const dashboardCoverCandidates = document.querySelector("[data-dashboard-cover-candidates]");
 const dashboardCoverEmpty = document.querySelector("[data-dashboard-cover-empty]");
 const dashboardCoverActions = document.querySelector("[data-dashboard-cover-actions]");
+const dashboardCoverUpload = document.querySelector("[data-dashboard-cover-upload]");
+const dashboardCoverFile = document.querySelector("[data-dashboard-cover-file]");
 const dashboardCoverSave = document.querySelector("[data-dashboard-cover-save]");
 const dashboardCoverRemove = document.querySelector("[data-dashboard-cover-remove]");
 const dashboardCoverCancel = document.querySelector("[data-dashboard-cover-cancel]");
 const dashboardCoverClose = document.querySelector("[data-dashboard-cover-close]");
 const DEFAULT_COVER_URL = "/assets/art/hero-concrete.jpg";
+const COVER_UPLOAD_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const COVER_UPLOAD_MAX_BYTES = 50 * 1024 * 1024;
+const COVER_ASSET_MAX_BYTES = { original: 50 * 1024 * 1024, display: 20 * 1024 * 1024, thumbnail: 10 * 1024 * 1024 };
+const COVER_SCAN_ATTEMPTS = 45;
+const COVER_SCAN_DELAY = 2000;
 let dashboardController = null;
 let dashboardRequestSerial = 0;
 let dashboardCsrfTokenPromise = null;
@@ -26,6 +33,8 @@ let coverData = { cover: null, candidates: [] };
 let selectedCoverId = null;
 let coverBusy = false;
 let coverReturnFocus = null;
+let coverUploadController = null;
+let coverUploadIntentId = null;
 
 function cleanText(value) {
   return value === null || value === undefined ? "" : String(value).trim();
@@ -178,9 +187,9 @@ async function dashboardCsrfToken(force = false) {
   return dashboardCsrfTokenPromise;
 }
 
-async function dashboardMutation(path, body, retryCsrf = true) {
+async function dashboardApiMutation(path, { method = "PATCH", body = {}, signal } = {}, retryCsrf = true) {
   const response = await fetch(path, {
-    method: "PATCH",
+    method,
     credentials: "same-origin",
     cache: "no-store",
     headers: {
@@ -189,19 +198,24 @@ async function dashboardMutation(path, body, retryCsrf = true) {
       "X-CSRF-Token": await dashboardCsrfToken(),
     },
     body: JSON.stringify(body),
+    signal,
   });
   const payload = await response.json().catch(() => ({}));
   if (response.status === 403 && payload.error?.code === "CSRF_REJECTED" && retryCsrf) {
     await dashboardCsrfToken(true);
-    return dashboardMutation(path, body, false);
+    return dashboardApiMutation(path, { method, body, signal }, false);
   }
   if (!response.ok) {
-    const error = new Error(payload.error?.message || "Your cover could not be saved.");
+    const error = new Error(payload.error?.message || "The request could not be completed.");
     error.status = response.status;
-    error.code = payload.error?.code || "COVER_SAVE_FAILED";
+    error.code = payload.error?.code || "DASHBOARD_MUTATION_FAILED";
     throw error;
   }
   return payload;
+}
+
+function dashboardMutation(path, body, retryCsrf = true) {
+  return dashboardApiMutation(path, { method: "PATCH", body }, retryCsrf);
 }
 
 function renderProfile(payload) {
@@ -364,6 +378,227 @@ function setCoverDialogState(message = "", tone = "loading", focus = false) {
   if (focus && message) dashboardCoverDialogState.focus();
 }
 
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cleanText(value));
+}
+
+function coverUploadAssets(item) {
+  const assets = Array.isArray(item?.assets) ? item.assets : [];
+  const original = assets.find((asset) => asset.kind === "original" && asset.blob instanceof Blob);
+  if (!original) throw new Error("The original image could not be prepared for upload.");
+  const display = assets.find((asset) => asset.kind === "display" && asset.blob instanceof Blob) || original;
+  const thumbnail = assets.find((asset) => asset.kind === "thumbnail" && asset.blob instanceof Blob) || display;
+  const sources = { original, display, thumbnail };
+  return ["original", "display", "thumbnail"].map((kind) => {
+    const source = sources[kind];
+    const checksum = cleanText(source.checksum_sha256);
+    if (!/^[0-9a-f]{64}$/i.test(checksum)) throw new Error("Image checksum verification is unavailable in this browser.");
+    const asset = {
+      kind,
+      blob: source.blob,
+      mime_type: cleanText(source.mime_type || source.blob.type).toLowerCase(),
+      byte_size: Number(source.byte_size || source.blob.size),
+      width: Number(source.width || item.width),
+      height: Number(source.height || item.height),
+      checksum_sha256: checksum.toLowerCase(),
+    };
+    if (
+      !COVER_UPLOAD_MIME_TYPES.has(asset.mime_type)
+      || !Number.isInteger(asset.byte_size)
+      || asset.byte_size < 1
+      || asset.byte_size > COVER_ASSET_MAX_BYTES[kind]
+      || !Number.isInteger(asset.width)
+      || !Number.isInteger(asset.height)
+      || asset.width < 1
+      || asset.height < 1
+    ) {
+      throw new Error("This image could not be prepared within the secure upload limits.");
+    }
+    return asset;
+  });
+}
+
+async function createCoverUploadIntent(item, assets, signal) {
+  const original = assets.find((asset) => asset.kind === "original");
+  const payload = await dashboardApiMutation("/api/uploads/intents", {
+    method: "POST",
+    signal,
+    body: {
+      folder_id: null,
+      original_filename: cleanText(item.imageRecord?.original_filename || item.title),
+      original_width: original.width,
+      original_height: original.height,
+      checksum_sha256: original.checksum_sha256,
+      assets: assets.map(({ blob, ...asset }) => asset),
+    },
+  });
+  if (!isUuid(payload.upload_id) || !Array.isArray(payload.assets) || payload.assets.length !== 3) {
+    throw new Error("Secure upload destinations could not be verified.");
+  }
+  const destinations = payload.assets.map((destination) => ({
+    kind: cleanText(destination.kind),
+    signed_url: safeMediaUrl(destination.signed_url),
+  }));
+  if (destinations.some((destination) => !["original", "display", "thumbnail"].includes(destination.kind) || !destination.signed_url)) {
+    throw new Error("Secure upload destinations could not be verified.");
+  }
+  return { upload_id: payload.upload_id, assets: destinations };
+}
+
+async function uploadCoverAsset(destination, asset, signal) {
+  const extension = asset.mime_type.split("/")[1] || "jpg";
+  const formData = new FormData();
+  formData.append("cacheControl", "3600");
+  formData.append("", asset.blob, `${destination.kind}.${extension}`);
+  const response = await fetch(destination.signed_url, {
+    method: "PUT",
+    credentials: "omit",
+    headers: { "x-upsert": "false" },
+    body: formData,
+    signal,
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.message || payload.error || `The ${destination.kind} image could not be uploaded.`);
+  }
+}
+
+async function completeCoverUpload(intent, item, signal) {
+  const payload = await dashboardApiMutation(`/api/uploads/${encodeURIComponent(intent.upload_id)}/complete`, {
+    method: "POST",
+    signal,
+    body: {
+      draft: {
+        title: cleanText(item.title).slice(0, 180) || "Profile cover",
+        content_category: cleanText(item.imageRecord?.content_type) === "abstract" ? "abstract" : "concrete",
+      },
+    },
+  });
+  const imageId = cleanText(payload.draft?.id);
+  if (!isUuid(imageId)) throw new Error("The uploaded image response could not be verified.");
+  return imageId;
+}
+
+async function cancelCoverUploadIntent(uploadId) {
+  if (!isUuid(uploadId)) return;
+  await dashboardApiMutation(`/api/uploads/${encodeURIComponent(uploadId)}`, {
+    method: "DELETE",
+    body: { confirmation: "cancel-upload" },
+  }).catch(() => undefined);
+}
+
+function coverScanDelay(signal) {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("Upload canceled.", "AbortError"));
+      return;
+    }
+    const onAbort = () => {
+      window.clearTimeout(timeout);
+      reject(new DOMException("Upload canceled.", "AbortError"));
+    };
+    const timeout = window.setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, COVER_SCAN_DELAY);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+async function waitForCoverCandidate(imageId, signal) {
+  for (let attempt = 0; attempt < COVER_SCAN_ATTEMPTS; attempt += 1) {
+    signal.throwIfAborted();
+    await loadCoverData(signal);
+    const candidate = coverData.candidates.find((item) => item.image_id === imageId);
+    if (candidate) return candidate;
+    setCoverDialogState("Upload complete. Running the required security scan...", "loading");
+    await coverScanDelay(signal);
+  }
+  const error = new Error("The image was uploaded as a private draft and is still being scanned. Reopen this chooser shortly.");
+  error.code = "COVER_SCAN_PENDING";
+  throw error;
+}
+
+async function uploadLocalCover(file) {
+  if (coverBusy || !file) return;
+  if (!COVER_UPLOAD_MIME_TYPES.has(file.type)) {
+    setCoverDialogState("Choose a JPEG, PNG, or WebP image.", "error", true);
+    return;
+  }
+  if (file.size < 1 || file.size > COVER_UPLOAD_MAX_BYTES) {
+    setCoverDialogState("Choose an image smaller than 50 MB.", "error", true);
+    return;
+  }
+  if (!window.MTArchiveUpload?.buildUploadedItem) {
+    setCoverDialogState("Local image preparation is unavailable. Reload and try again.", "error", true);
+    return;
+  }
+
+  coverUploadController = new AbortController();
+  const { signal } = coverUploadController;
+  setCoverBusy(true);
+  try {
+    const task = {
+      update(stage, progress) {
+        const label = {
+          reading: "Reading and verifying the image",
+          compressing: "Preparing the display image",
+          slicing: "Optimizing the image",
+          analyzing: "Finalizing image metadata",
+        }[stage] || "Preparing the image";
+        setCoverDialogState(`${label}... ${Math.round(progress)}%`, "loading");
+      },
+    };
+    const { item } = await window.MTArchiveUpload.buildUploadedItem(file, task, 0);
+    signal.throwIfAborted();
+    const assets = coverUploadAssets(item);
+    setCoverDialogState("Creating secure upload destinations...", "loading");
+    const intent = await createCoverUploadIntent(item, assets, signal);
+    coverUploadIntentId = intent.upload_id;
+    for (const [index, destination] of intent.assets.entries()) {
+      const asset = assets.find((candidate) => candidate.kind === destination.kind);
+      setCoverDialogState(`Uploading image ${index + 1} of ${intent.assets.length}...`, "loading");
+      await uploadCoverAsset(destination, asset, signal);
+    }
+    setCoverDialogState("Creating your private image draft...", "loading");
+    const imageId = await completeCoverUpload(intent, item, signal);
+    coverUploadIntentId = null;
+    const candidate = await waitForCoverCandidate(imageId, signal);
+    setCoverDialogState("Applying the new profile cover...", "loading");
+    const payload = await dashboardApiMutation("/api/me/profile/cover", {
+      method: "PATCH",
+      signal,
+      body: { asset_id: candidate.id },
+    });
+    const savedCover = cleanCover(payload.cover);
+    if (payload.saved !== true || !savedCover) throw new Error("The saved cover response could not be verified.");
+    coverData.cover = savedCover;
+    setCoverImage(savedCover);
+    renderCoverChooser();
+    setCoverDialogState("Upload complete. Your profile cover is updated.", "success");
+    showCoverPageStatus("Profile cover updated from your device.");
+    announce("Profile cover updated from your device.");
+    window.setTimeout(() => {
+      setCoverBusy(false);
+      closeCoverChooser();
+    }, 750);
+  } catch (error) {
+    if (coverUploadIntentId) await cancelCoverUploadIntent(coverUploadIntentId);
+    coverUploadIntentId = null;
+    if (redirectForDashboardAuth(error)) return;
+    setCoverBusy(false);
+    const pending = error.code === "COVER_SCAN_PENDING";
+    setCoverDialogState(error.message || "The local image could not be uploaded.", pending ? "success" : "error", !pending);
+    if (pending) {
+      showCoverPageStatus("Local image uploaded. Security scanning is still in progress.");
+      announce("Local image uploaded. Security scanning is still in progress.");
+    }
+  } finally {
+    coverUploadController = null;
+    dashboardCoverFile.value = "";
+  }
+}
+
 function showCoverLoadError(error) {
   const message = document.createElement("span");
   message.textContent = error.message || "Available cover images could not be loaded.";
@@ -438,6 +673,8 @@ function setCoverBusy(busy) {
   coverBusy = busy;
   dashboardCoverClose.disabled = busy;
   dashboardCoverCancel.disabled = busy;
+  dashboardCoverUpload.disabled = busy;
+  dashboardCoverFile.disabled = busy;
   dashboardCoverCandidates.querySelectorAll("button").forEach((button) => { button.disabled = busy; });
   updateCoverSelection();
 }
@@ -810,6 +1047,12 @@ dashboardRetry.addEventListener("click", loadDashboard);
 dashboardCoverOpen.addEventListener("click", openCoverChooser);
 dashboardCoverClose.addEventListener("click", closeCoverChooser);
 dashboardCoverCancel.addEventListener("click", closeCoverChooser);
+dashboardCoverUpload.addEventListener("click", () => {
+  if (coverBusy) return;
+  dashboardCoverFile.value = "";
+  dashboardCoverFile.click();
+});
+dashboardCoverFile.addEventListener("change", () => uploadLocalCover(dashboardCoverFile.files?.[0]));
 dashboardCoverSave.addEventListener("click", () => saveCover(selectedCoverId));
 dashboardCoverRemove.addEventListener("click", () => saveCover(null));
 dashboardCoverDialog.addEventListener("cancel", (event) => {
@@ -826,6 +1069,7 @@ dashboardCoverImage.addEventListener("error", () => {
 window.addEventListener("pagehide", () => {
   dashboardController?.abort();
   coverController?.abort();
+  coverUploadController?.abort();
 }, { once: true });
 
 loadDashboard();

@@ -72,6 +72,11 @@ def main() -> None:
             "document.querySelector('[data-review-bulk-publish]')?.disabled === false && document.querySelector('[data-review-bulk-publish]')?.textContent.includes('(2)')",
             "Select eligible did not select both owned untouched submissions.",
         )
+        assert_browser(
+            browser,
+            "(() => { const heading = document.querySelector('.admin-review-queue-heading')?.getBoundingClientRect(); const tools = document.querySelector('[data-review-bulk-tools]')?.getBoundingClientRect(); const button = document.querySelector('[data-review-bulk-publish]'); return heading && tools && button && tools.top >= heading.bottom - 1 && button.scrollWidth <= button.clientWidth + 1 && getComputedStyle(button).whiteSpace === 'nowrap'; })()",
+            "Review batch controls overlapped the queue heading or clipped the publish command.",
+        )
         browser.command("screenshot", "/tmp/mt-review-batch-desktop.png")
         print("review_batch_selection=yes")
 
@@ -130,7 +135,7 @@ def main() -> None:
         browser.evaluate("window.scrollTo(0, 0); true")
         assert_browser(
             browser,
-            "document.documentElement.scrollWidth <= window.innerWidth && document.querySelector('[data-review-bulk-tools]')?.getBoundingClientRect().right <= innerWidth + 1 && document.querySelector('[data-review-bulk-tools]')?.getBoundingClientRect().left >= -1",
+            "(() => { const tools = document.querySelector('[data-review-bulk-tools]')?.getBoundingClientRect(); const button = document.querySelector('[data-review-bulk-publish]')?.getBoundingClientRect(); return document.documentElement.scrollWidth <= window.innerWidth && tools && button && tools.right <= innerWidth + 1 && tools.left >= -1 && button.left >= tools.left - 1 && button.right <= tools.right + 1; })()",
             "Review batch controls overflowed the mobile viewport.",
         )
         browser.command("screenshot", "/tmp/mt-review-batch-mobile.png")

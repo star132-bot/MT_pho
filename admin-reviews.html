@@ -6,7 +6,7 @@
     <title>Review Queue | MT Presence</title>
     <meta name="description" content="Protected review queue for MT Presence submissions." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260724-global-header-v1" />
+    <link rel="stylesheet" href="/styles.css?v=20260731-review-bulk-layout" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="admin-review-page">
@@ -135,14 +135,14 @@
       <section class="admin-review-workspace" aria-label="Review submissions" data-review-workspace data-mobile-view="queue">
         <aside class="admin-review-queue" aria-labelledby="review-list-title" aria-busy="true" data-review-queue>
           <header>
-            <div>
+            <div class="admin-review-queue-heading">
               <h2 id="review-list-title">Submissions</h2>
               <span data-review-list-count>0</span>
             </div>
             <div class="admin-review-bulk-tools" data-review-bulk-tools hidden>
               <label>
                 <input type="checkbox" data-review-bulk-select-all />
-                <span>Select eligible</span>
+                <span>Select all eligible</span>
               </label>
               <button type="button" data-review-bulk-publish disabled>Publish selected (0)</button>
             </div>
@@ -311,6 +311,6 @@
     <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
     <script src="/account-menu.js?v=20260730-auth-gate"></script>
     <script src="/public-navigation.js?v=20260722-public-shell"></script>
-    <script src="/admin-reviews.js?v=20260729-batch-self-publish"></script>
+    <script src="/admin-reviews.js?v=20260731-review-bulk-layout"></script>
   </body>
 </html>

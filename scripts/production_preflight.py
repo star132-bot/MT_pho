@@ -74,6 +74,12 @@ def check_web() -> None:
         fail("MT_MAX_REQUEST_THREADS must be an integer")
     if not 4 <= maximum_threads <= 128:
         fail("MT_MAX_REQUEST_THREADS must be between 4 and 128")
+    try:
+        auth_email_rate = int(required_environment("MT_AUTH_EMAIL_RATE_LIMIT_PER_HOUR"))
+    except ValueError:
+        fail("MT_AUTH_EMAIL_RATE_LIMIT_PER_HOUR must be an integer")
+    if not 2 <= auth_email_rate <= 30:
+        fail("MT_AUTH_EMAIL_RATE_LIMIT_PER_HOUR must be between 2 and 30")
     require_https_origin("MT_PUBLIC_BASE_URL", allow_path=False)
     require_https_origin("SUPABASE_URL", allow_path=True)
     publishable_key = required_environment("SUPABASE_PUBLISHABLE_KEY")

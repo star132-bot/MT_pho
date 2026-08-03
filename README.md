@@ -1,11 +1,11 @@
 # MT Presence
 
-MT Presence is a fine art photography portfolio and image-workflow application. Version `v1.0.0` started as a static first version; the current `v1.4.2` workspace combines the public gallery, legacy SQLite compatibility tooling, and a Supabase-backed account, private Draft, review, publication, and governance workflow.
+MT Presence is a fine art photography portfolio and image-workflow application. Version `v1.0.0` started as a static first version; the current `v1.4.3` workspace combines the public gallery, legacy SQLite compatibility tooling, and a Supabase-backed account, private Draft, review, publication, and governance workflow.
 
 ## Current Version
 
-- Version: `1.4.2`
-- Release label: `v1.4.2`
+- Version: `1.4.3`
+- Release label: `v1.4.3`
 - Status: public frontend, server-managed Supabase Auth/Account, protected creator workspace, Review/public delivery, Admin Works/Users, project inquiries, Notifications/Inbox, protected Audit Ledger, and production-deployment tooling. This repository is a production candidate; it does not record an active production deployment.
 - Database: Phase 0/1 through Phase 4B are deployed to development. The Phase 5 communications/audit migration and its development-only rollback acceptance remain gates before production promotion. Public Works and creator profiles read strict published-only Supabase DTOs; the SQLite Archive remains development/legacy tooling rather than the production authority.
 
@@ -18,6 +18,7 @@ MT Presence is a fine art photography portfolio and image-workflow application. 
 - Four-moment image-led Statement section, placed after Selected Works, with one image per text passage and a final Enter Works call to action.
 - Compact Works Archive page with read-only local SQLite preview data when explicitly enabled, global-header search, underlined Type/Ratio text filters directly below the header, no title/metrics hero, and responsive five/four/three/two/one-column natural-ratio masonry. Ratio filters expose the underlying `1:1`, `4:3`, `4:5`, `2:3`, `3:2`, `16:9`, and panorama groups without collapsing results into a narrow left column.
 - Works Archive work viewer with full-screen enlarged images, fit/actual-size zoom, catalog-style metadata, keyboard navigation, and grouped visual tags. Lightbox save and display-image download commands require an authenticated account across cards, Viewer, and standalone detail.
+- Protected creator profile cover chooser with both scanner-approved existing uploads and local JPEG/PNG/WebP selection. Local files reuse the private Workspace derivative, signed-upload, Draft, and malware-scan pipeline before becoming eligible and are applied automatically after a clean result.
 - Standalone work detail route with a 55/45 image-and-record layout, previous/next navigation, synchronized Lightbox save state, inquiry/download actions, metadata, tags, and related works.
 - Internal Works Viewer Editor for importing works; maintaining the viewer title, series, notes, metadata, visibility, sort order, and grouped tags; and editing homepage hero images/text in the IndexedDB transition layer.
 - Upload flow that reads original image dimensions, checksum, and basic EXIF in the browser.
@@ -94,6 +95,7 @@ Authentication foundation:
 ```text
 http://127.0.0.1:8131/auth/sign-in
 http://127.0.0.1:8131/auth/register
+http://127.0.0.1:8131/auth/resend-verification
 http://127.0.0.1:8131/auth/forgot-password
 http://127.0.0.1:8131/auth/reset-password
 ```
@@ -125,7 +127,7 @@ http://127.0.0.1:8131/admin/users
 http://127.0.0.1:8131/admin/users/{userId}
 ```
 
-Copy `.env.example` values into your local environment before starting the server. Set `MT_PUBLIC_BASE_URL` to the exact browser origin and add `/auth/verify-email` plus `/auth/reset-password` to the Supabase Auth redirect allowlist. The auth routes use Supabase Auth through the server, keep access/refresh tokens in `HttpOnly` cookies, require a same-origin CSRF token for mutations, and never use browser storage for credentials. `/dashboard` and `/workspace/images` are protected, `/workspace` canonicalizes to Dashboard, direct `/upload-studio.html` requests canonicalize to Upload Studio, and Admin/Super Admin sessions require AAL2 before opening these account surfaces.
+Copy `.env.example` values into your local environment before starting the server. Set `MT_PUBLIC_BASE_URL` to the exact browser origin and add `/auth/verify-email` plus `/auth/reset-password` to the Supabase Auth redirect allowlist. Registration requires a normalized email, a matching 12-128 character password confirmation, and explicit acceptance of the current Terms/Privacy policy; verification can be requested again without revealing whether an account exists. The auth routes use Supabase Auth through the server, keep access/refresh tokens in `HttpOnly` cookies, require a same-origin CSRF token for mutations, and never use browser storage for credentials. Production email delivery additionally requires Supabase Confirm Email, a verified custom SMTP sender, and an end-to-end mailbox test. `/dashboard` and `/workspace/images` are protected, `/workspace` canonicalizes to Dashboard, direct `/upload-studio.html` requests canonicalize to Upload Studio, and Admin/Super Admin sessions require AAL2 before opening these account surfaces.
 
 For a fresh development database, apply the Phase 0/1 baseline and all incremental migrations:
 
@@ -319,6 +321,7 @@ The contact form records the inquiry through `POST /api/inquiries` and returns a
 - `scripts/validate_communications_audit.py` / `scripts/test_communications_audit_boundary.py` / `scripts/test_communications_audit_database.py`: static, secret-free HTTP, and development-only rollback PostgreSQL acceptance for the communications and audit slice.
 - `scripts/release_gate.sh`: one-command static, JavaScript, secret-free boundary, production-artifact, syntax, and patch-integrity release gate; credentialed database acceptance remains a non-production gate and browser acceptance remains an explicit subsequent gate.
 - `deploy/` / `docs/operations/production-deployment.md`: hardened systemd/Nginx/environment templates and the backup, migration, immutable release, TLS, verification, rollback, and observation runbook.
+- `docs/operations/domain-migration.md`: production domain migration runbook for authoritative DNS, canonical HTTPS redirects, Certbot issuance/expansion, application origin, Supabase Auth callbacks, verification, and rollback.
 - `database/migrations/20260722_user_dashboard.sql`: authenticated owner-scoped Dashboard read model with server-side counts, attention ordering, recent work/review activity, storage usage, and explicit capability flags.
 - `database/migrations/20260722_z_creator_profile.sql`: transaction-wrapped protected creator-profile extension, strict field RPC, owner-scoped cover eligibility helpers, and authenticated-only cover read/update RPCs.
 - `database/migrations/20260723_c_profile_avatar_upload.sql`: transaction-wrapped private profile-avatar bucket, owner-scoped upload intents, exact active-object metadata, complete/cancel/remove RPCs, and public-current-object read policy; signed URLs are never persisted.

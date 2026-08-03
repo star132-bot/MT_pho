@@ -107,6 +107,9 @@ CSRF_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{40,128}$")
 RECOVERY_GRANT_TTL_SECONDS = 10 * 60
 RECOVERY_GRANTS: dict[str, tuple[str, float]] = {}
 RECOVERY_GRANTS_LOCK = threading.Lock()
+AUTH_PASSWORD_MIN_LENGTH = 12
+AUTH_PASSWORD_MAX_LENGTH = 128
+TERMS_POLICY_VERSION = "2026-08-03"
 PROFILE_FIELDS = (
     "display_name",
     "avatar_url",
@@ -179,6 +182,7 @@ HEADER_IDENTITY_PUBLIC_PAGES = {
     "/lightbox.html": "lightbox.html",
     "/collections.html": "collections.html",
     "/privacy.html": "privacy.html",
+    "/terms.html": "terms.html",
 }
 PUBLIC_CREATOR_SLUG_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,94}[a-z0-9])?$")
 PUBLIC_DELIVERY_ASSET_KINDS = {"display", "thumbnail"}
@@ -534,9 +538,21 @@ INQUIRY_RATE_MAX_BUCKETS = 4096
 INQUIRY_RATE_SECRET = secrets.token_bytes(32)
 INQUIRY_RATE_BUCKETS: dict[str, list[float]] = {}
 INQUIRY_RATE_LOCK = threading.Lock()
+AUTH_EMAIL_RATE_WINDOW_SECONDS = 60 * 60
+try:
+    AUTH_EMAIL_RATE_LIMIT_PER_HOUR = int(os.environ.get("MT_AUTH_EMAIL_RATE_LIMIT_PER_HOUR", "6"))
+except ValueError:
+    AUTH_EMAIL_RATE_LIMIT_PER_HOUR = 6
+if not 2 <= AUTH_EMAIL_RATE_LIMIT_PER_HOUR <= 30:
+    AUTH_EMAIL_RATE_LIMIT_PER_HOUR = 6
+AUTH_EMAIL_RATE_LIMITS = {"ip": 30, "email": AUTH_EMAIL_RATE_LIMIT_PER_HOUR}
+AUTH_EMAIL_RATE_MAX_BUCKETS = 4096
+AUTH_EMAIL_RATE_SECRET = secrets.token_bytes(32)
+AUTH_EMAIL_RATE_BUCKETS: dict[str, list[float]] = {}
+AUTH_EMAIL_RATE_LOCK = threading.Lock()
 
 PUBLIC_ROOT_STATIC_FILES = {
-    "index.html", "works.html", "work.html", "about.html", "contact.html", "lightbox.html", "privacy.html",
+    "index.html", "works.html", "work.html", "about.html", "contact.html", "lightbox.html", "privacy.html", "terms.html",
     "creator.html", "collections.html", "auth.html", "mfa.html", "account-settings.html",
     "dashboard.html", "upload-studio.html", "notifications.html", "inbox.html", "admin-reviews.html",
     "admin-works.html", "admin-users.html", "admin-audit.html", "manage.html",
@@ -858,12 +874,39 @@ def clean_optional_text(value, max_length: int) -> str | None:
 
 
 def valid_email_address(value: str) -> bool:
+    if not 3 <= len(value) <= 254 or value != value.lower():
+        return False
+    if any(ord(character) < 32 or ord(character) == 127 for character in value):
+        return False
+    local, separator, domain = value.rpartition("@")
+    if not separator or not 1 <= len(local) <= 64 or not 3 <= len(domain) <= 253:
+        return False
+    if local.startswith(".") or local.endswith(".") or ".." in local:
+        return False
+    if not re.fullmatch(r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]+", local):
+        return False
+    labels = domain.split(".")
     return bool(
-        3 <= len(value) <= 180
-        and value == value.lower()
-        and not any(ord(character) < 32 or ord(character) == 127 for character in value)
-        and re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", value)
+        len(labels) >= 2
+        and all(
+            1 <= len(label) <= 63
+            and re.fullmatch(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", label)
+            for label in labels
+        )
     )
+
+
+def normalize_auth_email(value) -> str:
+    candidate = clean_text(value, 320).lower()
+    if "@" not in candidate:
+        return ""
+    local, _, domain = candidate.rpartition("@")
+    try:
+        ascii_domain = domain.encode("idna").decode("ascii").lower()
+    except (UnicodeError, ValueError):
+        return ""
+    normalized = f"{local}@{ascii_domain}"
+    return normalized if valid_email_address(normalized) else ""
 
 
 def inquiry_rate_digest(scope: str, value: str) -> str:
@@ -895,6 +938,38 @@ def consume_inquiry_rate_limit(client_ip: str, sender_email: str) -> bool:
             return False
         for key in keys.values():
             INQUIRY_RATE_BUCKETS.setdefault(key, []).append(now)
+    return True
+
+
+def auth_email_rate_digest(scope: str, value: str) -> str:
+    return hmac.new(AUTH_EMAIL_RATE_SECRET, f"{scope}:{value}".encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def consume_auth_email_rate_limit(client_ip: str, email: str) -> bool:
+    """Bound registration email traffic without retaining plaintext addresses."""
+    now = time.monotonic()
+    cutoff = now - AUTH_EMAIL_RATE_WINDOW_SECONDS
+    keys = {
+        scope: auth_email_rate_digest(scope, value)
+        for scope, value in (("ip", client_ip), ("email", email))
+    }
+    with AUTH_EMAIL_RATE_LOCK:
+        for key in list(AUTH_EMAIL_RATE_BUCKETS):
+            recent = [stamp for stamp in AUTH_EMAIL_RATE_BUCKETS[key] if stamp > cutoff]
+            if recent:
+                AUTH_EMAIL_RATE_BUCKETS[key] = recent
+            else:
+                AUTH_EMAIL_RATE_BUCKETS.pop(key, None)
+        missing_bucket_count = sum(key not in AUTH_EMAIL_RATE_BUCKETS for key in keys.values())
+        excess_bucket_count = max(0, len(AUTH_EMAIL_RATE_BUCKETS) + missing_bucket_count - AUTH_EMAIL_RATE_MAX_BUCKETS)
+        if excess_bucket_count:
+            oldest = sorted(AUTH_EMAIL_RATE_BUCKETS, key=lambda key: AUTH_EMAIL_RATE_BUCKETS[key][-1])
+            for key in oldest[:excess_bucket_count]:
+                AUTH_EMAIL_RATE_BUCKETS.pop(key, None)
+        if any(len(AUTH_EMAIL_RATE_BUCKETS.get(keys[scope], [])) >= limit for scope, limit in AUTH_EMAIL_RATE_LIMITS.items()):
+            return False
+        for key in keys.values():
+            AUTH_EMAIL_RATE_BUCKETS.setdefault(key, []).append(now)
     return True
 
 
@@ -5854,15 +5929,20 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         body = self.read_json_body()
         if body is None:
             return
-        email = clean_text(body.get("email"), 320).lower()
+        email = normalize_auth_email(body.get("email"))
         password = str(body.get("password") or "")
-        display_name = clean_text(body.get("display_name"), 120)
+        password_confirmation = str(body.get("password_confirmation") or "")
+        display_name = clean_optional_text(body.get("display_name"), 120) or ""
         terms_accepted = body.get("terms_accepted") is True
         field_errors = {}
-        if "@" not in email:
+        if not email:
             field_errors["email"] = "Enter a valid email address."
-        if len(password) < 10:
-            field_errors["password"] = "Use at least 10 characters."
+        if len(password) < AUTH_PASSWORD_MIN_LENGTH:
+            field_errors["password"] = f"Use at least {AUTH_PASSWORD_MIN_LENGTH} characters."
+        elif len(password) > AUTH_PASSWORD_MAX_LENGTH:
+            field_errors["password"] = "Password is too long."
+        if password != password_confirmation:
+            field_errors["password_confirmation"] = "Passwords do not match."
         if not display_name:
             field_errors["display_name"] = "Display name is required."
         if not terms_accepted:
@@ -5877,14 +5957,30 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 auth_error("AUTH_REDIRECT_NOT_CONFIGURED", "Email verification is not configured for this environment."),
             )
             return
+        if not consume_auth_email_rate_limit(self.request_rate_limit_ip(), email):
+            self.send_json(
+                HTTPStatus.TOO_MANY_REQUESTS,
+                auth_error("REGISTRATION_RATE_LIMITED", "Please wait before creating or verifying another account."),
+            )
+            return
         redirect_to = f"{public_base_url}/auth/verify-email"
         status, result = supabase_auth_request(f"signup?{urlencode({'redirect_to': redirect_to})}", {
             "email": email,
             "password": password,
-            "data": {"display_name": display_name, "terms_policy_version": "2026-07", "terms_accepted_at": now_iso()},
+            "data": {
+                "display_name": display_name,
+                "terms_policy_version": TERMS_POLICY_VERSION,
+                "terms_accepted_at": now_iso(),
+            },
         })
         if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
             self.send_json(status, result)
+            return
+        if status == HTTPStatus.TOO_MANY_REQUESTS:
+            self.send_json(
+                HTTPStatus.TOO_MANY_REQUESTS,
+                auth_error("REGISTRATION_RATE_LIMITED", "Please wait before creating or verifying another account."),
+            )
             return
         if status not in {HTTPStatus.OK, HTTPStatus.CREATED}:
             self.send_json(HTTPStatus.BAD_REQUEST, auth_error("REGISTRATION_FAILED", "Unable to create this account. Check your details or try again later."))
@@ -5895,12 +5991,60 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
         self.send_json(HTTPStatus.CREATED, {"status": "verification_required", "message": "Check your email to verify your account."})
 
+    def handle_auth_resend_verification(self) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        email = normalize_auth_email(body.get("email"))
+        if not email:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("AUTH_VALIDATION_FAILED", "Enter a valid email address.", {"email": "Enter a valid email address."}),
+            )
+            return
+        public_base_url = self.public_base_url()
+        if not public_base_url:
+            self.send_json(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                auth_error("AUTH_REDIRECT_NOT_CONFIGURED", "Email verification is not configured for this environment."),
+            )
+            return
+        if not consume_auth_email_rate_limit(self.request_rate_limit_ip(), email):
+            self.send_json(
+                HTTPStatus.TOO_MANY_REQUESTS,
+                auth_error("VERIFICATION_RATE_LIMITED", "Please wait before requesting another verification email."),
+            )
+            return
+        redirect_to = f"{public_base_url}/auth/verify-email"
+        status, result = supabase_auth_request(
+            f"resend?{urlencode({'redirect_to': redirect_to})}",
+            {"type": "signup", "email": email},
+        )
+        if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+            self.send_json(status, result)
+            return
+        if status == HTTPStatus.TOO_MANY_REQUESTS:
+            self.send_json(
+                HTTPStatus.TOO_MANY_REQUESTS,
+                auth_error("VERIFICATION_RATE_LIMITED", "Please wait before requesting another verification email."),
+            )
+            return
+        # A missing, already verified, or provider-rejected identity receives the
+        # same response so this endpoint cannot be used to enumerate accounts.
+        self.send_json(
+            HTTPStatus.ACCEPTED,
+            {
+                "status": "verification_email_requested",
+                "message": "If this address has an unverified account, a verification email has been sent.",
+            },
+        )
+
     def handle_auth_forgot_password(self) -> None:
         body = self.read_json_body()
         if body is None:
             return
-        email = clean_text(body.get("email"), 320).lower()
-        if "@" not in email:
+        email = normalize_auth_email(body.get("email"))
+        if not email:
             self.send_json(
                 HTTPStatus.UNPROCESSABLE_ENTITY,
                 auth_error("AUTH_VALIDATION_FAILED", "Enter a valid email address.", {"email": "Enter a valid email address."}),
@@ -5911,6 +6055,12 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_json(
                 HTTPStatus.SERVICE_UNAVAILABLE,
                 auth_error("AUTH_REDIRECT_NOT_CONFIGURED", "Password recovery is not configured for this environment."),
+            )
+            return
+        if not consume_auth_email_rate_limit(self.request_rate_limit_ip(), email):
+            self.send_json(
+                HTTPStatus.TOO_MANY_REQUESTS,
+                auth_error("RECOVERY_RATE_LIMITED", "Please wait before requesting another reset link."),
             )
             return
         redirect_to = f"{public_base_url}/auth/reset-password"
@@ -6036,9 +6186,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         password = str(body.get("password") or "")
         password_confirmation = str(body.get("password_confirmation") or "")
         field_errors = {}
-        if len(password) < 10:
-            field_errors["password"] = "Use at least 10 characters."
-        elif len(password) > 256:
+        if len(password) < AUTH_PASSWORD_MIN_LENGTH:
+            field_errors["password"] = f"Use at least {AUTH_PASSWORD_MIN_LENGTH} characters."
+        elif len(password) > AUTH_PASSWORD_MAX_LENGTH:
             field_errors["password"] = "Password is too long."
         if password != password_confirmation:
             field_errors["password_confirmation"] = "Passwords do not match."
@@ -10732,6 +10882,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path in {
             "/auth/sign-in",
             "/auth/register",
+            "/auth/resend-verification",
             "/auth/forgot-password",
             "/auth/reset-password",
             "/auth/verify-email",
@@ -11146,6 +11297,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/auth/register":
             self.handle_auth_register()
+            return
+        if parsed.path == "/api/auth/resend-verification":
+            self.handle_auth_resend_verification()
             return
         if parsed.path == "/api/auth/sign-in":
             self.handle_auth_sign_in()

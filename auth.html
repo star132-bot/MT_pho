@@ -6,7 +6,7 @@
     <title>Sign In | MT Presence</title>
     <meta name="description" content="Sign in to the private MT Presence image workspace." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260714-account-recovery" />
+    <link rel="stylesheet" href="/styles.css?v=20260803-email-registration" />
   </head>
   <body class="auth-page">
     <a class="auth-skip" href="#auth-form">Skip to form</a>
@@ -42,26 +42,26 @@
 
             <label class="auth-field" data-auth-field="email">
               <span>Email</span>
-              <input id="auth-email" name="email" type="email" autocomplete="email" inputmode="email" required maxlength="320" aria-describedby="auth-email-error" />
+              <input id="auth-email" name="email" type="email" autocomplete="email" inputmode="email" required maxlength="254" autocapitalize="none" spellcheck="false" aria-describedby="auth-email-error" />
               <small id="auth-email-error" data-field-error="email"></small>
             </label>
 
             <label class="auth-field" data-auth-field="password">
               <span data-password-label>Password</span>
-              <input id="auth-password" name="password" type="password" autocomplete="current-password" required minlength="10" maxlength="256" aria-describedby="auth-password-hint auth-password-error" />
-              <p id="auth-password-hint" class="auth-field-hint" data-password-hint hidden>Use at least 10 characters.</p>
+              <input id="auth-password" name="password" type="password" autocomplete="current-password" required minlength="12" maxlength="256" aria-describedby="auth-password-hint auth-password-error" />
+              <p id="auth-password-hint" class="auth-field-hint" data-password-hint hidden>Use 12 to 128 characters. A unique passphrase works well.</p>
               <small id="auth-password-error" data-field-error="password"></small>
             </label>
 
             <label class="auth-field" data-auth-field="password_confirmation" hidden>
-              <span>Confirm new password</span>
-              <input id="auth-password-confirmation" name="password_confirmation" type="password" autocomplete="new-password" required minlength="10" maxlength="256" aria-describedby="auth-password-confirmation-error" />
+              <span data-password-confirmation-label>Confirm password</span>
+              <input id="auth-password-confirmation" name="password_confirmation" type="password" autocomplete="new-password" required minlength="12" maxlength="128" aria-describedby="auth-password-confirmation-error" />
               <small id="auth-password-confirmation-error" data-field-error="password_confirmation"></small>
             </label>
 
             <label class="auth-consent" data-auth-field="terms_accepted" hidden>
               <input name="terms_accepted" type="checkbox" />
-              <span>I accept the Terms and Privacy Policy.</span>
+              <span>I accept the <a href="/terms.html" target="_blank" rel="noopener">Terms of Use</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Notice</a>.</span>
               <small data-field-error="terms_accepted"></small>
             </label>
 
@@ -69,6 +69,7 @@
           </form>
 
           <a class="auth-secondary-link" href="/auth/forgot-password" data-auth-forgot-link>Forgot password?</a>
+          <a class="auth-secondary-link" href="/auth/resend-verification" data-auth-resend-link hidden>Resend verification email</a>
 
           <p class="auth-switch">
             <span data-auth-switch-copy>New to MT Presence?</span>
@@ -79,6 +80,6 @@
         </div>
       </section>
     </main>
-    <script src="/auth.js?v=20260714-account-recovery"></script>
+    <script src="/auth.js?v=20260803-email-registration"></script>
   </body>
 </html>

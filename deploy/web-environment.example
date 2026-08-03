@@ -10,3 +10,4 @@ SUPABASE_PUBLISHABLE_KEY=sb_publishable_replace_me
 
 # The BFF applies an additional bounded limiter behind nginx.
 MT_INQUIRY_RATE_LIMIT_PER_HOUR=5
+MT_AUTH_EMAIL_RATE_LIMIT_PER_HOUR=6

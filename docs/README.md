@@ -16,7 +16,9 @@
 8. [公开交付测试](operations/public-delivery-testing.md)：Admin 发布到匿名 Works/creator profile 的 DTO、Storage、回滚数据库与撤销窗口门禁。
 9. [企业级交付工作流](operations/enterprise-delivery-workflow.md)：规定提示词、阶段门禁、设计/开发、安全、发布验收与发布评分。
 10. [生产部署](operations/production-deployment.md)：发布门禁、备份、迁移、TLS、不可变版本、激活、验收、回滚和首小时观察。
-11. [图片来源](design/image-sources.md)：临时图片来源、授权和正式替换要求。
+11. [域名迁移](operations/domain-migration.md)：权威 DNS、双域名 TLS、Nginx canonical redirect、应用 origin、Supabase 回调、验证和回滚手册。
+12. [最小高可用部署与扩展方案](operations/scalable-production-topology.md)：两台应用 ECS、RDS PostgreSQL 主备、OSS 图片存储、邮箱/X/Telegram 身份认证的最低拓扑、迁移顺序和故障验收。
+13. [图片来源](design/image-sources.md)：临时图片来源、授权和正式替换要求。
 
 ## 文档分类
 
@@ -41,6 +43,8 @@
 - `operations/review-testing.md`：Supabase Admin Review Queue 的权限、并发、幂等、浏览器和开发数据库验收手册。
 - `operations/public-delivery-testing.md`：published-only Works/creator、anonymous derivative signing、权威空态和 development rollback 验收手册。
 - `operations/production-deployment.md`：尚未激活的生产发布手册，覆盖 secrets 分离、staging/恢复克隆验收、数据库与 Storage 恢复、release gate、systemd/Nginx/TLS、不可变发布、验证与回滚。
+- `operations/domain-migration.md`：生产域名切换手册；覆盖 registrar/权威 DNS 分离、缓存诊断、双域名证书、Nginx 主域/别名/退役域名、应用 origin、Supabase Auth 和回滚。
+- `operations/scalable-production-topology.md`：生产环境从单机升级到应用、身份认证、数据库、图片存储分层的权威方案；定义双 ECS、托管 Auth/DirectMail、RDS 主备、OSS/CDN、最低规格、滚动发布和恢复门禁。
 - `operations/enterprise-delivery-workflow.md`：所有 Web、产品、工程和发布任务必须遵循的企业级交付流程与主提示词。
 
 ## 根目录文档

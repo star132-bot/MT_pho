@@ -5,7 +5,7 @@ from __future__ import annotations
 
 
 PUBLIC_RUNTIME_FILES = frozenset({
-    "index.html", "works.html", "work.html", "about.html", "contact.html", "lightbox.html", "privacy.html",
+    "index.html", "works.html", "work.html", "about.html", "contact.html", "lightbox.html", "privacy.html", "terms.html",
     "creator.html", "collections.html", "auth.html", "mfa.html", "account-settings.html",
     "dashboard.html", "upload-studio.html", "notifications.html", "inbox.html", "admin-reviews.html",
     "admin-works.html", "admin-users.html", "admin-audit.html", "manage.html",

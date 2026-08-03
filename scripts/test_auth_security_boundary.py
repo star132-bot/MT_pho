@@ -33,6 +33,7 @@ def fake_access_token(claims: dict) -> str:
 RECOVERY_USER_ID = "00000000-0000-4000-8000-000000000001"
 MEMBER_USER_ID = "00000000-0000-4000-8000-000000000002"
 ADMIN_USER_ID = "00000000-0000-4000-8000-000000000003"
+SIGNUP_USER_ID = "00000000-0000-4000-8000-000000000004"
 RECOVERY_ACCESS_TOKEN = fake_access_token({"amr": [{"method": "recovery"}]})
 MEMBER_ACCESS_TOKEN = fake_access_token({
     "aal": "aal1",
@@ -48,6 +49,13 @@ ADMIN_ACCESS_TOKEN = fake_access_token({
     "iat": 1784044800,
     "exp": 1784048400,
 })
+SIGNUP_ACCESS_TOKEN = fake_access_token({
+    "aal": "aal1",
+    "amr": [{"method": "password"}],
+    "session_id": "10000000-0000-4000-8000-000000000004",
+    "iat": 1784044800,
+    "exp": 1784048400,
+})
 
 
 class FakeSupabaseHandler(BaseHTTPRequestHandler):
@@ -55,6 +63,8 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
     global_logout = False
     logout_scopes: list[str] = []
     profile_updates: list[dict] = []
+    registrations: list[dict] = []
+    verification_resends: list[dict] = []
     authorization_failures_remaining = 0
     profile = {
         "display_name": "MT Member",
@@ -104,6 +114,12 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                 "email_confirmed_at": "2026-07-14T00:00:00Z",
                 "factors": [],
             },
+            f"Bearer {SIGNUP_ACCESS_TOKEN}": {
+                "id": SIGNUP_USER_ID,
+                "email": "new.artist@example.test",
+                "email_confirmed_at": "2026-08-03T00:00:00Z",
+                "factors": [],
+            },
         }
         if self.path == "/auth/v1/user" and authorization in users:
             self.send_json(HTTPStatus.OK, users[authorization])
@@ -115,6 +131,27 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         authorization = self.headers.get("Authorization")
+        parsed = urlparse(self.path)
+        if parsed.path == "/auth/v1/signup":
+            body = self.body()
+            type(self).registrations.append(body)
+            self.send_json(
+                HTTPStatus.OK,
+                {
+                    "user": {
+                        "id": SIGNUP_USER_ID,
+                        "email": body.get("email"),
+                        "email_confirmed_at": None,
+                    },
+                },
+            )
+            return
+        if parsed.path == "/auth/v1/resend":
+            body = self.body()
+            type(self).verification_resends.append(body)
+            # The application must not reveal whether this address exists.
+            self.send_json(HTTPStatus.BAD_REQUEST, {"message": "identity not found"})
+            return
         if self.path == "/auth/v1/token?grant_type=password":
             body = self.body()
             sessions = {
@@ -174,6 +211,21 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/auth/v1/verify":
             body = self.body()
+            if body == {"type": "signup", "token_hash": "valid-signup-token-hash"}:
+                self.send_json(
+                    HTTPStatus.OK,
+                    {
+                        "access_token": SIGNUP_ACCESS_TOKEN,
+                        "refresh_token": "refresh-signup",
+                        "expires_in": 3600,
+                        "user": {
+                            "id": SIGNUP_USER_ID,
+                            "email": "new.artist@example.test",
+                            "email_confirmed_at": "2026-08-03T00:00:00Z",
+                        },
+                    },
+                )
+                return
             if body == {"type": "recovery", "token_hash": "valid-recovery-token-hash"}:
                 self.send_json(
                     HTTPStatus.OK,
@@ -312,6 +364,8 @@ def main() -> None:
     FakeSupabaseHandler.global_logout = False
     FakeSupabaseHandler.logout_scopes = []
     FakeSupabaseHandler.profile_updates = []
+    FakeSupabaseHandler.registrations = []
+    FakeSupabaseHandler.verification_resends = []
     FakeSupabaseHandler.authorization_failures_remaining = 0
     FakeSupabaseHandler.profile = {
         "display_name": "MT Member",
@@ -343,6 +397,79 @@ def main() -> None:
     opener = CookieOpener()
 
     try:
+        registration_opener = CookieOpener()
+        status, result, _ = request(registration_opener, base_url, "/api/auth/csrf")
+        if status != HTTPStatus.OK or not result.get("csrf_token"):
+            raise RuntimeError("Registration could not establish CSRF protection")
+
+        status, result, _ = request(
+            registration_opener,
+            base_url,
+            "/api/auth/register",
+            payload={
+                "display_name": "New Artist",
+                "email": "new.artist@example.test",
+                "password": "A-unique-registration-passphrase-2026!",
+                "password_confirmation": "different-password",
+                "terms_accepted": True,
+            },
+            origin=base_url,
+        )
+        if status != HTTPStatus.UNPROCESSABLE_ENTITY or "password_confirmation" not in result.get("error", {}).get("field_errors", {}):
+            raise RuntimeError("Registration accepted mismatched passwords")
+        if FakeSupabaseHandler.registrations:
+            raise RuntimeError("Invalid registration reached the identity provider")
+
+        registration_payload = {
+            "display_name": "New Artist",
+            "email": "new.artist@example.test",
+            "password": "A-unique-registration-passphrase-2026!",
+            "password_confirmation": "A-unique-registration-passphrase-2026!",
+            "terms_accepted": True,
+        }
+        status, result, _ = request(
+            registration_opener,
+            base_url,
+            "/api/auth/register",
+            payload=registration_payload,
+            origin=base_url,
+        )
+        if status != HTTPStatus.CREATED or result.get("status") != "verification_required":
+            raise RuntimeError("Valid email registration did not require verification")
+        provider_registration = FakeSupabaseHandler.registrations[-1]
+        metadata = provider_registration.get("data", {})
+        if provider_registration.get("email") != "new.artist@example.test" or provider_registration.get("password") != registration_payload["password"]:
+            raise RuntimeError("Registration credentials were not normalized for the identity provider")
+        if metadata.get("display_name") != "New Artist" or metadata.get("terms_policy_version") != "2026-08-03" or not metadata.get("terms_accepted_at"):
+            raise RuntimeError("Registration consent metadata was incomplete")
+
+        status, result, _ = request(
+            registration_opener,
+            base_url,
+            "/api/auth/resend-verification",
+            payload={"email": "unregistered@example.test"},
+            origin=base_url,
+        )
+        if status != HTTPStatus.ACCEPTED or result.get("status") != "verification_email_requested":
+            raise RuntimeError("Verification resend revealed provider identity state")
+        if FakeSupabaseHandler.verification_resends[-1] != {"type": "signup", "email": "unregistered@example.test"}:
+            raise RuntimeError("Verification resend sent an unexpected provider payload")
+
+        status, result, _ = request(
+            registration_opener,
+            base_url,
+            "/api/auth/verify-email",
+            payload={"type": "signup", "token_hash": "valid-signup-token-hash"},
+            origin=base_url,
+        )
+        if status != HTTPStatus.OK or result.get("verified") is not True:
+            raise RuntimeError("Signup verification token did not establish a session")
+        if not registration_opener.cookie_value("mt_access_token") or not registration_opener.cookie_value("mt_refresh_token"):
+            raise RuntimeError("Signup verification did not issue application cookies")
+        status, result, _ = request(registration_opener, base_url, "/api/auth/verification-status")
+        if status != HTTPStatus.OK or result.get("email_verified") is not True:
+            raise RuntimeError("Verified registration status was not available")
+
         status, result, _ = request(
             opener,
             base_url,
@@ -572,6 +699,10 @@ def main() -> None:
             raise RuntimeError("Configured Supabase delivery leaked a legacy published derivative")
 
         print("csrf_missing_rejected=yes")
+        print("email_registration_verification_required=yes")
+        print("email_registration_consent_recorded=yes")
+        print("verification_resend_enumeration_safe=yes")
+        print("signup_verification_session_established=yes")
         print("csrf_cross_origin_rejected=yes")
         print("forgot_response_enumeration_safe=yes")
         print("recovery_session_restricted=yes")

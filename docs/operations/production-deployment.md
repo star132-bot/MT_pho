@@ -19,6 +19,7 @@ A production release is blocked until all of the following are true:
 - Restore has been rehearsed against a disposable database, never directly against production.
 - The exact public domain is configured in `MT_PUBLIC_BASE_URL` and in the Supabase Auth redirect allowlist.
 - HTTPS certificate issuance succeeds before secure authentication cookies are enabled.
+- Supabase Confirm Email is enabled; a domain-authenticated custom SMTP sender and first-party verification/recovery templates pass real external-mailbox delivery, expiry, one-time-use, and resend tests.
 - Web and scanner secrets are separated as described below.
 - An external uptime check watches `/healthz`; an authenticated operational check watches `/readyz` from a trusted location.
 
@@ -61,6 +62,7 @@ The host needs Python 3.11+, Nginx, PostgreSQL client tools, Certbot or an equiv
 - `MT_TRUST_PROXY=1`
 - `MT_MAX_REQUEST_THREADS=32`
 - `MT_PUBLIC_BASE_URL=https://<domain>`
+- `MT_AUTH_EMAIL_RATE_LIMIT_PER_HOUR=6`
 - bounded inquiry rate configuration
 
 It must not contain `PGPASSWORD`, `SUPABASE_SECRET_KEY`, or `SUPABASE_SERVICE_ROLE_KEY`.

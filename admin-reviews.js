@@ -513,7 +513,9 @@ function renderQueueItems() {
     entry.append(button);
     listElement.append(entry);
   });
-  listCount.textContent = `${queueItems.length} of ${queueTotal}`;
+  listCount.textContent = queueItems.length === queueTotal
+    ? `${queueTotal} total`
+    : `${queueItems.length} of ${queueTotal}`;
   loadMoreButton.hidden = queueItems.length >= queueTotal;
   loadMoreButton.disabled = queueLoading || mutationBusy;
   updateBulkControls();

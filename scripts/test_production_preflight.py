@@ -26,6 +26,7 @@ VALID_ENVIRONMENT = {
     "MT_COOKIE_SECURE": "1",
     "MT_TRUST_PROXY": "1",
     "MT_MAX_REQUEST_THREADS": "32",
+    "MT_AUTH_EMAIL_RATE_LIMIT_PER_HOUR": "6",
     "MT_PUBLIC_BASE_URL": "https://portfolio.example.com",
     "SUPABASE_URL": "https://project.example.supabase.co",
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_fixture",
@@ -88,6 +89,7 @@ def main() -> None:
             expect_failure({**VALID_ENVIRONMENT, "MT_LOCAL_ARCHIVE_PREVIEW": "1"})
             expect_failure({**VALID_ENVIRONMENT, "MT_TRUST_PROXY": "0"})
             expect_failure({**VALID_ENVIRONMENT, "MT_MAX_REQUEST_THREADS": "512"})
+            expect_failure({**VALID_ENVIRONMENT, "MT_AUTH_EMAIL_RATE_LIMIT_PER_HOUR": "100"})
             expect_failure({**VALID_ENVIRONMENT, "MT_PUBLIC_BASE_URL": "http://portfolio.example.com"})
             expect_failure({**VALID_ENVIRONMENT, "SUPABASE_PUBLISHABLE_KEY": "sb_secret_fixture"})
             expect_failure({**VALID_ENVIRONMENT, "PGPASSWORD": "forbidden"})

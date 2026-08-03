@@ -16,6 +16,7 @@ def main() -> None:
     server = (ROOT / "server.py").read_text()
     auth_html = (ROOT / "auth.html").read_text()
     auth_js = (ROOT / "auth.js").read_text()
+    terms_html = (ROOT / "terms.html").read_text()
     mfa_html = (ROOT / "mfa.html").read_text()
     mfa_js = (ROOT / "mfa.js").read_text()
     account_html = (ROOT / "account-settings.html").read_text()
@@ -24,6 +25,7 @@ def main() -> None:
     upload_js = (ROOT / "upload-studio.js").read_text()
     manage_js = (ROOT / "manage.js").read_text()
     deploy_script = (ROOT / "scripts" / "deploy_supabase_phase1.sh").read_text()
+    nginx = (ROOT / "deploy" / "nginx-mt-presence.conf").read_text()
 
     require(server, {
         'SUPABASE_URL', 'SUPABASE_PUBLISHABLE_KEY', 'HttpOnly; SameSite=Lax',
@@ -37,10 +39,12 @@ def main() -> None:
         'if cookies is not None:', 'send_current_user_error',
         'method="DELETE"', 'MFA_RESET_FAILED', 'MFA_ALREADY_ENROLLED',
         '/api/auth/forgot-password', '/api/auth/recovery-session', '/api/auth/reset-password',
-        '/api/auth/verify-email', '/api/auth/recovery-status', '/api/auth/csrf',
+        '/api/auth/verify-email', '/api/auth/resend-verification', '/api/auth/recovery-status', '/api/auth/csrf',
         '/api/auth/verification-status',
         'recover?', 'token_hash', 'method="PUT"', 'logout?scope=global',
         'CSRF_REJECTED', 'X-CSRF-Token', 'RECOVERY_GRANTS', 'MT_PUBLIC_BASE_URL',
+        'normalize_auth_email', 'AUTH_PASSWORD_MIN_LENGTH', 'TERMS_POLICY_VERSION',
+        'consume_auth_email_rate_limit', 'VERIFICATION_RATE_LIMITED',
         'session_has_auth_method(session, "recovery")', 'request_id',
         'session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery")',
         'parsed.path == "/upload-studio.html"', '"/workspace/images"',
@@ -56,6 +60,7 @@ def main() -> None:
         'role="status"', 'data-auth-submit',
         'data-auth-open-browser',
         'data-auth-field="password_confirmation"', 'data-auth-forgot-link',
+        'data-auth-resend-link', 'href="/terms.html"', 'href="/privacy.html"',
         'data-auth-loading', 'data-auth-next-link', 'tabindex="-1"',
     }, "auth page")
     require(auth_js, {
@@ -67,7 +72,16 @@ def main() -> None:
         '/api/auth/verification-status',
         'history.replaceState', 'token_hash', 'refresh_token', 'X-CSRF-Token',
         'If an account exists for this email', 'password_confirmation',
+        'resendVerification', '/api/auth/resend-verification',
     }, "auth client")
+    require(terms_html, {
+        'Terms of Use', 'id="account"', 'id="content"', 'id="conduct"',
+        'href="/privacy.html"', 'data-global-header', 'data-site-footer',
+    }, "terms page")
+    require(nginx, {
+        'zone=mt_auth_email', 'zone=mt_auth_login',
+        'register|resend-verification|forgot-password', 'location = /api/auth/sign-in',
+    }, "auth nginx rate limits")
     require(mfa_html, {
         'autocomplete="one-time-code"', 'inputmode="numeric"', 'pattern="[0-9]{6}"',
         'data-mfa-enrollment', 'data-mfa-qr', 'data-mfa-secret', 'data-mfa-form',

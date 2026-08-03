@@ -10,8 +10,10 @@ const switchCopy = document.querySelector("[data-auth-switch-copy]");
 const switchLink = document.querySelector("[data-auth-switch-link]");
 const switchRow = document.querySelector(".auth-switch");
 const forgotLink = document.querySelector("[data-auth-forgot-link]");
+const resendLink = document.querySelector("[data-auth-resend-link]");
 const nextLink = document.querySelector("[data-auth-next-link]");
 const passwordLabel = document.querySelector("[data-password-label]");
+const passwordConfirmationLabel = document.querySelector("[data-password-confirmation-label]");
 const passwordHint = document.querySelector("[data-password-hint]");
 const fieldGroups = new Map(
   [...document.querySelectorAll("[data-auth-field]")].map((element) => [element.dataset.authField, element]),
@@ -20,6 +22,7 @@ const fieldGroups = new Map(
 const MODE_BY_PATH = {
   "/auth/sign-in": "signIn",
   "/auth/register": "register",
+  "/auth/resend-verification": "resendVerification",
   "/auth/forgot-password": "forgotPassword",
   "/auth/reset-password": "resetPassword",
   "/auth/verify-email": "verifyEmail",
@@ -44,12 +47,25 @@ const MODES = {
     eyebrow: "Private Workspace",
     title: "Create account",
     intro: "Create a verified account to upload images and submit work for review.",
-    fields: ["display_name", "email", "password", "terms_accepted"],
+    fields: ["display_name", "email", "password", "password_confirmation", "terms_accepted"],
     endpoint: "/api/auth/register",
     submit: "Create account",
     pending: "Creating account…",
     switchCopy: "Already have an account?",
     switchLabel: "Sign in",
+    switchHref: "/auth/sign-in",
+  },
+  resendVerification: {
+    documentTitle: "Resend Verification",
+    eyebrow: "Email Verification",
+    title: "Resend verification",
+    intro: "Enter the email used to create your account. We’ll send a new verification link if the account is still waiting for confirmation.",
+    fields: ["email"],
+    endpoint: "/api/auth/resend-verification",
+    submit: "Send verification email",
+    pending: "Requesting verification…",
+    switchCopy: "Already verified?",
+    switchLabel: "Return to sign in",
     switchHref: "/auth/sign-in",
   },
   forgotPassword: {
@@ -99,6 +115,7 @@ const config = MODES[mode];
 const BLOCKED_NEXT_PATHS = new Set([
   "/auth/sign-in",
   "/auth/register",
+  "/auth/resend-verification",
   "/auth/forgot-password",
   "/auth/reset-password",
   "/auth/verify-email",
@@ -139,6 +156,7 @@ function configureMode() {
   switchLink.href = config.switchHref;
   switchRow.hidden = false;
   forgotLink.hidden = mode !== "signIn";
+  resendLink.hidden = true;
   nextLink.hidden = true;
 
   fieldGroups.forEach((_, name) => setFieldVisibility(name, config.fields.includes(name)));
@@ -146,7 +164,12 @@ function configureMode() {
   if (password) {
     password.autocomplete = mode === "signIn" ? "current-password" : "new-password";
     passwordLabel.textContent = mode === "resetPassword" ? "New password" : "Password";
+    password.minLength = mode === "signIn" ? 1 : 12;
+    password.maxLength = mode === "signIn" ? 256 : 128;
     passwordHint.hidden = !["register", "resetPassword"].includes(mode);
+  }
+  if (passwordConfirmationLabel) {
+    passwordConfirmationLabel.textContent = mode === "resetPassword" ? "Confirm new password" : "Confirm password";
   }
 
   if (config.callbackType) {
@@ -163,6 +186,7 @@ function clearErrors() {
   notice.className = "auth-notice";
   notice.setAttribute("role", "status");
   openBrowserLink.hidden = true;
+  resendLink.hidden = true;
   form.querySelectorAll("[aria-invalid]").forEach((input) => input.removeAttribute("aria-invalid"));
   form.querySelectorAll("[data-field-error]").forEach((error) => {
     error.textContent = "";
@@ -325,7 +349,7 @@ async function prepareCallbackMode() {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   clearErrors();
-  if (mode === "resetPassword") {
+  if (["register", "resetPassword"].includes(mode)) {
     const password = form.elements.password.value;
     const confirmation = form.elements.password_confirmation.value;
     if (password !== confirmation) {
@@ -356,12 +380,19 @@ form.addEventListener("submit", async (event) => {
     if (!response.ok) {
       showNotice(result.error?.message || "Unable to continue. Try again.");
       applyFieldErrors(result.error?.field_errors);
+      resendLink.hidden = result.error?.code !== "EMAIL_NOT_VERIFIED";
       return;
     }
 
     if (mode === "register") {
       form.reset();
       showCompletion(result.message || "Check your email to verify your account.");
+      resendLink.hidden = false;
+      return;
+    }
+    if (mode === "resendVerification") {
+      form.reset();
+      showCompletion(result.message || "If this address has an unverified account, a verification email has been sent.");
       return;
     }
     if (mode === "forgotPassword") {

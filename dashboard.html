@@ -6,7 +6,7 @@
     <title>Profile | MT Presence</title>
     <meta name="description" content="Your MT Presence profile, works, and review activity." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260724-global-header-v1" />
+    <link rel="stylesheet" href="/styles.css?v=20260730-cover-upload" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="dashboard-page">
@@ -214,6 +214,7 @@
           <div>
             <p class="section-kicker">Profile appearance</p>
             <h2 id="dashboard-cover-dialog-title">Choose a cover image</h2>
+            <p>Choose from your uploaded images or add one from this device.</p>
           </div>
           <button class="dashboard-cover-dialog-close" type="button" aria-label="Close cover chooser" title="Close" data-dashboard-cover-close>
             <svg class="ui-icon" aria-hidden="true"><use href="#icon-close"></use></svg>
@@ -224,10 +225,22 @@
           Loading available work...
         </div>
 
+        <div class="dashboard-cover-source">
+          <div>
+            <strong>Your images</strong>
+            <span>Scanner-approved uploads are ready to use below.</span>
+          </div>
+          <button class="button button-secondary dashboard-cover-upload" type="button" data-dashboard-cover-upload>
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-upload-cloud"></use></svg>
+            <span>Upload from device</span>
+          </button>
+          <input type="file" accept="image/jpeg,image/png,image/webp" data-dashboard-cover-file hidden />
+        </div>
+
         <div class="dashboard-cover-empty" data-dashboard-cover-empty hidden>
           <strong>No eligible images yet</strong>
-          <p>No scanned work is currently available for your cover.</p>
-          <a class="button button-primary" href="/workspace/images?folder=inbox">Upload work</a>
+          <p>Upload an image from this device, or add and prepare work in your Workspace.</p>
+          <a class="button button-primary" href="/workspace/images?folder=inbox">Open Workspace</a>
         </div>
 
         <div class="dashboard-cover-candidates" role="group" aria-label="Available cover images" data-dashboard-cover-candidates hidden></div>
@@ -247,6 +260,8 @@
     <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
     <script src="/account-menu.js?v=20260730-auth-gate"></script>
     <script src="/public-navigation.js?v=20260722-public-shell"></script>
-    <script src="/dashboard.js?v=20260730-brand-initials"></script>
+    <script src="/archive-data.js?v=20260610-works-viewer-editor"></script>
+    <script src="/archive-upload.js?v=20260730-cover-upload"></script>
+    <script src="/dashboard.js?v=20260730-cover-upload"></script>
   </body>
 </html>

@@ -8517,6 +8517,16 @@ button.upload-studio-card-main:focus-visible {
 
 .auth-panel-inner { width: min(100%, 430px); min-width: 0; }
 
+.auth-page[data-auth-mode="register"] .auth-panel {
+  place-items: start center;
+  padding-top: clamp(42px, 6vh, 64px);
+  padding-bottom: clamp(42px, 6vh, 64px);
+}
+
+.auth-page[data-auth-mode="register"] .auth-panel h1 { font-size: clamp(42px, 3.2vw, 46px); }
+.auth-page[data-auth-mode="register"] .auth-intro { margin-bottom: 24px; }
+.auth-page[data-auth-mode="register"] .auth-form { gap: 16px; }
+
 .auth-eyebrow {
   margin: 0 0 18px;
   color: #6d6c66;
@@ -8605,6 +8615,17 @@ button.upload-studio-card-main:focus-visible {
 
 .auth-consent input { width: 16px; height: 16px; margin: 1px 0 0; }
 .auth-consent small { grid-column: 2; }
+
+.auth-consent a {
+  color: #244d5d;
+  font-weight: 700;
+  text-underline-offset: 3px;
+}
+
+.auth-consent a:focus-visible {
+  outline: 2px solid #244d5d;
+  outline-offset: 3px;
+}
 
 .auth-submit {
   min-height: 48px;
@@ -8807,6 +8828,7 @@ button.upload-studio-card-main:focus-visible {
   .auth-visual figcaption { right: 20px; bottom: 18px; left: 20px; font-size: 17px; }
   .auth-panel { min-height: calc(100vh - 178px); padding: 44px 22px 52px; place-items: start center; }
   .auth-panel h1 { font-size: 38px; line-height: 1.02; }
+  .auth-page[data-auth-mode="register"] .auth-panel h1 { font-size: 38px; }
   .auth-intro { margin-bottom: 28px; }
   .mfa-qr-frame { width: 164px; height: 164px; }
 }
@@ -9689,19 +9711,20 @@ button.upload-studio-card-main:focus-visible {
 }
 
 .admin-review-queue > header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 18px;
-  min-height: 62px;
-  padding: 20px 18px 15px;
+  display: grid;
+  align-items: stretch;
+  gap: 12px;
+  min-height: 104px;
+  padding: 18px;
   border-bottom: 1px solid #e2e2dc;
 }
 
-.admin-review-queue > header > div:first-child {
+.admin-review-queue-heading {
   display: flex;
   align-items: baseline;
+  justify-content: space-between;
   gap: 9px;
+  min-width: 0;
 }
 
 .admin-review-queue h2 {
@@ -9710,18 +9733,21 @@ button.upload-studio-card-main:focus-visible {
   font: 600 14px/1.2 Inter, "Helvetica Neue", Arial, sans-serif;
 }
 
-.admin-review-queue > header > span,
-.admin-review-queue > header > div:first-child > span {
+.admin-review-queue-heading > span {
   color: #74736c;
   font-size: 10px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .admin-review-bulk-tools {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
+  gap: 12px;
+  min-width: 0;
+  padding-top: 11px;
+  border-top: 1px solid #e2e2dc;
 }
 
 .admin-review-bulk-tools label {
@@ -9732,6 +9758,7 @@ button.upload-studio-card-main:focus-visible {
   cursor: pointer;
   font-size: 9px;
   font-weight: 700;
+  line-height: 1.35;
 }
 
 .admin-review-bulk-tools input,
@@ -9744,12 +9771,14 @@ button.upload-studio-card-main:focus-visible {
 
 .admin-review-bulk-tools button {
   min-height: 32px;
+  min-width: 130px;
   padding: 0 9px;
   border: 1px solid #315c51;
   background: #315c51;
   color: #fff;
   cursor: pointer;
   font: 750 9px/1 Inter, "Helvetica Neue", Arial, sans-serif;
+  white-space: nowrap;
 }
 
 .admin-review-bulk-tools button:disabled { cursor: not-allowed; opacity: 0.46; }
@@ -12239,6 +12268,39 @@ button.upload-studio-card-main:focus-visible {
   font: 750 10px/1 Inter, "Helvetica Neue", Arial, sans-serif;
 }
 
+.dashboard-cover-source {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 15px 28px;
+  border-bottom: 1px solid #d7ded8;
+  background: #fff;
+}
+
+.dashboard-cover-source > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.dashboard-cover-source strong { color: #25322e; font-size: 11px; line-height: 1.35; }
+.dashboard-cover-source span { color: #68736e; font-size: 10px; line-height: 1.45; }
+
+.dashboard-cover-upload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  flex: 0 0 auto;
+  gap: 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.dashboard-cover-upload .ui-icon { width: 17px; height: 17px; }
+.dashboard-cover-upload:disabled { cursor: wait; opacity: 0.55; }
+
 .dashboard-cover-empty {
   display: grid;
   flex: 1 1 auto;
@@ -12408,6 +12470,7 @@ button.upload-studio-card-main:focus-visible {
   .dashboard-cover-dialog h2 { font-size: 25px; }
   .dashboard-cover-dialog header p:last-child { max-width: 260px; }
   .dashboard-cover-dialog-state { padding-right: 18px; padding-left: 18px; }
+  .dashboard-cover-source { padding-right: 18px; padding-left: 18px; }
   .dashboard-cover-empty { padding: 34px 18px; }
   .dashboard-cover-candidates { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 14px 14px 18px; }
   .dashboard-cover-candidate { grid-template-rows: 96px auto; }
@@ -12423,6 +12486,8 @@ button.upload-studio-card-main:focus-visible {
   .dashboard-page .dashboard-header .site-nav a:first-child { display: inline; }
   .dashboard-page .dashboard-commands { grid-template-columns: minmax(0, 1fr); }
   .dashboard-page .dashboard-commands .button { min-height: 46px; }
+  .dashboard-cover-source { align-items: stretch; flex-direction: column; gap: 12px; }
+  .dashboard-cover-upload { width: 100%; }
   .dashboard-profile-facts { grid-template-columns: minmax(0, 1fr); }
   .dashboard-profile-facts > div { min-height: 112px; border-top: 1px solid rgba(22, 34, 30, 0.14); border-left: 0; }
   .dashboard-profile-facts > div:first-child { border-top: 0; }
@@ -21411,9 +21476,12 @@ button.upload-studio-card-main:focus-visible {
   .upload-studio-batch-bar button { width: 100%; min-height: 44px; }
   .upload-studio-quick-fields { grid-template-columns: minmax(0, 1fr); }
   .upload-studio-quick-dialog { width: calc(100% - 20px); }
-  .admin-review-queue > header { align-items: stretch; flex-direction: column; gap: 10px; }
-  .admin-review-bulk-tools { justify-content: space-between; }
   .admin-review-bulk-tools button { min-height: 36px; }
   .admin-review-bulk-policy ul { grid-template-columns: minmax(0, 1fr); }
   .admin-review-check-all { min-height: 40px; }
+}
+
+@media (max-width: 480px) {
+  .admin-review-bulk-tools { grid-template-columns: minmax(0, 1fr); }
+  .admin-review-bulk-tools button { width: 100%; min-width: 0; min-height: 40px; }
 }

@@ -180,7 +180,7 @@ Creator Profile：
 - Public Footer 用于 Home、Works、About、Contact 与 Lightbox。背景固定为中性炭黑，普通公开页依次呈现克制的 inquiry band、品牌/Explore/Practice/Account 导航和版权栏；Contact 页面省略重复的 inquiry band。
 - Workspace Footer 用于 Dashboard、Upload Studio、Account Settings 与 Review Queue。它保持在正常文档流中，仅显示版权、Public Works 和 Contact；短页面由页面 flex 布局自然推到视口底部，不使用会遮挡内容的 fixed 定位。
 - Public Footer 的 Account 组默认只显示 Sign In，并复用 `account-menu.js` 发出的 `mt:account-loaded` 状态事件；只有明确为 active 的账户才显示 Dashboard、Upload、Account Settings，且仅具备权限的 active 账户显示 Review。非 active 或缺失状态一律 fail closed，不生成受保护死入口；`site-footer.js` 不发起第二次 `/api/me` 请求。
-- Practice 只进入真实存在的 Contact inquiry 类型；Privacy 链接进入真实 `/privacy.html`。项目没有 Terms/Cookie 独立页面或可靠的站点级创作者社交资料源，因此不渲染其占位链接。
+- Practice 只进入真实存在的 Contact inquiry 类型；Privacy 与 Terms 分别进入真实 `/privacy.html`、`/terms.html`。Cookie 与站点级创作者社交资料仍没有可靠目标，因此不渲染其占位链接。
 - 桌面使用品牌宽列加三组必要链接；`<=1100px` 变为两列且品牌占满首行，`<=760px` 变为单列并保证链接至少 44px 触控高度。工作台 Upload/Review 桌面端对齐 78px 内部 rail，移动端回到完整视口宽度。
 - 所有链接提供高对比 `focus-visible`，hover 只改变颜色或下划线，动效为 180ms，并在 `prefers-reduced-motion` 下关闭。Footer 与 Work Viewer 保持独立层级，Viewer 打开时 Footer 留在遮罩之后。
 
@@ -245,7 +245,7 @@ Creator Profile：
 - Dashboard 是已登录摄影作者的受保护个人资料，不是营销 Hero、通用统计卡片墙或 public creator portfolio。页面复用统一全宽顶部导航且不显示左侧 rail；第一视口用真实摄影 cover、重叠 avatar/initials、名称/headline/location/availability/bio/links/account context 和 Edit profile、Upload work 两个明确动作建立身份。
 - Overview 依次呈现服务端聚合 Status、Changes Requested 优先的 Needs Attention、Recent Images、Review Activity 与 Storage；My works 只列最近可编辑 Draft。身份事实和资料完整度必须使用白底、留白与 1px 中性分隔线，深森林绿只用于动作/active/focus，danger 色只用于真实异常；不得使用不同底色的 dashboard blocks 或卡片套卡片，重复 Draft 可使用不超过 8px 的细边框卡片。
 - Status 数字来自单一 aggregate DTO；loading、空账号、provider error、permission denied 和 retry 都保留稳定尺寸。未实现的 storage quota 用明确 unavailable 文案；public portfolio 只在服务端返回 published works 后显示真实入口，不显示虚假进度或链接。
-- Dashboard cover chooser 只显示当前 owner 的 non-deleted、ready image，并按 image 去重、优先 current-policy scanner-clean display、缺失时回退 clean thumbnail。候选和当前 cover 只加载服务端短期 signed URL，不能读取 original、Storage key 或跨 owner asset；无候选时使用稳定摄影 fallback。Dialog 支持 loading/empty/error/success、Remove current cover、Escape/Cancel 和 trigger focus restoration。
+- Dashboard cover chooser 同时提供 “Your images” 和 “Upload from device”。现有候选只显示当前 owner 的 non-deleted、ready image，并按 image 去重、优先 current-policy scanner-clean display、缺失时回退 clean thumbnail；本地 JPEG/PNG/WebP 必须先走私有 Workspace derivative、signed upload、Draft 与扫描流程，clean 后才自动设为封面。候选和当前 cover 只加载服务端短期 signed URL，不能读取 original、Storage key 或跨 owner asset；无候选时使用稳定摄影 fallback。Dialog 支持 loading/empty/error/success、Remove current cover、Escape/Cancel 和 trigger focus restoration。
 - Dashboard 提供 Overview/My works tablist，ArrowLeft/ArrowRight/Home/End 可切换并同步 `aria-selected`、`tabindex` 与 panel visibility；移动端把统计改为两列、内容改为单列，不允许横向溢出。
 - Account Settings 是紧凑的填写型设置界面：全局顶栏之后使用短标题栏、桌面 sticky 本地导航和一块连续白色内容面板。Profile 的 Identity、Work、Location、About、Links 五组只用留白与 1px 中性分隔线组织，不使用彩色底或独立卡片；十个字段在桌面稳定两列、窄屏单列，输入框统一为中性细边框。Identity 顶部可展示 initials 头像摘要，但在没有后端上传能力时不得提供虚假上传操作。
 - Home 与其他公开页及内部 Dashboard、Upload、Review、Account 顶栏共用 initials profile avatar；点击头像直接进入 `/dashboard` personal profile，再由 Edit profile 进入 `/settings/account#profile`。顶栏在头像旁提供独立账户菜单按钮，菜单只显示当前身份、Dashboard、Workspace、Account Settings 和 Sign out；权限允许的 Review 位于顶部主导航。ArrowUp/ArrowDown/Home/End 导航，Escape 关闭并恢复菜单按钮焦点，点击外部或焦点离开时关闭。
