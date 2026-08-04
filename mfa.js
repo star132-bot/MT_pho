@@ -10,8 +10,9 @@ const signOut = document.querySelector("[data-mfa-sign-out]");
 
 let factorId = "";
 let csrfTokenPromise = null;
+const DEFAULT_AUTH_DESTINATION = "/works.html";
 
-function safeInternalPath(value, fallback = "/workspace/images") {
+function safeInternalPath(value, fallback = DEFAULT_AUTH_DESTINATION) {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return fallback;
   try {
     const url = new URL(value, window.location.origin);

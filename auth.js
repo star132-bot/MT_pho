@@ -124,9 +124,10 @@ const BLOCKED_NEXT_PATHS = new Set([
   "/auth/verify-email",
   "/auth/mfa",
 ]);
+const DEFAULT_AUTH_DESTINATION = "/works.html";
 let csrfTokenPromise = null;
 
-function safeInternalPath(value, fallback = "/workspace/images") {
+function safeInternalPath(value, fallback = DEFAULT_AUTH_DESTINATION) {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return fallback;
   try {
     const url = new URL(value, window.location.origin);
@@ -351,7 +352,7 @@ async function prepareCallbackMode() {
 
     loading.hidden = true;
     if (mode === "verifyEmail") {
-      showCompletion("Email verified. Your secure Workspace is ready.", "Enter your workspace", "/workspace/images");
+      showCompletion("Email verified. Your account is ready.", "View Works", DEFAULT_AUTH_DESTINATION);
       return;
     }
     form.hidden = false;
@@ -425,7 +426,7 @@ form.addEventListener("submit", async (event) => {
         return;
       }
       form.reset();
-      showCompletion(`Email verified for ${payload.email}. You are now signed in.`, "Enter your workspace", "/workspace/images");
+      showCompletion(`Email verified for ${payload.email}. You are now signed in.`, "View Works", DEFAULT_AUTH_DESTINATION);
       return;
     }
     if (mode === "forgotPassword") {

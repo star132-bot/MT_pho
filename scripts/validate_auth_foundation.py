@@ -49,6 +49,7 @@ def main() -> None:
         'session_has_auth_method(session, "recovery")', 'request_id',
         'session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery")',
         'parsed.path == "/upload-studio.html"', '"/workspace/images"',
+        'self.send_header("Location", "/auth/sign-in?next=/works.html")',
         'legacy_upload_asset_access', 'is_public_derivative', 'canonical_path == "/assets/uploads"',
         'canonical_path.startswith("/assets/uploads/")',
         '"/settings/account"', '"/api/me/profile"', '"/api/me/sessions"',
@@ -68,7 +69,7 @@ def main() -> None:
     }, "auth page")
     require(auth_js, {
         'credentials: "same-origin"', 'form.reportValidity()',
-        'aria-invalid', '/api/auth/', '/workspace/images', 'result.next_action === "mfa"',
+        'aria-invalid', '/api/auth/', 'DEFAULT_AUTH_DESTINATION = "/works.html"', 'result.next_action === "mfa"',
         'authRequest("/api/me")', 'cache: "no-store"', 'Open sign-in in a full browser',
         'safeInternalPath', 'sessionCheck.response.status === 401',
         'forgotPassword', 'resetPassword', 'verifyEmail', 'callbackParameters',
@@ -97,7 +98,7 @@ def main() -> None:
         '/api/auth/mfa/verify', '/api/admin/access-check', 'credentials: "same-origin"',
         'form.reportValidity()', 'safeInternalPath', 'Resetting the incomplete authenticator setup',
         'decodeURIComponent(payload)', 'source.startsWith("<?xml")',
-        '/api/auth/csrf', 'X-CSRF-Token',
+        '/api/auth/csrf', 'X-CSRF-Token', 'DEFAULT_AUTH_DESTINATION = "/works.html"',
     }, "MFA client")
     require(account_html, {
         'data-profile-form', 'data-preferences-form', 'data-session-list',

@@ -10990,7 +10990,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                     self.send_current_user_error(status, user)
                     return
                 self.send_response(HTTPStatus.SEE_OTHER)
-                self.send_header("Location", "/auth/sign-in?next=/workspace/images")
+                self.send_header("Location", "/auth/sign-in?next=/works.html")
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
                 return
