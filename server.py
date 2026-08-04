@@ -109,6 +109,7 @@ RECOVERY_GRANTS: dict[str, tuple[str, float]] = {}
 RECOVERY_GRANTS_LOCK = threading.Lock()
 AUTH_PASSWORD_MIN_LENGTH = 12
 AUTH_PASSWORD_MAX_LENGTH = 128
+AUTH_EMAIL_OTP_PATTERN = re.compile(r"^[0-9]{6}$")
 TERMS_POLICY_VERSION = "2026-08-03"
 PROFILE_FIELDS = (
     "display_name",
@@ -550,6 +551,12 @@ AUTH_EMAIL_RATE_MAX_BUCKETS = 4096
 AUTH_EMAIL_RATE_SECRET = secrets.token_bytes(32)
 AUTH_EMAIL_RATE_BUCKETS: dict[str, list[float]] = {}
 AUTH_EMAIL_RATE_LOCK = threading.Lock()
+AUTH_OTP_RATE_WINDOW_SECONDS = 10 * 60
+AUTH_OTP_RATE_LIMITS = {"ip": 30, "email": 10}
+AUTH_OTP_RATE_MAX_BUCKETS = 4096
+AUTH_OTP_RATE_SECRET = secrets.token_bytes(32)
+AUTH_OTP_RATE_BUCKETS: dict[str, list[float]] = {}
+AUTH_OTP_RATE_LOCK = threading.Lock()
 
 PUBLIC_ROOT_STATIC_FILES = {
     "index.html", "works.html", "work.html", "about.html", "contact.html", "lightbox.html", "privacy.html", "terms.html",
@@ -970,6 +977,34 @@ def consume_auth_email_rate_limit(client_ip: str, email: str) -> bool:
             return False
         for key in keys.values():
             AUTH_EMAIL_RATE_BUCKETS.setdefault(key, []).append(now)
+    return True
+
+
+def consume_auth_otp_rate_limit(client_ip: str, email: str) -> bool:
+    """Limit verification guesses without retaining plaintext identifiers."""
+    now = time.monotonic()
+    cutoff = now - AUTH_OTP_RATE_WINDOW_SECONDS
+    keys = {
+        scope: hmac.new(AUTH_OTP_RATE_SECRET, f"{scope}:{value}".encode("utf-8"), hashlib.sha256).hexdigest()
+        for scope, value in (("ip", client_ip), ("email", email))
+    }
+    with AUTH_OTP_RATE_LOCK:
+        for key in list(AUTH_OTP_RATE_BUCKETS):
+            recent = [stamp for stamp in AUTH_OTP_RATE_BUCKETS[key] if stamp > cutoff]
+            if recent:
+                AUTH_OTP_RATE_BUCKETS[key] = recent
+            else:
+                AUTH_OTP_RATE_BUCKETS.pop(key, None)
+        missing_bucket_count = sum(key not in AUTH_OTP_RATE_BUCKETS for key in keys.values())
+        excess_bucket_count = max(0, len(AUTH_OTP_RATE_BUCKETS) + missing_bucket_count - AUTH_OTP_RATE_MAX_BUCKETS)
+        if excess_bucket_count:
+            oldest = sorted(AUTH_OTP_RATE_BUCKETS, key=lambda key: AUTH_OTP_RATE_BUCKETS[key][-1])
+            for key in oldest[:excess_bucket_count]:
+                AUTH_OTP_RATE_BUCKETS.pop(key, None)
+        if any(len(AUTH_OTP_RATE_BUCKETS.get(keys[scope], [])) >= limit for scope, limit in AUTH_OTP_RATE_LIMITS.items()):
+            return False
+        for key in keys.values():
+            AUTH_OTP_RATE_BUCKETS.setdefault(key, []).append(now)
     return True
 
 
@@ -5989,7 +6024,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if result.get("access_token") and (user.get("email_confirmed_at") or user.get("confirmed_at")):
             self.send_json(HTTPStatus.CREATED, {"status": "account_ready", "message": "Account created. Sign in to continue."})
             return
-        self.send_json(HTTPStatus.CREATED, {"status": "verification_required", "message": "Check your email to verify your account."})
+        self.send_json(HTTPStatus.CREATED, {"status": "verification_required", "message": "Enter the 6-digit code sent to your email."})
 
     def handle_auth_resend_verification(self) -> None:
         body = self.read_json_body()
@@ -6035,9 +6070,59 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             HTTPStatus.ACCEPTED,
             {
                 "status": "verification_email_requested",
-                "message": "If this address has an unverified account, a verification email has been sent.",
+                "message": "If this address has an unverified account, a new verification code has been sent.",
             },
         )
+
+    def handle_auth_verify_email_code(self) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        email = normalize_auth_email(body.get("email"))
+        verification_code = clean_text(body.get("verification_code"), 16)
+        field_errors = {}
+        if not email:
+            field_errors["email"] = "Enter a valid email address."
+        if not AUTH_EMAIL_OTP_PATTERN.fullmatch(verification_code):
+            field_errors["verification_code"] = "Enter the 6-digit code from your email."
+        if field_errors:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("AUTH_VALIDATION_FAILED", "Check the highlighted fields.", field_errors),
+            )
+            return
+        if not consume_auth_otp_rate_limit(self.request_rate_limit_ip(), email):
+            self.send_json(
+                HTTPStatus.TOO_MANY_REQUESTS,
+                auth_error("VERIFICATION_RATE_LIMITED", "Too many verification attempts. Wait before trying again."),
+            )
+            return
+
+        status, session = supabase_auth_request(
+            "verify",
+            {"type": "email", "email": email, "token": verification_code},
+        )
+        if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+            self.send_json(status, session)
+            return
+        user = session.get("user") or {}
+        if (
+            status != HTTPStatus.OK
+            or not session.get("access_token")
+            or not session.get("refresh_token")
+            or not user.get("id")
+            or not (user.get("email_confirmed_at") or user.get("confirmed_at"))
+        ):
+            self.send_json(
+                HTTPStatus.BAD_REQUEST,
+                auth_error("EMAIL_CODE_INVALID", "The verification code is invalid or has expired."),
+            )
+            return
+
+        cookies = self.session_cookie_headers(session)
+        consume_recovery_grant(self.cookie_value(RECOVERY_COOKIE))
+        cookies.append(self.clear_recovery_cookie_header())
+        self.send_auth_json(HTTPStatus.OK, {"verified": True, "type": "email"}, cookies)
 
     def handle_auth_forgot_password(self) -> None:
         body = self.read_json_body()
@@ -11315,6 +11400,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/auth/verify-email":
             self.handle_auth_callback_session("signup")
+            return
+        if parsed.path == "/api/auth/verify-email-code":
+            self.handle_auth_verify_email_code()
             return
         if parsed.path == "/api/auth/reset-password":
             self.handle_auth_reset_password()

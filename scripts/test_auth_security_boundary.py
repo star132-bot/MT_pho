@@ -211,6 +211,21 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/auth/v1/verify":
             body = self.body()
+            if body == {"type": "email", "email": "new.artist@example.test", "token": "482731"}:
+                self.send_json(
+                    HTTPStatus.OK,
+                    {
+                        "access_token": SIGNUP_ACCESS_TOKEN,
+                        "refresh_token": "refresh-signup",
+                        "expires_in": 3600,
+                        "user": {
+                            "id": SIGNUP_USER_ID,
+                            "email": "new.artist@example.test",
+                            "email_confirmed_at": "2026-08-04T00:00:00Z",
+                        },
+                    },
+                )
+                return
             if body == {"type": "signup", "token_hash": "valid-signup-token-hash"}:
                 self.send_json(
                     HTTPStatus.OK,
@@ -454,6 +469,28 @@ def main() -> None:
             raise RuntimeError("Verification resend revealed provider identity state")
         if FakeSupabaseHandler.verification_resends[-1] != {"type": "signup", "email": "unregistered@example.test"}:
             raise RuntimeError("Verification resend sent an unexpected provider payload")
+
+        status, result, _ = request(
+            registration_opener,
+            base_url,
+            "/api/auth/verify-email-code",
+            payload={"email": "new.artist@example.test", "verification_code": "12A456"},
+            origin=base_url,
+        )
+        if status != HTTPStatus.UNPROCESSABLE_ENTITY or "verification_code" not in result.get("error", {}).get("field_errors", {}):
+            raise RuntimeError("Email verification accepted a malformed code")
+
+        status, result, _ = request(
+            registration_opener,
+            base_url,
+            "/api/auth/verify-email-code",
+            payload={"email": "new.artist@example.test", "verification_code": "482731"},
+            origin=base_url,
+        )
+        if status != HTTPStatus.OK or result.get("verified") is not True or result.get("type") != "email":
+            raise RuntimeError("Email verification code did not establish a session")
+        if not registration_opener.cookie_value("mt_access_token") or not registration_opener.cookie_value("mt_refresh_token"):
+            raise RuntimeError("Email verification code did not issue application cookies")
 
         status, result, _ = request(
             registration_opener,

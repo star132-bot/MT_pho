@@ -59,10 +59,10 @@ const MODES = {
     documentTitle: "Resend Verification",
     eyebrow: "Email Verification",
     title: "Resend verification",
-    intro: "Enter the email used to create your account. We’ll send a new verification link if the account is still waiting for confirmation.",
+    intro: "Enter the email used to create your account. We’ll send a new 6-digit code if the account is still waiting for confirmation.",
     fields: ["email"],
     endpoint: "/api/auth/resend-verification",
-    submit: "Send verification email",
+    submit: "Send verification code",
     pending: "Requesting verification…",
     switchCopy: "Already verified?",
     switchLabel: "Return to sign in",
@@ -100,8 +100,11 @@ const MODES = {
     documentTitle: "Verify Email",
     eyebrow: "Email Verification",
     title: "Verify your email",
-    intro: "We’re confirming your secure email link.",
-    fields: [],
+    intro: "Enter the 6-digit verification code sent to your email.",
+    fields: ["email", "verification_code"],
+    endpoint: "/api/auth/verify-email-code",
+    submit: "Verify email",
+    pending: "Verifying code…",
     switchCopy: "Already verified?",
     switchLabel: "Return to sign in",
     switchHref: "/auth/sign-in",
@@ -172,7 +175,7 @@ function configureMode() {
     passwordConfirmationLabel.textContent = mode === "resetPassword" ? "Confirm new password" : "Confirm password";
   }
 
-  if (config.callbackType) {
+  if (config.callbackType && mode !== "verifyEmail") {
     form.hidden = true;
     loading.hidden = false;
     loadingCopy.textContent = config.callbackType === "recovery"
@@ -269,6 +272,7 @@ function callbackParameters() {
     type: String(params.get("type") || "").toLowerCase(),
     token_hash: String(params.get("token_hash") || ""),
     refresh_token: String(params.get("refresh_token") || ""),
+    pending_email: String(hash.get("pending_email") || ""),
     hasError: Boolean(params.get("error") || params.get("error_code")),
   };
   if (window.location.hash || query.has("token_hash") || query.has("refresh_token") || query.has("code")) {
@@ -306,7 +310,21 @@ async function prepareCallbackMode() {
   }
 
   try {
-    if (callback.type || callback.token_hash || callback.refresh_token) {
+    const hasCallback = Boolean(callback.type || callback.token_hash || callback.refresh_token);
+    if (mode === "verifyEmail" && !hasCallback) {
+      const { response, result } = await authRequest("/api/auth/verification-status");
+      if (response.ok && result.email_verified === true) {
+        showCompletion("Email verified. Your secure Workspace is ready.", "Enter your workspace", "/workspace/images");
+        return;
+      }
+      loading.hidden = true;
+      form.hidden = false;
+      const pendingEmail = callback.pending_email;
+      if (pendingEmail && form.elements.email) form.elements.email.value = pendingEmail;
+      window.setTimeout(() => (form.elements.verification_code || form.elements.email)?.focus(), 0);
+      return;
+    }
+    if (hasCallback) {
       if (callback.type !== config.callbackType || (!callback.token_hash && !callback.refresh_token)) {
         showInvalidCallback("This secure link is invalid or has expired.");
         return;
@@ -380,19 +398,31 @@ form.addEventListener("submit", async (event) => {
     if (!response.ok) {
       showNotice(result.error?.message || "Unable to continue. Try again.");
       applyFieldErrors(result.error?.field_errors);
-      resendLink.hidden = result.error?.code !== "EMAIL_NOT_VERIFIED";
+      resendLink.hidden = !["EMAIL_NOT_VERIFIED", "EMAIL_CODE_INVALID"].includes(result.error?.code);
       return;
     }
 
     if (mode === "register") {
+      if (result.status === "verification_required") {
+        window.location.assign(`/auth/verify-email#pending_email=${encodeURIComponent(payload.email)}`);
+        return;
+      }
       form.reset();
-      showCompletion(result.message || "Check your email to verify your account.");
-      resendLink.hidden = false;
+      showCompletion(result.message || "Account created. Sign in to continue.");
       return;
     }
     if (mode === "resendVerification") {
       form.reset();
-      showCompletion(result.message || "If this address has an unverified account, a verification email has been sent.");
+      showCompletion(
+        result.message || "If this address has an unverified account, a new verification code has been sent.",
+        "Enter verification code",
+        `/auth/verify-email#pending_email=${encodeURIComponent(payload.email)}`,
+      );
+      return;
+    }
+    if (mode === "verifyEmail") {
+      form.reset();
+      showCompletion("Email verified. Your secure Workspace is ready.", "Enter your workspace", "/workspace/images");
       return;
     }
     if (mode === "forgotPassword") {

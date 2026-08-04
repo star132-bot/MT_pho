@@ -39,12 +39,13 @@ def main() -> None:
         'if cookies is not None:', 'send_current_user_error',
         'method="DELETE"', 'MFA_RESET_FAILED', 'MFA_ALREADY_ENROLLED',
         '/api/auth/forgot-password', '/api/auth/recovery-session', '/api/auth/reset-password',
-        '/api/auth/verify-email', '/api/auth/resend-verification', '/api/auth/recovery-status', '/api/auth/csrf',
+        '/api/auth/verify-email', '/api/auth/verify-email-code', '/api/auth/resend-verification', '/api/auth/recovery-status', '/api/auth/csrf',
         '/api/auth/verification-status',
         'recover?', 'token_hash', 'method="PUT"', 'logout?scope=global',
         'CSRF_REJECTED', 'X-CSRF-Token', 'RECOVERY_GRANTS', 'MT_PUBLIC_BASE_URL',
         'normalize_auth_email', 'AUTH_PASSWORD_MIN_LENGTH', 'TERMS_POLICY_VERSION',
-        'consume_auth_email_rate_limit', 'VERIFICATION_RATE_LIMITED',
+        'consume_auth_email_rate_limit', 'consume_auth_otp_rate_limit', 'AUTH_EMAIL_OTP_PATTERN',
+        'EMAIL_CODE_INVALID', 'VERIFICATION_RATE_LIMITED',
         'session_has_auth_method(session, "recovery")', 'request_id',
         'session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery")',
         'parsed.path == "/upload-studio.html"', '"/workspace/images"',
@@ -62,6 +63,8 @@ def main() -> None:
         'data-auth-field="password_confirmation"', 'data-auth-forgot-link',
         'data-auth-resend-link', 'href="/terms.html"', 'href="/privacy.html"',
         'data-auth-loading', 'data-auth-next-link', 'tabindex="-1"',
+        'data-auth-field="verification_code"', 'autocomplete="one-time-code"',
+        'inputmode="numeric"', 'pattern="[0-9]{6}"',
     }, "auth page")
     require(auth_js, {
         'credentials: "same-origin"', 'form.reportValidity()',
@@ -73,6 +76,7 @@ def main() -> None:
         'history.replaceState', 'token_hash', 'refresh_token', 'X-CSRF-Token',
         'If an account exists for this email', 'password_confirmation',
         'resendVerification', '/api/auth/resend-verification',
+        '/api/auth/verify-email-code', 'pending_email',
     }, "auth client")
     require(terms_html, {
         'Terms of Use', 'id="account"', 'id="content"', 'id="conduct"',
@@ -81,6 +85,7 @@ def main() -> None:
     require(nginx, {
         'zone=mt_auth_email', 'zone=mt_auth_login',
         'register|resend-verification|forgot-password', 'location = /api/auth/sign-in',
+        'location = /api/auth/verify-email-code',
     }, "auth nginx rate limits")
     require(mfa_html, {
         'autocomplete="one-time-code"', 'inputmode="numeric"', 'pattern="[0-9]{6}"',

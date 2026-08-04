@@ -6,7 +6,7 @@
     <title>Sign In | MT Presence</title>
     <meta name="description" content="Sign in to the private MT Presence image workspace." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260803-email-registration" />
+    <link rel="stylesheet" href="/styles.css?v=20260804-email-otp" />
   </head>
   <body class="auth-page">
     <a class="auth-skip" href="#auth-form">Skip to form</a>
@@ -46,6 +46,13 @@
               <small id="auth-email-error" data-field-error="email"></small>
             </label>
 
+            <label class="auth-field" data-auth-field="verification_code" hidden>
+              <span>Verification code</span>
+              <input id="auth-verification-code" name="verification_code" type="text" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" aria-describedby="auth-verification-code-hint auth-verification-code-error" />
+              <p id="auth-verification-code-hint" class="auth-field-hint">Enter the 6-digit code from your email.</p>
+              <small id="auth-verification-code-error" data-field-error="verification_code"></small>
+            </label>
+
             <label class="auth-field" data-auth-field="password">
               <span data-password-label>Password</span>
               <input id="auth-password" name="password" type="password" autocomplete="current-password" required minlength="12" maxlength="256" aria-describedby="auth-password-hint auth-password-error" />
@@ -69,7 +76,7 @@
           </form>
 
           <a class="auth-secondary-link" href="/auth/forgot-password" data-auth-forgot-link>Forgot password?</a>
-          <a class="auth-secondary-link" href="/auth/resend-verification" data-auth-resend-link hidden>Resend verification email</a>
+          <a class="auth-secondary-link" href="/auth/resend-verification" data-auth-resend-link hidden>Send a new verification code</a>
 
           <p class="auth-switch">
             <span data-auth-switch-copy>New to MT Presence?</span>
@@ -80,6 +87,6 @@
         </div>
       </section>
     </main>
-    <script src="/auth.js?v=20260803-email-registration"></script>
+    <script src="/auth.js?v=20260804-email-otp"></script>
   </body>
 </html>
