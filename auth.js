@@ -72,11 +72,11 @@ const MODES = {
     documentTitle: "Reset Password",
     eyebrow: "Account Recovery",
     title: "Reset your password",
-    intro: "Enter your email and we’ll send a secure, time-limited reset link.",
-    fields: ["email"],
+    intro: "Enter your email and we’ll send a secure, time-limited recovery code.",
+    fields: ["email", "recovery_code"],
     endpoint: "/api/auth/forgot-password",
-    submit: "Send reset link",
-    pending: "Sending secure link…",
+    submit: "Send recovery code",
+    pending: "Sending recovery code…",
     switchCopy: "Remembered your password?",
     switchLabel: "Return to sign in",
     switchHref: "/auth/sign-in",
@@ -126,6 +126,8 @@ const BLOCKED_NEXT_PATHS = new Set([
 ]);
 const DEFAULT_AUTH_DESTINATION = "/works.html";
 let csrfTokenPromise = null;
+let recoveryCodeStep = false;
+let recoveryEmail = "";
 
 function safeInternalPath(value, fallback = DEFAULT_AUTH_DESTINATION) {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return fallback;
@@ -164,6 +166,7 @@ function configureMode() {
   nextLink.hidden = true;
 
   fieldGroups.forEach((_, name) => setFieldVisibility(name, config.fields.includes(name)));
+  if (mode === "forgotPassword") setFieldVisibility("recovery_code", false);
   const password = form.elements.password;
   if (password) {
     password.autocomplete = mode === "signIn" ? "current-password" : "new-password";
@@ -223,7 +226,9 @@ function applyFieldErrors(errors = {}) {
 function setBusy(busy) {
   form.setAttribute("aria-busy", String(busy));
   submitButton.disabled = busy;
-  submitButton.textContent = busy ? config.pending : config.submit;
+  submitButton.textContent = busy
+    ? (recoveryCodeStep ? "Verifying recovery code…" : config.pending)
+    : (recoveryCodeStep ? "Verify recovery code" : config.submit);
 }
 
 async function csrfToken(force = false) {
@@ -390,14 +395,28 @@ form.addEventListener("submit", async (event) => {
   });
 
   try {
-    const { response, result } = await authRequest(config.endpoint, {
+    const requestPath = mode === "forgotPassword" && recoveryCodeStep
+      ? "/api/auth/verify-recovery-code"
+      : config.endpoint;
+    const requestPayload = mode === "forgotPassword" && recoveryCodeStep
+      ? { email: recoveryEmail, recovery_code: payload.recovery_code }
+      : mode === "forgotPassword"
+        ? { email: payload.email }
+        : payload;
+    const { response, result } = await authRequest(requestPath, {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify(requestPayload),
     });
     if (!response.ok) {
       showNotice(result.error?.message || "Unable to continue. Try again.");
       applyFieldErrors(result.error?.field_errors);
-      resendLink.hidden = !["EMAIL_NOT_VERIFIED", "EMAIL_CODE_INVALID"].includes(result.error?.code);
+      if (mode === "forgotPassword" && recoveryCodeStep) {
+        resendLink.textContent = "Request a new recovery code";
+        resendLink.href = "/auth/forgot-password";
+        resendLink.hidden = false;
+      } else {
+        resendLink.hidden = !["EMAIL_NOT_VERIFIED", "EMAIL_CODE_INVALID"].includes(result.error?.code);
+      }
       return;
     }
 
@@ -430,8 +449,20 @@ form.addEventListener("submit", async (event) => {
       return;
     }
     if (mode === "forgotPassword") {
+      if (!recoveryCodeStep) {
+        recoveryEmail = payload.email;
+        recoveryCodeStep = true;
+        setFieldVisibility("email", false);
+        setFieldVisibility("recovery_code", true);
+        resendLink.textContent = "Request a new recovery code";
+        resendLink.href = "/auth/forgot-password";
+        resendLink.hidden = false;
+        showNotice(result.message || "If an account exists for this email, a recovery code has been sent. Enter it below.", "success");
+        window.setTimeout(() => form.elements.recovery_code?.focus(), 0);
+        return;
+      }
       form.reset();
-      showCompletion(result.message || "If an account exists for this email, a reset link has been sent.");
+      window.location.assign("/auth/reset-password");
       return;
     }
     if (mode === "resetPassword") {

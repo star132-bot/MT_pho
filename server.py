@@ -6179,9 +6179,65 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         self.send_json(
             HTTPStatus.ACCEPTED,
             {
-                "status": "recovery_email_sent",
-                "message": "If an account exists for this email, a reset link has been sent.",
+                "status": "recovery_code_sent",
+                "message": "If an account exists for this email, a recovery code has been sent.",
             },
+        )
+
+    def handle_auth_verify_recovery_code(self) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        email = normalize_auth_email(body.get("email"))
+        recovery_code = clean_text(body.get("recovery_code"), 16)
+        field_errors = {}
+        if not email:
+            field_errors["email"] = "Enter a valid email address."
+        if not AUTH_EMAIL_OTP_PATTERN.fullmatch(recovery_code):
+            field_errors["recovery_code"] = "Enter the 8-digit code from your password recovery email."
+        if field_errors:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("AUTH_VALIDATION_FAILED", "Check the highlighted fields.", field_errors),
+            )
+            return
+        if not consume_auth_otp_rate_limit(self.request_rate_limit_ip(), email):
+            self.send_json(
+                HTTPStatus.TOO_MANY_REQUESTS,
+                auth_error("RECOVERY_RATE_LIMITED", "Too many recovery attempts. Wait before trying again."),
+            )
+            return
+
+        status, session = supabase_auth_request(
+            "verify",
+            {"type": "recovery", "email": email, "token": recovery_code},
+        )
+        if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+            self.send_json(status, session)
+            return
+        user = session.get("user") or {}
+        if (
+            status != HTTPStatus.OK
+            or not session.get("access_token")
+            or not session.get("refresh_token")
+            or not user.get("id")
+            or not session_has_auth_method(session, "recovery")
+        ):
+            self.send_json(
+                HTTPStatus.BAD_REQUEST,
+                auth_error("RECOVERY_CODE_INVALID", "The recovery code is invalid or has expired."),
+            )
+            return
+
+        consume_recovery_grant(self.cookie_value(RECOVERY_COOKIE))
+        grant = create_recovery_grant(str(user.get("id")))
+        self.send_auth_json(
+            HTTPStatus.OK,
+            {
+                "recovery_ready": True,
+                "user": {"id": user.get("id"), "email": user.get("email")},
+            },
+            [*self.session_cookie_headers(session), self.recovery_cookie_header(grant)],
         )
 
     def handle_auth_callback_session(self, expected_type: str) -> None:
@@ -11402,6 +11458,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/auth/forgot-password":
             self.handle_auth_forgot_password()
+            return
+        if parsed.path == "/api/auth/verify-recovery-code":
+            self.handle_auth_verify_recovery_code()
             return
         if parsed.path == "/api/auth/recovery-session":
             self.handle_auth_callback_session("recovery")

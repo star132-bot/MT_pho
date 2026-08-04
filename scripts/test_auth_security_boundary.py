@@ -211,6 +211,21 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/auth/v1/verify":
             body = self.body()
+            if body == {"type": "recovery", "email": "recovery@example.test", "token": "48273106"}:
+                self.send_json(
+                    HTTPStatus.OK,
+                    {
+                        "access_token": RECOVERY_ACCESS_TOKEN,
+                        "refresh_token": "refresh-recovery-code",
+                        "expires_in": 3600,
+                        "user": {
+                            "id": RECOVERY_USER_ID,
+                            "email": "recovery@example.test",
+                            "email_confirmed_at": "2026-07-14T00:00:00Z",
+                        },
+                    },
+                )
+                return
             if body == {"type": "email", "email": "new.artist@example.test", "token": "48273106"}:
                 self.send_json(
                     HTTPStatus.OK,
@@ -543,8 +558,42 @@ def main() -> None:
             payload={"email": "unknown@example.test"},
             origin=base_url,
         )
-        if status != HTTPStatus.ACCEPTED or result.get("status") != "recovery_email_sent":
+        if status != HTTPStatus.ACCEPTED or result.get("status") != "recovery_code_sent":
             raise RuntimeError("Forgot Password did not return the enumeration-safe response")
+
+        recovery_code_opener = CookieOpener()
+        status, result, _ = request(recovery_code_opener, base_url, "/api/auth/csrf")
+        if status != HTTPStatus.OK or not result.get("csrf_token"):
+            raise RuntimeError("Recovery code flow could not establish CSRF protection")
+        status, result, _ = request(
+            recovery_code_opener,
+            base_url,
+            "/api/auth/forgot-password",
+            payload={"email": "recovery@example.test"},
+            origin=base_url,
+        )
+        if status != HTTPStatus.ACCEPTED or result.get("status") != "recovery_code_sent":
+            raise RuntimeError("Recovery code request was not accepted")
+        status, result, _ = request(
+            recovery_code_opener,
+            base_url,
+            "/api/auth/verify-recovery-code",
+            payload={"email": "recovery@example.test", "recovery_code": "123"},
+            origin=base_url,
+        )
+        if status != HTTPStatus.UNPROCESSABLE_ENTITY or "recovery_code" not in result.get("error", {}).get("field_errors", {}):
+            raise RuntimeError("Malformed recovery code was not rejected")
+        status, result, _ = request(
+            recovery_code_opener,
+            base_url,
+            "/api/auth/verify-recovery-code",
+            payload={"email": "recovery@example.test", "recovery_code": "48273106"},
+            origin=base_url,
+        )
+        if status != HTTPStatus.OK or result.get("recovery_ready") is not True:
+            raise RuntimeError("Valid recovery code did not establish a restricted recovery session")
+        if not recovery_code_opener.cookie_value("mt_access_token") or not recovery_code_opener.cookie_value("mt_recovery_grant"):
+            raise RuntimeError("Recovery code verification did not issue the required secure session cookies")
 
         status, result, _ = request(
             opener,
@@ -556,20 +605,20 @@ def main() -> None:
         if status != HTTPStatus.OK or result.get("recovery_ready") is not True:
             raise RuntimeError("Recovery token did not establish a restricted recovery session")
 
-        status, result, _ = request(opener, base_url, "/api/auth/recovery-status")
+        status, result, _ = request(recovery_code_opener, base_url, "/api/auth/recovery-status")
         if status != HTTPStatus.OK or result.get("recovery_ready") is not True:
             raise RuntimeError("Recovery session status was not available")
 
-        status, _, headers = request(opener, base_url, "/workspace/images")
+        status, _, headers = request(recovery_code_opener, base_url, "/workspace/images")
         if status != HTTPStatus.SEE_OTHER or headers.get("Location") != "/auth/reset-password":
             raise RuntimeError("Recovery-only session was allowed into the Workspace")
 
-        status, _, headers = request(opener, base_url, "/settings/account")
+        status, _, headers = request(recovery_code_opener, base_url, "/settings/account")
         if status != HTTPStatus.SEE_OTHER or headers.get("Location") != "/auth/reset-password":
             raise RuntimeError("Recovery-only session was allowed into Account Settings")
 
         status, result, _ = request(
-            opener,
+            recovery_code_opener,
             base_url,
             "/api/auth/reset-password",
             payload={"password": "A-new-password-2026!", "password_confirmation": "different"},
@@ -579,7 +628,7 @@ def main() -> None:
             raise RuntimeError("Password confirmation mismatch was not rejected")
 
         status, result, _ = request(
-            opener,
+            recovery_code_opener,
             base_url,
             "/api/auth/reset-password",
             payload={"password": "A-new-password-2026!", "password_confirmation": "A-new-password-2026!"},
@@ -747,6 +796,8 @@ def main() -> None:
         print("signup_verification_session_established=yes")
         print("csrf_cross_origin_rejected=yes")
         print("forgot_response_enumeration_safe=yes")
+        print("recovery_code_format_rejected=yes")
+        print("recovery_code_session_established=yes")
         print("recovery_session_restricted=yes")
         print("recovery_session_workspace_denied=yes")
         print("recovery_session_account_settings_denied=yes")

@@ -71,6 +71,12 @@ It must not contain `PGPASSWORD`, `SUPABASE_SECRET_KEY`, or `SUPABASE_SERVICE_RO
 
 `/etc/mt-presence/database.env`, mode `0600`, owner `root:root`, contains PostgreSQL deployment/backup credentials. No systemd Web or scanner unit reads this file.
 
+## Authentication email templates
+
+In Supabase Dashboard, open **Authentication > Emails > Templates > Reset Password**. The recovery template must render `{{ .Token }}` as the one-time recovery code. MT Presence currently validates the provider's eight-digit code, then creates a restricted recovery session that can only reach `/auth/reset-password` until the password is changed.
+
+Do not make `{{ .ConfirmationURL }}` the primary recovery action. Mail clients and security scanners can prefetch a clickable confirmation link before the user opens it, consuming a one-time link and producing an invalid-or-expired page. The legacy link callback remains supported for compatibility, but production acceptance must exercise the code path from an external mailbox. Never place the OTP, token hash, or confirmation URL in application logs, analytics, or support screenshots.
+
 ## Database migration and backup
 
 Create a backup before applying migrations:

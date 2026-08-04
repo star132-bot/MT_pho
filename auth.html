@@ -53,6 +53,13 @@
               <small id="auth-verification-code-error" data-field-error="verification_code"></small>
             </label>
 
+            <label class="auth-field" data-auth-field="recovery_code" hidden>
+              <span>Recovery code</span>
+              <input id="auth-recovery-code" name="recovery_code" type="text" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{8}" minlength="8" maxlength="8" aria-describedby="auth-recovery-code-hint auth-recovery-code-error" />
+              <p id="auth-recovery-code-hint" class="auth-field-hint">Enter the 8-digit code from your password recovery email.</p>
+              <small id="auth-recovery-code-error" data-field-error="recovery_code"></small>
+            </label>
+
             <label class="auth-field" data-auth-field="password">
               <span data-password-label>Password</span>
               <input id="auth-password" name="password" type="password" autocomplete="current-password" required minlength="12" maxlength="256" aria-describedby="auth-password-hint auth-password-error" />
@@ -87,6 +94,6 @@
         </div>
       </section>
     </main>
-    <script src="/auth.js?v=20260804-email-otp-8"></script>
+    <script src="/auth.js?v=20260804-recovery-otp"></script>
   </body>
 </html>

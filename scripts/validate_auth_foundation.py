@@ -39,7 +39,7 @@ def main() -> None:
         'if cookies is not None:', 'send_current_user_error',
         'method="DELETE"', 'MFA_RESET_FAILED', 'MFA_ALREADY_ENROLLED',
         '/api/auth/forgot-password', '/api/auth/recovery-session', '/api/auth/reset-password',
-        '/api/auth/verify-email', '/api/auth/verify-email-code', '/api/auth/resend-verification', '/api/auth/recovery-status', '/api/auth/csrf',
+        '/api/auth/verify-email', '/api/auth/verify-email-code', '/api/auth/verify-recovery-code', '/api/auth/resend-verification', '/api/auth/recovery-status', '/api/auth/csrf',
         '/api/auth/verification-status',
         'recover?', 'token_hash', 'method="PUT"', 'logout?scope=global',
         'CSRF_REJECTED', 'X-CSRF-Token', 'RECOVERY_GRANTS', 'MT_PUBLIC_BASE_URL',
@@ -66,6 +66,7 @@ def main() -> None:
         'data-auth-loading', 'data-auth-next-link', 'tabindex="-1"',
         'data-auth-field="verification_code"', 'autocomplete="one-time-code"',
         'inputmode="numeric"', 'pattern="[0-9]{8}"',
+        'data-auth-field="recovery_code"', 'data-field-error="recovery_code"',
     }, "auth page")
     require(auth_js, {
         'credentials: "same-origin"', 'form.reportValidity()',
@@ -77,7 +78,7 @@ def main() -> None:
         'history.replaceState', 'token_hash', 'refresh_token', 'X-CSRF-Token',
         'If an account exists for this email', 'password_confirmation',
         'resendVerification', '/api/auth/resend-verification',
-        '/api/auth/verify-email-code', 'pending_email',
+        '/api/auth/verify-email-code', '/api/auth/verify-recovery-code', 'recovery_code', 'pending_email',
     }, "auth client")
     require(terms_html, {
         'Terms of Use', 'id="account"', 'id="content"', 'id="conduct"',
@@ -86,7 +87,7 @@ def main() -> None:
     require(nginx, {
         'zone=mt_auth_email', 'zone=mt_auth_login',
         'register|resend-verification|forgot-password', 'location = /api/auth/sign-in',
-        'location = /api/auth/verify-email-code',
+        'location = /api/auth/verify-email-code', 'location = /api/auth/verify-recovery-code',
     }, "auth nginx rate limits")
     require(mfa_html, {
         'autocomplete="one-time-code"', 'inputmode="numeric"', 'pattern="[0-9]{6}"',
