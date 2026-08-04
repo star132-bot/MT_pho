@@ -59,7 +59,7 @@ const MODES = {
     documentTitle: "Resend Verification",
     eyebrow: "Email Verification",
     title: "Resend verification",
-    intro: "Enter the email used to create your account. We’ll send a new 6-digit code if the account is still waiting for confirmation.",
+    intro: "Enter the email used to create your account. We’ll send a new 8-digit code if the account is still waiting for confirmation.",
     fields: ["email"],
     endpoint: "/api/auth/resend-verification",
     submit: "Send verification code",
@@ -100,7 +100,7 @@ const MODES = {
     documentTitle: "Verify Email",
     eyebrow: "Email Verification",
     title: "Verify your email",
-    intro: "Enter the 6-digit verification code sent to your email.",
+    intro: "Enter the 8-digit verification code sent to your email.",
     fields: ["email", "verification_code"],
     endpoint: "/api/auth/verify-email-code",
     submit: "Verify email",
@@ -312,11 +312,9 @@ async function prepareCallbackMode() {
   try {
     const hasCallback = Boolean(callback.type || callback.token_hash || callback.refresh_token);
     if (mode === "verifyEmail" && !hasCallback) {
-      const { response, result } = await authRequest("/api/auth/verification-status");
-      if (response.ok && result.email_verified === true) {
-        showCompletion("Email verified. Your secure Workspace is ready.", "Enter your workspace", "/workspace/images");
-        return;
-      }
+      // A registration can start while another account is still signed in in
+      // this browser. Do not use that account's verification status to bypass
+      // the OTP form; the code and email submitted below are authoritative.
       loading.hidden = true;
       form.hidden = false;
       const pendingEmail = callback.pending_email;
@@ -421,8 +419,13 @@ form.addEventListener("submit", async (event) => {
       return;
     }
     if (mode === "verifyEmail") {
+      const verifiedEmail = String(result.user?.email || "").trim().toLowerCase();
+      if (verifiedEmail && verifiedEmail !== payload.email) {
+        showNotice("The verification session belongs to a different email. Sign out and try again.");
+        return;
+      }
       form.reset();
-      showCompletion("Email verified. Your secure Workspace is ready.", "Enter your workspace", "/workspace/images");
+      showCompletion(`Email verified for ${payload.email}. You are now signed in.`, "Enter your workspace", "/workspace/images");
       return;
     }
     if (mode === "forgotPassword") {

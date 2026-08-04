@@ -64,7 +64,7 @@ def main() -> None:
         'data-auth-resend-link', 'href="/terms.html"', 'href="/privacy.html"',
         'data-auth-loading', 'data-auth-next-link', 'tabindex="-1"',
         'data-auth-field="verification_code"', 'autocomplete="one-time-code"',
-        'inputmode="numeric"', 'pattern="[0-9]{6}"',
+        'inputmode="numeric"', 'pattern="[0-9]{8}"',
     }, "auth page")
     require(auth_js, {
         'credentials: "same-origin"', 'form.reportValidity()',

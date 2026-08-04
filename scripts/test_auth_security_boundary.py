@@ -211,7 +211,7 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/auth/v1/verify":
             body = self.body()
-            if body == {"type": "email", "email": "new.artist@example.test", "token": "482731"}:
+            if body == {"type": "email", "email": "new.artist@example.test", "token": "48273106"}:
                 self.send_json(
                     HTTPStatus.OK,
                     {
@@ -484,10 +484,15 @@ def main() -> None:
             registration_opener,
             base_url,
             "/api/auth/verify-email-code",
-            payload={"email": "new.artist@example.test", "verification_code": "482731"},
+            payload={"email": "new.artist@example.test", "verification_code": "48273106"},
             origin=base_url,
         )
-        if status != HTTPStatus.OK or result.get("verified") is not True or result.get("type") != "email":
+        if (
+            status != HTTPStatus.OK
+            or result.get("verified") is not True
+            or result.get("type") != "email"
+            or result.get("user", {}).get("email") != "new.artist@example.test"
+        ):
             raise RuntimeError("Email verification code did not establish a session")
         if not registration_opener.cookie_value("mt_access_token") or not registration_opener.cookie_value("mt_refresh_token"):
             raise RuntimeError("Email verification code did not issue application cookies")
