@@ -15,6 +15,8 @@ const nextLink = document.querySelector("[data-auth-next-link]");
 const passwordLabel = document.querySelector("[data-password-label]");
 const passwordConfirmationLabel = document.querySelector("[data-password-confirmation-label]");
 const passwordHint = document.querySelector("[data-password-hint]");
+const oauthGroup = document.querySelector("[data-auth-oauth]");
+const googleLink = document.querySelector("[data-auth-google]");
 const fieldGroups = new Map(
   [...document.querySelectorAll("[data-auth-field]")].map((element) => [element.dataset.authField, element]),
 );
@@ -164,6 +166,9 @@ function configureMode() {
   forgotLink.hidden = mode !== "signIn";
   resendLink.hidden = true;
   nextLink.hidden = true;
+  oauthGroup.hidden = mode !== "signIn";
+  const requestedNext = safeInternalPath(new URLSearchParams(window.location.search).get("next"));
+  googleLink.href = `/auth/oauth/google?next=${encodeURIComponent(requestedNext)}`;
 
   fieldGroups.forEach((_, name) => setFieldVisibility(name, config.fields.includes(name)));
   if (mode === "forgotPassword") setFieldVisibility("recovery_code", false);
@@ -186,6 +191,22 @@ function configureMode() {
       ? "Validating your recovery link…"
       : "Confirming your email…";
   }
+}
+
+function showOAuthResult() {
+  if (mode !== "signIn") return;
+  const url = new URL(window.location.href);
+  const code = url.searchParams.get("oauth_error");
+  if (!code) return;
+  const messages = {
+    cancelled: "Google sign-in was cancelled.",
+    restricted: "This Google account cannot access the Workspace.",
+    invalid: "The Google sign-in request is invalid or has expired. Try again.",
+    unavailable: "Google sign-in is temporarily unavailable. Try again shortly.",
+  };
+  showNotice(messages[code] || messages.invalid);
+  url.searchParams.delete("oauth_error");
+  window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
 }
 
 function clearErrors() {
@@ -500,4 +521,5 @@ form.addEventListener("submit", async (event) => {
 });
 
 configureMode();
+showOAuthResult();
 if (config.callbackType) prepareCallbackMode();

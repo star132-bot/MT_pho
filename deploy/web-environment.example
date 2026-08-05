@@ -3,6 +3,7 @@
 MT_RUNTIME_ENVIRONMENT=production
 MT_COOKIE_SECURE=1
 MT_PUBLIC_BASE_URL=https://portfolio.example.com
+# OAuth provider credentials belong in Supabase Auth provider settings, not here.
 MT_TRUST_PROXY=1
 MT_MAX_REQUEST_THREADS=32
 SUPABASE_URL=https://your-project-ref.supabase.co

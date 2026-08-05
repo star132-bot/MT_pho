@@ -103,11 +103,15 @@ ACCESS_COOKIE = "mt_access_token"
 REFRESH_COOKIE = "mt_refresh_token"
 CSRF_COOKIE = "__Host-mt_csrf_token" if COOKIE_SECURE else "mt_csrf_token"
 RECOVERY_COOKIE = "__Host-mt_recovery_grant" if COOKIE_SECURE else "mt_recovery_grant"
+OAUTH_STATE_COOKIE = "__Host-mt_oauth_state" if COOKIE_SECURE else "mt_oauth_state"
 CSRF_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{40,128}$")
 RECOVERY_GRANT_TTL_SECONDS = 10 * 60
 RECOVERY_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30
 RECOVERY_GRANTS: dict[str, tuple[str, float]] = {}
 RECOVERY_GRANTS_LOCK = threading.Lock()
+OAUTH_FLOW_TTL_SECONDS = 10 * 60
+OAUTH_FLOWS: dict[str, tuple[str, str, float]] = {}
+OAUTH_FLOWS_LOCK = threading.Lock()
 AUTH_PASSWORD_MIN_LENGTH = 12
 AUTH_PASSWORD_MAX_LENGTH = 128
 AUTH_EMAIL_OTP_PATTERN = re.compile(r"^[0-9]{8}$")
@@ -585,6 +589,40 @@ def canonical_url_path(value: str) -> str:
 
 def auth_configured() -> bool:
     return bool(SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY)
+
+
+def safe_auth_destination(value: str, fallback: str = "/works.html") -> str:
+    value = clean_text(value, 2048)
+    if not value.startswith("/") or value.startswith("//") or "\\" in value:
+        return fallback
+    parsed = urlparse(value)
+    if parsed.scheme or parsed.netloc or parsed.path.startswith("/auth/") or parsed.path.startswith("/api/"):
+        return fallback
+    return value
+
+
+def create_oauth_flow(next_path: str) -> tuple[str, str, str]:
+    state = secrets.token_urlsafe(32)
+    verifier = secrets.token_urlsafe(48)
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).decode("ascii").rstrip("=")
+    now = time.monotonic()
+    with OAUTH_FLOWS_LOCK:
+        expired = [key for key, (_, _, deadline) in OAUTH_FLOWS.items() if deadline <= now]
+        for key in expired:
+            OAUTH_FLOWS.pop(key, None)
+        OAUTH_FLOWS[state] = (verifier, safe_auth_destination(next_path), now + OAUTH_FLOW_TTL_SECONDS)
+    return state, verifier, challenge
+
+
+def consume_oauth_flow(state: str) -> tuple[str, str] | None:
+    if not state:
+        return None
+    now = time.monotonic()
+    with OAUTH_FLOWS_LOCK:
+        flow = OAUTH_FLOWS.pop(state, None)
+    if not flow or flow[2] <= now:
+        return None
+    return flow[0], flow[1]
 
 
 def auth_error(
@@ -5864,6 +5902,27 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         secure = "; Secure" if COOKIE_SECURE else ""
         return f"{RECOVERY_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict{secure}"
 
+    def oauth_state_cookie_header(self, token: str) -> str:
+        secure = "; Secure" if COOKIE_SECURE else ""
+        return (
+            f"{OAUTH_STATE_COOKIE}={token}; Path=/; "
+            f"Max-Age={OAUTH_FLOW_TTL_SECONDS}; HttpOnly; SameSite=Lax{secure}"
+        )
+
+    def clear_oauth_state_cookie_header(self) -> str:
+        secure = "; Secure" if COOKIE_SECURE else ""
+        return f"{OAUTH_STATE_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax{secure}"
+
+    def send_auth_redirect(self, location: str, cookies: list[str] | None = None) -> None:
+        self._pending_response_cookies = []
+        self.send_response(HTTPStatus.SEE_OTHER)
+        self.send_header("Location", location)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Referrer-Policy", "no-referrer")
+        for cookie in cookies or []:
+            self.send_header("Set-Cookie", cookie)
+        self.end_headers()
+
     def is_recovery_session(self, user: dict) -> bool:
         # Supabase recovery OTP sessions currently identify their AMR as `otp`,
         # not `recovery`. The HttpOnly marker is therefore the authoritative
@@ -6444,6 +6503,79 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             HTTPStatus.OK,
             {"user": {"id": user.get("id"), "email": user.get("email")}, "next_action": next_action},
             [*self.session_cookie_headers(session), self.clear_recovery_cookie_header()],
+        )
+
+    def handle_google_oauth_start(self, parsed) -> None:
+        public_base_url = self.public_base_url()
+        if not auth_configured() or not public_base_url:
+            self.send_auth_redirect("/auth/sign-in?oauth_error=unavailable")
+            return
+        next_path = safe_auth_destination(single_query_value(parse_qs(parsed.query), "next"))
+        state, _, challenge = create_oauth_flow(next_path)
+        callback_url = f"{public_base_url}/auth/oauth/callback"
+        authorize_query = urlencode({
+            "provider": "google",
+            "redirect_to": callback_url,
+            "code_challenge": challenge,
+            "code_challenge_method": "s256",
+        })
+        authorize_url = f"{SUPABASE_URL}/auth/v1/authorize?{authorize_query}"
+        self.send_auth_redirect(authorize_url, [self.oauth_state_cookie_header(state)])
+
+    def handle_google_oauth_callback(self, parsed) -> None:
+        flow = consume_oauth_flow(self.cookie_value(OAUTH_STATE_COOKIE))
+        clear_flow_cookie = self.clear_oauth_state_cookie_header()
+        query = parse_qs(parsed.query)
+        provider_error = single_query_value(query, "error")
+        code = single_query_value(query, "code")
+        if provider_error or not code or not flow:
+            error_code = "cancelled" if provider_error == "access_denied" else "invalid"
+            self.send_auth_redirect(f"/auth/sign-in?oauth_error={error_code}", [clear_flow_cookie])
+            return
+
+        verifier, next_path = flow
+        status, session = supabase_auth_request(
+            "token?grant_type=pkce",
+            {"auth_code": code, "code_verifier": verifier},
+        )
+        if status != HTTPStatus.OK or not session.get("access_token") or not session.get("refresh_token"):
+            self.send_auth_redirect("/auth/sign-in?oauth_error=unavailable", [clear_flow_cookie])
+            return
+
+        user = session.get("user") or {}
+        app_metadata = user.get("app_metadata") if isinstance(user.get("app_metadata"), dict) else {}
+        providers = set(app_metadata.get("providers") or [])
+        if app_metadata.get("provider") != "google" and "google" not in providers:
+            supabase_auth_request("logout?scope=local", {}, session.get("access_token", ""), method="POST")
+            self.send_auth_redirect("/auth/sign-in?oauth_error=invalid", [clear_flow_cookie])
+            return
+        if not user.get("email_confirmed_at") and not user.get("confirmed_at"):
+            supabase_auth_request("logout?scope=local", {}, session.get("access_token", ""), method="POST")
+            self.send_auth_redirect("/auth/sign-in?oauth_error=restricted", [clear_flow_cookie])
+            return
+
+        authz_status, authorization = supabase_rest_request(
+            "rpc/current_authorization",
+            session.get("access_token", ""),
+        )
+        if authz_status != HTTPStatus.OK or authorization.get("account_status") != "active":
+            supabase_auth_request("logout?scope=local", {}, session.get("access_token", ""), method="POST")
+            error_code = "restricted" if authz_status == HTTPStatus.OK else "unavailable"
+            self.send_auth_redirect(f"/auth/sign-in?oauth_error={error_code}", [clear_flow_cookie])
+            return
+
+        roles = set(authorization.get("roles") or [])
+        destination = next_path
+        if roles.intersection({"admin", "super_admin"}) and authorization.get("aal") != "aal2":
+            destination = f"/auth/mfa?{urlencode({'next': next_path})}"
+        consume_recovery_grant(self.cookie_value(RECOVERY_COOKIE))
+        self.send_auth_redirect(
+            destination,
+            [
+                *self.session_cookie_headers(session),
+                self.clear_recovery_cookie_header(),
+                clear_flow_cookie,
+            ],
         )
 
     def handle_auth_sign_out(self) -> None:
@@ -11036,6 +11168,12 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_header("Location", communication_static_routes[parsed.path])
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
+            return
+        if parsed.path == "/auth/oauth/google":
+            self.handle_google_oauth_start(parsed)
+            return
+        if parsed.path == "/auth/oauth/callback":
+            self.handle_google_oauth_callback(parsed)
             return
         if parsed.path in {
             "/auth/sign-in",

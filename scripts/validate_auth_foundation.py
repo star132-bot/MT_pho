@@ -49,6 +49,10 @@ def main() -> None:
         'session_has_auth_method(session, "recovery")', 'request_id',
         'def is_recovery_session(self, user: dict)', 'self.is_recovery_session(user)',
         'RECOVERY_SESSION_TTL_SECONDS',
+        'OAUTH_STATE_COOKIE', 'OAUTH_FLOWS', 'create_oauth_flow', 'consume_oauth_flow',
+        'code_challenge_method', 'token?grant_type=pkce', '"auth_code": code',
+        'parsed.path == "/auth/oauth/google"', 'parsed.path == "/auth/oauth/callback"',
+        'app_metadata.get("provider") != "google"', 'clear_oauth_state_cookie_header',
         'parsed.path == "/upload-studio.html"', '"/workspace/images"',
         'self.send_header("Location", "/auth/sign-in?next=/works.html")',
         'legacy_upload_asset_access', 'is_public_derivative', 'canonical_path == "/assets/uploads"',
@@ -68,6 +72,7 @@ def main() -> None:
         'data-auth-field="verification_code"', 'autocomplete="one-time-code"',
         'inputmode="numeric"', 'pattern="[0-9]{8}"',
         'data-auth-field="recovery_code"', 'data-field-error="recovery_code"',
+        'data-auth-oauth', 'data-auth-google', 'Continue with Google',
     }, "auth page")
     require(auth_js, {
         'credentials: "same-origin"', 'form.reportValidity()',
@@ -80,6 +85,7 @@ def main() -> None:
         'If an account exists for this email', 'password_confirmation',
         'resendVerification', '/api/auth/resend-verification',
         '/api/auth/verify-email-code', '/api/auth/verify-recovery-code', 'recovery_code', 'pending_email',
+        '/auth/oauth/google?next=', 'showOAuthResult', 'oauth_error',
     }, "auth client")
     require(terms_html, {
         'Terms of Use', 'id="account"', 'id="content"', 'id="conduct"',

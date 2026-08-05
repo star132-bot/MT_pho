@@ -478,20 +478,20 @@
 ### 功能说明
 
 - 为注册用户提供真实 Supabase Auth 身份、服务端 HttpOnly session、受保护 Workspace 和账户资料/会话管理，不使用浏览器存储模拟认证。
-- 入口：`/auth/sign-in`、`/auth/register`、`/auth/resend-verification`、`/auth/forgot-password`、`/auth/reset-password`、`/auth/verify-email`、`/auth/mfa`、`/dashboard`、`/settings/account`。
+- 入口：`/auth/sign-in`、`/auth/oauth/google`、`/auth/oauth/callback`、`/auth/register`、`/auth/resend-verification`、`/auth/forgot-password`、`/auth/reset-password`、`/auth/verify-email`、`/auth/mfa`、`/dashboard`、`/settings/account`。
 - 主要用户操作：注册与邮箱验证、登录/退出、找回与重置密码、Admin TOTP、查看受保护个人资料、编辑 creator Profile/Authorship Preferences、查看当前 Session、退出当前/其他/全部设备。
 
 ### 相关文件
 
-- `auth.html` / `auth.js`：统一 Auth shell、注册密码确认、条款确认、验证邮件重发、各认证模式字段和 callback 处理；mutation 使用 same-origin CSRF，敏感 token 仅在函数内存短暂存在并立即清理 URL。
+- `auth.html` / `auth.js`：统一 Auth shell、Google 登录入口、注册密码确认、条款确认、验证邮件重发、各认证模式字段和 callback 处理；mutation 使用 same-origin CSRF，敏感 token 仅在函数内存短暂存在并立即清理 URL。
 - `mfa.html` / `mfa.js`：Admin TOTP enrollment/challenge/verify 和失败恢复；Admin AAL1 不能进入受保护管理范围。
 - `account-settings.html` / `account-settings.js`：无重复全局 rail 的 Account Settings 页面；紧凑标题栏、sticky Profile/Preferences/Security/Sessions 本地导航和分组式资料工作台；头像选择在浏览器中心裁切、去除原文件并重编码为 512x512 JPEG，经 owner-scoped signed upload intent 完成/取消/删除后通过共享事件即时更新 Header；专业角色使用最多三项的真实 checkbox 多选并序列化回既有 `professional_headline` 字段，同时保留旧自定义标题；页面继续覆盖 Preferences、Security、Sessions、dirty/save/error 与 bulk revoke。
-- `server.py`：Supabase Auth/PostgREST 代理、规范化邮箱、注册/重发/找回邮件限流、密码确认、固定 callback、access/refresh rotation、CSRF/Origin、recovery grant、strict Profile/cover allowlist、Account/Workspace route guard、Admin role+AAL2 和 Session scope revoke。Recovery OTP 成功以 provider 返回的 session/user 为准；Supabase 的 OTP AMR 不被误要求为 `recovery`，应用通过独立 HttpOnly marker 将该会话限制在重置流程，密码写入仍要求 10 分钟 server-side grant，重置、显式登录或退出后清除 marker。
+- `server.py`：Supabase Auth/PostgREST 代理、规范化邮箱、注册/重发/找回邮件限流、密码确认、固定 callback、Google OAuth 服务端 PKCE、一次性 10 分钟 OAuth state、access/refresh rotation、CSRF/Origin、recovery grant、strict Profile/cover allowlist、Account/Workspace route guard、Admin role+AAL2 和 Session scope revoke。OAuth provider token 不进入 Cookie/HTML/日志；回调继续检查 verified email、active account、server-derived roles 和 Admin MFA。Recovery OTP 成功以 provider 返回的 session/user 为准；Supabase 的 OTP AMR 不被误要求为 `recovery`，应用通过独立 HttpOnly marker 将该会话限制在重置流程，密码写入仍要求 10 分钟 server-side grant，重置、显式登录或退出后清除 marker。
 - `database/supabase_phase1_auth_rls.sql`：fresh database Auth/RLS/Profile RPC baseline。
 - `database/migrations/20260713_admin_mfa_hardening.sql`：已有环境的 inactive privileged user 加固。
 - `database/migrations/20260714_account_profile_boundary.sql`：已有环境的 strict owner-only Profile RPC 增量加固。
 - `database/migrations/20260722_z_creator_profile.sql`：扩展 creator profile 字段、availability enum 与 owner-scoped cover selector RPC；封面只能来自当前用户 current ready image 的 scanner-clean display/thumbnail asset。
-- `scripts/test_auth_security_boundary.py` / `scripts/test_user_dashboard_boundary.py`：loopback fake provider 的 Account 与 creator profile/cover 集成回归，不使用真实凭据或远程账号；Recovery fixture 使用 Supabase 实际的 `otp` AMR，验证应用 marker 仍会阻断 Workspace 与 Account Settings，直到密码成功重置。
+- `scripts/test_auth_security_boundary.py` / `scripts/test_user_dashboard_boundary.py`：loopback fake provider 的 Account 与 creator profile/cover 集成回归，不使用真实凭据或远程账号；Google fixture 验证 PKCE challenge/verifier、一次性回调、开放重定向拒绝和 provider credential 不落浏览器；Recovery fixture 使用 Supabase 实际的 `otp` AMR，验证应用 marker 仍会阻断 Workspace 与 Account Settings，直到密码成功重置。
 - `scripts/test_supabase_deploy_script.py`：fresh/incremental 部署顺序回归。
 
 ### 页面内部结构

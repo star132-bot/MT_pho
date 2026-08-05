@@ -20,6 +20,7 @@ A production release is blocked until all of the following are true:
 - The exact public domain is configured in `MT_PUBLIC_BASE_URL` and in the Supabase Auth redirect allowlist.
 - HTTPS certificate issuance succeeds before secure authentication cookies are enabled.
 - Supabase Confirm Email is enabled; a domain-authenticated custom SMTP sender and first-party verification/recovery templates pass real external-mailbox delivery, expiry, one-time-use, and resend tests.
+- When Google sign-in is enabled, the Google OAuth Web Client uses the Supabase callback URL shown by the provider panel, Supabase allows the exact `https://<domain>/auth/oauth/callback` application return URL, and a real Google account passes sign-in, cancellation, first-account creation, repeat sign-in, sign-out, and Admin MFA acceptance.
 - Web and scanner secrets are separated as described below.
 - An external uptime check watches `/healthz`; an authenticated operational check watches `/readyz` from a trusted location.
 
@@ -66,6 +67,8 @@ The host needs Python 3.11+, Nginx, PostgreSQL client tools, Certbot or an equiv
 - bounded inquiry rate configuration
 
 It must not contain `PGPASSWORD`, `SUPABASE_SECRET_KEY`, or `SUPABASE_SERVICE_ROLE_KEY`.
+
+Google OAuth Client ID and Client Secret are stored only in **Supabase Dashboard > Authentication > Sign In / Providers > Google**. The Google Cloud Web Client's authorized redirect URI is the Supabase callback (`https://<project-ref>.supabase.co/auth/v1/callback`), not the MT Presence callback. The exact MT Presence callback (`https://<domain>/auth/oauth/callback`) belongs in **Supabase Authentication > URL Configuration > Redirect URLs**. Do not place either Google credential in `web.env`, source control, browser storage, screenshots, or support messages.
 
 `/etc/mt-presence/scanner.env`, mode `0640`, owner `root:mtpresence-scanner`, contains only the scanner runtime values and its isolated Supabase secret. It must define `MT_SCANNER_ID`, `MT_SCANNER_CLAMAV_COMMAND` (normally `clamdscan --stream --no-summary`), and a writable `MT_SCANNER_TEMP_DIR` below `/var/lib/mt-presence-scanner`; `MT_SCANNER_WORKER_ID` is not a supported variable. The hardened Scanner unit creates a mount namespace through `PrivateDevices`, `PrivateTmp`, and `ProtectSystem`; production therefore streams file contents to the resident daemon. Do not configure `clamdscan --fdpass`: clamd cannot validate a file descriptor passed across that namespace boundary. Standalone `clamscan` remains accepted for operators that intentionally provision enough memory, but it reloads signatures for every asset and is unsuitable for the default low-memory deployment. Development may still use `clamdscan --fdpass` when it runs without that systemd isolation.
 

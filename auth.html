@@ -6,7 +6,7 @@
     <title>Sign In | MT Presence</title>
     <meta name="description" content="Sign in to the private MT Presence image workspace." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260804-email-otp-8" />
+    <link rel="stylesheet" href="/styles.css?v=20260805-google-oauth" />
   </head>
   <body class="auth-page">
     <a class="auth-skip" href="#auth-form">Skip to form</a>
@@ -31,6 +31,14 @@
           <div class="auth-loading" role="status" aria-live="polite" data-auth-loading hidden>
             <span aria-hidden="true"></span>
             <p data-auth-loading-copy>Validating your secure link…</p>
+          </div>
+
+          <div class="auth-oauth" data-auth-oauth hidden>
+            <a class="auth-oauth-button" href="/auth/oauth/google" data-auth-google aria-label="Continue with Google">
+              <span class="auth-google-mark" aria-hidden="true">G</span>
+              <span>Continue with Google</span>
+            </a>
+            <div class="auth-divider" role="separator"><span>or</span></div>
           </div>
 
           <form id="auth-form" class="auth-form" data-auth-form aria-describedby="auth-intro" novalidate>
@@ -94,6 +102,6 @@
         </div>
       </section>
     </main>
-    <script src="/auth.js?v=20260804-recovery-otp"></script>
+    <script src="/auth.js?v=20260805-google-oauth"></script>
   </body>
 </html>

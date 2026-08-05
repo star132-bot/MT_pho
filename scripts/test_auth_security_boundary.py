@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import http.cookiejar
 import importlib
 import json
@@ -18,7 +19,7 @@ import tempfile
 import threading
 import urllib.error
 import urllib.request
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +35,7 @@ RECOVERY_USER_ID = "00000000-0000-4000-8000-000000000001"
 MEMBER_USER_ID = "00000000-0000-4000-8000-000000000002"
 ADMIN_USER_ID = "00000000-0000-4000-8000-000000000003"
 SIGNUP_USER_ID = "00000000-0000-4000-8000-000000000004"
+GOOGLE_USER_ID = "00000000-0000-4000-8000-000000000005"
 RECOVERY_ACCESS_TOKEN = fake_access_token({
     "aal": "aal1",
     "amr": [{"method": "otp"}],
@@ -62,6 +64,13 @@ SIGNUP_ACCESS_TOKEN = fake_access_token({
     "iat": 1784044800,
     "exp": 1784048400,
 })
+GOOGLE_ACCESS_TOKEN = fake_access_token({
+    "aal": "aal1",
+    "amr": [{"method": "oauth", "provider": "google"}],
+    "session_id": "10000000-0000-4000-8000-000000000005",
+    "iat": 1784044800,
+    "exp": 1784048400,
+})
 
 
 class FakeSupabaseHandler(BaseHTTPRequestHandler):
@@ -71,6 +80,7 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
     profile_updates: list[dict] = []
     registrations: list[dict] = []
     verification_resends: list[dict] = []
+    oauth_exchanges: list[dict] = []
     authorization_failures_remaining = 0
     profile = {
         "display_name": "MT Member",
@@ -124,6 +134,13 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                 "id": SIGNUP_USER_ID,
                 "email": "new.artist@example.test",
                 "email_confirmed_at": "2026-08-03T00:00:00Z",
+                "factors": [],
+            },
+            f"Bearer {GOOGLE_ACCESS_TOKEN}": {
+                "id": GOOGLE_USER_ID,
+                "email": "google.member@example.test",
+                "email_confirmed_at": "2026-08-05T00:00:00Z",
+                "app_metadata": {"provider": "google", "providers": ["google"]},
                 "factors": [],
             },
         }
@@ -183,6 +200,28 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                 return
             self.send_json(HTTPStatus.BAD_REQUEST, {"message": "invalid credentials"})
             return
+        if self.path == "/auth/v1/token?grant_type=pkce":
+            body = self.body()
+            type(self).oauth_exchanges.append(body)
+            if body.get("auth_code") != "valid-google-code" or not body.get("code_verifier"):
+                self.send_json(HTTPStatus.BAD_REQUEST, {"message": "invalid authorization code"})
+                return
+            self.send_json(
+                HTTPStatus.OK,
+                {
+                    "access_token": GOOGLE_ACCESS_TOKEN,
+                    "refresh_token": "refresh-google-member",
+                    "expires_in": 3600,
+                    "provider_token": "must-not-reach-the-browser",
+                    "user": {
+                        "id": GOOGLE_USER_ID,
+                        "email": "google.member@example.test",
+                        "email_confirmed_at": "2026-08-05T00:00:00Z",
+                        "app_metadata": {"provider": "google", "providers": ["google"]},
+                    },
+                },
+            )
+            return
         if self.path == "/rest/v1/rpc/current_authorization":
             if type(self).authorization_failures_remaining > 0:
                 type(self).authorization_failures_remaining -= 1
@@ -198,6 +237,12 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                 self.send_json(
                     HTTPStatus.OK,
                     {"user_id": ADMIN_USER_ID, "account_status": "active", "roles": ["admin"], "aal": "aal1"},
+                )
+                return
+            if authorization == f"Bearer {GOOGLE_ACCESS_TOKEN}":
+                self.send_json(
+                    HTTPStatus.OK,
+                    {"user_id": GOOGLE_USER_ID, "account_status": "active", "roles": ["user"], "aal": "aal1"},
                 )
                 return
             self.send_json(HTTPStatus.UNAUTHORIZED, {"message": "invalid authorization"})
@@ -402,6 +447,7 @@ def main() -> None:
     FakeSupabaseHandler.profile_updates = []
     FakeSupabaseHandler.registrations = []
     FakeSupabaseHandler.verification_resends = []
+    FakeSupabaseHandler.oauth_exchanges = []
     FakeSupabaseHandler.authorization_failures_remaining = 0
     FakeSupabaseHandler.profile = {
         "display_name": "MT Member",
@@ -433,6 +479,49 @@ def main() -> None:
     opener = CookieOpener()
 
     try:
+        oauth_opener = CookieOpener()
+        status, _, headers = request(oauth_opener, base_url, "/auth/oauth/google?next=/workspace/images")
+        if status != HTTPStatus.SEE_OTHER:
+            raise RuntimeError("Google OAuth did not start with a redirect")
+        authorize_url = urlparse(headers.get("Location", ""))
+        authorize_query = parse_qs(authorize_url.query)
+        if (
+            authorize_url.path != "/auth/v1/authorize"
+            or authorize_query.get("provider") != ["google"]
+            or authorize_query.get("redirect_to") != ["http://127.0.0.1:9/auth/oauth/callback"]
+            or authorize_query.get("code_challenge_method") != ["s256"]
+            or not authorize_query.get("code_challenge", [""])[0]
+        ):
+            raise RuntimeError("Google OAuth authorization request was incomplete")
+        if not oauth_opener.cookie_value("mt_oauth_state"):
+            raise RuntimeError("Google OAuth did not establish an HttpOnly state cookie")
+
+        status, _, headers = request(oauth_opener, base_url, "/auth/oauth/callback?code=valid-google-code")
+        if status != HTTPStatus.SEE_OTHER or headers.get("Location") != "/workspace/images":
+            raise RuntimeError("Google OAuth callback did not return to the requested Workspace route")
+        if not FakeSupabaseHandler.oauth_exchanges:
+            raise RuntimeError("Google OAuth callback did not exchange the PKCE code")
+        verifier = FakeSupabaseHandler.oauth_exchanges[-1].get("code_verifier", "")
+        expected_challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).decode("ascii").rstrip("=")
+        if expected_challenge != authorize_query["code_challenge"][0]:
+            raise RuntimeError("Google OAuth PKCE verifier did not match the original challenge")
+        if oauth_opener.cookie_value("mt_access_token") != GOOGLE_ACCESS_TOKEN or not oauth_opener.cookie_value("mt_refresh_token"):
+            raise RuntimeError("Google OAuth did not establish application session cookies")
+        if any(cookie.name == "provider_token" or cookie.value == "must-not-reach-the-browser" for cookie in oauth_opener.cookie_jar):
+            raise RuntimeError("Google provider credentials leaked into browser cookies")
+
+        status, _, headers = request(oauth_opener, base_url, "/auth/oauth/callback?code=valid-google-code")
+        if status != HTTPStatus.SEE_OTHER or headers.get("Location") != "/auth/sign-in?oauth_error=invalid":
+            raise RuntimeError("Google OAuth callback could be replayed")
+
+        external_next_opener = CookieOpener()
+        status, _, _ = request(external_next_opener, base_url, "/auth/oauth/google?next=https://attacker.example/steal")
+        if status != HTTPStatus.SEE_OTHER:
+            raise RuntimeError("Google OAuth rejected a safe fallback start")
+        status, _, headers = request(external_next_opener, base_url, "/auth/oauth/callback?code=valid-google-code")
+        if status != HTTPStatus.SEE_OTHER or headers.get("Location") != "/works.html":
+            raise RuntimeError("Google OAuth accepted an external post-authentication destination")
+
         registration_opener = CookieOpener()
         status, result, _ = request(registration_opener, base_url, "/api/auth/csrf")
         if status != HTTPStatus.OK or not result.get("csrf_token"):
@@ -796,6 +885,10 @@ def main() -> None:
             raise RuntimeError("Configured Supabase delivery leaked a legacy published derivative")
 
         print("csrf_missing_rejected=yes")
+        print("google_oauth_pkce_validated=yes")
+        print("google_oauth_replay_rejected=yes")
+        print("google_oauth_external_next_rejected=yes")
+        print("google_provider_token_not_persisted=yes")
         print("email_registration_verification_required=yes")
         print("email_registration_consent_recorded=yes")
         print("verification_resend_enumeration_safe=yes")

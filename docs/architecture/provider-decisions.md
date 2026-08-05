@@ -13,6 +13,8 @@ The application sets `redirect_to` from the fixed `MT_PUBLIC_BASE_URL`; it never
 
 Production email is a provider configuration gate, not an application-code claim. Enable Confirm Email, configure a domain-authenticated custom SMTP sender, publish the sender's SPF/DKIM records and a DMARC policy, install the first-party templates above, and verify signup, resend, expiry, one-time use, and recovery in real external mailboxes before activation. The provider remains the password/identity authority; SMTP credentials never enter browser code or business tables.
 
+Google sign-in uses the Supabase OAuth broker with a server-owned PKCE flow. MT Presence generates a high-entropy verifier and a one-use ten-minute opaque state, sends only the SHA-256 challenge to `/auth/v1/authorize`, and exchanges the returned code from the BFF. Only the Supabase access/refresh session is written to application HttpOnly cookies; Google provider tokens are discarded. The callback accepts only a server-recorded internal destination, verifies Google in `app_metadata`, and then applies the same verified-email, active-account, role, and Admin AAL2 rules as password sign-in. Google Client ID/Secret live only in Supabase provider configuration. Current single-process state is intentionally process-local; a later multi-instance Web tier must move the ten-minute OAuth flow record to a shared expiring store before horizontal activation.
+
 ## Phase 1 migration order
 
 1. On a fresh project, run `database/product_schema.sql` and `database/supabase_phase1_auth_rls.sql` through `bash scripts/deploy_supabase_phase1.sh`.
