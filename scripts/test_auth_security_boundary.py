@@ -34,7 +34,13 @@ RECOVERY_USER_ID = "00000000-0000-4000-8000-000000000001"
 MEMBER_USER_ID = "00000000-0000-4000-8000-000000000002"
 ADMIN_USER_ID = "00000000-0000-4000-8000-000000000003"
 SIGNUP_USER_ID = "00000000-0000-4000-8000-000000000004"
-RECOVERY_ACCESS_TOKEN = fake_access_token({"amr": [{"method": "recovery"}]})
+RECOVERY_ACCESS_TOKEN = fake_access_token({
+    "aal": "aal1",
+    "amr": [{"method": "otp"}],
+    "session_id": "10000000-0000-4000-8000-000000000001",
+    "iat": 1784044800,
+    "exp": 1784048400,
+})
 MEMBER_ACCESS_TOKEN = fake_access_token({
     "aal": "aal1",
     "amr": [{"method": "password"}],

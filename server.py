@@ -105,6 +105,7 @@ CSRF_COOKIE = "__Host-mt_csrf_token" if COOKIE_SECURE else "mt_csrf_token"
 RECOVERY_COOKIE = "__Host-mt_recovery_grant" if COOKIE_SECURE else "mt_recovery_grant"
 CSRF_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{40,128}$")
 RECOVERY_GRANT_TTL_SECONDS = 10 * 60
+RECOVERY_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30
 RECOVERY_GRANTS: dict[str, tuple[str, float]] = {}
 RECOVERY_GRANTS_LOCK = threading.Lock()
 AUTH_PASSWORD_MIN_LENGTH = 12
@@ -5463,7 +5464,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             if auth_status != HTTPStatus.OK or not isinstance(user, dict):
                 return self.header_identity_model(None, None, None, status="unavailable")
 
-        if session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery"):
+        if self.is_recovery_session(user):
             return self.header_identity_model(user, None, None, status="degraded")
 
         if authorization is None:
@@ -5856,12 +5857,21 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         secure = "; Secure" if COOKIE_SECURE else ""
         return (
             f"{RECOVERY_COOKIE}={token}; Path=/; "
-            f"Max-Age={RECOVERY_GRANT_TTL_SECONDS}; HttpOnly; SameSite=Strict{secure}"
+            f"Max-Age={RECOVERY_SESSION_TTL_SECONDS}; HttpOnly; SameSite=Strict{secure}"
         )
 
     def clear_recovery_cookie_header(self) -> str:
         secure = "; Secure" if COOKIE_SECURE else ""
         return f"{RECOVERY_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict{secure}"
+
+    def is_recovery_session(self, user: dict) -> bool:
+        # Supabase recovery OTP sessions currently identify their AMR as `otp`,
+        # not `recovery`. The HttpOnly marker is therefore the authoritative
+        # restriction until password reset, explicit sign-in, or sign-out.
+        return bool(self.cookie_value(RECOVERY_COOKIE)) or session_has_auth_method(
+            {"access_token": self.current_access_token(user)},
+            "recovery",
+        )
 
     def handle_csrf_token(self) -> None:
         token = self.cookie_value(CSRF_COOKIE)
@@ -6221,7 +6231,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             or not session.get("access_token")
             or not session.get("refresh_token")
             or not user.get("id")
-            or not session_has_auth_method(session, "recovery")
         ):
             self.send_json(
                 HTTPStatus.BAD_REQUEST,
@@ -6458,7 +6467,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if status != HTTPStatus.OK:
             self.send_current_user_error(status, user)
             return
-        if session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery"):
+        if self.is_recovery_session(user):
             self.send_json(
                 HTTPStatus.FORBIDDEN,
                 auth_error("RECOVERY_SESSION_RESTRICTED", "Finish resetting your password before accessing account data."),
@@ -6512,7 +6521,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_current_user_error(status, user)
             return None, None
         access_token = self.current_access_token(user)
-        if session_has_auth_method({"access_token": access_token}, "recovery"):
+        if self.is_recovery_session(user):
             self.send_json(
                 HTTPStatus.FORBIDDEN,
                 auth_error("RECOVERY_SESSION_RESTRICTED", "Finish resetting your password before opening account settings."),
@@ -8556,7 +8565,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             if status != HTTPStatus.OK:
                 self.send_current_user_error(status, user)
                 return
-            if session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery"):
+            if self.is_recovery_session(user):
                 self.send_json(
                     HTTPStatus.FORBIDDEN,
                     auth_error("RECOVERY_SESSION_RESTRICTED", "Finish resetting your password before sending an inquiry."),
@@ -10265,7 +10274,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if status != HTTPStatus.OK:
             self.send_current_user_error(status, user)
             return False, None
-        if session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery"):
+        if self.is_recovery_session(user):
             self.send_json(
                 HTTPStatus.FORBIDDEN,
                 auth_error("RECOVERY_SESSION_RESTRICTED", "Finish resetting your password before opening administrator tools."),
@@ -10299,7 +10308,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             return
-        if session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery"):
+        if self.is_recovery_session(user):
             self.send_response(HTTPStatus.SEE_OTHER)
             self.send_header("Location", "/auth/reset-password")
             self.send_header("Cache-Control", "no-store")
@@ -10338,7 +10347,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             return
-        if session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery"):
+        if self.is_recovery_session(user):
             self.send_response(HTTPStatus.SEE_OTHER)
             self.send_header("Location", "/auth/reset-password")
             self.send_header("Cache-Control", "no-store")
@@ -10377,7 +10386,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             return
-        if session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery"):
+        if self.is_recovery_session(user):
             self.send_response(HTTPStatus.SEE_OTHER)
             self.send_header("Location", "/auth/reset-password")
             self.send_header("Cache-Control", "no-store")
@@ -10416,7 +10425,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             return
-        if session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery"):
+        if self.is_recovery_session(user):
             self.send_response(HTTPStatus.SEE_OTHER)
             self.send_header("Location", "/auth/reset-password")
             self.send_header("Cache-Control", "no-store")
@@ -10450,7 +10459,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_current_user_error(status, user)
             return False, None, None
         access_token = self.current_access_token(user)
-        if session_has_auth_method({"access_token": access_token}, "recovery"):
+        if self.is_recovery_session(user):
             self.send_json(
                 HTTPStatus.FORBIDDEN,
                 auth_error("RECOVERY_SESSION_RESTRICTED", "Finish resetting your password before opening review tools."),
@@ -10501,7 +10510,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             return
-        if session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery"):
+        if self.is_recovery_session(user):
             self.send_response(HTTPStatus.SEE_OTHER)
             self.send_header("Location", "/auth/reset-password")
             self.send_header("Cache-Control", "no-store")
@@ -11082,7 +11091,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
                 return
-            if session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery"):
+            if self.is_recovery_session(user):
                 self.send_response(HTTPStatus.SEE_OTHER)
                 self.send_header("Location", "/auth/reset-password")
                 self.send_header("Cache-Control", "no-store")
@@ -11129,7 +11138,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
                 return
-            if session_has_auth_method({"access_token": self.current_access_token(user)}, "recovery"):
+            if self.is_recovery_session(user):
                 self.send_response(HTTPStatus.SEE_OTHER)
                 self.send_header("Location", "/auth/reset-password")
                 self.send_header("Cache-Control", "no-store")

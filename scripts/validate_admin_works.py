@@ -338,8 +338,7 @@ def validate_server(server: str) -> None:
 
     admin_guard = python_function(server, "require_admin")
     require(admin_guard, {
-        "session_has_auth_method",
-        '"recovery"',
+        "self.is_recovery_session(user)",
         '"RECOVERY_SESSION_RESTRICTED"',
         'authorization.get("account_status") != "active"',
         '{"admin", "super_admin"}',
