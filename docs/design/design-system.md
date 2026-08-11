@@ -50,6 +50,9 @@ MT Presence is not an admin product or a conventional marketing page. The page s
 - `public-site-nav` / `public-nav-toggle`：GlobalHeader 的桌面文字导航与移动展开菜单；移动状态由 `public-navigation.js` 同步 ARIA、`inert` 和焦点。Review 是权限感知的顶级导航，不进入账户菜单。
 - `hero`：主视觉、品牌名、核心宣言、主按钮。
 - `button`：统一按钮样式。
+- `auth-oauth-providers` / `auth-oauth-button`：Auth 页第三方登录组位于邮箱密码表单及 `OR` 分隔线之后，Google 与 Apple 按 12px 间距纵向排列并与 430px 表单容器同宽，移动端不超过可用宽度。Google 使用官方四色 G、浅灰背景和 `Sign in with Google`；Apple 使用官方单色 Apple 标志、近黑背景和 `Sign in with Apple`。两者高度、左右内边距和全圆轮廓一致，提供低声量 hover/active、清晰 `focus-visible` 与 reduced-motion 兼容；不得退回单色字母圆章、直角按钮、窄于表单的悬浮块或自制品牌标识。
+- `account-linked-identities`：Account Settings 的 Security 分组内使用连续列表表达 Email、Google、Apple 登录身份，不做卡片套卡片。每行固定 provider mark、身份名称/邮箱/时间和稳定操作区；未连接 provider 以低声量 outline 命令置于列表之后。连接中显示按钮内进度，移除必须确认；最后一个身份不显示危险移除命令并解释原因。Loading、provider error、linked、unlinked 与不可用状态必须在原区域更新，不让后续 Sessions 布局跳动。
+- `account-mfa-settings`：Account Settings 的 Security 分组内以连续上下分隔线呈现 Authenticator app，不做独立彩色卡。状态只使用 Off、On、Required、Unavailable；二元选择使用带 `role=switch` 和稳定轨道尺寸的开关，开启进入 QR/验证码 setup，关闭必须先显示危险确认。森林绿仅表达 On/Required，错误使用克制暗红；管理员 Required 禁用开关但保留可读原因。桌面说明与开关同排，`760px` 以下自然换行，loading/disabled/error/focus/reduced-motion 均不改变布局宽度。
 - `about-section`：品牌介绍长文案。
 - `marquee-gallery`：精选作品无限横向滚动带。
 - `marquee-item`：单张作品展示容器，统一高度、自然宽度。

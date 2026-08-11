@@ -105,12 +105,15 @@ CSRF_COOKIE = "__Host-mt_csrf_token" if COOKIE_SECURE else "mt_csrf_token"
 RECOVERY_COOKIE = "__Host-mt_recovery_grant" if COOKIE_SECURE else "mt_recovery_grant"
 OAUTH_STATE_COOKIE = "__Host-mt_oauth_state" if COOKIE_SECURE else "mt_oauth_state"
 CSRF_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{40,128}$")
+OAUTH_PROVIDERS = frozenset({"google", "apple"})
+IDENTITY_PROVIDERS = frozenset({"email", *OAUTH_PROVIDERS})
+OAUTH_PROVIDER_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{1,39}$")
 RECOVERY_GRANT_TTL_SECONDS = 10 * 60
 RECOVERY_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30
 RECOVERY_GRANTS: dict[str, tuple[str, float]] = {}
 RECOVERY_GRANTS_LOCK = threading.Lock()
 OAUTH_FLOW_TTL_SECONDS = 10 * 60
-OAUTH_FLOWS: dict[str, tuple[str, str, float]] = {}
+OAUTH_FLOWS: dict[str, dict[str, object]] = {}
 OAUTH_FLOWS_LOCK = threading.Lock()
 AUTH_PASSWORD_MIN_LENGTH = 12
 AUTH_PASSWORD_MAX_LENGTH = 128
@@ -601,28 +604,56 @@ def safe_auth_destination(value: str, fallback: str = "/works.html") -> str:
     return value
 
 
-def create_oauth_flow(next_path: str) -> tuple[str, str, str]:
+def create_oauth_flow(
+    next_path: str,
+    *,
+    provider: str = "google",
+    purpose: str = "login",
+    user_id: str = "",
+) -> tuple[str, str, str]:
+    provider = clean_text(provider, 40).lower()
+    if provider not in OAUTH_PROVIDERS:
+        raise ValueError("Unsupported OAuth provider")
+    if purpose not in {"login", "link"}:
+        raise ValueError("Unsupported OAuth flow purpose")
     state = secrets.token_urlsafe(32)
     verifier = secrets.token_urlsafe(48)
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).decode("ascii").rstrip("=")
     now = time.monotonic()
     with OAUTH_FLOWS_LOCK:
-        expired = [key for key, (_, _, deadline) in OAUTH_FLOWS.items() if deadline <= now]
+        expired = [
+            key for key, flow in OAUTH_FLOWS.items()
+            if float(flow.get("deadline", 0)) <= now
+        ]
         for key in expired:
             OAUTH_FLOWS.pop(key, None)
-        OAUTH_FLOWS[state] = (verifier, safe_auth_destination(next_path), now + OAUTH_FLOW_TTL_SECONDS)
+        OAUTH_FLOWS[state] = {
+            "verifier": verifier,
+            "next_path": safe_auth_destination(next_path),
+            "provider": provider,
+            "purpose": purpose,
+            "user_id": clean_text(user_id, 64),
+            "deadline": now + OAUTH_FLOW_TTL_SECONDS,
+        }
     return state, verifier, challenge
 
 
-def consume_oauth_flow(state: str) -> tuple[str, str] | None:
+def consume_oauth_flow(state: str) -> dict[str, object] | None:
     if not state:
         return None
     now = time.monotonic()
     with OAUTH_FLOWS_LOCK:
         flow = OAUTH_FLOWS.pop(state, None)
-    if not flow or flow[2] <= now:
+    if not flow or float(flow.get("deadline", 0)) <= now:
         return None
-    return flow[0], flow[1]
+    return flow
+
+
+def discard_oauth_flow(state: str) -> None:
+    if not state:
+        return
+    with OAUTH_FLOWS_LOCK:
+        OAUTH_FLOWS.pop(state, None)
 
 
 def auth_error(
@@ -953,6 +984,165 @@ def normalize_auth_email(value) -> str:
         return ""
     normalized = f"{local}@{ascii_domain}"
     return normalized if valid_email_address(normalized) else ""
+
+
+def clean_auth_identities(user: dict) -> list[dict]:
+    """Project provider identities without exposing provider metadata or tokens."""
+    raw_identities = user.get("identities") if isinstance(user, dict) else None
+    if not isinstance(raw_identities, list):
+        return []
+    identities: list[dict] = []
+    seen: set[str] = set()
+    for raw_identity in raw_identities:
+        if not isinstance(raw_identity, dict):
+            continue
+        try:
+            identity_id = clean_uuid(
+                raw_identity.get("id") or raw_identity.get("identity_id"),
+                "identity id",
+            )
+        except ValueError:
+            continue
+        provider = clean_text(raw_identity.get("provider"), 40).lower()
+        if identity_id in seen or not OAUTH_PROVIDER_PATTERN.fullmatch(provider) or provider not in IDENTITY_PROVIDERS:
+            continue
+        identity_data = raw_identity.get("identity_data")
+        if not isinstance(identity_data, dict):
+            identity_data = {}
+        email = normalize_auth_email(raw_identity.get("email") or identity_data.get("email")) or None
+        identities.append({
+            "id": identity_id,
+            "provider": provider,
+            "email": email,
+            "created_at": clean_iso_timestamp(raw_identity.get("created_at"), nullable=True),
+            "last_sign_in_at": clean_iso_timestamp(raw_identity.get("last_sign_in_at"), nullable=True),
+        })
+        seen.add(identity_id)
+    identities.sort(key=lambda identity: (identity["provider"] != "email", identity["provider"], identity["id"]))
+    return identities
+
+
+def clean_mfa_factors(user: dict) -> list[dict]:
+    """Project MFA factors without exposing enrollment secrets or provider internals."""
+    raw_factors = user.get("factors") if isinstance(user, dict) else None
+    if not isinstance(raw_factors, list):
+        return []
+    factors: list[dict] = []
+    seen: set[str] = set()
+    for raw_factor in raw_factors:
+        if not isinstance(raw_factor, dict):
+            continue
+        try:
+            factor_id = clean_uuid(raw_factor.get("id"), "factor id")
+        except ValueError:
+            continue
+        factor_type = clean_text(raw_factor.get("factor_type") or raw_factor.get("type"), 32).lower()
+        status = clean_text(raw_factor.get("status"), 32).lower()
+        if (
+            factor_id in seen
+            or factor_type not in {"totp", "phone", "webauthn"}
+            or status not in {"verified", "unverified"}
+        ):
+            continue
+        factors.append({
+            "id": factor_id,
+            "factor_type": factor_type,
+            "status": status,
+            "friendly_name": clean_optional_text(raw_factor.get("friendly_name"), 120),
+        })
+        seen.add(factor_id)
+    factors.sort(key=lambda factor: (factor["factor_type"], factor["status"] != "verified", factor["id"]))
+    return factors
+
+
+def verified_totp_factors(user: dict) -> list[dict]:
+    return [
+        factor
+        for factor in clean_mfa_factors(user)
+        if factor["factor_type"] == "totp" and factor["status"] == "verified"
+    ]
+
+
+def clean_mfa_enrollment(result: dict) -> dict | None:
+    """Allowlist the one-time enrollment payload returned to the browser."""
+    if not isinstance(result, dict):
+        return None
+    try:
+        factor_id = clean_uuid(result.get("id"), "factor id")
+    except ValueError:
+        return None
+    factor_type = clean_text(result.get("factor_type") or result.get("type"), 32).lower()
+    status = clean_text(result.get("status"), 32).lower() or "unverified"
+    if factor_type != "totp" or status != "unverified":
+        return None
+    totp = result.get("totp") if isinstance(result.get("totp"), dict) else {}
+    qr_code = clean_text(totp.get("qr_code") or totp.get("qrCode"), 512 * 1024)
+    secret = clean_text(totp.get("secret"), 256)
+    if not qr_code or not secret:
+        return None
+    if not (
+        qr_code.startswith("data:image/")
+        or qr_code.lstrip().startswith("<svg")
+        or (qr_code.lstrip().startswith("<?xml") and "<svg" in qr_code)
+    ):
+        return None
+    return {
+        "id": factor_id,
+        "factor_type": factor_type,
+        "status": status,
+        "friendly_name": clean_optional_text(result.get("friendly_name"), 120),
+        "totp": {"qr_code": qr_code, "secret": secret},
+    }
+
+
+def user_has_oauth_provider(user: dict, provider: str) -> bool:
+    provider = clean_text(provider, 40).lower()
+    if provider not in OAUTH_PROVIDERS:
+        return False
+    app_metadata = user.get("app_metadata") if isinstance(user.get("app_metadata"), dict) else {}
+    raw_providers = app_metadata.get("providers") or []
+    if isinstance(raw_providers, str):
+        raw_providers = [raw_providers]
+    providers = {
+        clean_text(value, 40).lower()
+        for value in raw_providers
+        if isinstance(value, str)
+    }
+    primary_provider = clean_text(app_metadata.get("provider"), 40).lower()
+    return bool(
+        primary_provider == provider
+        or provider in providers
+        or any(identity["provider"] == provider for identity in clean_auth_identities(user))
+    )
+
+
+def valid_oauth_provider_redirect(value: str) -> bool:
+    value = clean_text(value, 4096)
+    parsed = urlparse(value)
+    try:
+        hostname = parsed.hostname or ""
+        port = parsed.port
+    except ValueError:
+        return False
+    if (
+        not parsed.netloc
+        or not hostname
+        or parsed.username
+        or parsed.password
+        or parsed.fragment
+        or "\\" in value
+        or any(ord(character) < 32 or ord(character) == 127 for character in value)
+    ):
+        return False
+    if parsed.scheme == "https":
+        return True
+    if parsed.scheme != "http" or RUNTIME_ENVIRONMENT not in {"development", "test"}:
+        return False
+    try:
+        is_loopback = ipaddress.ip_address(hostname).is_loopback
+    except ValueError:
+        is_loopback = hostname.lower() == "localhost"
+    return is_loopback and (port is None or 1 <= port <= 65535)
 
 
 def inquiry_rate_digest(scope: str, value: str) -> str:
@@ -6481,6 +6671,15 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             supabase_auth_request("logout?scope=local", {}, session.get("access_token", ""), method="POST")
             self.send_json(HTTPStatus.FORBIDDEN, auth_error("EMAIL_NOT_VERIFIED", "Verify your email before signing in."))
             return
+        user_status, current_user = supabase_auth_request("user", access_token=session.get("access_token", ""))
+        if user_status != HTTPStatus.OK or not isinstance(current_user, dict):
+            supabase_auth_request("logout?scope=local", {}, session.get("access_token", ""), method="POST")
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("AUTHORIZATION_FAILED", "Unable to verify account security. Try again."),
+            )
+            return
+        user = current_user
         authz_status, authorization = supabase_rest_request("rpc/current_authorization", session.get("access_token", ""))
         if authz_status != HTTPStatus.OK:
             supabase_auth_request("logout?scope=local", {}, session.get("access_token", ""), method="POST")
@@ -6496,8 +6695,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 auth_error("ACCOUNT_RESTRICTED", "This account cannot access the Workspace."),
             )
             return
-        roles = set(authorization.get("roles") or [])
-        next_action = "mfa" if roles.intersection({"admin", "super_admin"}) and authorization.get("aal") != "aal2" else "workspace"
+        next_action = "mfa" if self.mfa_required_for_session(user, authorization) else "workspace"
         consume_recovery_grant(self.cookie_value(RECOVERY_COOKIE))
         self.send_auth_json(
             HTTPStatus.OK,
@@ -6505,16 +6703,31 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             [*self.session_cookie_headers(session), self.clear_recovery_cookie_header()],
         )
 
-    def handle_google_oauth_start(self, parsed) -> None:
+    def oauth_error_redirect(self, flow: dict | None, code: str, clear_flow_cookie: str) -> None:
+        flow = flow if isinstance(flow, dict) else {}
+        provider = clean_text(flow.get("provider"), 40).lower()
+        purpose = clean_text(flow.get("purpose"), 16).lower()
+        pending_cookies = list(getattr(self, "_pending_response_cookies", []))
+        if purpose == "link" and provider in OAUTH_PROVIDERS:
+            query = urlencode({"identity_status": code, "provider": provider})
+            self.send_auth_redirect(f"/settings/account?{query}", [*pending_cookies, clear_flow_cookie])
+            return
+        query = {"oauth_error": code}
+        if provider in OAUTH_PROVIDERS:
+            query["oauth_provider"] = provider
+        self.send_auth_redirect(f"/auth/sign-in?{urlencode(query)}", [*pending_cookies, clear_flow_cookie])
+
+    def handle_oauth_start(self, provider: str, parsed) -> None:
+        provider = clean_text(provider, 40).lower()
         public_base_url = self.public_base_url()
-        if not auth_configured() or not public_base_url:
+        if provider not in OAUTH_PROVIDERS or not auth_configured() or not public_base_url:
             self.send_auth_redirect("/auth/sign-in?oauth_error=unavailable")
             return
         next_path = safe_auth_destination(single_query_value(parse_qs(parsed.query), "next"))
-        state, _, challenge = create_oauth_flow(next_path)
+        state, _, challenge = create_oauth_flow(next_path, provider=provider, purpose="login")
         callback_url = f"{public_base_url}/auth/oauth/callback"
         authorize_query = urlencode({
-            "provider": "google",
+            "provider": provider,
             "redirect_to": callback_url,
             "code_challenge": challenge,
             "code_challenge_method": "s256",
@@ -6522,7 +6735,82 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         authorize_url = f"{SUPABASE_URL}/auth/v1/authorize?{authorize_query}"
         self.send_auth_redirect(authorize_url, [self.oauth_state_cookie_header(state)])
 
-    def handle_google_oauth_callback(self, parsed) -> None:
+    def handle_google_oauth_start(self, parsed) -> None:
+        self.handle_oauth_start("google", parsed)
+
+    def handle_identity_link_start(self) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        provider = clean_text(body.get("provider"), 40).lower()
+        if provider not in OAUTH_PROVIDERS:
+            self.send_json(HTTPStatus.UNPROCESSABLE_ENTITY, auth_error(
+                "IDENTITY_PROVIDER_INVALID", "Choose a supported account provider.",
+            ))
+            return
+        user, authorization = self.require_account_session()
+        if not user or not authorization:
+            return
+        if user_has_oauth_provider(user, provider):
+            self.send_json(HTTPStatus.CONFLICT, auth_error(
+                "IDENTITY_ALREADY_LINKED", "This account is already linked.",
+            ))
+            return
+        public_base_url = self.public_base_url()
+        if not auth_configured() or not public_base_url:
+            self.send_json(HTTPStatus.SERVICE_UNAVAILABLE, auth_error(
+                "IDENTITY_LINK_UNAVAILABLE", "Account linking is temporarily unavailable.",
+            ))
+            return
+        user_id = clean_text(user.get("id"), 64)
+        try:
+            user_id = clean_uuid(user_id, "user id")
+        except ValueError:
+            self.send_json(HTTPStatus.BAD_GATEWAY, auth_error(
+                "IDENTITY_LINK_UNAVAILABLE", "Account linking is temporarily unavailable.",
+            ))
+            return
+        callback_url = f"{public_base_url}/auth/oauth/callback"
+        destination = f"/settings/account?{urlencode({'identity_status': 'linked', 'provider': provider})}"
+        state, _, challenge = create_oauth_flow(
+            destination,
+            provider=provider,
+            purpose="link",
+            user_id=user_id,
+        )
+        query = urlencode({
+            "provider": provider,
+            "redirect_to": callback_url,
+            "code_challenge": challenge,
+            "code_challenge_method": "s256",
+            "skip_http_redirect": "true",
+        })
+        status, result = supabase_auth_request(
+            f"user/identities/authorize?{query}",
+            access_token=self.current_access_token(user),
+            method="GET",
+        )
+        redirect_url = result.get("url") if isinstance(result, dict) else ""
+        if status != HTTPStatus.OK or not valid_oauth_provider_redirect(redirect_url):
+            discard_oauth_flow(state)
+            error_code = "IDENTITY_LINK_UNAVAILABLE"
+            if status in {HTTPStatus.BAD_REQUEST, HTTPStatus.CONFLICT, HTTPStatus.UNPROCESSABLE_ENTITY}:
+                error_code = "IDENTITY_LINK_DISABLED"
+            self.send_json(
+                HTTPStatus.SERVICE_UNAVAILABLE if status >= 500 else HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error(error_code, "This provider cannot be linked right now. Enable manual identity linking and try again."),
+            )
+            return
+        refreshed_session = user.get("_refreshed_session") or {}
+        cookies = self.session_cookie_headers(refreshed_session) if refreshed_session else []
+        cookies.append(self.oauth_state_cookie_header(state))
+        self.send_auth_json(
+            HTTPStatus.OK,
+            {"provider": provider, "redirect_url": redirect_url},
+            cookies,
+        )
+
+    def handle_oauth_callback(self, parsed) -> None:
         flow = consume_oauth_flow(self.cookie_value(OAUTH_STATE_COOKIE))
         clear_flow_cookie = self.clear_oauth_state_cookie_header()
         query = parse_qs(parsed.query)
@@ -6530,43 +6818,92 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         code = single_query_value(query, "code")
         if provider_error or not code or not flow:
             error_code = "cancelled" if provider_error == "access_denied" else "invalid"
-            self.send_auth_redirect(f"/auth/sign-in?oauth_error={error_code}", [clear_flow_cookie])
+            self.oauth_error_redirect(flow, error_code, clear_flow_cookie)
             return
 
-        verifier, next_path = flow
+        provider = clean_text(flow.get("provider"), 40).lower()
+        verifier = clean_text(flow.get("verifier"), 256)
+        if provider not in OAUTH_PROVIDERS or not verifier:
+            self.oauth_error_redirect(flow, "invalid", clear_flow_cookie)
+            return
         status, session = supabase_auth_request(
             "token?grant_type=pkce",
             {"auth_code": code, "code_verifier": verifier},
         )
         if status != HTTPStatus.OK or not session.get("access_token") or not session.get("refresh_token"):
-            self.send_auth_redirect("/auth/sign-in?oauth_error=unavailable", [clear_flow_cookie])
+            self.oauth_error_redirect(flow, "unavailable", clear_flow_cookie)
             return
 
-        user = session.get("user") or {}
-        app_metadata = user.get("app_metadata") if isinstance(user.get("app_metadata"), dict) else {}
-        providers = set(app_metadata.get("providers") or [])
-        if app_metadata.get("provider") != "google" and "google" not in providers:
+        user_status, user = supabase_auth_request("user", access_token=session.get("access_token", ""))
+        if user_status != HTTPStatus.OK or not isinstance(user, dict):
             supabase_auth_request("logout?scope=local", {}, session.get("access_token", ""), method="POST")
-            self.send_auth_redirect("/auth/sign-in?oauth_error=invalid", [clear_flow_cookie])
+            self.oauth_error_redirect(flow, "unavailable", clear_flow_cookie)
             return
+        if not user_has_oauth_provider(user, provider):
+            supabase_auth_request("logout?scope=local", {}, session.get("access_token", ""), method="POST")
+            self.oauth_error_redirect(flow, "invalid", clear_flow_cookie)
+            return
+
+        purpose = clean_text(flow.get("purpose"), 16).lower()
+        if purpose == "link":
+            expected_user_id = clean_text(flow.get("user_id"), 64)
+            returned_user_id = clean_text(user.get("id"), 64)
+            current_status, current_user = self.current_auth_user()
+            if (
+                current_status != HTTPStatus.OK
+                or clean_text(current_user.get("id"), 64) != expected_user_id
+                or returned_user_id != expected_user_id
+            ):
+                supabase_auth_request("logout?scope=local", {}, session.get("access_token", ""), method="POST")
+                self.oauth_error_redirect(flow, "invalid", clear_flow_cookie)
+                return
+            authz_status, authorization = supabase_rest_request(
+                "rpc/current_authorization",
+                session.get("access_token", ""),
+            )
+            if (
+                authz_status != HTTPStatus.OK
+                or not isinstance(authorization, dict)
+                or authorization.get("account_status") != "active"
+            ):
+                supabase_auth_request("logout?scope=local", {}, session.get("access_token", ""), method="POST")
+                self.oauth_error_redirect(
+                    flow,
+                    "restricted" if authz_status == HTTPStatus.OK and isinstance(authorization, dict) else "unavailable",
+                    clear_flow_cookie,
+                )
+                return
+            destination = clean_text(flow.get("next_path"), 2048) or "/settings/account"
+            if self.mfa_required_for_session(user, authorization):
+                destination = f"/auth/mfa?{urlencode({'next': destination})}"
+            self.send_auth_redirect(destination, [*self.session_cookie_headers(session), clear_flow_cookie])
+            return
+
         if not user.get("email_confirmed_at") and not user.get("confirmed_at"):
             supabase_auth_request("logout?scope=local", {}, session.get("access_token", ""), method="POST")
-            self.send_auth_redirect("/auth/sign-in?oauth_error=restricted", [clear_flow_cookie])
+            self.oauth_error_redirect(flow, "restricted", clear_flow_cookie)
             return
 
         authz_status, authorization = supabase_rest_request(
             "rpc/current_authorization",
             session.get("access_token", ""),
         )
-        if authz_status != HTTPStatus.OK or authorization.get("account_status") != "active":
+        if (
+            authz_status != HTTPStatus.OK
+            or not isinstance(authorization, dict)
+            or authorization.get("account_status") != "active"
+        ):
             supabase_auth_request("logout?scope=local", {}, session.get("access_token", ""), method="POST")
-            error_code = "restricted" if authz_status == HTTPStatus.OK else "unavailable"
-            self.send_auth_redirect(f"/auth/sign-in?oauth_error={error_code}", [clear_flow_cookie])
+            self.oauth_error_redirect(
+                flow,
+                "restricted" if authz_status == HTTPStatus.OK and isinstance(authorization, dict) else "unavailable",
+                clear_flow_cookie,
+            )
             return
 
-        roles = set(authorization.get("roles") or [])
+        next_path = clean_text(flow.get("next_path"), 2048) or "/works.html"
         destination = next_path
-        if roles.intersection({"admin", "super_admin"}) and authorization.get("aal") != "aal2":
+        if self.mfa_required_for_session(user, authorization):
             destination = f"/auth/mfa?{urlencode({'next': next_path})}"
         consume_recovery_grant(self.cookie_value(RECOVERY_COOKIE))
         self.send_auth_redirect(
@@ -6577,6 +6914,64 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 clear_flow_cookie,
             ],
         )
+
+    def handle_google_oauth_callback(self, parsed) -> None:
+        self.handle_oauth_callback(parsed)
+
+    def handle_identity_list_get(self) -> None:
+        user, authorization = self.require_account_session()
+        if not user or not authorization:
+            return
+        self.send_auth_json(HTTPStatus.OK, {"identities": clean_auth_identities(user)})
+
+    def handle_identity_unlink(self, identity_id: str) -> None:
+        try:
+            identity_id = clean_uuid(identity_id, "identity id")
+        except ValueError:
+            self.send_json(HTTPStatus.NOT_FOUND, auth_error("IDENTITY_NOT_FOUND", "The linked account could not be found."))
+            return
+        user, authorization = self.require_account_session()
+        if not user or not authorization:
+            return
+        identities = clean_auth_identities(user)
+        target = next((identity for identity in identities if identity["id"] == identity_id), None)
+        if target is None:
+            self.send_json(HTTPStatus.NOT_FOUND, auth_error("IDENTITY_NOT_FOUND", "The linked account could not be found."))
+            return
+        if len(identities) <= 1:
+            self.send_json(HTTPStatus.CONFLICT, auth_error(
+                "IDENTITY_LAST_BLOCKED", "Keep at least one sign-in method linked to your account.",
+            ))
+            return
+        status, result = supabase_auth_request(
+            f"user/identities/{identity_id}",
+            access_token=self.current_access_token(user),
+            method="DELETE",
+        )
+        if status == HTTPStatus.OK:
+            refreshed_status, refreshed_user = supabase_auth_request(
+                "user",
+                access_token=self.current_access_token(user),
+            )
+            if refreshed_status == HTTPStatus.OK:
+                identities = clean_auth_identities(refreshed_user)
+            else:
+                identities = [identity for identity in identities if identity["id"] != identity_id]
+            self.send_auth_json(HTTPStatus.OK, {"identities": identities})
+            return
+        if status in {HTTPStatus.UNPROCESSABLE_ENTITY, HTTPStatus.CONFLICT}:
+            self.send_json(HTTPStatus.CONFLICT, auth_error(
+                "IDENTITY_UNLINK_BLOCKED", "This linked account cannot be removed right now.",
+            ))
+            return
+        if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+            self.send_json(HTTPStatus.BAD_GATEWAY, auth_error(
+                "IDENTITY_PROVIDER_UNAVAILABLE", "The identity provider is temporarily unavailable.",
+            ))
+            return
+        self.send_json(HTTPStatus.BAD_GATEWAY, auth_error(
+            "IDENTITY_UNLINK_FAILED", "The linked account could not be removed.",
+        ))
 
     def handle_auth_sign_out(self) -> None:
         status, user = self.current_auth_user()
@@ -6595,22 +6990,8 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         )
 
     def handle_me(self, parsed=None) -> None:
-        status, user = self.current_auth_user()
-        if status != HTTPStatus.OK:
-            self.send_current_user_error(status, user)
-            return
-        if self.is_recovery_session(user):
-            self.send_json(
-                HTTPStatus.FORBIDDEN,
-                auth_error("RECOVERY_SESSION_RESTRICTED", "Finish resetting your password before accessing account data."),
-            )
-            return
-        authz_status, authorization = self.current_authorization(user)
-        if authz_status != HTTPStatus.OK or not isinstance(authorization, dict):
-            self.send_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("AUTHORIZATION_FAILED", "Unable to verify account access. Try again."),
-            )
+        user, authorization = self.require_account_session()
+        if not user or not authorization:
             return
         profile_status, profile = self.fetch_current_profile(user)
         if profile_status != HTTPStatus.OK:
@@ -6647,7 +7028,35 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         refreshed = user.get("_refreshed_session") or {}
         return refreshed.get("access_token") or self.cookie_value(ACCESS_COOKIE)
 
-    def require_account_session(self, *, require_admin_mfa: bool = True) -> tuple[dict | None, dict | None]:
+    def mfa_status_payload(self, user: dict, authorization: dict) -> dict:
+        roles = set(authorization.get("roles") or [])
+        factors = verified_totp_factors(user)
+        mandatory = bool(roles.intersection({"admin", "super_admin"}))
+        enabled = bool(factors)
+        aal = authorization.get("aal") or "aal1"
+        return {
+            "enabled": enabled,
+            "mandatory": mandatory,
+            "factor_type": "totp" if enabled else None,
+            "factor_count": len(factors),
+            "aal": aal,
+            "challenge_required": aal != "aal2" and (mandatory or enabled),
+            "can_disable": enabled and not mandatory and aal == "aal2",
+        }
+
+    def mfa_required_for_session(self, user: dict, authorization: dict) -> bool:
+        return self.mfa_status_payload(user, authorization)["challenge_required"]
+
+    def redirect_to_mfa_if_required(self, user: dict, authorization: dict, next_path: str) -> bool:
+        if not self.mfa_required_for_session(user, authorization):
+            return False
+        self.send_response(HTTPStatus.SEE_OTHER)
+        self.send_header("Location", f"/auth/mfa?{urlencode({'next': next_path})}")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        return True
+
+    def require_account_session(self, *, allow_mfa_challenge: bool = False) -> tuple[dict | None, dict | None]:
         status, user = self.current_auth_user()
         if status != HTTPStatus.OK:
             self.send_current_user_error(status, user)
@@ -6672,11 +7081,10 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 auth_error("ACCOUNT_RESTRICTED", "This account cannot change profile or session settings."),
             )
             return None, authorization
-        roles = set(authorization.get("roles") or [])
-        if require_admin_mfa and roles.intersection({"admin", "super_admin"}) and authorization.get("aal") != "aal2":
+        if not allow_mfa_challenge and self.mfa_required_for_session(user, authorization):
             self.send_json(
                 HTTPStatus.FORBIDDEN,
-                auth_error("MFA_REQUIRED", "Complete multi-factor authentication before changing administrator settings."),
+                auth_error("MFA_REQUIRED", "Enter the current code from your authenticator to continue."),
             )
             return None, authorization
         return user, authorization
@@ -6740,6 +7148,8 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             "account_status": authorization.get("account_status"),
             "roles": authorization.get("roles") or [],
             "aal": authorization.get("aal") or "aal1",
+            "identities": clean_auth_identities(user),
+            "mfa": self.mfa_status_payload(user, authorization),
         }
         return {
             "user": {
@@ -8710,12 +9120,14 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                     auth_error("AUTHORIZATION_FAILED", "Unable to verify inquiry access. Try again."),
                 )
                 return
-            roles = set(authorization.get("roles") or [])
             if authorization.get("account_status") != "active":
                 self.send_json(HTTPStatus.FORBIDDEN, auth_error("ACCOUNT_RESTRICTED", "This account cannot send inquiries."))
                 return
-            if roles.intersection({"admin", "super_admin"}) and authorization.get("aal") != "aal2":
-                self.send_json(HTTPStatus.FORBIDDEN, auth_error("MFA_REQUIRED", "Complete multi-factor authentication to continue."))
+            if self.mfa_required_for_session(user, authorization):
+                self.send_json(
+                    HTTPStatus.FORBIDDEN,
+                    auth_error("MFA_REQUIRED", "Enter the current code from your authenticator to continue."),
+                )
                 return
             initiator_id = self.communication_principal_id(user)
             if initiator_id is None:
@@ -10281,52 +10693,58 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_auth_json(HTTPStatus.OK, {"draft": signed})
 
     def handle_mfa_factors(self) -> None:
-        user, _ = self.require_account_session(require_admin_mfa=False)
-        if not user:
+        user, authorization = self.require_account_session(allow_mfa_challenge=True)
+        if not user or not authorization:
             return
-        all_factors = user.get("factors") or []
+        all_factors = clean_mfa_factors(user)
         factors = {
             "all": all_factors,
-            "totp": [factor for factor in all_factors if factor.get("factor_type") == "totp"],
-            "phone": [factor for factor in all_factors if factor.get("factor_type") == "phone"],
+            "totp": [
+                factor
+                for factor in all_factors
+                if factor["factor_type"] == "totp" and factor["status"] == "verified"
+            ],
+            "phone": [
+                factor
+                for factor in all_factors
+                if factor["factor_type"] == "phone" and factor["status"] == "verified"
+            ],
+            "mfa": self.mfa_status_payload(user, authorization),
         }
         session = user.get("_refreshed_session")
         self.send_auth_json(HTTPStatus.OK, factors, self.session_cookie_headers(session) if session else None)
 
+    def handle_mfa_status(self) -> None:
+        user, authorization = self.require_account_session(allow_mfa_challenge=True)
+        if not user or not authorization:
+            return
+        session = user.get("_refreshed_session")
+        self.send_auth_json(
+            HTTPStatus.OK,
+            {"mfa": self.mfa_status_payload(user, authorization)},
+            self.session_cookie_headers(session) if session else None,
+        )
+
     def handle_mfa_enroll(self) -> None:
-        user, _ = self.require_account_session(require_admin_mfa=False)
+        user, _ = self.require_account_session(allow_mfa_challenge=True)
         if not user:
             return
-        factors = user.get("factors") or []
+        factors = clean_mfa_factors(user)
         totp_factors = [
             factor
             for factor in factors
-            if (factor.get("factor_type") or factor.get("type")) == "totp"
+            if factor["factor_type"] == "totp"
         ]
-        if any(factor.get("status") == "verified" for factor in totp_factors):
+        if any(factor["status"] == "verified" for factor in totp_factors):
             self.send_json(
                 HTTPStatus.CONFLICT,
                 auth_error("MFA_ALREADY_ENROLLED", "Use your existing authenticator to continue."),
             )
             return
 
-        if any(factor.get("status") != "unverified" for factor in totp_factors):
-            self.send_json(
-                HTTPStatus.CONFLICT,
-                auth_error("MFA_RESET_FAILED", "The authenticator state could not be verified safely."),
-            )
-            return
-
         access_token = self.current_access_token(user)
-        for pending_factor in (factor for factor in totp_factors if factor.get("status") == "unverified"):
-            try:
-                factor_id = clean_uuid(pending_factor.get("id"), "factor id")
-            except ValueError:
-                self.send_json(
-                    HTTPStatus.CONFLICT,
-                    auth_error("MFA_RESET_FAILED", "The incomplete authenticator setup could not be reset."),
-                )
-                return
+        for pending_factor in (factor for factor in totp_factors if factor["status"] == "unverified"):
+            factor_id = pending_factor["id"]
             reset_status, _ = supabase_auth_request(
                 f"factors/{factor_id}",
                 access_token=access_token,
@@ -10344,10 +10762,20 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             {"factor_type": "totp", "friendly_name": "MT Presence authenticator"},
             access_token,
         )
+        if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
+            self.send_json(status, auth_error("MFA_PROVIDER_UNAVAILABLE", "Authenticator setup is temporarily unavailable."))
+            return
         if status not in {HTTPStatus.OK, HTTPStatus.CREATED}:
             self.send_json(HTTPStatus.BAD_REQUEST, auth_error("MFA_ENROLL_FAILED", "Unable to start authenticator setup."))
             return
-        self.send_auth_json(HTTPStatus.CREATED, factor)
+        enrollment = clean_mfa_enrollment(factor)
+        if enrollment is None:
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("MFA_ENROLL_FAILED", "The authenticator provider returned an incomplete setup. Try again."),
+            )
+            return
+        self.send_auth_json(HTTPStatus.CREATED, enrollment)
 
     def handle_mfa_challenge(self) -> None:
         body = self.read_json_body()
@@ -10358,8 +10786,12 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         except ValueError as error:
             self.send_json(HTTPStatus.UNPROCESSABLE_ENTITY, auth_error("MFA_VALIDATION_FAILED", str(error)))
             return
-        user, _ = self.require_account_session(require_admin_mfa=False)
+        user, _ = self.require_account_session(allow_mfa_challenge=True)
         if not user:
+            return
+        factor = next((item for item in clean_mfa_factors(user) if item["id"] == factor_id), None)
+        if factor is None or factor["factor_type"] != "totp":
+            self.send_json(HTTPStatus.NOT_FOUND, auth_error("MFA_FACTOR_NOT_FOUND", "The authenticator is unavailable."))
             return
         status, challenge = supabase_auth_request(
             f"factors/{factor_id}/challenge", {}, self.current_access_token(user)
@@ -10367,7 +10799,15 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if status not in {HTTPStatus.OK, HTTPStatus.CREATED}:
             self.send_json(HTTPStatus.BAD_REQUEST, auth_error("MFA_CHALLENGE_FAILED", "Unable to start MFA verification."))
             return
-        self.send_auth_json(HTTPStatus.OK, {"id": challenge.get("id")})
+        try:
+            challenge_id = clean_uuid(challenge.get("id"), "challenge id")
+        except ValueError:
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("MFA_CHALLENGE_FAILED", "The authenticator provider returned an invalid challenge. Try again."),
+            )
+            return
+        self.send_auth_json(HTTPStatus.OK, {"id": challenge_id})
 
     def handle_mfa_verify(self) -> None:
         body = self.read_json_body()
@@ -10383,8 +10823,12 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if not re.fullmatch(r"\d{6}", code):
             self.send_json(HTTPStatus.UNPROCESSABLE_ENTITY, auth_error("MFA_VALIDATION_FAILED", "Enter the 6-digit code."))
             return
-        user, _ = self.require_account_session(require_admin_mfa=False)
+        user, _ = self.require_account_session(allow_mfa_challenge=True)
         if not user:
+            return
+        factor = next((item for item in clean_mfa_factors(user) if item["id"] == factor_id), None)
+        if factor is None or factor["factor_type"] != "totp":
+            self.send_json(HTTPStatus.NOT_FOUND, auth_error("MFA_FACTOR_NOT_FOUND", "The authenticator is unavailable."))
             return
         status, session = supabase_auth_request(
             f"factors/{factor_id}/verify",
@@ -10398,6 +10842,96 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             HTTPStatus.OK,
             {"verified": True, "aal": "aal2"},
             self.session_cookie_headers(session),
+        )
+
+    def handle_mfa_disable(self) -> None:
+        body = self.read_json_body()
+        if body is None:
+            return
+        if body != {"confirmation": "disable-mfa"}:
+            self.send_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error("MFA_DISABLE_CONFIRMATION_REQUIRED", "Confirm that two-factor authentication should be turned off."),
+            )
+            return
+        user, authorization = self.require_account_session()
+        if not user or not authorization:
+            return
+        roles = set(authorization.get("roles") or [])
+        if roles.intersection({"admin", "super_admin"}):
+            self.send_json(
+                HTTPStatus.FORBIDDEN,
+                auth_error("MFA_MANDATORY", "Two-factor authentication is required for administrator accounts."),
+            )
+            return
+        factors = sorted(
+            (factor for factor in clean_mfa_factors(user) if factor["factor_type"] == "totp"),
+            key=lambda factor: factor["status"] == "verified",
+        )
+        if not any(factor["status"] == "verified" for factor in factors):
+            access_token = self.current_access_token(user)
+            for factor in factors:
+                delete_status, _ = supabase_auth_request(
+                    f"factors/{factor['id']}",
+                    access_token=access_token,
+                    method="DELETE",
+                )
+                if delete_status not in {HTTPStatus.OK, HTTPStatus.NO_CONTENT, HTTPStatus.NOT_FOUND}:
+                    self.send_json(
+                        HTTPStatus.CONFLICT,
+                        auth_error("MFA_DISABLE_INCOMPLETE", "The incomplete authenticator setup could not be removed. Try again."),
+                    )
+                    return
+            self.send_auth_json(
+                HTTPStatus.OK,
+                {
+                    "disabled": True,
+                    "other_sessions_revoked": False,
+                    "mfa": self.mfa_status_payload({**user, "factors": []}, authorization),
+                    "message": "Two-factor authentication is already off.",
+                },
+            )
+            return
+
+        access_token = self.current_access_token(user)
+        revoke_status, _ = supabase_auth_request(
+            "logout?scope=others",
+            {},
+            access_token,
+            method="POST",
+        )
+        if revoke_status not in {HTTPStatus.OK, HTTPStatus.NO_CONTENT}:
+            self.send_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("MFA_DISABLE_FAILED", "Other device sessions could not be revoked. Two-factor authentication remains on."),
+            )
+            return
+
+        for factor in factors:
+            delete_status, _ = supabase_auth_request(
+                f"factors/{factor['id']}",
+                access_token=access_token,
+                method="DELETE",
+            )
+            if delete_status not in {HTTPStatus.OK, HTTPStatus.NO_CONTENT, HTTPStatus.NOT_FOUND}:
+                self.send_json(
+                    HTTPStatus.CONFLICT,
+                    auth_error("MFA_DISABLE_INCOMPLETE", "The authenticator could not be removed completely. Two-factor authentication remains on."),
+                )
+                return
+
+        remaining_user = {
+            **user,
+            "factors": [factor for factor in clean_mfa_factors(user) if factor["factor_type"] != "totp"],
+        }
+        self.send_auth_json(
+            HTTPStatus.OK,
+            {
+                "disabled": True,
+                "other_sessions_revoked": True,
+                "mfa": self.mfa_status_payload(remaining_user, authorization),
+                "message": "Two-factor authentication is off. Other device sessions were signed out.",
+            },
         )
 
     def require_admin(self) -> tuple[bool, dict | None]:
@@ -10537,12 +11071,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 auth_error("ACCOUNT_RESTRICTED", "This account cannot access communications."),
             )
             return
-        roles = set(authorization.get("roles") or [])
-        if roles.intersection({"admin", "super_admin"}) and authorization.get("aal") != "aal2":
-            self.send_response(HTTPStatus.SEE_OTHER)
-            self.send_header("Location", f"/auth/mfa?{urlencode({'next': next_path})}")
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
+        if self.redirect_to_mfa_if_required(user, authorization, next_path):
             return
         self.serve_header_html(filename, user=user, authorization=authorization)
 
@@ -10623,10 +11152,10 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 auth_error("AUTHORIZATION_FAILED", "Unable to verify review identity. Try again."),
             )
             return False, user, None
-        if roles.intersection({"admin", "super_admin"}) and authorization.get("aal") != "aal2":
+        if self.mfa_required_for_session(user, authorization):
             self.send_json(
                 HTTPStatus.FORBIDDEN,
-                auth_error("MFA_REQUIRED", "Complete multi-factor authentication to continue."),
+                auth_error("MFA_REQUIRED", "Enter the current code from your authenticator to continue."),
             )
             return False, user, authorization
         return True, user, authorization
@@ -10662,11 +11191,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 auth_error("REVIEWER_REQUIRED", "You do not have access to the Review Queue."),
             )
             return
-        if roles.intersection({"admin", "super_admin"}) and authorization.get("aal") != "aal2":
-            self.send_response(HTTPStatus.SEE_OTHER)
-            self.send_header("Location", f"/auth/mfa?{urlencode({'next': next_path})}")
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
+        if self.redirect_to_mfa_if_required(user, authorization, next_path):
             return
         self.serve_header_html("admin-reviews.html", user=user, authorization=authorization)
 
@@ -11169,11 +11694,11 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             return
-        if parsed.path == "/auth/oauth/google":
-            self.handle_google_oauth_start(parsed)
+        if parsed.path in {"/auth/oauth/google", "/auth/oauth/apple"}:
+            self.handle_oauth_start(parsed.path.rsplit("/", 1)[-1], parsed)
             return
         if parsed.path == "/auth/oauth/callback":
-            self.handle_google_oauth_callback(parsed)
+            self.handle_oauth_callback(parsed)
             return
         if parsed.path in {
             "/auth/sign-in",
@@ -11248,12 +11773,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                     auth_error("ACCOUNT_RESTRICTED", "This account cannot open account settings."),
                 )
                 return
-            roles = set(authorization.get("roles") or [])
-            if roles.intersection({"admin", "super_admin"}) and authorization.get("aal") != "aal2":
-                self.send_response(HTTPStatus.SEE_OTHER)
-                self.send_header("Location", f"/auth/mfa?{urlencode({'next': '/settings/account'})}")
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
+            if self.redirect_to_mfa_if_required(user, authorization, "/settings/account"):
                 return
             self.serve_header_html("account-settings.html", user=user, authorization=authorization)
             return
@@ -11292,16 +11812,8 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             if authorization.get("account_status") != "active":
                 self.send_json(HTTPStatus.FORBIDDEN, auth_error("ACCOUNT_RESTRICTED", "This account cannot access the Workspace."))
                 return
-            roles = set(authorization.get("roles") or [])
-            if (
-                parsed.path in {"/dashboard", "/dashboard/"}
-                and roles.intersection({"admin", "super_admin"})
-                and authorization.get("aal") != "aal2"
-            ):
-                self.send_response(HTTPStatus.SEE_OTHER)
-                self.send_header("Location", f"/auth/mfa?{urlencode({'next': '/dashboard'})}")
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
+            next_path = "/workspace/images" if parsed.path.startswith("/workspace/images") else "/dashboard"
+            if self.redirect_to_mfa_if_required(user, authorization, next_path):
                 return
             if parsed.path in {"/workspace", "/workspace/"}:
                 self.send_response(HTTPStatus.SEE_OTHER)
@@ -11333,6 +11845,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/me/profile":
             self.handle_profile_get()
             return
+        if parsed.path == "/api/me/identities":
+            self.handle_identity_list_get()
+            return
         if parsed.path == "/api/me/profile/cover":
             self.handle_profile_cover_get()
             return
@@ -11353,6 +11868,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/auth/mfa/factors":
             self.handle_mfa_factors()
+            return
+        if parsed.path == "/api/auth/mfa/status":
+            self.handle_mfa_status()
             return
         if parsed.path == "/api/notifications":
             self.handle_notifications_get(parsed)
@@ -11630,6 +12148,11 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/auth/mfa/verify":
             self.handle_mfa_verify()
             return
+        if parsed.path == "/api/me/identities/link":
+            if not self.require_csrf():
+                return
+            self.handle_identity_link_start()
+            return
         if parsed.path == "/api/me/profile/avatar/intents":
             if not self.require_csrf():
                 return
@@ -11756,6 +12279,11 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
     def do_DELETE(self) -> None:
         parsed = urlparse(self.path)
         parts = [part for part in parsed.path.split("/") if part]
+        if parsed.path == "/api/auth/mfa":
+            if not self.require_csrf():
+                return
+            self.handle_mfa_disable()
+            return
         if parsed.path == "/api/me/profile/avatar":
             if not self.require_csrf():
                 return
@@ -11765,6 +12293,11 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             if not self.require_csrf():
                 return
             self.handle_profile_avatar_intent_cancel(parts[5])
+            return
+        if len(parts) == 4 and parts[:3] == ["api", "me", "identities"]:
+            if not self.require_csrf():
+                return
+            self.handle_identity_unlink(parts[3])
             return
         if len(parts) == 4 and parts[:3] == ["api", "me", "sessions"]:
             if not self.require_csrf():

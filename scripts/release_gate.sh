@@ -60,6 +60,7 @@ browser_scripts=(
 boundary_tests=(
   scripts/test_header_identity_boundary.py
   scripts/test_auth_security_boundary.py
+  scripts/test_oauth_identity_boundary.py
   scripts/test_workspace_phase2_boundary.py
   scripts/test_configure_development_scanner.py
   scripts/test_workspace_asset_scanner.py

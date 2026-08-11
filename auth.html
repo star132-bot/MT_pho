@@ -6,7 +6,7 @@
     <title>Sign In | MT Presence</title>
     <meta name="description" content="Sign in to the private MT Presence image workspace." />
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260805-google-oauth" />
+    <link rel="stylesheet" href="/styles.css?v=20260807-oauth-providers" />
   </head>
   <body class="auth-page">
     <a class="auth-skip" href="#auth-form">Skip to form</a>
@@ -31,14 +31,6 @@
           <div class="auth-loading" role="status" aria-live="polite" data-auth-loading hidden>
             <span aria-hidden="true"></span>
             <p data-auth-loading-copy>Validating your secure link…</p>
-          </div>
-
-          <div class="auth-oauth" data-auth-oauth hidden>
-            <a class="auth-oauth-button" href="/auth/oauth/google" data-auth-google aria-label="Continue with Google">
-              <span class="auth-google-mark" aria-hidden="true">G</span>
-              <span>Continue with Google</span>
-            </a>
-            <div class="auth-divider" role="separator"><span>or</span></div>
           </div>
 
           <form id="auth-form" class="auth-form" data-auth-form aria-describedby="auth-intro" novalidate>
@@ -90,6 +82,27 @@
             <button class="auth-submit" type="submit" data-auth-submit>Sign in</button>
           </form>
 
+          <div class="auth-oauth" data-auth-oauth hidden>
+            <div class="auth-divider" role="separator"><span>or</span></div>
+            <div class="auth-oauth-providers">
+              <a class="auth-oauth-button" href="/auth/oauth/google" data-auth-provider="google" data-auth-google aria-label="Sign in with Google">
+                <svg class="auth-provider-logo auth-google-logo" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+                  <path fill="#4285F4" d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.482h4.844c-.209 1.125-.843 2.078-1.797 2.716v2.258h2.909c1.702-1.567 2.684-3.874 2.684-6.615Z" />
+                  <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.909-2.258c-.806.54-1.836.859-3.047.859-2.344 0-4.329-1.585-5.037-3.711H.956v2.333C2.437 15.984 5.482 18 9 18Z" />
+                  <path fill="#FBBC05" d="M3.963 10.71A5.418 5.418 0 0 1 3.682 9c0-.593.101-1.17.281-1.71V4.957H.956A9.002 9.002 0 0 0 0 9c0 1.451.347 2.827.956 4.043l3.007-2.333Z" />
+                  <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.441 1.345l2.581-2.581C13.464.892 11.426 0 9 0 5.482 0 2.437 2.016.956 4.957L3.963 7.29C4.671 5.164 6.656 3.58 9 3.58Z" />
+                </svg>
+                <span>Sign in with Google</span>
+              </a>
+              <a class="auth-oauth-button auth-oauth-button-apple" href="/auth/oauth/apple" data-auth-provider="apple" aria-label="Sign in with Apple">
+                <svg class="auth-provider-logo auth-apple-logo" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35-.07 2.29.74 3.08.74 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.53 4.14ZM12.03 7.19C11.88 4.96 13.69 3.12 15.77 3c.29 2.58-2.34 4.5-3.74 4.19Z" />
+                </svg>
+                <span>Sign in with Apple</span>
+              </a>
+            </div>
+          </div>
+
           <a class="auth-secondary-link" href="/auth/forgot-password" data-auth-forgot-link>Forgot password?</a>
           <a class="auth-secondary-link" href="/auth/resend-verification" data-auth-resend-link hidden>Send a new verification code</a>
 
@@ -102,6 +115,6 @@
         </div>
       </section>
     </main>
-    <script src="/auth.js?v=20260805-google-oauth"></script>
+    <script src="/auth.js?v=20260807-oauth-providers"></script>
   </body>
 </html>

@@ -8557,42 +8557,60 @@ button.upload-studio-card-main:focus-visible {
 
 .auth-oauth[hidden] { display: none; }
 
+.auth-oauth-providers {
+  display: grid;
+  gap: 10px;
+}
+
 .auth-oauth-button {
   display: grid;
-  grid-template-columns: 24px 1fr 24px;
+  grid-template-columns: 20px auto;
+  justify-content: center;
   width: 100%;
   min-height: 48px;
   box-sizing: border-box;
+  gap: 13px;
   align-items: center;
-  padding: 0 15px;
-  border: 1px solid #9c9a93;
-  border-radius: 0;
-  background: transparent;
+  margin: 0 auto;
+  padding: 0 24px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: #f0f1f3;
   color: #171715;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 700;
   text-align: center;
   text-decoration: none;
+  transition: background-color 160ms ease, box-shadow 160ms ease;
 }
 
-.auth-oauth-button:hover { border-color: #171715; background: #f1f0ec; }
+.auth-oauth-button:hover { background: #e4e6e9; }
+
+.auth-oauth-button:active { background: #dadde1; }
 
 .auth-oauth-button:focus-visible {
-  outline: 2px solid #244d5d;
-  outline-offset: 3px;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(36, 77, 93, 0.24);
 }
 
-.auth-google-mark {
-  display: grid;
-  width: 22px;
-  height: 22px;
-  place-items: center;
-  border: 1px solid #c9c7c0;
-  border-radius: 50%;
-  background: #fff;
-  color: #244d5d;
-  font: 700 12px/1 Inter, "Helvetica Neue", Arial, sans-serif;
+.auth-provider-logo {
+  display: block;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
 }
+
+.auth-apple-logo { fill: currentColor; }
+
+.auth-oauth-button-apple {
+  border-color: #171715;
+  background: #171715;
+  color: #fff;
+}
+
+.auth-oauth-button-apple:hover { background: #2a2a27; }
+
+.auth-oauth-button-apple:active { background: #090908; }
 
 .auth-divider {
   display: grid;
@@ -21541,4 +21559,430 @@ button.upload-studio-card-main:focus-visible {
 @media (max-width: 480px) {
   .admin-review-bulk-tools { grid-template-columns: minmax(0, 1fr); }
   .admin-review-bulk-tools button { width: 100%; min-width: 0; min-height: 40px; }
+}
+
+/* Account Settings: linked identity controls stay within the Security rhythm. */
+.account-settings-page .account-linked-identities {
+  margin-top: 38px;
+  padding-top: 26px;
+  border-top: 1px solid var(--profile-line);
+}
+
+.account-settings-page .account-linked-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+
+.account-settings-page .account-linked-heading h3 {
+  margin: 0;
+  color: var(--profile-ink);
+  font-size: 17px;
+  font-weight: 750;
+}
+
+.account-settings-page .account-linked-heading p {
+  max-width: 520px;
+  margin: 6px 0 0;
+  color: #70756f;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.account-settings-page .account-linked-count {
+  padding-top: 3px;
+  color: #70756f;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.account-settings-page .account-identity-loading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 62px;
+  color: #70756f;
+  font-size: 12px;
+}
+
+.account-settings-page .account-identity-loading > span {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border: 1px solid #c3c9c4;
+  border-top-color: var(--profile-teal);
+  border-radius: 50%;
+  animation: mfa-spin 0.8s linear infinite;
+}
+
+.account-settings-page .account-identity-list {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--profile-line);
+  list-style: none;
+}
+
+.account-settings-page .account-identity-item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 13px;
+  align-items: center;
+  min-width: 0;
+  padding: 15px 0;
+  border-bottom: 1px solid #e3e5e1;
+}
+
+.account-settings-page .account-provider-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #c9ceca;
+  border-radius: 50%;
+  background: #f7f8f6;
+  color: var(--profile-teal);
+  font: 750 14px/1 Arial, Helvetica, sans-serif;
+}
+
+.account-settings-page .account-provider-mark-apple {
+  color: var(--profile-ink);
+}
+
+.account-settings-page .account-provider-mark svg {
+  width: 17px;
+  height: 17px;
+  fill: currentColor;
+}
+
+.account-settings-page .account-identity-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.account-settings-page .account-identity-copy strong {
+  overflow-wrap: anywhere;
+  color: var(--profile-ink);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.account-settings-page .account-identity-copy span,
+.account-settings-page .account-identity-copy small {
+  overflow-wrap: anywhere;
+  color: #70756f;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.account-settings-page .account-identity-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.account-settings-page .account-identity-remove {
+  min-height: 34px;
+  padding: 6px 0;
+  border: 0;
+  border-bottom: 1px solid #adb6b0;
+  background: transparent;
+  color: #53625d;
+  font: 700 11px/1.2 Arial, Helvetica, sans-serif;
+  cursor: pointer;
+}
+
+.account-settings-page .account-identity-remove:hover:not(:disabled),
+.account-settings-page .account-identity-remove:focus-visible:not(:disabled) {
+  border-bottom-color: #873c34;
+  color: #873c34;
+}
+
+.account-settings-page .account-identity-remove:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus);
+}
+
+.account-settings-page .account-identity-remove:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.account-settings-page .account-identity-empty {
+  padding: 18px 0;
+  border-bottom: 1px solid #e3e5e1;
+  color: #70756f;
+  font-size: 12px;
+}
+
+.account-settings-page .account-identity-empty.is-error {
+  color: #873c34;
+}
+
+.account-settings-page .account-identity-connect {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 16px;
+}
+
+.account-settings-page .account-identity-connect-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  gap: 8px;
+  padding: 7px 12px 7px 8px;
+  border: 1px solid #c4cac5;
+  border-radius: 3px;
+  background: #fff;
+  color: var(--profile-ink);
+  font: 700 11px/1.2 Arial, Helvetica, sans-serif;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.account-settings-page .account-identity-connect-button:hover:not(:disabled),
+.account-settings-page .account-identity-connect-button:focus-visible:not(:disabled) {
+  border-color: var(--profile-teal);
+  background: #f0f5f2;
+  color: #173f37;
+}
+
+.account-settings-page .account-identity-connect-button:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus);
+}
+
+.account-settings-page .account-identity-connect-button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.account-settings-page .account-identity-connect-button[hidden] {
+  display: none;
+}
+
+.account-settings-page .account-identity-connect-button .account-provider-mark {
+  width: 23px;
+  height: 23px;
+  border: 0;
+  background: #eef2ef;
+  font-size: 12px;
+}
+
+.account-settings-page .account-provider-mark-google { color: #316a8b; }
+
+.account-settings-page .account-provider-mark-apple {
+  color: #1b211e;
+}
+
+.account-settings-page .account-identity-note {
+  margin: 13px 0 0;
+  color: #70756f;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* Account Settings: the authenticator is an explicit, server-backed security control. */
+.account-settings-page .account-mfa-settings {
+  margin-top: 30px;
+  padding: 22px 0 20px;
+  border-top: 1px solid var(--profile-line);
+  border-bottom: 1px solid var(--profile-line);
+}
+
+.account-settings-page .account-mfa-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.account-settings-page .account-mfa-label {
+  margin: 0 0 5px;
+  color: #70756f;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.account-settings-page .account-mfa-heading h3 {
+  margin: 0;
+  color: var(--profile-ink);
+  font-size: 17px;
+  font-weight: 750;
+}
+
+.account-settings-page .account-mfa-status {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border: 1px solid #bdc8c1;
+  border-radius: 999px;
+  color: #53625d;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-settings-page .account-mfa-status[data-state="enabled"],
+.account-settings-page .account-mfa-status[data-state="required"] {
+  border-color: #7ca699;
+  background: #edf5f1;
+  color: #145346;
+}
+
+.account-settings-page .account-mfa-status[data-state="unavailable"] {
+  border-color: #d6aaa4;
+  background: #fbf0ee;
+  color: #873c34;
+}
+
+.account-settings-page .account-mfa-control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 13px;
+}
+
+.account-settings-page .account-mfa-control-row > p {
+  max-width: 600px;
+  margin: 0;
+  color: #53625d;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.account-settings-page .account-mfa-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 40px;
+  flex: 0 0 auto;
+  gap: 9px;
+  padding: 4px 0 4px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--profile-ink);
+  font: 750 11px/1.2 Arial, Helvetica, sans-serif;
+  cursor: pointer;
+}
+
+.account-settings-page .account-mfa-switch-track {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 42px;
+  height: 24px;
+  padding: 2px;
+  border: 1px solid #aebbb4;
+  border-radius: 999px;
+  background: #e7ebe8;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.account-settings-page .account-mfa-switch-track i {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(18, 35, 30, 0.2);
+  transition: transform 160ms ease;
+}
+
+.account-settings-page .account-mfa-switch[aria-checked="true"] .account-mfa-switch-track {
+  border-color: var(--profile-teal);
+  background: var(--profile-teal);
+}
+
+.account-settings-page .account-mfa-switch[aria-checked="true"] .account-mfa-switch-track i {
+  transform: translateX(18px);
+}
+
+.account-settings-page .account-mfa-switch:hover:not(:disabled) {
+  color: #145346;
+}
+
+.account-settings-page .account-mfa-switch:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus);
+}
+
+.account-settings-page .account-mfa-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.account-settings-page .account-mfa-help {
+  max-width: 640px;
+  margin: 12px 0 0;
+  color: #858b86;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.account-settings-page .account-mfa-feedback {
+  margin: 13px 0 0;
+  color: #145346;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.account-settings-page .account-mfa-feedback.is-error {
+  color: #873c34;
+}
+
+@media (max-width: 760px) {
+  .account-settings-page .account-mfa-control-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .account-settings-page .account-mfa-switch {
+    justify-content: flex-start;
+    padding-left: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .account-settings-page .account-linked-heading {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+  }
+
+  .account-settings-page .account-linked-count { padding-top: 0; }
+
+  .account-settings-page .account-identity-item {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 11px;
+  }
+
+  .account-settings-page .account-identity-actions {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+
+  .account-settings-page .account-identity-connect {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .account-settings-page .account-identity-connect-button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account-settings-page .account-identity-loading > span {
+    animation: none;
+  }
 }

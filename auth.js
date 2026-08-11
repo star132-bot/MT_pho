@@ -16,7 +16,9 @@ const passwordLabel = document.querySelector("[data-password-label]");
 const passwordConfirmationLabel = document.querySelector("[data-password-confirmation-label]");
 const passwordHint = document.querySelector("[data-password-hint]");
 const oauthGroup = document.querySelector("[data-auth-oauth]");
-const googleLink = document.querySelector("[data-auth-google]");
+const oauthProviderLinks = new Map(
+  [...document.querySelectorAll("[data-auth-provider]")].map((link) => [link.dataset.authProvider, link]),
+);
 const fieldGroups = new Map(
   [...document.querySelectorAll("[data-auth-field]")].map((element) => [element.dataset.authField, element]),
 );
@@ -168,7 +170,9 @@ function configureMode() {
   nextLink.hidden = true;
   oauthGroup.hidden = mode !== "signIn";
   const requestedNext = safeInternalPath(new URLSearchParams(window.location.search).get("next"));
-  googleLink.href = `/auth/oauth/google?next=${encodeURIComponent(requestedNext)}`;
+  oauthProviderLinks.forEach((link, provider) => {
+    link.href = `/auth/oauth/${provider}?next=${encodeURIComponent(requestedNext)}`;
+  });
 
   fieldGroups.forEach((_, name) => setFieldVisibility(name, config.fields.includes(name)));
   if (mode === "forgotPassword") setFieldVisibility("recovery_code", false);
@@ -198,14 +202,16 @@ function showOAuthResult() {
   const url = new URL(window.location.href);
   const code = url.searchParams.get("oauth_error");
   if (!code) return;
+  const provider = url.searchParams.get("oauth_provider") === "apple" ? "Apple" : "Google";
   const messages = {
-    cancelled: "Google sign-in was cancelled.",
-    restricted: "This Google account cannot access the Workspace.",
-    invalid: "The Google sign-in request is invalid or has expired. Try again.",
-    unavailable: "Google sign-in is temporarily unavailable. Try again shortly.",
+    cancelled: `${provider} sign-in was cancelled.`,
+    restricted: `This ${provider} account cannot access the Workspace.`,
+    invalid: `The ${provider} sign-in request is invalid or has expired. Try again.`,
+    unavailable: `${provider} sign-in is temporarily unavailable. Try again shortly.`,
   };
   showNotice(messages[code] || messages.invalid);
   url.searchParams.delete("oauth_error");
+  url.searchParams.delete("oauth_provider");
   window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
 }
 
@@ -493,7 +499,9 @@ form.addEventListener("submit", async (event) => {
     }
 
     const sessionCheck = await authRequest("/api/me");
-    if (!sessionCheck.response.ok) {
+    const mfaPending = sessionCheck.response.status === 403
+      && sessionCheck.result?.error?.code === "MFA_REQUIRED";
+    if (!sessionCheck.response.ok && !mfaPending) {
       const next = safeInternalPath(new URLSearchParams(window.location.search).get("next"));
       const browserUrl = new URL("/auth/sign-in", window.location.origin);
       browserUrl.searchParams.set("next", next);

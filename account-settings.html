@@ -334,7 +334,63 @@
                 <dd><strong data-security-aal>Standard session</strong><span data-security-aal-detail>Password-protected access</span></dd>
               </div>
             </dl>
+
+            <div class="account-mfa-settings" data-mfa-settings aria-busy="true">
+              <div class="account-mfa-heading">
+                <div>
+                  <p class="account-mfa-label">Two-factor authentication</p>
+                  <h3>Authenticator app</h3>
+                </div>
+                <span class="account-mfa-status" data-mfa-status data-state="loading">Checking</span>
+              </div>
+              <div class="account-mfa-control-row">
+                <p data-mfa-description>Checking your authenticator protection…</p>
+                <button
+                  class="account-mfa-switch"
+                  type="button"
+                  role="switch"
+                  aria-checked="false"
+                  aria-describedby="account-mfa-help"
+                  data-mfa-action
+                  disabled
+                >
+                  <span class="account-mfa-switch-track" aria-hidden="true"><i></i></span>
+                  <span data-mfa-action-label>Checking</span>
+                </button>
+              </div>
+              <p id="account-mfa-help" class="account-mfa-help">Use a time-based code from 1Password, Google Authenticator, Microsoft Authenticator, or Apple Passwords.</p>
+              <p class="account-mfa-feedback" role="status" aria-live="polite" data-mfa-feedback hidden></p>
+            </div>
+
             <a class="account-text-action" href="/auth/forgot-password">Send a password reset email</a>
+
+            <div class="account-linked-identities" data-linked-identities>
+              <div class="account-linked-heading">
+                <div>
+                  <h3>Linked accounts</h3>
+                  <p>Use a connected provider to return to this workspace without another password.</p>
+                </div>
+                <span class="account-linked-count" data-identity-count>Loading</span>
+              </div>
+              <div class="account-identity-loading" role="status" data-identity-loading>
+                <span aria-hidden="true"></span>
+                Loading linked accounts…
+              </div>
+              <ul class="account-identity-list" aria-live="polite" data-identity-list hidden></ul>
+              <div class="account-identity-connect" data-identity-connect hidden>
+                <button class="account-identity-connect-button" type="button" data-identity-connect-provider="google">
+                  <span class="account-provider-mark" data-provider-mark="google" aria-hidden="true">G</span>
+                  Connect Google
+                </button>
+                <button class="account-identity-connect-button" type="button" data-identity-connect-provider="apple">
+                  <span class="account-provider-mark account-provider-mark-apple" data-provider-mark="apple" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35-.07 2.29.74 3.08.74 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.53 4.14ZM12.03 7.19C11.88 4.96 13.69 3.12 15.77 3c.29 2.58-2.34 4.5-3.74 4.19Z" /></svg>
+                  </span>
+                  Connect Apple
+                </button>
+              </div>
+              <p class="account-identity-note" data-identity-note hidden></p>
+            </div>
           </section>
 
           <section id="sessions" class="account-settings-section" aria-labelledby="sessions-title">
@@ -381,8 +437,34 @@
       </form>
     </dialog>
 
+    <dialog class="account-confirm-dialog" aria-labelledby="identity-confirm-title" aria-describedby="identity-confirm-description" data-identity-dialog>
+      <form method="dialog" data-identity-dialog-form>
+        <p class="section-kicker">Linked Account</p>
+        <h2 id="identity-confirm-title" tabindex="-1" data-identity-dialog-title>Remove this account?</h2>
+        <p id="identity-confirm-description" data-identity-dialog-description></p>
+        <div class="account-dialog-notice" role="alert" tabindex="-1" data-identity-dialog-notice hidden></div>
+        <div class="account-dialog-actions">
+          <button class="button button-secondary" type="button" data-identity-dialog-cancel>Keep account</button>
+          <button class="button button-danger" type="submit" value="confirm" data-identity-dialog-confirm>Remove account</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="account-confirm-dialog" aria-labelledby="mfa-confirm-title" aria-describedby="mfa-confirm-description" data-mfa-dialog>
+      <form method="dialog" data-mfa-dialog-form>
+        <p class="section-kicker">Sign-in Security</p>
+        <h2 id="mfa-confirm-title" tabindex="-1">Turn off two-factor authentication?</h2>
+        <p id="mfa-confirm-description">Future sign-ins will no longer require an authenticator code. Other device sessions will be signed out before the authenticator is removed.</p>
+        <div class="account-dialog-notice" role="alert" tabindex="-1" data-mfa-dialog-notice hidden></div>
+        <div class="account-dialog-actions">
+          <button class="button button-secondary" type="button" data-mfa-dialog-cancel>Keep 2FA on</button>
+          <button class="button button-danger" type="submit" value="confirm" data-mfa-dialog-confirm>Turn off 2FA</button>
+        </div>
+      </form>
+    </dialog>
+
     <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
     <script src="/account-menu.js?v=20260730-auth-gate"></script>
-    <script src="/account-settings.js?v=20260730-profile-roles"></script>
+    <script src="/account-settings.js?v=20260810-optional-mfa"></script>
   </body>
 </html>

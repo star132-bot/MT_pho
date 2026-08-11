@@ -70,6 +70,7 @@ async function request(path, options = {}, retryCsrf = true) {
   if (!response.ok) {
     const error = new Error(result.error?.message || "Unable to complete security verification.");
     error.status = response.status;
+    error.code = result.error?.code || "MFA_REQUEST_FAILED";
     throw error;
   }
   return result;
@@ -88,7 +89,7 @@ function showCodeForm(isEnrollment) {
   enrollment.hidden = !isEnrollment;
   form.hidden = false;
   intro.textContent = isEnrollment
-    ? "Set up a time-based one-time password before entering protected administration."
+    ? "Set up a time-based one-time password to protect every sign-in."
     : "Enter the current code from your authenticator to continue.";
   window.setTimeout(() => form.elements.code.focus(), 0);
 }
@@ -170,9 +171,14 @@ form.addEventListener("submit", async (event) => {
       method: "POST",
       body: JSON.stringify({ factor_id: factorId, challenge_id: challenge.id, code: form.elements.code.value.trim() }),
     });
-    const access = await request("/api/admin/access-check");
-    if (!access.allowed) throw new Error("Administrator access could not be verified.");
-    showNotice("Identity verified. Protected administrator access is active.", "success");
+    const status = await request("/api/auth/mfa/status");
+    if (status.mfa?.aal !== "aal2") throw new Error("Authenticator verification could not be confirmed.");
+    try {
+      await request("/api/admin/access-check");
+    } catch (error) {
+      if (error.code !== "ADMIN_REQUIRED") throw error;
+    }
+    showNotice("Identity verified. Your protected session is active.", "success");
     const next = safeInternalPath(new URLSearchParams(window.location.search).get("next"));
     window.setTimeout(() => window.location.assign(next), 500);
   } catch (error) {

@@ -36,6 +36,8 @@ MEMBER_USER_ID = "00000000-0000-4000-8000-000000000002"
 ADMIN_USER_ID = "00000000-0000-4000-8000-000000000003"
 SIGNUP_USER_ID = "00000000-0000-4000-8000-000000000004"
 GOOGLE_USER_ID = "00000000-0000-4000-8000-000000000005"
+MEMBER_MFA_FACTOR_ID = "20000000-0000-4000-8000-000000000001"
+MEMBER_MFA_CHALLENGE_ID = "30000000-0000-4000-8000-000000000001"
 RECOVERY_ACCESS_TOKEN = fake_access_token({
     "aal": "aal1",
     "amr": [{"method": "otp"}],
@@ -47,6 +49,13 @@ MEMBER_ACCESS_TOKEN = fake_access_token({
     "aal": "aal1",
     "amr": [{"method": "password"}],
     "session_id": "10000000-0000-4000-8000-000000000002",
+    "iat": 1784044800,
+    "exp": 1784048400,
+})
+MEMBER_AAL2_ACCESS_TOKEN = fake_access_token({
+    "aal": "aal2",
+    "amr": [{"method": "password"}, {"method": "totp"}],
+    "session_id": "10000000-0000-4000-8000-000000000006",
     "iat": 1784044800,
     "exp": 1784048400,
 })
@@ -82,6 +91,8 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
     verification_resends: list[dict] = []
     oauth_exchanges: list[dict] = []
     authorization_failures_remaining = 0
+    member_mfa_state = "off"
+    google_mfa_enabled = False
     profile = {
         "display_name": "MT Member",
         "avatar_url": None,
@@ -109,6 +120,28 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or "0")
         return json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
 
+    @classmethod
+    def member_factors(cls) -> list[dict]:
+        if cls.member_mfa_state == "off":
+            return []
+        return [{
+            "id": MEMBER_MFA_FACTOR_ID,
+            "factor_type": "totp",
+            "status": "verified" if cls.member_mfa_state == "verified" else "unverified",
+            "friendly_name": "MT Presence authenticator",
+        }]
+
+    @classmethod
+    def google_factors(cls) -> list[dict]:
+        if not cls.google_mfa_enabled:
+            return []
+        return [{
+            "id": "20000000-0000-4000-8000-000000000005",
+            "factor_type": "totp",
+            "status": "verified",
+            "friendly_name": "Google member authenticator",
+        }]
+
     def do_GET(self) -> None:
         authorization = self.headers.get("Authorization")
         users = {
@@ -122,7 +155,13 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                 "id": MEMBER_USER_ID,
                 "email": "member@example.test",
                 "email_confirmed_at": "2026-07-14T00:00:00Z",
-                "factors": [],
+                "factors": type(self).member_factors(),
+            },
+            f"Bearer {MEMBER_AAL2_ACCESS_TOKEN}": {
+                "id": MEMBER_USER_ID,
+                "email": "member@example.test",
+                "email_confirmed_at": "2026-07-14T00:00:00Z",
+                "factors": type(self).member_factors(),
             },
             f"Bearer {ADMIN_ACCESS_TOKEN}": {
                 "id": ADMIN_USER_ID,
@@ -141,13 +180,16 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                 "email": "google.member@example.test",
                 "email_confirmed_at": "2026-08-05T00:00:00Z",
                 "app_metadata": {"provider": "google", "providers": ["google"]},
-                "factors": [],
+                "factors": type(self).google_factors(),
             },
         }
         if self.path == "/auth/v1/user" and authorization in users:
             self.send_json(HTTPStatus.OK, users[authorization])
             return
-        if urlparse(self.path).path == "/rest/v1/user_profiles" and authorization == f"Bearer {MEMBER_ACCESS_TOKEN}":
+        if (
+            urlparse(self.path).path == "/rest/v1/user_profiles"
+            and authorization in {f"Bearer {MEMBER_ACCESS_TOKEN}", f"Bearer {MEMBER_AAL2_ACCESS_TOKEN}"}
+        ):
             self.send_json(HTTPStatus.OK, [dict(type(self).profile)])
             return
         self.send_json(HTTPStatus.UNAUTHORIZED, {"message": "invalid token"})
@@ -222,6 +264,62 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                 },
             )
             return
+        if parsed.path == "/auth/v1/factors" and authorization in {
+            f"Bearer {MEMBER_ACCESS_TOKEN}",
+            f"Bearer {MEMBER_AAL2_ACCESS_TOKEN}",
+        }:
+            body = self.body()
+            if body.get("factor_type") != "totp":
+                self.send_json(HTTPStatus.BAD_REQUEST, {"message": "unsupported factor"})
+                return
+            type(self).member_mfa_state = "unverified"
+            self.send_json(
+                HTTPStatus.CREATED,
+                {
+                    "id": MEMBER_MFA_FACTOR_ID,
+                    "factor_type": "totp",
+                    "friendly_name": body.get("friendly_name"),
+                    "totp": {
+                        "qr_code": "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%3E%3C/svg%3E",
+                        "secret": "JBSWY3DPEHPK3PXP",
+                    },
+                },
+            )
+            return
+        if parsed.path == f"/auth/v1/factors/{MEMBER_MFA_FACTOR_ID}/challenge" and authorization in {
+            f"Bearer {MEMBER_ACCESS_TOKEN}",
+            f"Bearer {MEMBER_AAL2_ACCESS_TOKEN}",
+        }:
+            self.body()
+            if type(self).member_mfa_state == "off":
+                self.send_json(HTTPStatus.NOT_FOUND, {"message": "factor not found"})
+                return
+            self.send_json(HTTPStatus.OK, {"id": MEMBER_MFA_CHALLENGE_ID})
+            return
+        if parsed.path == f"/auth/v1/factors/{MEMBER_MFA_FACTOR_ID}/verify" and authorization in {
+            f"Bearer {MEMBER_ACCESS_TOKEN}",
+            f"Bearer {MEMBER_AAL2_ACCESS_TOKEN}",
+        }:
+            body = self.body()
+            if body != {"challenge_id": MEMBER_MFA_CHALLENGE_ID, "code": "123456"}:
+                self.send_json(HTTPStatus.UNAUTHORIZED, {"message": "invalid totp"})
+                return
+            type(self).member_mfa_state = "verified"
+            self.send_json(
+                HTTPStatus.OK,
+                {
+                    "access_token": MEMBER_AAL2_ACCESS_TOKEN,
+                    "refresh_token": "refresh-member-aal2",
+                    "expires_in": 3600,
+                    "user": {
+                        "id": MEMBER_USER_ID,
+                        "email": "member@example.test",
+                        "email_confirmed_at": "2026-07-14T00:00:00Z",
+                        "factors": type(self).member_factors(),
+                    },
+                },
+            )
+            return
         if self.path == "/rest/v1/rpc/current_authorization":
             if type(self).authorization_failures_remaining > 0:
                 type(self).authorization_failures_remaining -= 1
@@ -231,6 +329,12 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                 self.send_json(
                     HTTPStatus.OK,
                     {"user_id": MEMBER_USER_ID, "account_status": "active", "roles": ["user"], "aal": "aal1"},
+                )
+                return
+            if authorization == f"Bearer {MEMBER_AAL2_ACCESS_TOKEN}":
+                self.send_json(
+                    HTTPStatus.OK,
+                    {"user_id": MEMBER_USER_ID, "account_status": "active", "roles": ["user"], "aal": "aal2"},
                 )
                 return
             if authorization == f"Bearer {ADMIN_ACCESS_TOKEN}":
@@ -342,6 +446,16 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
             return
         self.send_json(HTTPStatus.UNAUTHORIZED, {})
 
+    def do_DELETE(self) -> None:
+        if (
+            self.path == f"/auth/v1/factors/{MEMBER_MFA_FACTOR_ID}"
+            and self.headers.get("Authorization") == f"Bearer {MEMBER_AAL2_ACCESS_TOKEN}"
+        ):
+            type(self).member_mfa_state = "off"
+            self.send_json(HTTPStatus.OK, {})
+            return
+        self.send_json(HTTPStatus.UNAUTHORIZED, {})
+
 
 class RejectRedirects(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, request, file_pointer, code, message, headers, new_url):  # noqa: ANN001
@@ -449,6 +563,8 @@ def main() -> None:
     FakeSupabaseHandler.verification_resends = []
     FakeSupabaseHandler.oauth_exchanges = []
     FakeSupabaseHandler.authorization_failures_remaining = 0
+    FakeSupabaseHandler.member_mfa_state = "off"
+    FakeSupabaseHandler.google_mfa_enabled = False
     FakeSupabaseHandler.profile = {
         "display_name": "MT Member",
         "avatar_url": None,
@@ -521,6 +637,24 @@ def main() -> None:
         status, _, headers = request(external_next_opener, base_url, "/auth/oauth/callback?code=valid-google-code")
         if status != HTTPStatus.SEE_OTHER or headers.get("Location") != "/works.html":
             raise RuntimeError("Google OAuth accepted an external post-authentication destination")
+
+        FakeSupabaseHandler.google_mfa_enabled = True
+        oauth_mfa_opener = CookieOpener()
+        status, _, _ = request(oauth_mfa_opener, base_url, "/auth/oauth/google?next=/workspace/images")
+        if status != HTTPStatus.SEE_OTHER:
+            raise RuntimeError("Google OAuth MFA test could not start")
+        status, _, headers = request(oauth_mfa_opener, base_url, "/auth/oauth/callback?code=valid-google-code")
+        mfa_destination = urlparse(headers.get("Location", ""))
+        if (
+            status != HTTPStatus.SEE_OTHER
+            or mfa_destination.path != "/auth/mfa"
+            or parse_qs(mfa_destination.query).get("next") != ["/workspace/images"]
+        ):
+            raise RuntimeError("Google OAuth bypassed an enabled authenticator factor")
+        status, result, _ = request(oauth_mfa_opener, base_url, "/api/me")
+        if status != HTTPStatus.FORBIDDEN or result.get("error", {}).get("code") != "MFA_REQUIRED":
+            raise RuntimeError("Google OAuth AAL1 session did not fail closed behind MFA")
+        FakeSupabaseHandler.google_mfa_enabled = False
 
         registration_opener = CookieOpener()
         status, result, _ = request(registration_opener, base_url, "/api/auth/csrf")
@@ -821,6 +955,150 @@ def main() -> None:
         if result.get("scope") != "current_only" or result.get("capabilities", {}).get("revoke_by_id") is not False:
             raise RuntimeError("Session capabilities overstated provider support")
 
+        status, result, _ = request(member_opener, base_url, "/api/auth/mfa/status")
+        if status != HTTPStatus.OK or result.get("mfa", {}).get("enabled") is not False:
+            raise RuntimeError("Member MFA status did not start disabled")
+        status, result, _ = request(
+            member_opener,
+            base_url,
+            "/api/auth/mfa/enroll",
+            payload={},
+            origin=base_url,
+        )
+        if status != HTTPStatus.CREATED or result.get("id") != MEMBER_MFA_FACTOR_ID or not result.get("totp", {}).get("secret"):
+            raise RuntimeError("Member could not start authenticator enrollment")
+        status, result, _ = request(member_opener, base_url, "/api/auth/mfa/factors")
+        pending = result.get("all", [])
+        if status != HTTPStatus.OK or len(pending) != 1 or pending[0].get("status") != "unverified":
+            raise RuntimeError("Pending authenticator enrollment was not projected safely")
+        if "totp" in pending[0] or "secret" in pending[0]:
+            raise RuntimeError("Authenticator enrollment secret leaked through the factor listing")
+        status, result, _ = request(
+            member_opener,
+            base_url,
+            "/api/auth/mfa/challenge",
+            payload={"factor_id": MEMBER_MFA_FACTOR_ID},
+            origin=base_url,
+        )
+        if status != HTTPStatus.OK or result.get("id") != MEMBER_MFA_CHALLENGE_ID:
+            raise RuntimeError("Member authenticator challenge could not start")
+        status, result, _ = request(
+            member_opener,
+            base_url,
+            "/api/auth/mfa/verify",
+            payload={
+                "factor_id": MEMBER_MFA_FACTOR_ID,
+                "challenge_id": MEMBER_MFA_CHALLENGE_ID,
+                "code": "000000",
+            },
+            origin=base_url,
+        )
+        if status != HTTPStatus.UNAUTHORIZED or result.get("error", {}).get("code") != "MFA_CODE_INVALID":
+            raise RuntimeError("Invalid authenticator code was not rejected")
+        status, result, _ = request(
+            member_opener,
+            base_url,
+            "/api/auth/mfa/verify",
+            payload={
+                "factor_id": MEMBER_MFA_FACTOR_ID,
+                "challenge_id": MEMBER_MFA_CHALLENGE_ID,
+                "code": "123456",
+            },
+            origin=base_url,
+        )
+        if status != HTTPStatus.OK or result.get("aal") != "aal2":
+            raise RuntimeError("Valid authenticator code did not establish AAL2")
+        if member_opener.cookie_value("mt_access_token") != MEMBER_AAL2_ACCESS_TOKEN:
+            raise RuntimeError("MFA verification did not rotate the application session")
+        status, result, _ = request(member_opener, base_url, "/api/auth/mfa/status")
+        member_mfa = result.get("mfa", {})
+        if (
+            status != HTTPStatus.OK
+            or member_mfa.get("enabled") is not True
+            or member_mfa.get("aal") != "aal2"
+            or member_mfa.get("can_disable") is not True
+        ):
+            raise RuntimeError("Verified member authenticator status was incomplete")
+
+        mfa_login_opener = CookieOpener()
+        request(mfa_login_opener, base_url, "/api/auth/csrf")
+        status, result, _ = request(
+            mfa_login_opener,
+            base_url,
+            "/api/auth/sign-in",
+            payload={"email": "member@example.test", "password": "Member-password-2026!"},
+            origin=base_url,
+        )
+        if status != HTTPStatus.OK or result.get("next_action") != "mfa":
+            raise RuntimeError("Password sign-in bypassed an enabled member authenticator")
+        status, _, headers = request(mfa_login_opener, base_url, "/workspace/images")
+        mfa_route = urlparse(headers.get("Location", ""))
+        if status != HTTPStatus.SEE_OTHER or mfa_route.path != "/auth/mfa":
+            raise RuntimeError("Enabled member MFA did not guard the Workspace route")
+        status, result, _ = request(mfa_login_opener, base_url, "/api/me/profile")
+        if status != HTTPStatus.FORBIDDEN or result.get("error", {}).get("code") != "MFA_REQUIRED":
+            raise RuntimeError("Enabled member MFA did not guard protected APIs")
+        status, result, _ = request(
+            mfa_login_opener,
+            base_url,
+            "/api/auth/mfa",
+            payload={"confirmation": "disable-mfa"},
+            origin=base_url,
+            method="DELETE",
+        )
+        if status != HTTPStatus.FORBIDDEN or result.get("error", {}).get("code") != "MFA_REQUIRED":
+            raise RuntimeError("AAL1 session could disable member MFA")
+        status, result, _ = request(
+            mfa_login_opener,
+            base_url,
+            "/api/auth/mfa/challenge",
+            payload={"factor_id": MEMBER_MFA_FACTOR_ID},
+            origin=base_url,
+        )
+        if status != HTTPStatus.OK:
+            raise RuntimeError("Returning member could not challenge the saved authenticator")
+        status, result, _ = request(
+            mfa_login_opener,
+            base_url,
+            "/api/auth/mfa/verify",
+            payload={
+                "factor_id": MEMBER_MFA_FACTOR_ID,
+                "challenge_id": result.get("id"),
+                "code": "123456",
+            },
+            origin=base_url,
+        )
+        if status != HTTPStatus.OK or mfa_login_opener.cookie_value("mt_access_token") != MEMBER_AAL2_ACCESS_TOKEN:
+            raise RuntimeError("Returning member could not complete authenticator verification")
+        status, result, _ = request(
+            mfa_login_opener,
+            base_url,
+            "/api/auth/mfa",
+            payload={"confirmation": "disable-mfa"},
+            origin=base_url,
+            method="DELETE",
+        )
+        if (
+            status != HTTPStatus.OK
+            or result.get("disabled") is not True
+            or result.get("other_sessions_revoked") is not True
+            or result.get("mfa", {}).get("enabled") is not False
+            or FakeSupabaseHandler.member_mfa_state != "off"
+        ):
+            raise RuntimeError("Verified member could not safely disable MFA")
+
+        post_disable_opener = CookieOpener()
+        request(post_disable_opener, base_url, "/api/auth/csrf")
+        status, result, _ = request(
+            post_disable_opener,
+            base_url,
+            "/api/auth/sign-in",
+            payload={"email": "member@example.test", "password": "Member-password-2026!"},
+            origin=base_url,
+        )
+        if status != HTTPStatus.OK or result.get("next_action") != "workspace":
+            raise RuntimeError("Disabled member MFA continued to force authenticator verification")
+
         status, result, _ = request(
             member_opener,
             base_url,
@@ -888,6 +1166,7 @@ def main() -> None:
         print("google_oauth_pkce_validated=yes")
         print("google_oauth_replay_rejected=yes")
         print("google_oauth_external_next_rejected=yes")
+        print("google_oauth_mfa_required=yes")
         print("google_provider_token_not_persisted=yes")
         print("email_registration_verification_required=yes")
         print("email_registration_consent_recorded=yes")
@@ -906,6 +1185,10 @@ def main() -> None:
         print("account_settings_route_protected=yes")
         print("account_profile_read_write_validated=yes")
         print("account_session_capabilities_validated=yes")
+        print("member_mfa_enrollment_verified=yes")
+        print("member_mfa_password_guarded=yes")
+        print("member_mfa_aal1_disable_rejected=yes")
+        print("member_mfa_aal2_disable_validated=yes")
         print("admin_account_settings_requires_mfa=yes")
         print("account_session_bulk_revoke_validated=yes")
         print("legacy_original_private=yes")

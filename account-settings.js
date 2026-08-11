@@ -16,6 +16,29 @@ const sessionList = document.querySelector("[data-session-list]");
 const sessionNote = document.querySelector("[data-session-note]");
 const sessionActions = document.querySelector("[data-session-actions]");
 const signOutCurrent = document.querySelector("[data-sign-out-current]");
+const identityLoading = document.querySelector("[data-identity-loading]");
+const identityList = document.querySelector("[data-identity-list]");
+const identityConnect = document.querySelector("[data-identity-connect]");
+const identityNote = document.querySelector("[data-identity-note]");
+const identityCount = document.querySelector("[data-identity-count]");
+const identityDialog = document.querySelector("[data-identity-dialog]");
+const identityDialogForm = document.querySelector("[data-identity-dialog-form]");
+const identityDialogTitle = document.querySelector("[data-identity-dialog-title]");
+const identityDialogDescription = document.querySelector("[data-identity-dialog-description]");
+const identityDialogNotice = document.querySelector("[data-identity-dialog-notice]");
+const identityDialogCancel = document.querySelector("[data-identity-dialog-cancel]");
+const identityDialogConfirm = document.querySelector("[data-identity-dialog-confirm]");
+const mfaSettings = document.querySelector("[data-mfa-settings]");
+const mfaStatus = document.querySelector("[data-mfa-status]");
+const mfaDescription = document.querySelector("[data-mfa-description]");
+const mfaAction = document.querySelector("[data-mfa-action]");
+const mfaActionLabel = document.querySelector("[data-mfa-action-label]");
+const mfaFeedback = document.querySelector("[data-mfa-feedback]");
+const mfaDialog = document.querySelector("[data-mfa-dialog]");
+const mfaDialogForm = document.querySelector("[data-mfa-dialog-form]");
+const mfaDialogNotice = document.querySelector("[data-mfa-dialog-notice]");
+const mfaDialogCancel = document.querySelector("[data-mfa-dialog-cancel]");
+const mfaDialogConfirm = document.querySelector("[data-mfa-dialog-confirm]");
 const dialog = document.querySelector("[data-account-dialog]");
 const dialogForm = document.querySelector("[data-dialog-form]");
 const dialogTitle = document.querySelector("[data-dialog-title]");
@@ -59,6 +82,11 @@ let accountData = null;
 let sessionAction = "";
 let dialogTrigger = null;
 let dialogBusy = false;
+let identityDialogTarget = null;
+let identityDialogTrigger = null;
+let identityDialogBusy = false;
+let mfaDialogTrigger = null;
+let mfaDialogBusy = false;
 let suppressBeforeUnload = false;
 let profileAvatarBusy = false;
 let profileAvatarGeneration = 0;
@@ -532,6 +560,184 @@ function setProfessionalRoles(value) {
   syncProfessionalRolePicker();
 }
 
+const IDENTITY_PROVIDER_LABELS = {
+  email: "Email and password",
+  google: "Google",
+  apple: "Apple",
+};
+
+function identityProviderLabel(provider) {
+  const normalized = String(provider || "").toLowerCase();
+  return IDENTITY_PROVIDER_LABELS[normalized]
+    || normalized.replace(/[-_]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
+    || "Account provider";
+}
+
+function identityDate(value, prefix) {
+  if (!value) return "Provider-managed sign-in";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Provider-managed sign-in";
+  return `${prefix} ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(date)}`;
+}
+
+function identityProviderMark(provider) {
+  const mark = document.createElement("span");
+  mark.className = `account-provider-mark account-provider-mark-${provider}`;
+  mark.setAttribute("aria-hidden", "true");
+  if (provider === "apple") {
+    const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    icon.setAttribute("viewBox", "0 0 24 24");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35-.07 2.29.74 3.08.74 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.53 4.14ZM12.03 7.19C11.88 4.96 13.69 3.12 15.77 3c.29 2.58-2.34 4.5-3.74 4.19Z");
+    icon.append(path);
+    mark.append(icon);
+  } else {
+    mark.textContent = provider === "google" ? "G" : provider.slice(0, 1).toUpperCase();
+  }
+  return mark;
+}
+
+function renderIdentityError(message) {
+  identityLoading.hidden = true;
+  identityList.hidden = false;
+  identityList.replaceChildren();
+  const item = document.createElement("li");
+  item.className = "account-identity-empty is-error";
+  item.textContent = message;
+  identityList.append(item);
+  identityConnect.hidden = true;
+  identityCount.textContent = "Unavailable";
+  identityNote.hidden = true;
+}
+
+function renderIdentities(identities) {
+  const safeIdentities = Array.isArray(identities)
+    ? identities.filter((identity) => identity && identity.id && identity.provider)
+    : [];
+  const canUnlink = safeIdentities.length > 1;
+  identityCount.textContent = `${safeIdentities.length} ${safeIdentities.length === 1 ? "method" : "methods"}`;
+  identityList.replaceChildren();
+
+  safeIdentities.forEach((identity) => {
+    const provider = String(identity.provider).toLowerCase();
+    const item = document.createElement("li");
+    item.className = "account-identity-item";
+    item.append(identityProviderMark(provider));
+
+    const copy = document.createElement("span");
+    copy.className = "account-identity-copy";
+    const title = document.createElement("strong");
+    title.textContent = identityProviderLabel(provider);
+    const detail = document.createElement("span");
+    detail.textContent = identity.email || identityDate(identity.last_sign_in_at, "Last used");
+    const meta = document.createElement("small");
+    meta.textContent = identity.created_at ? identityDate(identity.created_at, "Linked") : "Connected account";
+    copy.append(title, detail, meta);
+
+    const actions = document.createElement("span");
+    actions.className = "account-identity-actions";
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "account-identity-remove";
+    remove.dataset.identityRemove = identity.id;
+    remove.textContent = canUnlink ? "Remove" : "Keep";
+    remove.disabled = !canUnlink;
+    remove.title = canUnlink
+      ? `Remove ${identityProviderLabel(provider)}`
+      : "Keep at least one sign-in method linked";
+    actions.append(remove);
+    item.append(copy, actions);
+    identityList.append(item);
+  });
+
+  if (!safeIdentities.length) {
+    const item = document.createElement("li");
+    item.className = "account-identity-empty";
+    item.textContent = "No provider identities are available yet.";
+    identityList.append(item);
+  }
+
+  const linkedProviders = new Set(safeIdentities.map((identity) => String(identity.provider).toLowerCase()));
+  let connectable = 0;
+  identityConnect.querySelectorAll("[data-identity-connect-provider]").forEach((button) => {
+    const linked = linkedProviders.has(button.dataset.identityConnectProvider);
+    button.hidden = linked;
+    if (!linked) connectable += 1;
+  });
+  identityConnect.hidden = connectable === 0;
+  identityNote.hidden = canUnlink || !safeIdentities.length;
+  identityNote.textContent = canUnlink
+    ? ""
+    : "Keep at least one sign-in method linked. The final identity cannot be removed.";
+  identityLoading.hidden = true;
+  identityList.hidden = false;
+}
+
+function showIdentityResult() {
+  const url = new URL(window.location.href);
+  const status = url.searchParams.get("identity_status");
+  if (!status) return;
+  const provider = identityProviderLabel(url.searchParams.get("provider"));
+  const messages = {
+    linked: `${provider} is now linked to your account.`,
+    cancelled: `${provider} linking was cancelled.`,
+    invalid: `${provider} could not be linked. The request was invalid or expired.`,
+    restricted: `${provider} could not be linked to this account.`,
+    unavailable: `${provider} linking is temporarily unavailable. Try again shortly.`,
+  };
+  showNotice(
+    messages[status] || "The linked account request could not be completed.",
+    status === "linked" ? "success" : "error",
+  );
+  url.searchParams.delete("identity_status");
+  url.searchParams.delete("provider");
+  window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+}
+
+function renderMfaSettings(mfa) {
+  const available = mfa && typeof mfa === "object";
+  const enabled = available && mfa.enabled === true;
+  const mandatory = available && mfa.mandatory === true;
+  const canDisable = available && mfa.can_disable === true;
+
+  mfaSettings.setAttribute("aria-busy", "false");
+  mfaSettings.dataset.state = !available ? "unavailable" : mandatory ? "required" : enabled ? "enabled" : "disabled";
+  mfaStatus.dataset.state = mfaSettings.dataset.state;
+  mfaAction.setAttribute("aria-checked", String(enabled));
+  mfaAction.dataset.mode = enabled ? "disable" : "enable";
+  mfaFeedback.hidden = true;
+  mfaFeedback.textContent = "";
+
+  if (!available) {
+    mfaStatus.textContent = "Unavailable";
+    mfaDescription.textContent = "Authenticator protection could not be verified right now.";
+    mfaActionLabel.textContent = "Unavailable";
+    mfaAction.disabled = true;
+    return;
+  }
+
+  if (mandatory) {
+    mfaStatus.textContent = "Required";
+    mfaDescription.textContent = "Administrator accounts must verify a current authenticator code at every new sign-in.";
+    mfaActionLabel.textContent = "Required for administrators";
+    mfaAction.disabled = true;
+    return;
+  }
+
+  if (enabled) {
+    mfaStatus.textContent = "On";
+    mfaDescription.textContent = "Every new password, Google, or Apple sign-in stops for your current six-digit authenticator code.";
+    mfaActionLabel.textContent = canDisable ? "Turn off 2FA" : "Verify to manage";
+    mfaAction.disabled = !canDisable;
+    return;
+  }
+
+  mfaStatus.textContent = "Off";
+  mfaDescription.textContent = "Add an authenticator app so a password or linked account alone cannot open your workspace.";
+  mfaActionLabel.textContent = "Turn on 2FA";
+  mfaAction.disabled = false;
+}
+
 function renderAccountChrome(result) {
   const profile = result.profile || {};
   const account = result.account || {};
@@ -553,8 +759,9 @@ function renderAccountChrome(result) {
   document.querySelector("[data-security-status]").textContent = `${String(account.account_status || "active").replaceAll("_", " ")} account`;
   const isAal2 = account.aal === "aal2";
   document.querySelector("[data-security-aal]").textContent = isAal2 ? "MFA-verified session" : "Standard session";
-  document.querySelector("[data-security-aal-detail]").textContent = isAal2 ? "Authenticator verification is active" : "Password-protected access";
-
+  document.querySelector("[data-security-aal-detail]").textContent = isAal2 ? "Authenticator checked for this session" : "Password-protected access";
+  renderMfaSettings(account.mfa);
+  if (Array.isArray(account.identities)) renderIdentities(account.identities);
 }
 
 function populateAccount(result) {
@@ -792,6 +999,128 @@ async function loadSessions() {
   }
 }
 
+async function loadIdentities() {
+  identityLoading.hidden = false;
+  identityList.hidden = true;
+  identityNote.hidden = true;
+  try {
+    const result = await accountRequest("/api/me/identities");
+    const identities = Array.isArray(result.identities) ? result.identities : [];
+    if (accountData) accountData.account.identities = identities;
+    renderIdentities(identities);
+  } catch (error) {
+    if (redirectForAuth(error)) return;
+    renderIdentityError(error.message || "Linked accounts could not be loaded.");
+  }
+}
+
+async function connectIdentity(provider, button) {
+  if (!provider || button.disabled) return;
+  const originalLabel = button.textContent.trim();
+  button.disabled = true;
+  button.textContent = "Opening provider…";
+  identityConnect.querySelectorAll("button").forEach((item) => { item.disabled = true; });
+  try {
+    const result = await accountRequest("/api/me/identities/link", {
+      method: "POST",
+      body: JSON.stringify({ provider }),
+    });
+    if (!result.redirect_url) throw new Error("The provider link could not be opened.");
+    suppressBeforeUnload = true;
+    window.location.assign(result.redirect_url);
+  } catch (error) {
+    if (redirectForAuth(error)) return;
+    showNotice(error.message || "This provider could not be linked.");
+    announce("Linked account request failed.");
+    identityConnect.querySelectorAll("button").forEach((item) => {
+      item.disabled = false;
+    });
+    button.textContent = originalLabel;
+  }
+}
+
+function openIdentityDialog(identity, trigger) {
+  identityDialogTarget = identity;
+  identityDialogTrigger = trigger;
+  const label = identityProviderLabel(identity.provider);
+  identityDialogTitle.textContent = `Remove ${label}?`;
+  identityDialogDescription.textContent = "This provider will no longer be available as a sign-in method. Your other linked identities will remain connected.";
+  identityDialogNotice.hidden = true;
+  identityDialogNotice.textContent = "";
+  identityDialog.showModal();
+  window.setTimeout(() => identityDialogCancel.focus(), 0);
+}
+
+async function unlinkIdentity() {
+  if (!identityDialogTarget || identityDialogBusy) return;
+  const targetLabel = identityProviderLabel(identityDialogTarget.provider);
+  identityDialogBusy = true;
+  identityDialogCancel.disabled = true;
+  identityDialogConfirm.disabled = true;
+  identityDialogConfirm.textContent = "Removing…";
+  identityDialogNotice.hidden = true;
+  try {
+    const result = await accountRequest(`/api/me/identities/${encodeURIComponent(identityDialogTarget.id)}`, {
+      method: "DELETE",
+      body: JSON.stringify({}),
+    });
+    const identities = Array.isArray(result.identities) ? result.identities : [];
+    if (accountData) accountData.account.identities = identities;
+    renderIdentities(identities);
+    identityDialog.close();
+    showNotice(`${targetLabel} was removed.`, "success");
+    announce("Linked account removed.");
+  } catch (error) {
+    if (redirectForAuth(error)) return;
+    identityDialogNotice.textContent = error.message || "The linked account could not be removed.";
+    identityDialogNotice.hidden = false;
+    identityDialogNotice.focus();
+  } finally {
+    identityDialogBusy = false;
+    identityDialogCancel.disabled = false;
+    identityDialogConfirm.disabled = false;
+    identityDialogConfirm.textContent = "Remove account";
+  }
+}
+
+function openMfaDialog(trigger) {
+  mfaDialogTrigger = trigger;
+  mfaDialogNotice.hidden = true;
+  mfaDialogNotice.textContent = "";
+  mfaDialog.showModal();
+  window.setTimeout(() => mfaDialogCancel.focus(), 0);
+}
+
+async function disableMfa() {
+  if (mfaDialogBusy) return;
+  mfaDialogBusy = true;
+  mfaDialogCancel.disabled = true;
+  mfaDialogConfirm.disabled = true;
+  mfaDialogConfirm.textContent = "Turning off…";
+  mfaDialogNotice.hidden = true;
+  try {
+    const result = await accountRequest("/api/auth/mfa", {
+      method: "DELETE",
+      body: JSON.stringify({ confirmation: "disable-mfa" }),
+    });
+    if (accountData?.account) accountData.account.mfa = result.mfa;
+    renderMfaSettings(result.mfa);
+    mfaDialog.close();
+    showNotice(result.message || "Two-factor authentication is off.", "success");
+    announce("Two-factor authentication turned off. Other devices were signed out.");
+  } catch (error) {
+    if (redirectForAuth(error)) return;
+    mfaDialogNotice.textContent = error.message || "Two-factor authentication could not be turned off.";
+    mfaDialogNotice.hidden = false;
+    mfaDialogNotice.focus();
+  } finally {
+    mfaDialogBusy = false;
+    mfaDialogCancel.disabled = false;
+    mfaDialogConfirm.disabled = false;
+    mfaDialogConfirm.textContent = "Turn off 2FA";
+  }
+}
+
 async function loadAccount() {
   hideNotice();
   pageLoading.hidden = false;
@@ -800,7 +1129,9 @@ async function loadAccount() {
   try {
     const result = await accountRequest("/api/me/profile");
     populateAccount(result);
+    await loadIdentities();
     await loadSessions();
+    showIdentityResult();
   } catch (error) {
     if (redirectForAuth(error)) return;
     pageLoading.hidden = true;
@@ -908,6 +1239,66 @@ profileAvatarInput.addEventListener("change", () => {
   if (file) uploadProfileAvatar(file);
 });
 profileAvatarRemove.addEventListener("click", removeProfileAvatar);
+
+identityList.addEventListener("click", (event) => {
+  const remove = event.target.closest("[data-identity-remove]");
+  if (!remove || remove.disabled || !accountData) return;
+  const identity = (accountData.account?.identities || []).find((item) => item.id === remove.dataset.identityRemove);
+  if (identity) openIdentityDialog(identity, remove);
+});
+
+identityConnect.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-identity-connect-provider]");
+  if (button) connectIdentity(button.dataset.identityConnectProvider, button);
+});
+
+identityDialogForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  unlinkIdentity();
+});
+
+identityDialogCancel.addEventListener("click", () => {
+  if (!identityDialogBusy) identityDialog.close();
+});
+
+identityDialog.addEventListener("cancel", (event) => {
+  if (identityDialogBusy) event.preventDefault();
+});
+
+identityDialog.addEventListener("close", () => {
+  const trigger = identityDialogTrigger;
+  identityDialogTarget = null;
+  identityDialogTrigger = null;
+  if (trigger && document.contains(trigger)) trigger.focus();
+});
+
+mfaAction.addEventListener("click", () => {
+  if (mfaAction.disabled) return;
+  if (mfaAction.dataset.mode === "disable") {
+    openMfaDialog(mfaAction);
+    return;
+  }
+  navigateWithoutDirtyPrompt("/auth/mfa?mode=setup&next=%2Fsettings%2Faccount", true);
+});
+
+mfaDialogForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  disableMfa();
+});
+
+mfaDialogCancel.addEventListener("click", () => {
+  if (!mfaDialogBusy) mfaDialog.close();
+});
+
+mfaDialog.addEventListener("cancel", (event) => {
+  if (mfaDialogBusy) event.preventDefault();
+});
+
+mfaDialog.addEventListener("close", () => {
+  const trigger = mfaDialogTrigger;
+  mfaDialogTrigger = null;
+  if (trigger && document.contains(trigger)) trigger.focus();
+});
 
 document.querySelectorAll("[data-session-action]").forEach((button) => {
   button.addEventListener("click", () => openSessionDialog(button.dataset.sessionAction, button));

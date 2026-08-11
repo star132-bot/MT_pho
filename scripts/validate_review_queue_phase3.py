@@ -1229,9 +1229,9 @@ def validate_server(server: str) -> None:
             'next_path: str = "/admin/reviews"',
             'self.serve_header_html("admin-reviews.html", user=user, authorization=authorization)',
             'roles.intersection({"reviewer", "admin", "super_admin"})',
-            'roles.intersection({"admin", "super_admin"}) and authorization.get("aal") != "aal2"',
+            "self.redirect_to_mfa_if_required(user, authorization, next_path)",
         },
-        "Protected Review page role/AAL2/no-store projection",
+        "Protected Review page role/unified MFA/no-store projection",
     )
 
     clean_asset = python_function(server, "clean_review_asset")

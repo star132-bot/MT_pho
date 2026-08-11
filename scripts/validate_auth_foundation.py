@@ -33,8 +33,9 @@ def main() -> None:
         '/workspace', 'AUTH_NOT_CONFIGURED', 'INVALID_CREDENTIALS', 'EMAIL_NOT_VERIFIED',
         'rpc/current_authorization', 'ADMIN_REQUIRED', 'MFA_REQUIRED', 'ACCOUNT_RESTRICTED',
         '/api/auth/mfa/factors', '/api/auth/mfa/enroll', '/api/auth/mfa/challenge',
-        '/api/auth/mfa/verify', '/api/admin/access-check', 'MFA_CODE_INVALID',
-        'all_factors = user.get("factors") or []',
+        '/api/auth/mfa/verify', '/api/auth/mfa/status', '/api/auth/mfa', '/api/admin/access-check',
+        'MFA_CODE_INVALID', 'clean_mfa_factors', 'verified_totp_factors', 'clean_mfa_enrollment',
+        'mfa_status_payload', 'mfa_required_for_session', 'allow_mfa_challenge', 'MFA_MANDATORY',
         '_pending_response_cookies', 'self._pending_response_cookies = self.session_cookie_headers(session)',
         'if cookies is not None:', 'send_current_user_error',
         'method="DELETE"', 'MFA_RESET_FAILED', 'MFA_ALREADY_ENROLLED',
@@ -49,10 +50,13 @@ def main() -> None:
         'session_has_auth_method(session, "recovery")', 'request_id',
         'def is_recovery_session(self, user: dict)', 'self.is_recovery_session(user)',
         'RECOVERY_SESSION_TTL_SECONDS',
-        'OAUTH_STATE_COOKIE', 'OAUTH_FLOWS', 'create_oauth_flow', 'consume_oauth_flow',
+        'OAUTH_STATE_COOKIE', 'OAUTH_FLOWS', 'OAUTH_PROVIDERS', 'IDENTITY_PROVIDERS', 'create_oauth_flow', 'consume_oauth_flow',
         'code_challenge_method', 'token?grant_type=pkce', '"auth_code": code',
-        'parsed.path == "/auth/oauth/google"', 'parsed.path == "/auth/oauth/callback"',
-        'app_metadata.get("provider") != "google"', 'clear_oauth_state_cookie_header',
+        'parsed.path in {"/auth/oauth/google", "/auth/oauth/apple"}', 'parsed.path == "/auth/oauth/callback"',
+        'handle_oauth_start', 'handle_oauth_callback', 'handle_identity_link_start', 'handle_identity_unlink',
+        'clean_auth_identities', 'valid_oauth_provider_redirect', 'clear_oauth_state_cookie_header',
+        'purpose == "link"', 'user_has_oauth_provider',
+        'user/identities/authorize', 'skip_http_redirect', 'IDENTITY_LAST_BLOCKED',
         'parsed.path == "/upload-studio.html"', '"/workspace/images"',
         'self.send_header("Location", "/auth/sign-in?next=/works.html")',
         'legacy_upload_asset_access', 'is_public_derivative', 'canonical_path == "/assets/uploads"',
@@ -72,8 +76,18 @@ def main() -> None:
         'data-auth-field="verification_code"', 'autocomplete="one-time-code"',
         'inputmode="numeric"', 'pattern="[0-9]{8}"',
         'data-auth-field="recovery_code"', 'data-field-error="recovery_code"',
-        'data-auth-oauth', 'data-auth-google', 'Continue with Google',
+        'data-auth-oauth', 'data-auth-google', 'data-auth-provider="google"', 'data-auth-provider="apple"',
+        'Sign in with Google', 'Sign in with Apple', 'href="/auth/oauth/apple"',
+        'auth-google-logo', 'fill="#4285F4"', 'fill="#34A853"',
+        'fill="#FBBC05"', 'fill="#EA4335"', 'auth-apple-logo',
     }, "auth page")
+    form_end = auth_html.index("</form>")
+    oauth_start = auth_html.index('class="auth-oauth"')
+    divider_start = auth_html.index('class="auth-divider"')
+    google_start = auth_html.index('class="auth-oauth-button"')
+    apple_start = auth_html.index('data-auth-provider="apple"')
+    if not form_end < oauth_start < divider_start < google_start < apple_start:
+        raise RuntimeError("OAuth providers must follow the email form and its divider")
     require(auth_js, {
         'credentials: "same-origin"', 'form.reportValidity()',
         'aria-invalid', '/api/auth/', 'DEFAULT_AUTH_DESTINATION = "/works.html"', 'result.next_action === "mfa"',
@@ -85,7 +99,7 @@ def main() -> None:
         'If an account exists for this email', 'password_confirmation',
         'resendVerification', '/api/auth/resend-verification',
         '/api/auth/verify-email-code', '/api/auth/verify-recovery-code', 'recovery_code', 'pending_email',
-        '/auth/oauth/google?next=', 'showOAuthResult', 'oauth_error',
+        '/auth/oauth/${provider}?next=', 'showOAuthResult', 'oauth_error', 'oauth_provider',
     }, "auth client")
     require(terms_html, {
         'Terms of Use', 'id="account"', 'id="content"', 'id="conduct"',
@@ -103,7 +117,7 @@ def main() -> None:
     }, "MFA page")
     require(mfa_js, {
         '/api/auth/mfa/factors', '/api/auth/mfa/enroll', '/api/auth/mfa/challenge',
-        '/api/auth/mfa/verify', '/api/admin/access-check', 'credentials: "same-origin"',
+        '/api/auth/mfa/verify', '/api/auth/mfa/status', '/api/admin/access-check', 'credentials: "same-origin"',
         'form.reportValidity()', 'safeInternalPath', 'Resetting the incomplete authenticator setup',
         'decodeURIComponent(payload)', 'source.startsWith("<?xml")',
         '/api/auth/csrf', 'X-CSRF-Token', 'DEFAULT_AUTH_DESTINATION = "/works.html"',
@@ -115,6 +129,9 @@ def main() -> None:
         'tabindex="-1"', 'src="/account-settings.js',
         'data-professional-role-picker', 'data-professional-role-options',
         'name="professional_headline" type="hidden"', 'data-professional-role-count',
+        'data-linked-identities', 'data-identity-list', 'data-identity-connect-provider="google"',
+        'data-identity-connect-provider="apple"', 'data-identity-dialog',
+        'data-mfa-settings', 'data-mfa-status', 'data-mfa-action', 'data-mfa-dialog',
     }, "Account Settings page")
     require(account_js, {
         'credentials: "same-origin"', 'cache: "no-store"', '/api/me/profile',
@@ -128,6 +145,9 @@ def main() -> None:
         'PROFESSIONAL_ROLE_LIMIT = 3', 'setProfessionalRoles(',
         'syncProfessionalRolePicker()', 'addLegacyProfessionalRole(',
         'professionalHeadlineValue.value = selected.map((input) => input.value).join(", ")',
+        '/api/me/identities', '/api/me/identities/link', 'data-identity-remove',
+        'identity_status', 'suppressBeforeUnload = true',
+        '/api/auth/mfa', 'disable-mfa', 'renderMfaSettings', 'data-mfa-action',
     }, "Account Settings client")
     if 'id="account-headline"' in account_html or 'name="professional_headline" type="text"' in account_html:
         raise RuntimeError("Professional headline must use the bounded multi-select role picker, not free text")
