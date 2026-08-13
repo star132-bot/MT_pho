@@ -125,6 +125,67 @@ After the production migration, use read-only catalog/schema inspection and the 
 
 Object storage is not contained in a PostgreSQL dump. Before go-live, configure a separate encrypted export or provider-supported recovery policy for original and derivative Storage buckets, document its retention, and rehearse restoring a disposable object plus its database metadata.
 
+## Encrypted offsite database and Storage backup
+
+The offsite batch is a second recovery copy, not a database replica and not a failover application host. It includes one verified PostgreSQL custom-format dump plus every object currently recorded in the allowlisted private buckets `image-originals`, `image-display`, `image-thumbnails`, and `profile-avatars`. The source queries the Storage inventory before and after download and discards the whole batch if bucket, key, size, or `updated_at` changes during the export. This prevents a database dump from being presented as matching a visibly different object set.
+
+The receiving host must use a dedicated filesystem boundary and account. It must not receive `database.env`, `scanner.env`, Supabase credentials, the Web release, or plaintext backup data. Generate a dedicated source-host SSH key and constrain its public key on the receiving host to the source IP and append-only `rrsync` command:
+
+```text
+from="<source-ip>",restrict,command="/usr/bin/rrsync -wo -no-del -munge /srv/mt-presence-backup" ssh-ed25519 <dedicated-public-key>
+```
+
+Create `/srv/mt-presence-backup` as `root:mtpresence-backup` mode `0750`; `rrsync` needs to open this boundary for its per-user lock. Create its `incoming` child as mode `0700`, owned by the unprivileged `mtpresence-backup` account. Create the sibling `vault` and `.staging` directories as root-only mode `0700`; the receive account must not have traversal access to either directory. Keep its login shell only because OpenSSH runs the forced command through that shell; the key cannot request a TTY, forwarding, arbitrary command, read, delete, or follow useful symlinks. Keep normal administrative SSH access on a different reviewed key.
+
+Create a dedicated GnuPG recovery key in a temporary root-only keyring and transfer **only its armored public key** to the source host. Import that public key into `/var/lib/mt-presence-offsite/gnupg`, record its full fingerprint in `/etc/mt-presence/offsite-backup.env`, and keep both paths root-only. Move the private recovery material into a separate offline/keychain recovery authority and remove it from both servers after the first decryption rehearsal. The receiving account cannot access the private key. Do not put recovery material in Git, a shell command, a screenshot, or either server's long-lived filesystem.
+
+On the approved macOS recovery workstation, use the chunked helper rather than passing a long private key to `security -w`; the interactive Keychain CLI may silently truncate long values. The helper reads the key on stdin, writes 96-character versioned chunks, and verifies a separate byte-count/SHA-256 manifest before any export. Store the passphrase in a different Keychain item and never redirect helper `export` output to an ordinary local file:
+
+```bash
+gpg --homedir <temporary-root-only-gnupg-home> \
+  --batch --yes --pinentry-mode loopback \
+  --passphrase-file <temporary-root-only-passphrase-file> \
+  --export-secret-keys <full-fingerprint> \
+  | python3 scripts/macos_offsite_recovery_keychain.py store \
+      --fingerprint <full-fingerprint>
+
+python3 scripts/macos_offsite_recovery_keychain.py audit \
+  --fingerprint <full-fingerprint>
+```
+
+For an approved recovery, stream the verified export directly through SSH into a new root-only temporary recovery directory. Import it into a new temporary GnuPG home, verify the full fingerprint, decrypt one selected vault batch, and remove all temporary material after the exercise. Keep a second hardware-backed or encrypted-offline custody copy; the workstation login Keychain alone is not sufficient escrow.
+
+Install the source scripts under `/usr/local/libexec/mt-presence-offsite`, then install and enable the source service and timer:
+
+```bash
+install -d -o root -g root -m 0755 /usr/local/libexec/mt-presence-offsite
+install -o root -g root -m 0755 scripts/create_offsite_backup.sh scripts/backup_production_database.sh scripts/verify_production_backup.sh /usr/local/libexec/mt-presence-offsite/
+install -o root -g root -m 0755 scripts/export_production_storage.py /usr/local/libexec/mt-presence-offsite/
+install -o root -g root -m 0644 deploy/mt-presence-offsite-backup.service deploy/mt-presence-offsite-backup.timer /etc/systemd/system/
+install -o root -g root -m 0600 deploy/offsite-backup-environment.example /etc/mt-presence/offsite-backup.env
+systemctl daemon-reload
+systemctl enable --now mt-presence-offsite-backup.timer
+```
+
+The source service is the only process that reads both `/etc/mt-presence/database.env` and `/etc/mt-presence/scanner.env`. It runs as root with `ProtectSystem=strict`, gives libpq a dedicated `HOME=/var/lib/mt-presence-offsite` instead of exposing `/root`, writes only below `/var/backups/mt-presence-offsite` and `/var/lib/mt-presence-offsite`, uses a pinned target host key, stores no credential in command arguments, and gives backup work low CPU/IO priority. Each successful run leaves a local encrypted `.tar.gpg` plus its checksum and transfers the same pair to `incoming/`; plaintext staging is removed on exit.
+
+Install `scripts/verify_offsite_ciphertexts.sh` and the two target verification units on the receiving host. The daily hardened root verifier accepts only timestamped mode-`0600` pairs, copies each complete pair into a root-only staging directory, verifies its checksum, and atomically renames the directory into the root-only vault before deleting the receive copy. Its systemd sandbox retains only `CAP_DAC_OVERRIDE`, which is required to read and remove files in the receiver-owned mode-`0700` incoming directory; it has no network access and cannot gain new privileges. A compromised source key therefore cannot read, overwrite, or delete any promoted recovery point. The same job rechecks every vault checksum, rejects unexpected entries, fails when the newest batch is older than 36 hours, and fails below the configured free-space floor. Wire systemd failure to the operations alert channel; a failed timer without an alert is not a backup system.
+
+Run the first source service manually and require all of these before relying on the schedule:
+
+```bash
+systemctl start mt-presence-offsite-backup.service
+systemctl status mt-presence-offsite-backup.service --no-pager
+systemctl start mt-presence-offsite-verify.service
+systemctl status mt-presence-offsite-verify.service --no-pager
+```
+
+For a recovery rehearsal, choose one root-only vault batch, verify its ciphertext checksum on the receiving host, decrypt it in a root-only temporary directory with the offline recovery key, extract it without following links, run `sha256sum --check FILES.sha256`, run `scripts/verify_production_backup.sh` against the dump, and run `scripts/export_production_storage.py verify` against the included inventory/object tree/manifest. Restore the database into a disposable isolated PostgreSQL project and restore one disposable object under a non-production bucket before declaring the rehearsal complete. Never restore over production and never use the target host's existing application database as the rehearsal destination.
+
+The first cryptographic/content rehearsal is recorded in `docs/operations/offsite-recovery-rehearsal-2026-08-13.md`. It proves ciphertext decryption, archive safety, every file hash, Storage object integrity, and PostgreSQL catalog readability. It does **not** replace the outstanding full restore into a disposable Supabase-compatible project.
+
+Do not automatically delete offsite batches until an approved retention policy and monitoring threshold exist. With append-only transfer, cleanup is an explicit receiving-host operation. Start with at least 30 daily recovery points, review growth monthly, and preserve any legal-hold or incident batch independently of routine retention.
+
 ## Build and transfer
 
 Run the release gate locally, commit the accepted tree, and create an exact release tag. The builder refuses dirty or untagged releases:

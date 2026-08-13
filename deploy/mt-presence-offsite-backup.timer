@@ -1,0 +1,11 @@
+[Unit]
+Description=Create an encrypted MT Presence offsite backup daily
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 UTC
+RandomizedDelaySec=30min
+Persistent=true
+Unit=mt-presence-offsite-backup.service
+
+[Install]
+WantedBy=timers.target

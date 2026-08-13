@@ -93,12 +93,16 @@ run_group "Python syntax" python3 -m py_compile \
   scripts/production_release_contract.py \
   scripts/production_preflight.py \
   scripts/manage_production_release.py \
+  scripts/export_production_storage.py \
+  scripts/macos_offsite_recovery_keychain.py \
   scripts/verify_production.py \
   scripts/test_workspace_trash_browser.py \
   scripts/test_review_batch_browser.py \
   "${static_validators[@]}" \
   "${boundary_tests[@]}" \
   "${production_tests[@]}" \
+  scripts/test_offsite_backup.py \
+  scripts/test_macos_offsite_recovery_keychain.py \
   "${credentialed_browser_tests[@]}"
 
 run_group "Shell syntax" bash -n \
@@ -106,6 +110,8 @@ run_group "Shell syntax" bash -n \
   scripts/database_acceptance_gate.sh \
   scripts/build_production_release.sh \
   scripts/backup_production_database.sh \
+  scripts/create_offsite_backup.sh \
+  scripts/verify_offsite_ciphertexts.sh \
   scripts/verify_production_backup.sh
 
 for validator in "${static_validators[@]}"; do
@@ -124,6 +130,8 @@ done
 for test_file in "${production_tests[@]}"; do
   run_group "Production test: $test_file" python3 "$test_file"
 done
+run_group "Offsite backup" python3 scripts/test_offsite_backup.py
+run_group "Offsite recovery Keychain" python3 scripts/test_macos_offsite_recovery_keychain.py
 
 run_group "Patch integrity" git diff --check
 

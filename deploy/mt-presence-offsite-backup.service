@@ -1,0 +1,28 @@
+[Unit]
+Description=Create and transfer an encrypted MT Presence offsite backup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+EnvironmentFile=/etc/mt-presence/database.env
+EnvironmentFile=/etc/mt-presence/scanner.env
+EnvironmentFile=/etc/mt-presence/offsite-backup.env
+Environment=HOME=/var/lib/mt-presence-offsite
+ExecStart=/usr/local/libexec/mt-presence-offsite/create_offsite_backup.sh
+UMask=0077
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=2h
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/backups/mt-presence-offsite /var/lib/mt-presence-offsite
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=

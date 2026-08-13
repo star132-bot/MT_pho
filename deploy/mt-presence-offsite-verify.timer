@@ -1,0 +1,11 @@
+[Unit]
+Description=Verify encrypted MT Presence offsite backups daily
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 UTC
+RandomizedDelaySec=15min
+Persistent=true
+Unit=mt-presence-offsite-verify.service
+
+[Install]
+WantedBy=timers.target

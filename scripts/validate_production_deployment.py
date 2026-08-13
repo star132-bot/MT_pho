@@ -79,11 +79,19 @@ def main() -> None:
     database_environment = source("deploy/database-environment.example")
     health_service = source("deploy/mt-presence-healthcheck.service")
     health_timer = source("deploy/mt-presence-healthcheck.timer")
+    offsite_environment = source("deploy/offsite-backup-environment.example")
+    offsite_service = source("deploy/mt-presence-offsite-backup.service")
+    offsite_timer = source("deploy/mt-presence-offsite-backup.timer")
+    offsite_verify_service = source("deploy/mt-presence-offsite-verify.service")
+    offsite_verify_timer = source("deploy/mt-presence-offsite-verify.timer")
     preflight = source("scripts/production_preflight.py")
     release_manager = source("scripts/manage_production_release.py")
     release_builder = source("scripts/build_production_release.sh")
     backup = source("scripts/backup_production_database.sh")
     backup_verifier = source("scripts/verify_production_backup.sh")
+    storage_exporter = source("scripts/export_production_storage.py")
+    offsite_backup = source("scripts/create_offsite_backup.sh")
+    offsite_verifier = source("scripts/verify_offsite_ciphertexts.sh")
     verifier = source("scripts/verify_production.py")
     release_gate = source("scripts/release_gate.sh")
     database_gate = source("scripts/database_acceptance_gate.sh")
@@ -153,6 +161,41 @@ def main() -> None:
         require(health_timer, marker, "health timer")
 
     for marker in (
+        "MT_OFFSITE_BACKUP_HOST=",
+        "MT_OFFSITE_SSH_KEY=/etc/mt-presence/offsite-backup_ed25519",
+        "MT_OFFSITE_KNOWN_HOSTS=/etc/mt-presence/offsite-known-hosts",
+        "MT_OFFSITE_GNUPG_HOME=/var/lib/mt-presence-offsite/gnupg",
+        "MT_OFFSITE_GPG_RECIPIENT=",
+        "MT_OFFSITE_LOCAL_DIR=/var/backups/mt-presence-offsite",
+    ):
+        require(offsite_environment, marker, "offsite environment")
+    for forbidden in ("PGPASSWORD=", "SUPABASE_SECRET_KEY=", "SUPABASE_SERVICE_ROLE_KEY=", "PRIVATE KEY"):
+        reject(offsite_environment, forbidden, "offsite environment")
+    for marker in (
+        "EnvironmentFile=/etc/mt-presence/database.env",
+        "EnvironmentFile=/etc/mt-presence/scanner.env",
+        "EnvironmentFile=/etc/mt-presence/offsite-backup.env",
+        "Environment=HOME=/var/lib/mt-presence-offsite",
+        "ProtectSystem=strict",
+        "ReadWritePaths=/var/backups/mt-presence-offsite /var/lib/mt-presence-offsite",
+        "CapabilityBoundingSet=",
+    ):
+        require(offsite_service, marker, "offsite source systemd")
+    for marker in ("OnCalendar=*-*-* 02:30:00 UTC", "RandomizedDelaySec=30min", "Persistent=true"):
+        require(offsite_timer, marker, "offsite source timer")
+    for marker in (
+        "User=root",
+        "verify_offsite_ciphertexts.sh /srv/mt-presence-backup",
+        "ProtectSystem=strict",
+        "ReadWritePaths=/srv/mt-presence-backup",
+        "RestrictAddressFamilies=AF_UNIX",
+        "CapabilityBoundingSet=CAP_DAC_OVERRIDE",
+    ):
+        require(offsite_verify_service, marker, "offsite target systemd")
+    for marker in ("OnCalendar=*-*-* 04:00:00 UTC", "RandomizedDelaySec=15min", "Persistent=true"):
+        require(offsite_verify_timer, marker, "offsite target timer")
+
+    for marker in (
         'required_environment("MT_RUNTIME_ENVIRONMENT")',
         'required_environment("MT_COOKIE_SECURE")',
         '"SUPABASE_SERVICE_ROLE_KEY", "PGPASSWORD"',
@@ -181,6 +224,35 @@ def main() -> None:
     for marker in ("pg_restore", "--list", "checksum does not match", 'grep -q " TABLE "', 'grep -q " FUNCTION "'):
         require(backup_verifier, marker, "database backup verifier")
     for marker in (
+        "ALLOWED_BUCKETS",
+        "/storage/v1/object/authenticated/",
+        "RejectRedirects",
+        "storage_download_limit_exceeded",
+        "storage_backup_checksum_mismatch",
+        "os.replace(temporary, target)",
+    ):
+        require(storage_exporter, marker, "Storage backup exporter")
+    for marker in (
+        "umask 077",
+        "flock -n",
+        "verify_production_backup.sh",
+        "Storage inventory changed during backup",
+        "--trust-model always",
+        "--ignore-existing",
+        "UserKnownHostsFile=",
+        "mtpresence-backup@",
+    ):
+        require(offsite_backup, marker, "offsite backup orchestrator")
+    for marker in (
+        "sha256sum --check --status",
+        "immutable vault already contains this batch",
+        'mv -- "$stage" "$destination"',
+        "older than 36 hours",
+        "disk free space is below policy",
+        '"$(file_mode "$path")" != "600"',
+    ):
+        require(offsite_verifier, marker, "offsite ciphertext verifier")
+    for marker in (
         'request(base_url, "/healthz")',
         'request(readiness_url, "/readyz")',
         'readiness.get("dependencies") != {"supabase": "available"}',
@@ -198,6 +270,7 @@ def main() -> None:
         "test_production_health.py",
         "test_manage_production_release.py",
         "test_verify_production.py",
+        "test_offsite_backup.py",
         "bash -n",
         "MT_TEST_ENVIRONMENT=development bash scripts/database_acceptance_gate.sh",
         "node scripts/test_public_interaction_state.js",
