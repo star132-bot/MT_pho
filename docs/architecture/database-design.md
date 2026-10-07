@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-除非明确写明其他环境，本文所有“已部署”均指 development。当前仓库是生产候选，不表示已有生产数据库或生产服务被激活；所有会创建 fixture 的 rollback-only 数据库验收均为 development-only，发布演练只能连接 development 或隔离的 staging/生产恢复克隆，不能连接生产主库。
+本文历史开发阶段中的“已部署 development”保留原环境含义；项目已有 `mtdo.cn` 生产服务，2026-09-17 完整恢复记录验证了生产来源的数据库/Storage 备份。当前本地优化尚未发布，不以历史证据推断当前候选 release 已激活。所有会创建 fixture 的数据库验收只允许 development 或隔离的 staging/恢复克隆，不能连接生产主库。
 
 Phase 2A-2G 已把账户 owner-scoped Folder、Upload Intent、Draft、Version、Asset metadata、可靠取消/清理、private Supabase Storage、权威 readiness、Submit transaction、可信 asset scanner 与 Trash/Restore 接入当前 development boundary，并新增 authenticated-only User Dashboard 聚合和受保护 creator profile/editor。Phase 3 Supabase Review Queue/Detail/decision migration 与 Web 边界已部署；常规 assignment/start/decision 仍对所有角色禁止 self-review。`20260729_super_admin_self_publish.sql` 增加独立的 Super Admin+AAL2 owner 例外，只处理 untouched/unassigned Submitted submission，并再次核验 CAS、readiness、current version 和三类 current-policy-clean 资产；original 保持 private，专用审计 action 为 `review.super_admin_self_publish`。公开 Works 与 public creator portfolio 已切到 published-only Supabase DTO；legacy Review Center/SQLite 仅保留开发过渡用途。不要下载 MySQL，也不要执行历史 `database/schema.sql` 作为当前 production baseline。
 
@@ -55,7 +55,7 @@ python3 scripts/validate_local_archive_db.py
 
 ## 目标
 
-当前 development Supabase 已保存私人 Draft，能权威计算 readiness、创建 immutable submission snapshots、锁定 submitted workflow，并由独立 Review Queue 执行 assignment/start/decision；受保护 creator profile/editor、owner-scoped cover、published-only Works/creator delivery 和 Admin Works/Users 已接入 development。project inquiry、Notifications/Inbox 与 Audit Ledger 的 Web/SQL 边界已形成生产候选，但 Phase 5 migration 与 development-only rollback acceptance 仍是环境提升门禁。尚未完成的生产运营项包括正式域名/TLS、生产 secrets、对象存储恢复策略、真实邮件 provider（可选）和上线后的监控告警；关系数据库保存 metadata、状态和对象 key，真实图片文件保存在 Supabase Storage。
+当前 development Supabase 已保存私人 Draft，能权威计算 readiness、创建 immutable submission snapshots、锁定 submitted workflow，并由独立 Review Queue 执行 assignment/start/decision；受保护 creator profile/editor、owner-scoped cover、published-only Works/creator delivery 和 Admin Works/Users 已接入 development。project inquiry、Notifications/Inbox 与 Audit Ledger 的 Web/SQL 边界已实现；2026-10-02 已在隔离的生产恢复 schema 克隆通过五组数据库验收、Review/Scanner 状态机和 Review 并发验收。正式域名/TLS、生产备份与对象恢复已有运维证据；真实邮件/OAuth、持续监控和具体 release 的运行状态需按对应验收单独验证，不能凭本地测试推断。关系数据库保存 metadata、状态和对象 key，真实图片文件保存在 Supabase Storage。
 
 核心要求：
 
@@ -365,5 +365,5 @@ Supabase 当前规则：
 5. `/admin/reviews` 的 scoped Queue/Detail、原子 assignment/start、versioned/idempotent decisions、notification/audit 与 private signed asset 边界已部署 development；rollback-only、双会话并发和真实 disposable 多身份浏览器验收均通过。
 6. published-only production-candidate DTO、derivative public delivery、公开 Works 数据源迁移与 Admin+AAL2 Approve and Publish 已接通 development；public creator portfolio 使用独立只读边界，不直接暴露 protected profile DTO。legacy `manage.html` 仍保持独立 SQLite 原型。
 7. Phase 4B Admin Users 已部署 development：账户目录、Suspend/Reactivate、Super Admin-only Reviewer/Admin role 管理、session provider intent、CAS/幂等/审计和三层门禁均完成。
-8. Phase 5 的项目咨询、通知中心、站内 Inbox、Audit Ledger 和生产发布工具已形成生产候选；当前仍需在 development 或隔离 staging/恢复克隆完成 migration/rollback 验收，不能据此宣称已部署生产。
-9. 后续补 scheduled orphan repair、user quota/rate limit、TUS、Withdraw/Escalate/Quarantine 与运营筛选，最后迁移首页精选、真实 AI 分析和仍被产品确认需要的 square slice/tag 能力；正式生产激活还要求域名/TLS、生产 secrets、Storage recovery、干净 release tag 与上线 smoke/观察。
+8. Phase 5 的项目咨询、通知中心、站内 Inbox、Audit Ledger 和生产发布工具已实现；2026-10-02 隔离 schema 克隆的五组 rollback 验收通过。生产已有部署，具体代码版本仍需独立核对。
+9. scheduled orphan repair、user quota/rate limit 扩展、TUS、Withdraw/Escalate/Quarantine、AI 和新增精选管理能力属于独立产品需求，不是本轮优化缺陷。每次新版本发布仍要求干净 release tag、备份、候选验收、上线 smoke 和观察。

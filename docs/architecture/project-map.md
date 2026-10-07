@@ -5,15 +5,15 @@
 - 每次新增、删除、移动或修改功能相关代码后，同步更新本文档。
 - 按功能/页面归档文件职责，不只按目录罗列。
 - 记录真实职责，不写愿景和过期计划。
-- 当前所有部署事实均止于 development；生产候选代码、部署模板和 runbook 不表示已激活生产。rollback-only fixture 数据库验收只允许连接 development 或隔离的 staging/生产恢复克隆，禁止连接生产主库。
+- 项目已有 `mtdo.cn` 生产服务；域名迁移和 2026-09-17 完整恢复记录提供历史证据，2026-10-02 HTTPS 只读 smoke 确认公开服务可用。当前本地优化尚未发布，具体 release 状态需独立核对。rollback-only fixture 数据库验收只允许连接 development 或隔离的 staging/生产恢复克隆，禁止连接生产主库。
 
 ## 全局结构
 
-- `index.html`：首页入口；承载英文 hero、无限横向精选作品带、四段图文 Statement，并在统一 Public Footer 的 inquiry band 中提供联系作者入口；首页只使用全宽顶部导航，不显示左侧 rail，hero 和 Statement 的主图/文字可由内部管理页写入的首页设置覆盖。
+- `index.html`：首页入口；承载英文 hero、无限横向精选作品带、四段图文 Statement，并在统一 Public Footer 的 inquiry band 中提供联系作者入口；首页只使用全宽顶部导航，不显示左侧 rail，hero 和 Statement 使用版本内图文；内部管理页的 IndexedDB 设置仅在服务端显式启用 development + loopback preview 时覆盖。静态作品图声明真实 `width`/`height`，公开滚动图片使用 lazy loading 和异步解码，以减少首屏请求并预留布局尺寸；`scripts/test_public_image_contract.py` 固定这份加载合同。
 - `works.html`：公开作品档案页；使用共享 64px GlobalHeader，正文不再重复搜索、标题、数量横幅或介绍 Hero；顶部下方 30px 直接进入 Type/Ratio 文本 tabs，再进入自然比例 masonry。公开 UI 不显示 Upload、Governance 或 Arrange，权限允许时 Review 只出现在顶层导航，Viewer 继续提供 Add to Lightbox、Inquire 和 Download。
 - `creator.html` / `creator.js`：canonical `/creators/{public_slug}` 公开创作者主页；从 published-only API 渲染横向 cover、重叠 avatar、公开身份/可用性/链接和保留原比例的作品瀑布流，作品进入 `/works.html?work={id}`；loading、404、provider error 与移动单列均不使用私有 Dashboard 数据，并接入与其他公开页面一致的 Public Footer。
 - `collections.html` / `collections.js` / `series-data.js`：已从顶级公开导航和主流程移除的历史 Series 原型；保留 direct-route 兼容并复用 GlobalHeader，但 Home/Works 等主页面不得新增 Series/Collections 导航入口。
-- `about.html`：公开 About 页面；使用全站统一顶部导航，用作品图、作者实践说明、工作方法和可合作范围建立专业信息，并进入通用 Contact inquiry。
+- `about.html`：公开 About 页面；使用全站统一顶部导航，用作品图、作者实践说明、工作方法和可合作范围建立专业信息，并进入通用 Contact inquiry。首图声明真实尺寸并使用异步解码，保留首屏立即加载。
 - `lightbox.html`：访客浏览器本地 Lightbox；长期收藏与本次 Inquiry Selection 明确分离，默认 0 selected，只有临时选择的作品 ID 可以进入 Contact。
 - `archive-data.js`：Works Archive 的共享基础数据；保存本地样例作品 ID、路径、尺寸、内容类型和比例分类，供 `archive.js` 与 `manage.js` 用同一 ID 合并人工 metadata。
 - `archive-upload.js`：共享浏览器导入管线；读取上传图尺寸、checksum、基础 EXIF，生成 `original` / `display` / `thumbnail` / `square_slice` 资产记录，供 Upload Studio 等内部工具复用。
@@ -31,10 +31,10 @@
 - `mfa.html` / `mfa.js`：所有账户共用的 TOTP enrollment 与登录 challenge 页面；复用 editorial Auth shell，覆盖 factors loading、首次 QR/手工 secret、已有 factor、6 位验证码、provider error、invalid/expired code、success、sign-out 与移动端布局。普通用户可从 Account Settings 开启或停用，管理员因角色策略始终强制；服务端只把已验证因子作为启用状态，未完成 factor 会由受保护 enrollment API 重置并生成新的 QR/secret。`GET /api/auth/mfa/status` 返回 enabled/mandatory/AAL/can_disable，`DELETE /api/auth/mfa` 要求当前 AAL2、CSRF 和显式确认，并先撤销其他设备；QR data URI 兼容 `<svg>` 与带 XML declaration 的 Supabase SVG，MFA mutation 同样使用 Origin + CSRF token，secret 只在一次 enrollment 响应中返回。
 - `account-settings.html` / `account-settings.js`：受保护 `/settings/account` 账户页面；复用单一全局顶栏，以紧凑标题栏、sticky 本地导航和分组式资料工作台组织 Profile、Preferences、Security 与 Sessions。Profile 的十个 creator 字段按 Identity、Work、Location、About、Links 五组排列；专业角色以最多三项的多选生成既有 `professional_headline`，旧自定义值继续可见；真实头像流程校验 JPG/PNG/WebP，在浏览器中心裁切并输出 512x512 JPEG，再通过 owner-scoped private Storage intent 更新。Security 读取服务端 `account.mfa` 状态，普通账户显示可访问的 Authenticator app 开关并通过确认式停用，管理员显示不可关闭的 Required；开启跳转通用 QR/验证流程。页面维护 dirty/disabled/saving/error/success 状态和 provider 支持的会话撤销，但不伪造远程设备列表或位置历史。
 - `styles.css`：全站视觉系统和响应式布局；定义 gallery palette、`--ui-*` 与 `--presentation-*` token、64px GlobalHeader、500x40 全圆搜索、352px 克制账户菜单、移动搜索/导航展开、Public/Workspace 两种统一页脚、首页有界 sticky 摄影过渡舞台、无公开侧栏的 Works 自然比例 masonry、图标式 hover 操作层、沉浸式作品查看器，以及统一 focus-visible/响应式/无横向溢出规则。
-- `script.js`：首页有界 sticky 滚动过渡、登录态 Dashboard 入口、IndexedDB 首页设置读取和应用、Statement 标题和每个图文 moment 的渐进显影、锚点点击平滑滚动逻辑；不再维护作品分类或比例筛选状态。
+- `script.js`：首页有界 sticky 滚动过渡、Selected Works 暂停/恢复与 reduced motion、仅显式 loopback preview 的 IndexedDB 首页设置读取和应用、Statement 标题和每个图文 moment 的渐进显影、锚点点击平滑滚动逻辑；不再维护作品分类或比例筛选状态。
 - `global-header.js`：公共浏览页与 Dashboard/Review 共用的 GlobalHeader renderer；复用服务端 Header Identity slot，生成品牌、居中全局搜索、公开导航、身份分隔线和移动入口。搜索在 Works 内以 260ms debounce 更新现有筛选/URL，在其他页面加载安全建议；支持 Enter、Escape、方向键、外部关闭、active route 与 Lightbox count，不重复请求用户资料。
 - `public-navigation.js`：公开页与 Dashboard 共用的窄屏顶部导航控制器；在 `760px` 断点同步菜单 open/closed、`aria-expanded`、`aria-hidden` 与 `inert`，支持按钮点击、ArrowDown 首项聚焦、Escape 关闭并恢复触发器焦点、链接选择、焦点离开、外部点击和 viewport 切换；不读取登录状态，也不复制账户菜单或 Sign out 逻辑。
-- `public-archive.js`：Lightbox、Contact 与 Works 共用的公开作品读取层；统一 published DTO、比例样式、持久 `mt-presence-lightbox-v1` 收藏和 session-scoped `mt-presence-inquiry-selection-v1`；移除收藏会同步剪除临时选择，并兼容迁移旧 Saved/Collection keys。配置 Supabase 后把 `supabase-public` 视为权威源，200 空结果或 provider error 均保持真实空/错误，禁止 sample/IndexedDB 重新显示已下架作品，本地未配置环境才允许 preview fallback。
+- `public-archive.js`：Lightbox、Contact 与 Works 共用的公开作品读取层；统一 published DTO、比例样式、持久 `mt-presence-lightbox-v1` 收藏和 session-scoped `mt-presence-inquiry-selection-v1`；移除收藏会同步剪除临时选择，并兼容迁移旧 Saved/Collection keys。配置 Supabase 后把 `supabase-public` 视为权威源，200 空结果或 provider error 均保持真实空/错误，禁止 sample/IndexedDB 重新显示已下架作品，仅 API 明确返回 local preview 来源时允许 sample/IndexedDB 回退；共享 `fetchArchivePayload()` 校验 DTO、提供 12 秒超时/取消，HTTP 错误和无效响应一律按可恢复错误处理。Storage getter/读取失败安全降级，写入失败由 UI Toast 如实反馈。
 - `contact.js`：结构化咨询表单逻辑；负责字段校验、条件 Budget、published Work/Series/显式 Lightbox selection、honeypot、CSRF retry、UUID idempotency、真实 `POST /api/inquiries` 及 reference/error 状态。
 - `archive.js`：公开 Works 逻辑；读取 `/api/archive/images` 的环境感知公开 DTO，生产 Supabase 空/错误 fail closed、本地 SQLite 未配置环境保留 preview fallback；处理 Search/Type/Ratio 与 URL 状态、Viewer、创作者署名、Add to Lightbox、Inquire、Download、Related Works 和 hover 操作。收藏只 patch 被点击的原始 card/button、Viewer 与数量，不重新请求 Archive、不调用 Gallery render、不替换 Gallery DOM；Draft 上传不再被兼容提升为 published。
 - `collections.js`：历史 Series 索引/详情原型逻辑；文件仍可把 `series-data.js` 的 workIds 与 published archive 合并，但当前公开导航和运行时页面不加载或链接它。
@@ -107,21 +107,57 @@
 - `scripts/validate_admin_works.py` / `scripts/test_admin_works_boundary.py`：Admin Works 静态合同与 secret-free Fake Supabase HTTP 验收；覆盖路由/角色/AAL2/recovery/CSRF、严格 DTO、非 clean preview 降级、Storage signer allowlist、deep link、CAS/idempotency/provider drift fail-closed 和下架/恢复公开影响。
 - `scripts/test_admin_works_database.py`：development-only、rollback-only PostgreSQL 验收；覆盖精确函数 ACL、角色/AAL2/recovery、列表/详情、Admin/Review Storage original 边界、CAS/幂等冲突、公开投递即时隐藏与恢复、restore clean gate、append-only action 和 fixture absence。
 - `scripts/validate_admin_users.py` / `scripts/test_admin_users_boundary.py` / `scripts/test_admin_users_database.py`：Admin Users 静态、secret-free HTTP 与 development-only rollback PostgreSQL 三层门禁；覆盖 route/AAL2/recovery/CSRF、strict DTO/关系绑定、角色范围、profile-less user、CAS/幂等、identity/Super guard、truthful session intent、append-only/audit 和 fixture absence。
-- `scripts/test_workspace_asset_scanner_database.sql`：development-only、rollback-only 数据库状态机测试；覆盖三个 disjoint claim、token replay/conflict、retry、lease reclaim、old-token 拒绝和 attempt exhaustion，不保存 verdict。
+- `scripts/test_workspace_asset_scanner_database.sql`：development-only、rollback-only 数据库状态机测试；要求 data-free 隔离 clone 并在事务中创建专用用户/Inbox/图片和三种匹配 Storage 的资产；通过真实 enqueue trigger 覆盖三个 disjoint claim、token replay/conflict、retry、lease reclaim、old-token 拒绝和 attempt exhaustion，不保存 verdict；JSONB null job 必须拒绝。
 - `scripts/deploy_supabase_phase1.sh`：Phase 0/1 Supabase 数据库部署入口；执行 Phase 0-3 静态 migration contract 门禁，使用 libpq `PG*` 环境变量避免密码出现在进程参数，fresh database 默认执行 baseline 后按文件名顺序执行 `database/migrations/*.sql`；已有数据库使用 `MT_APPLY_PHASE1_BASELINE=no` 只执行幂等增量 migration；默认拒绝未确认的 production 部署。
 - `scripts/validate_communications_audit.py` / `scripts/test_communications_audit_boundary.py` / `scripts/test_communications_audit_database.py`：Phase 5 通信与 Audit 的静态、secret-free HTTP 和 development rollback-only PostgreSQL 三层门禁；覆盖 exact ACL/RLS、匿名最小 response、owner isolation、CAS/idempotency、rate limits、safe DTO、审计导出与 fixture absence。
-- `scripts/release_gate.sh` / `scripts/database_acceptance_gate.sh`：本地与 CI 共用的无凭据生产候选门禁，以及必须显式使用 `MT_TEST_ENVIRONMENT=development`、拒绝 production 的五项 rollback-only 数据库验收编排；前者运行全量静态 contract、JS syntax/state、secret-free boundary、production artifact tests、Python/shell syntax（包含 credentialed browser scripts 的静态编译）和 `git diff --check`，但不会自动执行真实数据库/浏览器 mutation，二者均不替代显式视觉验收。
+- `scripts/release_gate.sh` / `scripts/database_acceptance_gate.sh`：本地与 CI 共用的无凭据生产候选门禁，以及必须显式使用 `MT_TEST_ENVIRONMENT=development`、拒绝 production 的五项 rollback-only 数据库验收编排；前者运行全量静态 contract、JS syntax/state、secret-free boundary、production artifact tests、Python/shell syntax（包含 credentialed browser scripts 的静态编译）和 `git diff --check`。Scanner 集成测试优先使用 `.venv-scanner/bin/python`（或显式 `MT_SCANNER_TEST_PYTHON`），使 `-I` Pillow probe 与真实 Scanner 的 hash-locked runtime 一致；二者均不替代显式视觉验收。
 - `deploy/` / `scripts/production_release_contract.py` / `scripts/production_preflight.py` / `scripts/manage_production_release.py` / `scripts/build_production_release.sh`：生产 Nginx/systemd/env 模板、Web/Scanner 运行时 fail-closed 配置检查、共享不可变发布文件清单、archive 安全检查、exact-tag build、checksum、atomic activation/rollback 与 bounded service isolation；Scanner 合同统一使用 `MT_SCANNER_ID` 和 `MT_SCANNER_CLAMAV_COMMAND`。生产模板在保留 `PrivateDevices`、`PrivateTmp`、`ProtectSystem` mount namespace 的前提下使用 `clamdscan --stream --no-summary`，通过客户端流式读取避免 daemon 跨 namespace 访问文件，也避免低内存服务器为每个 asset 重载签名库；preflight 明确拒绝 `--fdpass` 以及缺少 `--stream` 的 clamdscan。无该 systemd 隔离的 development Scanner 仍可使用 `clamdscan --fdpass`。
 - `scripts/backup_production_database.sh` / `scripts/verify_production_backup.sh`：生成 PostgreSQL custom-format dump、独立 SHA-256 manifest，并在使用前验证 checksum 与 TABLE/FUNCTION catalog。
 - `scripts/export_production_storage.py` / `scripts/create_offsite_backup.sh` / `scripts/verify_offsite_ciphertexts.sh` / `scripts/test_offsite_backup.py`：异地数据保护切片；按数据库权威清单导出 `image-originals`、`image-display`、`image-thumbnails`、`profile-avatars`，拒绝重定向/路径穿越/尺寸漂移，前后清单变化时丢弃整批；数据库与 Storage 组成同一 manifest 后仅以 GPG 密文通过受限 rsync 账号写入第二服务器，目标端验证文件权限、新鲜度、SHA-256 和磁盘余量。测试使用 loopback fake Storage，不接触真实凭据。
-- `scripts/macos_offsite_recovery_keychain.py` / `scripts/test_macos_offsite_recovery_keychain.py`：macOS 离线恢复私钥保管工具与 secret-free fake-Keychain 回归；规避 `security -w` 长字段交互截断，将已加密 GPG 私钥按 96 字符版本块存入登录钥匙串，以独立 manifest 固定块数、原始字节数和 SHA-256，导出前完整重组校验，且删除操作要求完整指纹二次确认。
+- `scripts/macos_offsite_recovery_keychain.py` / `scripts/test_macos_offsite_recovery_keychain.py`：macOS 离线恢复私钥保管工具与 secret-free fake-Keychain 回归；规避 `security -w` 长字段交互截断，将已加密 GPG 私钥按 96 字符版本块存入登录钥匙串，以独立 manifest 固定块数、原始字节数和 SHA-256，导出前完整重组校验，且删除操作要求完整指纹二次确认。`scripts/rehearse_offsite_database_restore.sh` 只允许带 guard 的 loopback 隔离库，并在删除目标 `public` schema 后重新创建空 schema，以兼容不包含 `CREATE SCHEMA public` 的 Supabase custom-format dump；恢复目标必须提供与源归档等价的 Supabase 角色，以保留 Auth、Storage、RLS 和事件触发器所需的对象所有权。
 - `deploy/mt-presence-offsite-backup.service` / `.timer` / `deploy/offsite-backup-environment.example`：源服务器 root-only 每日备份任务；复用分离的 database/scanner secret 文件，使用固定 host key、专用 SSH key、位于 `/var/lib/mt-presence-offsite/gnupg` 的目标公钥环、低 IO 优先级和只读系统视图，不把凭据写入 release 或命令参数。
 - `deploy/mt-presence-offsite-verify.service` / `.timer`：第二服务器的 hardened root oneshot 将接收箱完整批次复制校验后原子移入 root-only immutable vault，并每日复核历史密文、新鲜度与磁盘余量；无 Supabase/数据库凭据或 GPG 私钥。接收账号由 `from=`、`restrict`、forced `rrsync -wo -no-del -munge` 限制为来源 IP 的只写通道，无法访问归档后的历史恢复点。
 - `scripts/verify_production.py` / `scripts/test_verify_production.py` / `docs/operations/production-deployment.md`：公开 HTTPS health/route/sensitive-field smoke、仅回环访问的 protected readiness、迁移/证书/激活/回滚/首小时观察及数据库+对象异地恢复 runbook。
 - `docs/operations/offsite-recovery-rehearsal-2026-08-13.md`：首个异地恢复点的无敏感信息证据记录；固定密文入库、Keychain 独立解密、tar 路径/类型、全文件与 Storage 哈希、PostgreSQL catalog 和私钥清理结果，同时明确隔离 Supabase 全量恢复仍是独立门禁。
+- `docs/operations/offsite-recovery-rehearsal-2026-09-17.md`：完整应用级恢复证据；覆盖生产加密批次传输、接收端原子入库、Keychain 解密、165 个 Storage 对象与全文件哈希、guarded loopback Supabase 全量数据库恢复、服务健康，以及单个对象在非生产桶中的 API 回读与元数据关系验证。
 - `scripts/test_supabase_phase1_isolation.py`：只读远程集成测试；使用两个已验证开发用户的普通 access token，验证双方只能读取自己的 user/profile/role，以及 `current_authorization` 与身份一致，不使用会绕过 RLS 的 service-role key。
 - `scripts/test_supabase_admin_mfa.py`：可逆的真实 Supabase TOTP/AAL2 集成测试；临时复用明确 disposable 的开发用户并恢复其 hash/roles/factors/sessions，验证 Admin+AAL1 denied、真实 TOTP enrollment/verify、Admin+AAL2 allowed 与 non-Admin+AAL2 denied，且不输出凭据、secret 或 token。
 - `scripts/test_local_auth_session_refresh.py`：本地 Auth 实时回归；使用 gitignored development Admin 建立独立 AAL1 session，故意破坏 access Cookie 后通过 refresh Cookie 触发轮换，断言 `/api/me` 回写两枚新 Cookie 且 `/auth/mfa` 不发生回登录页的 303；输出只含状态，不打印凭据或 token，并尽力撤销测试 session。
+
+## 2026-10-02 公开体验与验收收敛
+
+- `works.html` / `archive.js`：加载/错误可见，错误隐藏空态，Retry 禁用重复请求并保留 URL 筛选；公开读取复用 `public-archive.js`。
+- `lightbox.html` / `lightbox.js`：区分 loading、error 和 empty；错误可重试，API 失败不删除保存 ID。
+- `about.js`：按公开响应的 `payload.creator` 读取作者，修复有真实数据时仍显示默认作者的问题。
+- `work-detail.js`：显示公开加载失败；收藏写失败只反馈错误，避免二次补偿写入再次抛异常。
+- `server.py` / `index.html` / `script.js`：服务端决定首页本地 preview，公开页面不会读取旧私有 IndexedDB 设置；Selected Works 支持暂停/恢复。
+- 所有 HTML 对本轮修改的共享 CSS/JS 更新版本参数，避免新页面与旧缓存脚本错配。
+- `scripts/test_public_image_contract.py`：stdlib 读取 JPEG SOF 校验真实尺寸、lazy/async 与首图加载合同。
+- `scripts/test_public_browser.py`：loopback + 合成作品，无真实凭据；公开十个路由、三视口、错误重试/慢请求/真实空态、收藏存储和本地 preview 隔离；保存截图与本地 CLS/LCP/传输采样，结束关闭 browser/server。
+- `scripts/test_public_interaction_state.js`：补 storage getter/quota、无效 DTO、禁止 original fallback、权威错误/空态和 timeout 回归。
+- `scripts/test_public_delivery_boundary.py`：补 homepage preview 的 development/production/loopback 四组合服务端渲染验证。
+- `scripts/test_review_queue_database.sql`：Admin+AAL2 按治理范围只读 derivative；原图权限仍要求 assigned Reviewer，验收与现有政策一致。
+- `scripts/release_gate.sh`：公开图片合同、首页 JS 语法与公开浏览器脚本语法进入统一门禁；实际浏览器、隔离数据库验收另行执行。
+- 结果与发布边界统一维护于 `docs/operations/website-optimization-process.md`。
+
+## 13. 模块与系统规格文档
+
+`docs/module-specs/` 是按用户可验收边界维护的模块规格目录。每份规格都必须同时说明真实入口、前置条件、流程、页面状态、操作结果、性能/安全要求、异常恢复和明确非目标；新增页面、API、角色或状态时先更新对应规格，再同步本功能地图。
+
+- `docs/module-specs/README.md`：模块总索引、通用状态合同和统一验收原则。
+- `docs/module-specs/01-authentication-and-security.md`：认证与安全系统。
+- `docs/module-specs/02-account-profile-and-dashboard.md`：账户、个人主页与账户设置。
+- `docs/module-specs/03-public-site-and-navigation.md`：公开站点、导航、页脚与法律页面。
+- `docs/module-specs/04-works-archive-and-viewer.md`：Works、作品查看器与 Creator 主页。
+- `docs/module-specs/05-lightbox-and-inquiry.md`：Lightbox、选片与联系咨询。
+- `docs/module-specs/06-upload-workspace.md`：上传工作台、文件夹、Draft 与 Trash。
+- `docs/module-specs/07-asset-scanner-and-media-pipeline.md`：图片资产管线与可信扫描。
+- `docs/module-specs/08-review-queue-and-publication.md`：Review Queue 与发布。
+- `docs/module-specs/09-admin-governance.md`：Admin Works 与 Admin Users 治理。
+- `docs/module-specs/10-notifications-and-inbox.md`：Notifications 与 Inbox 通信。
+- `docs/module-specs/11-audit-ledger.md`：审计台账。
+- `docs/module-specs/12-data-provider-and-api-boundary.md`：数据、Provider、BFF 与 API 边界。
+- `docs/module-specs/13-operations-deployment-backup-recovery.md`：发布、健康、备份与恢复运维。
 - `scripts/test_auth_security_boundary.py`：无需真实凭据的本地 Auth/Account 安全集成测试；用 loopback fake provider、临时 SQLite/asset fixture 和真实 `MTRequestHandler` 验证缺失/跨源 CSRF、防枚举 Forgot、受限 recovery、密码更新、Workspace/Account 路由门禁、普通用户 Profile 读写与输入归一化、可选 TOTP enrollment/AAL2/停用、密码与 OAuth 强制 challenge、current-only Session 能力、others/all revoke、Admin AAL1 MFA 拒绝，以及 legacy upload 资产隐私，全程不输出 token/password/secret。
 - `scripts/test_supabase_deploy_script.py`：无需数据库的部署回归；注入临时 fake `psql`，验证 fresh baseline 与 existing-database migration-only 两种执行顺序，并确认非法 baseline 模式在任何数据库调用前失败。
 - `database/migrations/20260714_account_profile_boundary.sql`：已有 Supabase Phase 1 环境的 Account Settings 增量加固；删除通用 profile UPDATE，安装字段 allowlist、active account 与 Admin AAL2 约束的 `update_my_profile(jsonb)` RPC。
@@ -167,7 +203,7 @@
 
 - `index.html`：定义 hero、Selected Works、Current Series、Statement、Contact；hero 主/次 CTA 为 Enter Works / View Series；Current Series 当前链接到 `weather-at-the-threshold`。
 - `styles.css`：实现参考图式摄影背景、左侧主标题、按钮样式、Selected Works 作品带、紧凑双列 Statement 和移动端单列布局；hero 使用长度受限的 sticky 双层图片舞台，桌面滚动段为 `160svh`、移动端为 `145svh`，首帧完整由摄影画面占据，过渡结束后下一段内容才进入视口。
-- `script.js`：启动时读取 IndexedDB `site_settings.homepage`，用 `--home-hero-abstract-image` / `--home-hero-concrete-image` CSS 变量和 `data-home-*` DOM 钩子覆盖首页 hero/Statement 图片与文字；根据 `hero-stage` 高度减去 pinned hero 高度得到真实滚动行程，设置图片和两套文案的分段淡出/淡入变量，并在 hero 接近结束时切换导航栏状态；身份只由 `account-menu.js` 管理；用 IntersectionObserver 渐进增强 Statement 显影，未触发动画时内容仍可读；拦截页内锚点点击并扣除 header 高度后执行 ease-in-out 纵向滚动。
+- `script.js`：仅当服务端注入 development + loopback + `MT_LOCAL_ARCHIVE_PREVIEW=1` 标志时读取 IndexedDB `site_settings.homepage`，用 `--home-hero-abstract-image` / `--home-hero-concrete-image` CSS 变量和 `data-home-*` DOM 钩子覆盖首页 hero/Statement 图片与文字；根据 `hero-stage` 高度减去 pinned hero 高度得到真实滚动行程，设置图片和两套文案的分段淡出/淡入变量，并在 hero 接近结束时切换导航栏状态；身份只由 `account-menu.js` 管理；用 IntersectionObserver 渐进增强 Statement 显影，未触发动画时内容仍可读；拦截页内锚点点击并扣除 header 高度后执行 ease-in-out 纵向滚动。
 - `docs/design/design-system.md`：记录首页的视觉定位、字体、色彩、按钮和布局规则。
 - `docs/design/image-sources.md`：记录首页主视觉当前素材来源和替换规则。
 - `assets/art/hero-ci-jian.jpg`：首页主视觉临时样张。
@@ -345,7 +381,7 @@
 - 内部作者审核页面，用于检查作品标题、Viewer 文本、标签、资产和 visibility，按 All / Needs review / Unpublished / Published 筛选队列，一键把审核通过的作品发布到公开 `works.html`，并维护首页 hero/Statement 图片和文字。
 - 入口：`manage.html`；顶部公开导航不强调，桌面极简 rail 提供 `Review` 入口，供本地作者维护流程使用。
 - 编辑字段对齐数据库目标结构：`images.title`、`images.series`、`images.curatorial_note`、`images.description`、`images.artist_statement`、`images.captured_at`、`images.content_type`、`images.display_mode`、`images.visibility`、`images.sort_order`，以及 `image_tags` / `image_taggings` 标签关系。
-- 保存已有 seed 作品或上传作品 metadata 时，`manage.js` 会同步写入本地 SQLite 的 `images`、`image_tags` 和 `image_taggings`，同时保留 IndexedDB 作为浏览器 fallback；新图片导入、压缩和文件夹归类由 `upload-studio.html` 负责。公开 `works.html` 优先通过 `/api/archive/images` 读取 SQLite 结果，接口不可用时再按作品 ID 合并 IndexedDB manual metadata；`script.js` 启动时读取 `site_settings.homepage` 覆盖首页图文。
+- 保存已有 seed 作品或上传作品 metadata 时，`manage.js` 会同步写入本地 SQLite 的 `images`、`image_tags` 和 `image_taggings`，同时保留 IndexedDB 作为浏览器 fallback；新图片导入、压缩和文件夹归类由 `upload-studio.html` 负责。公开 `works.html` 通过 `/api/archive/images` 读取 published DTO；只有显式 local preview 来源可以合并 IndexedDB/sample，接口失败不回退。本地管理页的首页图文设置仅在显式 loopback preview 应用。
 
 ### 相关文件
 

@@ -118,10 +118,10 @@ MT_TEST_ENVIRONMENT=development python3 scripts/test_user_dashboard_database.py
 
 浏览器验收应在 1440x900 与 390x844 检查：Dashboard 无左侧 rail，cover 与六项 profile facts 稳定；Overview/My works tab、cover dialog Escape/Cancel/focus restoration、选择/移除后 reload persistence 正常；Edit personal information 进入 `/settings/account#profile`；五个 fieldset 和十个 creator fields 无溢出。该验收只证明 protected personal profile，可见 UI 不得宣称 public creator portfolio 已交付。
 
-development 至少有三个 queued job 时，可运行真实数据库状态机测试。它会在单个事务内验证 disjoint claim、same-token idempotency/conflict、旧 token 拒绝、lease reclaim 和 attempt exhaustion，最后固定执行 `ROLLBACK`，不会保存 verdict：
+真实 Scanner 数据库状态机测试只允许 data-free 隔离 schema clone（users/images/asset_scan_jobs 均为空）。先设置指向该 clone 的 PG* 环境；脚本创建专用用户/Inbox/图片和三种匹配 Storage 的资产，通过真实 trigger 入队，在单个事务内验证 disjoint claim、same-token idempotency/conflict、旧 token 拒绝、lease reclaim 和 attempt exhaustion，最后 `ROLLBACK`，不会使用已有用户任务或保存 verdict：
 
 ```bash
-/opt/homebrew/opt/libpq/bin/psql --set ON_ERROR_STOP=1 --file scripts/test_workspace_asset_scanner_database.sql
+MT_TEST_ENVIRONMENT=development /opt/homebrew/opt/libpq/bin/psql -X --set ON_ERROR_STOP=1 --file scripts/test_workspace_asset_scanner_database.sql
 ```
 
 ## Trusted scanner 运行

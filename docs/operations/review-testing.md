@@ -65,7 +65,7 @@ After deployment, run the rollback-only database acceptance with development `PG
 psql --set ON_ERROR_STOP=1 --file scripts/test_review_queue_database.sql
 ```
 
-The script uses fixed development-only UUIDs under an advisory transaction lock, restores the scanner trigger before completion, and always ends with `ROLLBACK`. It must print `review_database_fixtures_rolled_back=yes`.
+The script uses fixed development-only UUIDs under an advisory transaction lock, restores the scanner trigger before completion, and always ends with `ROLLBACK`. It must print `review_database_fixtures_rolled_back=yes`. Admin+AAL2 governance is derivative-only; original reads require an assigned Reviewer. The acceptance assertion follows that boundary even when roles are stacked.
 
 Then run the committed-fixture two-session acceptance. This test requires an explicit development confirmation, holds a process-level advisory lock to prevent overlapping runs, synchronizes each pair of PostgreSQL backends behind a shared gate, and cleans fixed fixture identities before and after the run:
 
