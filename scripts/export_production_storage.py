@@ -7,6 +7,7 @@ import argparse
 import csv
 import hashlib
 import json
+import mimetypes
 import os
 import ssl
 import sys
@@ -46,7 +47,10 @@ def required_environment(name: str) -> str:
 def storage_origin() -> str:
     raw = required_environment("SUPABASE_URL").rstrip("/")
     parsed = urllib.parse.urlparse(raw)
-    allow_loopback = os.environ.get("MT_OFFSITE_ALLOW_HTTP_LOOPBACK") == "1"
+    allow_loopback = (
+        os.environ.get("MT_OFFSITE_ALLOW_HTTP_LOOPBACK") == "1"
+        or os.environ.get("MT_RECOVERY_ALLOW_HTTP_LOOPBACK") == "1"
+    )
     loopback = parsed.hostname in {"127.0.0.1", "::1", "localhost"}
     if (
         parsed.username
@@ -149,6 +153,24 @@ def response_stream(
         raise BackupError(f"storage_http_error:{error.code}") from error
     except (urllib.error.URLError, TimeoutError, OSError) as error:
         raise BackupError("storage_unavailable") from error
+
+
+def validate_recovery_target(origin: str) -> None:
+    target = required_environment("MT_RECOVERY_TARGET")
+    target_ref = required_environment("MT_RECOVERY_TARGET_REF")
+    production_ref = required_environment("MT_RECOVERY_PRODUCTION_REF")
+    confirmation = required_environment("MT_RECOVERY_CONFIRM")
+    parsed = urllib.parse.urlparse(origin)
+    loopback = parsed.hostname in {"127.0.0.1", "::1", "localhost"}
+    if (
+        target != "isolated-supabase"
+        or not loopback
+        or os.environ.get("MT_RECOVERY_ALLOW_HTTP_LOOPBACK") != "1"
+        or not target_ref.startswith("local-mt-presence-recovery-")
+        or target_ref == production_ref
+        or confirmation != target_ref
+    ):
+        raise BackupError("recovery_target_invalid")
 
 
 def write_manifest(path: Path, records: Iterable[dict[str, str | int]]) -> None:
@@ -278,9 +300,69 @@ def verify_storage(inventory_path: Path, output_root: Path, manifest_path: Path)
     print(f"storage_backup_verified_bytes={total}")
 
 
+def restore_storage(inventory_path: Path, output_root: Path, manifest_path: Path) -> None:
+    verify_storage(inventory_path, output_root, manifest_path)
+    records = load_manifest(manifest_path)
+    origin = storage_origin()
+    validate_recovery_target(origin)
+    headers = storage_headers()
+    opener = urllib.request.build_opener(RejectRedirects(), urllib.request.HTTPSHandler(context=ssl.create_default_context()))
+    restored = 0
+    total = 0
+    for record in records:
+        bucket = str(record["bucket"])
+        name = str(record["name"])
+        expected_size = int(record["size"])
+        expected_digest = str(record["sha256"])
+        source_path = destination_path(output_root, bucket, name)
+        payload = source_path.read_bytes()
+        if len(payload) != expected_size or hashlib.sha256(payload).hexdigest() != expected_digest:
+            raise BackupError("storage_backup_checksum_mismatch")
+        encoded_bucket = urllib.parse.quote(bucket, safe="")
+        encoded_name = urllib.parse.quote(name, safe="/")
+        upload_headers = {
+            **headers,
+            "Content-Type": mimetypes.guess_type(name)[0] or "application/octet-stream",
+            "x-upsert": "true",
+        }
+        upload = urllib.request.Request(
+            f"{origin}/storage/v1/object/{encoded_bucket}/{encoded_name}",
+            headers=upload_headers,
+            data=payload,
+            method="POST",
+        )
+        try:
+            with opener.open(upload, timeout=60) as response:
+                response.read(1024)
+                if response.status not in (200, 201):
+                    raise BackupError(f"storage_restore_http_error:{response.status}")
+        except BackupError:
+            raise
+        except urllib.error.HTTPError as error:
+            raise BackupError(f"storage_restore_http_error:{error.code}") from error
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            raise BackupError("storage_restore_unavailable") from error
+
+        digest = hashlib.sha256()
+        observed_size = 0
+        with response_stream(opener, origin, headers, bucket, name) as response:
+            while True:
+                chunk = response.read(CHUNK_BYTES)
+                if not chunk:
+                    break
+                observed_size += len(chunk)
+                digest.update(chunk)
+        if observed_size != expected_size or digest.hexdigest() != expected_digest:
+            raise BackupError("storage_restore_checksum_mismatch")
+        restored += 1
+        total += observed_size
+    print(f"storage_recovery_restored_objects={restored}")
+    print(f"storage_recovery_restored_bytes={total}")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=("export", "verify"))
+    parser.add_argument("action", choices=("export", "verify", "restore"))
     parser.add_argument("--inventory", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--manifest", required=True, type=Path)
@@ -292,8 +374,10 @@ def main() -> int:
     try:
         if args.action == "export":
             export_storage(args.inventory, args.output, args.manifest)
-        else:
+        elif args.action == "verify":
             verify_storage(args.inventory, args.output, args.manifest)
+        else:
+            restore_storage(args.inventory, args.output, args.manifest)
     except (BackupError, OSError, ValueError) as error:
         print(f"offsite storage backup failed: {error}", file=sys.stderr)
         return 1

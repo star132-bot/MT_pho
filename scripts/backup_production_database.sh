@@ -27,8 +27,6 @@ manifest="$backup.sha256"
 
 "$pg_dump_bin" \
   --format=custom \
-  --no-owner \
-  --no-privileges \
   --file="$backup" \
   --host="$PGHOST" \
   --port="${PGPORT:-5432}" \

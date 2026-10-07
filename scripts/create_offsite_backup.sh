@@ -41,17 +41,31 @@ if [[ ! -d "$MT_OFFSITE_GNUPG_HOME" || -L "$MT_OFFSITE_GNUPG_HOME" ]]; then
   exit 3
 fi
 
-for command in flock gpg pg_dump pg_restore psql python3 rsync sha256sum tar; do
+for command in awk df flock gpg pg_dump pg_restore psql python3 rsync sha256sum tar; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "Required offsite backup command is unavailable: $command" >&2
     exit 4
   fi
 done
 
+minimum_local_free_percent="${MT_OFFSITE_LOCAL_MIN_FREE_PERCENT:-15}"
+if [[ ! "$minimum_local_free_percent" =~ ^[0-9]+$ ]] || ((minimum_local_free_percent < 5 || minimum_local_free_percent > 90)); then
+  echo "MT_OFFSITE_LOCAL_MIN_FREE_PERCENT is invalid." >&2
+  exit 4
+fi
+
 install -d -o root -g root -m 0700 "$MT_OFFSITE_LOCAL_DIR"
 exec 9>"$MT_OFFSITE_LOCAL_DIR/.backup.lock"
 if ! flock -n 9; then
   echo "An offsite backup is already running." >&2
+  exit 5
+fi
+
+available_blocks="$(df -P "$MT_OFFSITE_LOCAL_DIR" | awk 'NR == 2 { print $4 }')"
+total_blocks="$(df -P "$MT_OFFSITE_LOCAL_DIR" | awk 'NR == 2 { print $2 }')"
+free_percent=$((available_blocks * 100 / total_blocks))
+if ((free_percent < minimum_local_free_percent)); then
+  echo "Offsite source disk free space is below policy." >&2
   exit 5
 fi
 
@@ -124,10 +138,12 @@ fi
 rm -f -- "$inventory_before"
 
 cat > "$stage/BACKUP-MANIFEST.txt" <<EOF
-format=mt-presence-offsite-v1
+format=mt-presence-offsite-v2
 batch_id=$batch_id
 created_at=$(date -u +%FT%TZ)
 database_dump=$(basename "$dump")
+database_dump_ownership=preserved
+database_dump_privileges=preserved
 $storage_summary
 EOF
 (
@@ -158,6 +174,18 @@ chmod 0600 "$cipher"
   sha256sum "$(basename "$cipher")" > "$(basename "$cipher").sha256"
   sha256sum --check --status "$(basename "$cipher").sha256"
 )
+python3 - "$cipher" "$cipher.sha256" "$MT_OFFSITE_LOCAL_DIR" <<'PY'
+import os
+import sys
+
+for raw in sys.argv[1:]:
+    flags = os.O_RDONLY | (os.O_DIRECTORY if os.path.isdir(raw) else 0)
+    descriptor = os.open(raw, flags)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+PY
 
 rsync_shell="ssh -i $MT_OFFSITE_SSH_KEY -p ${MT_OFFSITE_SSH_PORT:-22} -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$MT_OFFSITE_KNOWN_HOSTS"
 rsync \

@@ -2,6 +2,9 @@
 Description=Create and transfer an encrypted MT Presence offsite backup
 After=network-online.target
 Wants=network-online.target
+OnFailure=mt-presence-offsite-alert@%n.service
+StartLimitIntervalSec=1h
+StartLimitBurst=3
 
 [Service]
 Type=oneshot
@@ -25,4 +28,15 @@ ReadWritePaths=/var/backups/mt-presence-offsite /var/lib/mt-presence-offsite
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 RestrictNamespaces=true
 RestrictSUIDSGID=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelLogs=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
 CapabilityBoundingSet=
+AmbientCapabilities=

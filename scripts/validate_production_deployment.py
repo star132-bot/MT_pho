@@ -77,6 +77,7 @@ def main() -> None:
     web_environment = source("deploy/web-environment.example")
     scanner_environment = source("deploy/scanner-environment.example")
     database_environment = source("deploy/database-environment.example")
+    sshd_hardening = source("deploy/05-mt-presence-sshd-hardening.conf")
     health_service = source("deploy/mt-presence-healthcheck.service")
     health_timer = source("deploy/mt-presence-healthcheck.timer")
     offsite_environment = source("deploy/offsite-backup-environment.example")
@@ -84,6 +85,8 @@ def main() -> None:
     offsite_timer = source("deploy/mt-presence-offsite-backup.timer")
     offsite_verify_service = source("deploy/mt-presence-offsite-verify.service")
     offsite_verify_timer = source("deploy/mt-presence-offsite-verify.timer")
+    offsite_alert_environment = source("deploy/offsite-alert-environment.example")
+    offsite_alert_service = source("deploy/mt-presence-offsite-alert@.service")
     preflight = source("scripts/production_preflight.py")
     release_manager = source("scripts/manage_production_release.py")
     release_builder = source("scripts/build_production_release.sh")
@@ -92,9 +95,17 @@ def main() -> None:
     storage_exporter = source("scripts/export_production_storage.py")
     offsite_backup = source("scripts/create_offsite_backup.sh")
     offsite_verifier = source("scripts/verify_offsite_ciphertexts.sh")
+    offsite_alert = source("scripts/notify_offsite_failure.py")
+    recovery_runner = source("scripts/rehearse_offsite_database_restore.sh")
     verifier = source("scripts/verify_production.py")
     release_gate = source("scripts/release_gate.sh")
     database_gate = source("scripts/database_acceptance_gate.sh")
+
+    require(
+        recovery_runner,
+        "drop schema if exists public cascade; create schema public",
+        "offsite recovery runner",
+    )
 
     for marker in (
         "User=mtpresence",
@@ -159,6 +170,16 @@ def main() -> None:
         require(health_service, marker, "health service")
     for marker in ("OnBootSec=2min", "OnUnitActiveSec=1min", "Persistent=true"):
         require(health_timer, marker, "health timer")
+    for marker in (
+        "PasswordAuthentication no",
+        "KbdInteractiveAuthentication no",
+        "PermitRootLogin prohibit-password",
+        "PubkeyAuthentication yes",
+        "PermitEmptyPasswords no",
+        "AllowAgentForwarding no",
+        "MaxAuthTries 4",
+    ):
+        require(sshd_hardening, marker, "sshd hardening")
 
     for marker in (
         "MT_OFFSITE_BACKUP_HOST=",
@@ -178,6 +199,9 @@ def main() -> None:
         "Environment=HOME=/var/lib/mt-presence-offsite",
         "ProtectSystem=strict",
         "ReadWritePaths=/var/backups/mt-presence-offsite /var/lib/mt-presence-offsite",
+        "OnFailure=mt-presence-offsite-alert@%n.service",
+        "ProtectKernelTunables=true",
+        "MemoryDenyWriteExecute=true",
         "CapabilityBoundingSet=",
     ):
         require(offsite_service, marker, "offsite source systemd")
@@ -189,11 +213,50 @@ def main() -> None:
         "ProtectSystem=strict",
         "ReadWritePaths=/srv/mt-presence-backup",
         "RestrictAddressFamilies=AF_UNIX",
+        "OnFailure=mt-presence-offsite-alert@%n.service",
+        "ProtectKernelTunables=true",
+        "MemoryDenyWriteExecute=true",
         "CapabilityBoundingSet=CAP_DAC_OVERRIDE",
     ):
         require(offsite_verify_service, marker, "offsite target systemd")
     for marker in ("OnCalendar=*-*-* 04:00:00 UTC", "RandomizedDelaySec=15min", "Persistent=true"):
         require(offsite_verify_timer, marker, "offsite target timer")
+
+    for marker in (
+        "MT_OFFSITE_ALERT_SMTP_HOST=",
+        "MT_OFFSITE_ALERT_SMTP_PASSWORD=",
+        "MT_OFFSITE_ALERT_RECIPIENT=",
+        "MT_OFFSITE_ALERT_SPOOL_DIR=/var/lib/mt-presence-offsite-alerts",
+    ):
+        require(offsite_alert_environment, marker, "offsite alert environment")
+    for marker in (
+        "EnvironmentFile=/etc/mt-presence/offsite-alert.env",
+        "StateDirectory=mt-presence-offsite-alerts",
+        "ProtectSystem=strict",
+        "TimeoutStartSec=2min",
+        "CapabilityBoundingSet=",
+    ):
+        require(offsite_alert_service, marker, "offsite alert systemd")
+    for marker in (
+        "RejectRedirects",
+        "MT_OFFSITE_ALERT_WEBHOOK_SECRET",
+        "MT_OFFSITE_ALERT_SMTP_PASSWORD",
+        "offsite_alert_spooled=",
+        "mark_delivered",
+        'parser.add_argument("--test", action="store_true")',
+    ):
+        require(offsite_alert, marker, "offsite alert notifier")
+    for marker in (
+        '"$MT_RECOVERY_TARGET" != "isolated-supabase"',
+        'MT_RECOVERY_ALLOW_HTTP_LOOPBACK',
+        'MT_RECOVERY_PRODUCTION_REF',
+        'mt-presence-recovery:$target_ref',
+        '--single-transaction',
+        '--exit-on-error',
+        'database_acl_rows',
+        'offsite_database_restore=passed',
+    ):
+        require(recovery_runner, marker, "offsite database recovery runner")
 
     for marker in (
         'required_environment("MT_RUNTIME_ENVIRONMENT")',
@@ -221,7 +284,9 @@ def main() -> None:
         require(release_builder, marker, "release builder")
     for marker in ("umask 077", "pg_dump", "--format=custom", "sha256"):
         require(backup, marker, "database backup")
-    for marker in ("pg_restore", "--list", "checksum does not match", 'grep -q " TABLE "', 'grep -q " FUNCTION "'):
+    reject(backup, "--no-owner", "database backup")
+    reject(backup, "--no-privileges", "database backup")
+    for marker in ("pg_restore", "--list", "checksum does not match", 'grep -q " TABLE "', 'grep -q " FUNCTION "', 'grep -q " ACL "'):
         require(backup_verifier, marker, "database backup verifier")
     for marker in (
         "ALLOWED_BUCKETS",
@@ -230,6 +295,8 @@ def main() -> None:
         "storage_download_limit_exceeded",
         "storage_backup_checksum_mismatch",
         "os.replace(temporary, target)",
+        "restore_storage",
+        "recovery_target_invalid",
     ):
         require(storage_exporter, marker, "Storage backup exporter")
     for marker in (
@@ -271,6 +338,8 @@ def main() -> None:
         "test_manage_production_release.py",
         "test_verify_production.py",
         "test_offsite_backup.py",
+        "test_offsite_alert.py",
+        "test_offsite_recovery_boundary.py",
         "bash -n",
         "MT_TEST_ENVIRONMENT=development bash scripts/database_acceptance_gate.sh",
         "node scripts/test_public_interaction_state.js",

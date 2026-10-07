@@ -35,9 +35,9 @@ fi
 listing="$(mktemp)"
 trap 'rm -f "$listing"' EXIT
 "$pg_restore_bin" --list "$backup" > "$listing"
-if ! grep -q " TABLE " "$listing" || ! grep -q " FUNCTION " "$listing"; then
+if ! grep -q " TABLE " "$listing" || ! grep -q " FUNCTION " "$listing" || ! grep -q " ACL " "$listing"; then
   echo "Backup catalog is incomplete." >&2
   exit 6
 fi
 
-echo "Production backup checksum and catalog verification passed."
+echo "Production backup checksum, catalog, and ACL verification passed."

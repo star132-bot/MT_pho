@@ -4,7 +4,7 @@
 
 This runbook promotes one reviewed Git tag to a single Linux host without copying local secrets or editing the active release in place. PostgreSQL and object storage remain authoritative in Supabase. Nginx terminates TLS and proxies only to the loopback Web process. The image scanner runs as a separate, more privileged Unix identity.
 
-This is a future production procedure, not a record of an existing production deployment. The current project deployment boundary is development until every gate below is completed and an approved release is activated.
+Production already exists at `https://mtdo.cn`; see `domain-migration.md` and `offsite-recovery-rehearsal-2026-09-17.md` for deployment and recovery evidence. This runbook governs each new release. A historical deployment does not establish that local changes have been released or that every gate remains satisfied. The 2026-10-02 optimization changes have not been activated in production.
 
 Do not use the server's root password in scripts, command arguments, repository files, shell history, or service environment files. Establish an SSH key before routine deployment and disable password login only after key access is verified in a second session.
 

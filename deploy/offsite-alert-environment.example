@@ -1,0 +1,14 @@
+# Root-only (0600). Use a dedicated alert mailbox/app password in production.
+MT_OFFSITE_ALERT_HOST_LABEL=mt-presence-production
+MT_OFFSITE_ALERT_RECIPIENT=ops@example.com
+MT_OFFSITE_ALERT_FROM=mt-presence-alerts@example.com
+MT_OFFSITE_ALERT_SMTP_HOST=smtp.example.com
+MT_OFFSITE_ALERT_SMTP_PORT=465
+MT_OFFSITE_ALERT_SMTP_SECURITY=ssl
+MT_OFFSITE_ALERT_SMTP_USERNAME=REPLACE_WITH_ALERT_MAILBOX
+MT_OFFSITE_ALERT_SMTP_PASSWORD=REPLACE_WITH_ALERT_APP_PASSWORD
+MT_OFFSITE_ALERT_SPOOL_DIR=/var/lib/mt-presence-offsite-alerts
+MT_OFFSITE_ALERT_MIN_INTERVAL_SECONDS=900
+# Optional HTTPS endpoint. Keep the URL and HMAC secret in this root-only file.
+# MT_OFFSITE_ALERT_WEBHOOK_URL=https://alerts.example.com/hooks/mt-presence
+# MT_OFFSITE_ALERT_WEBHOOK_SECRET=REPLACE_WITH_WEBHOOK_HMAC_SECRET

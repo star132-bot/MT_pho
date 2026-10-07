@@ -25,6 +25,7 @@ OBJECTS = {
     "/storage/v1/object/authenticated/image-originals/owner/work/original.jpg": b"original-image-bytes",
     "/storage/v1/object/authenticated/profile-avatars/owner/avatar.webp": b"avatar-bytes",
 }
+RESTORED_OBJECTS: dict[str, bytes] = {}
 
 
 class StorageHandler(BaseHTTPRequestHandler):
@@ -36,7 +37,7 @@ class StorageHandler(BaseHTTPRequestHandler):
         if self.headers.get("apikey") != "sb_secret_backup_fixture" or self.headers.get("Authorization"):
             self.send_error(HTTPStatus.UNAUTHORIZED)
             return
-        body = OBJECTS.get(path)
+        body = OBJECTS.get(path) or RESTORED_OBJECTS.get(path)
         if body is None:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
@@ -45,6 +46,26 @@ class StorageHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def do_POST(self) -> None:
+        path = unquote(self.path)
+        self.calls.append(path)
+        if (
+            self.headers.get("apikey") != "sb_secret_backup_fixture"
+            or self.headers.get("Authorization")
+            or self.headers.get("x-upsert") != "true"
+            or not path.startswith("/storage/v1/object/")
+        ):
+            self.send_error(HTTPStatus.UNAUTHORIZED)
+            return
+        body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
+        authenticated_path = path.replace("/storage/v1/object/", "/storage/v1/object/authenticated/", 1)
+        RESTORED_OBJECTS[authenticated_path] = body
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", "2")
+        self.end_headers()
+        self.wfile.write(b"{}")
 
     def log_message(self, format_string: str, *args) -> None:
         return
@@ -123,6 +144,27 @@ def verify_exporter() -> None:
                 raise AssertionError("storage manifest is incomplete")
             if set(StorageHandler.calls) != set(OBJECTS):
                 raise AssertionError("exporter requested an unexpected Storage object")
+
+            recovery_environment = {
+                **environment,
+                "MT_RECOVERY_TARGET": "isolated-supabase",
+                "MT_RECOVERY_TARGET_REF": "local-mt-presence-recovery-fixture",
+                "MT_RECOVERY_PRODUCTION_REF": "production-project-ref",
+                "MT_RECOVERY_CONFIRM": "local-mt-presence-recovery-fixture",
+                "MT_RECOVERY_ALLOW_HTTP_LOOPBACK": "1",
+            }
+            RESTORED_OBJECTS.clear()
+            restored = run_exporter("restore", inventory, output, manifest, recovery_environment)
+            if "storage_recovery_restored_objects=2" not in restored.stdout or len(RESTORED_OBJECTS) != 2:
+                raise AssertionError("Storage recovery did not upload and verify every object")
+
+            unsafe_recovery = {
+                **recovery_environment,
+                "MT_RECOVERY_PRODUCTION_REF": "local-mt-presence-recovery-fixture",
+            }
+            rejected = run_exporter("restore", inventory, output, manifest, unsafe_recovery, expected=1)
+            if "recovery_target_invalid" not in rejected.stderr:
+                raise AssertionError("Storage recovery accepted the production project reference")
 
             first = output / "image-originals" / "owner" / "work" / "original.jpg"
             first.write_bytes(b"tampered")
@@ -225,7 +267,7 @@ def verify_ciphertext_checker() -> None:
 def main() -> None:
     verify_exporter()
     verify_ciphertext_checker()
-    print("Offsite backup acceptance passed (Storage export + ciphertext integrity).")
+    print("Offsite backup acceptance passed (Storage export/restore + ciphertext integrity).")
 
 
 if __name__ == "__main__":

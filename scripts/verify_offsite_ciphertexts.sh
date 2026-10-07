@@ -9,7 +9,7 @@ if [[ ! -d "$backup_root" || -L "$backup_root" || ! "$minimum_free_percent" =~ ^
   echo "Offsite backup verifier configuration is invalid." >&2
   exit 2
 fi
-for command in cp sha256sum; do
+for command in cp python3 sha256sum; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "Offsite backup verifier dependency is missing." >&2
     exit 2
@@ -137,7 +137,35 @@ for manifest in "$incoming"/*.tar.gpg.sha256; do
     echo "Offsite incoming backup checksum verification failed." >&2
     exit 5
   }
+  python3 - "$stage" <<'PY'
+import os
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+for path in sorted(root.iterdir()):
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+try:
+    os.fsync(descriptor)
+finally:
+    os.close(descriptor)
+PY
   mv -- "$stage" "$destination"
+  python3 - "$vault" <<'PY'
+import os
+import sys
+
+descriptor = os.open(sys.argv[1], os.O_RDONLY | os.O_DIRECTORY)
+try:
+    os.fsync(descriptor)
+finally:
+    os.close(descriptor)
+PY
   rm -f -- "$cipher" "$manifest"
   promoted=$((promoted + 1))
 done
