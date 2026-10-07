@@ -1,12 +1,12 @@
 # MT Presence
 
-MT Presence is a fine art photography portfolio and image-workflow application. Version `v1.0.0` started as a static first version; the current `v1.4.3` workspace combines the public gallery, legacy SQLite compatibility tooling, and a Supabase-backed account, private Draft, review, publication, and governance workflow.
+MT Presence is a fine art photography portfolio and image-workflow application. Version `v1.0.0` started as a static first version; the current `v1.6.1` workspace combines the public gallery, legacy SQLite compatibility tooling, and a Supabase-backed account, private Draft, review, publication, and governance workflow.
 
 ## Current Version
 
-- Version: `1.4.3`
-- Release label: `v1.4.3`
-- Status: public frontend, server-managed Supabase Auth/Account, protected creator workspace, Review/public delivery, Admin Works/Users, project inquiries, Notifications/Inbox, protected Audit Ledger, and production-deployment tooling. This repository is a production candidate; it does not record an active production deployment.
+- Version: `1.6.1`
+- Release label: `v1.6.1`
+- Status: public frontend, server-managed Supabase Auth/Account, protected creator workspace, Review/public delivery, Admin Works/Users, project inquiries, Notifications/Inbox, protected Audit Ledger, and production-deployment tooling. Release `v1.6.1` is active on `https://mtdo.cn`; external mailbox/provider-account, capacity, final-media, and receiving-host backup acceptance remain separately tracked.
 - Database: Phase 0/1 through Phase 4B are deployed to development. The Phase 5 communications/audit migration and its development-only rollback acceptance remain gates before production promotion. Public Works and creator profiles read strict published-only Supabase DTOs; the SQLite Archive remains development/legacy tooling rather than the production authority.
 
 ## Features

@@ -57,6 +57,7 @@ must be recorded with an operator timestamp before they are called complete:
 
 ## Current release decision
 
-The code and documentation are ready to be committed and tagged. Production
-activation remains conditional on the external acceptance items above and on a
-successful host-side readiness/smoke check immediately after activation.
+The reviewed worktree is committed and tagged as `v1.6.1`; the documentation-only
+release is active in production and passed the host-side readiness/smoke check.
+The external acceptance items above remain separately open and are recorded in
+`release-observation-2026-10-07-v1.6.1.md`.

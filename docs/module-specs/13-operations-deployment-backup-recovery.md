@@ -6,7 +6,7 @@
 
 主要目录：`deploy/`、`scripts/production_preflight.py`、`scripts/verify_production.py`、`scripts/build_production_release.sh`、`scripts/manage_production_release.py`、`scripts/release_gate.sh`、备份/恢复脚本和 `docs/operations/`。
 
-生产域名和部署已存在：`domain-migration.md` 与 `offsite-recovery-rehearsal-2026-09-17.md` 记录 `mtdo.cn`、生产备份定时器和完整隔离恢复；2026-10-02 HTTPS 只读检查也确认公开服务可用。本地当前变更是否已部署，必须核对具体 release；历史演练不代替每次发布的门禁，本轮优化代码未发布。
+生产域名和部署已存在：`domain-migration.md` 与 `offsite-recovery-rehearsal-2026-09-17.md` 记录 `mtdo.cn`、生产备份定时器和完整隔离恢复；release `v1.6.1` 已于 2026-10-07 激活，运行时代码沿用已验收的 `v1.6.0`，线上 HTTPS smoke、Web/Scanner preflight 和回环 readiness 已通过。历史演练不代替每次发布的门禁；外部邮箱/provider 真实账号、容量压测、最终媒体授权和异地接收端状态见 `docs/operations/release-observation-2026-10-07-v1.6.1.md`。
 
 ## 2. 发布前置条件
 

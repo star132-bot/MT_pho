@@ -2,7 +2,7 @@
 
 本文档目录是项目文档的统一入口。根目录只保留通用的 `README.md` 和 `CHANGELOG.md`。
 
-项目已有生产部署，主域名为 `https://mtdo.cn`；域名迁移和 2026-09-17 完整恢复记录可证明历史部署与备份状态。当前本地变更是否已上线须核对具体 release，本轮优化代码尚未发布。所有会创建 fixture 的 rollback-only 数据库验收均为 development-only；发布前只能在 development 或隔离的 staging/生产恢复克隆执行，不能连接生产主库。
+项目已有生产部署，主域名为 `https://mtdo.cn`；release `v1.6.1` 已于 2026-10-07 激活，线上 smoke 和回环 readiness 已通过。此次是文档与发布记录收口，运行时代码沿用已验收的 `v1.6.0`。域名迁移和 2026-09-17 完整恢复记录仍是历史备份证据；外部邮箱/provider 真实账号、容量压测、最终媒体授权和异地接收端验收见 [发布观察记录](operations/release-observation-2026-10-07-v1.6.1.md)。所有会创建 fixture 的 rollback-only 数据库验收均为 development-only；发布前只能在 development 或隔离的 staging/生产恢复克隆执行，不能连接生产主库。
 
 ## 阅读顺序
 

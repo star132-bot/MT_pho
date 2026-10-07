@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-本文历史开发阶段中的“已部署 development”保留原环境含义；项目已有 `mtdo.cn` 生产服务，2026-09-17 完整恢复记录验证了生产来源的数据库/Storage 备份。当前本地优化尚未发布，不以历史证据推断当前候选 release 已激活。所有会创建 fixture 的数据库验收只允许 development 或隔离的 staging/恢复克隆，不能连接生产主库。
+本文历史开发阶段中的“已部署 development”保留原环境含义；项目已有 `mtdo.cn` 生产服务，release `v1.6.1` 已于 2026-10-07 激活，运行时代码沿用已验收的 `v1.6.0`，2026-09-17 完整恢复记录验证了生产来源的数据库/Storage 备份。外部验收状态见 `docs/operations/release-observation-2026-10-07-v1.6.1.md`。所有会创建 fixture 的数据库验收只允许 development 或隔离的 staging/恢复克隆，不能连接生产主库。
 
 Phase 2A-2G 已把账户 owner-scoped Folder、Upload Intent、Draft、Version、Asset metadata、可靠取消/清理、private Supabase Storage、权威 readiness、Submit transaction、可信 asset scanner 与 Trash/Restore 接入当前 development boundary，并新增 authenticated-only User Dashboard 聚合和受保护 creator profile/editor。Phase 3 Supabase Review Queue/Detail/decision migration 与 Web 边界已部署；常规 assignment/start/decision 仍对所有角色禁止 self-review。`20260729_super_admin_self_publish.sql` 增加独立的 Super Admin+AAL2 owner 例外，只处理 untouched/unassigned Submitted submission，并再次核验 CAS、readiness、current version 和三类 current-policy-clean 资产；original 保持 private，专用审计 action 为 `review.super_admin_self_publish`。公开 Works 与 public creator portfolio 已切到 published-only Supabase DTO；legacy Review Center/SQLite 仅保留开发过渡用途。不要下载 MySQL，也不要执行历史 `database/schema.sql` 作为当前 production baseline。
 

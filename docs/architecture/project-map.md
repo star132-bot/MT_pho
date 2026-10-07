@@ -5,7 +5,7 @@
 - 每次新增、删除、移动或修改功能相关代码后，同步更新本文档。
 - 按功能/页面归档文件职责，不只按目录罗列。
 - 记录真实职责，不写愿景和过期计划。
-- 项目已有 `mtdo.cn` 生产服务；域名迁移和 2026-09-17 完整恢复记录提供历史证据，2026-10-02 HTTPS 只读 smoke 确认公开服务可用。当前本地优化尚未发布，具体 release 状态需独立核对。rollback-only fixture 数据库验收只允许连接 development 或隔离的 staging/生产恢复克隆，禁止连接生产主库。
+- 项目已有 `mtdo.cn` 生产服务；release `v1.6.1` 已于 2026-10-07 激活，运行时代码沿用已验收的 `v1.6.0`，线上 HTTPS smoke 和回环 readiness 已通过。域名迁移和 2026-09-17 完整恢复记录提供历史备份证据；外部邮箱/provider 真实账号、容量压测、最终媒体授权和异地接收端验收见 `docs/operations/release-observation-2026-10-07-v1.6.1.md`。rollback-only fixture 数据库验收只允许连接 development 或隔离的 staging/生产恢复克隆，禁止连接生产主库。
 
 ## 全局结构
 

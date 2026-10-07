@@ -65,6 +65,8 @@ REQUIRED_RELEASE_FILES = PUBLIC_RUNTIME_FILES | DATABASE_MIGRATION_FILES | froze
     "docs/operations/production-deployment.md",
     "docs/operations/offsite-recovery-rehearsal-2026-08-13.md",
     "docs/operations/offsite-recovery-rehearsal-2026-09-17.md",
+    "docs/operations/release-observation-2026-10-07.md",
+    "docs/operations/release-observation-2026-10-07-v1.6.1.md",
     "scripts/backup_production_database.sh",
     "scripts/build_production_release.sh",
     "scripts/create_offsite_backup.sh",

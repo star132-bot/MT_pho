@@ -4,7 +4,7 @@
 
 This runbook promotes one reviewed Git tag to a single Linux host without copying local secrets or editing the active release in place. PostgreSQL and object storage remain authoritative in Supabase. Nginx terminates TLS and proxies only to the loopback Web process. The image scanner runs as a separate, more privileged Unix identity.
 
-Production already exists at `https://mtdo.cn`; see `domain-migration.md` and `offsite-recovery-rehearsal-2026-09-17.md` for deployment and recovery evidence. This runbook governs each new release. A historical deployment does not establish that local changes have been released or that every gate remains satisfied. The 2026-10-02 optimization changes have not been activated in production.
+Production already exists at `https://mtdo.cn`; release `v1.6.1` was activated on 2026-10-07 and passed the host-side smoke check. This documentation-only release carries forward the runtime from `v1.6.0`. See `domain-migration.md`, `offsite-recovery-rehearsal-2026-09-17.md`, `release-observation-2026-10-07.md`, and `release-observation-2026-10-07-v1.6.1.md` for deployment, recovery, and observation evidence. This runbook governs each new release. A historical deployment does not establish that every gate remains satisfied.
 
 Do not use the server's root password in scripts, command arguments, repository files, shell history, or service environment files. Establish an SSH key before routine deployment and disable password login only after key access is verified in a second session.
 
@@ -64,6 +64,7 @@ The host needs Python 3.11+, Nginx, PostgreSQL client tools, Certbot or an equiv
 - `MT_MAX_REQUEST_THREADS=32`
 - `MT_PUBLIC_BASE_URL=https://<domain>`
 - `MT_AUTH_EMAIL_RATE_LIMIT_PER_HOUR=6`
+- `MT_ENABLED_OAUTH_PROVIDERS=google` (Apple remains hidden until its provider configuration and real account flow pass.)
 - bounded inquiry rate configuration
 
 It must not contain `PGPASSWORD`, `SUPABASE_SECRET_KEY`, or `SUPABASE_SERVICE_ROLE_KEY`.

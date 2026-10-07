@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.6.1 - 2026-10-07
+
+- Closed the reviewed release record for the public-site optimization, production observation, module specifications, and recovery operations.
+- Tagged and activated a documentation-only release on `https://mtdo.cn`; runtime behavior remains the tested `v1.6.0` baseline.
+- Recorded the remaining external gates for mailbox/provider accounts, isolated capacity testing, continuous monitoring, offsite receiving-host recovery, and final image provenance.
+
 ## Unreleased
 
 - 2026-08-13: Added encrypted offsite recovery batches for the production PostgreSQL database and all four private Storage buckets. Each batch is rejected if the Storage inventory changes during export, encrypted before transfer, written through a source-IP-bound append-only SSH account, and atomically promoted into a root-only immutable vault after checksum, ownership, freshness, and free-space verification. The receiving server holds no production credentials or long-lived recovery private key; the runbook requires a decryption rehearsal and starts with 30 daily recovery points without automatic deletion. Added chunked macOS Keychain custody for the encrypted recovery private key so long secret material cannot be silently truncated by the `security` CLI.
