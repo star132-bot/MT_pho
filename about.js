@@ -51,7 +51,8 @@
         headers: { Accept: "application/json" },
         cache: "no-store",
       });
-      const profile = await response.json().catch(() => ({}));
+      const payload = await response.json().catch(() => ({}));
+      const profile = payload.creator;
       if (response.ok && profile && typeof profile === "object") applyProfile(profile);
     } catch (_error) {
       // Editorial defaults remain visible when no public creator exists yet.

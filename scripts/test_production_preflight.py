@@ -25,6 +25,7 @@ VALID_ENVIRONMENT = {
     "MT_RUNTIME_ENVIRONMENT": "production",
     "MT_COOKIE_SECURE": "1",
     "MT_TRUST_PROXY": "1",
+    "MT_ENABLED_OAUTH_PROVIDERS": "google",
     "MT_MAX_REQUEST_THREADS": "32",
     "MT_AUTH_EMAIL_RATE_LIMIT_PER_HOUR": "6",
     "MT_PUBLIC_BASE_URL": "https://portfolio.example.com",
@@ -45,6 +46,7 @@ def environment(values: dict[str, str]):
     names = set(VALID_ENVIRONMENT) | set(VALID_SCANNER_ENVIRONMENT) | {
         "SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY", "PGPASSWORD",
         "MT_SCANNER_WORKER_ID", "MT_SCANNER_TEMP_DIR", "MT_LOCAL_ARCHIVE_PREVIEW",
+        "MT_ENABLED_OAUTH_PROVIDERS",
     }
     previous = {name: os.environ.get(name) for name in names}
     for name in names:
@@ -88,6 +90,7 @@ def main() -> None:
             expect_failure({**VALID_ENVIRONMENT, "MT_COOKIE_SECURE": "0"})
             expect_failure({**VALID_ENVIRONMENT, "MT_LOCAL_ARCHIVE_PREVIEW": "1"})
             expect_failure({**VALID_ENVIRONMENT, "MT_TRUST_PROXY": "0"})
+            expect_failure({**VALID_ENVIRONMENT, "MT_ENABLED_OAUTH_PROVIDERS": "google,github"})
             expect_failure({**VALID_ENVIRONMENT, "MT_MAX_REQUEST_THREADS": "512"})
             expect_failure({**VALID_ENVIRONMENT, "MT_AUTH_EMAIL_RATE_LIMIT_PER_HOUR": "100"})
             expect_failure({**VALID_ENVIRONMENT, "MT_PUBLIC_BASE_URL": "http://portfolio.example.com"})

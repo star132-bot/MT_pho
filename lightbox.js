@@ -3,6 +3,7 @@ const lightboxGallery = document.querySelector("[data-lightbox-gallery]");
 const lightboxEmpty = document.querySelector("[data-lightbox-empty]");
 const lightboxSummary = document.querySelector("[data-lightbox-summary]");
 const lightboxStatus = document.querySelector("[data-lightbox-status]");
+const lightboxRetry = document.querySelector("[data-lightbox-retry]");
 const lightboxActions = document.querySelector("[data-lightbox-actions]");
 const lightboxHeadingCommands = document.querySelector("[data-lightbox-heading-commands]");
 const lightboxWorkspace = document.querySelector("[data-lightbox-workspace]");
@@ -184,20 +185,29 @@ function renderLightbox({ reconcileSelection = true } = {}) {
 }
 
 async function initLightbox() {
+  if (lightboxRetry) { lightboxRetry.disabled = true; lightboxRetry.hidden = true; }
+  lightboxStatus.textContent = "Loading saved works.";
+  lightboxStatus.dataset.state = "loading";
+  lightboxStatus.hidden = false;
   let archiveLoaded = false;
   try {
     const result = await publicArchive.loadPublishedWorks();
     allWorks = result.works;
     archiveLoaded = result.error !== true;
-    lightboxStatus.textContent = result.source === "api" ? "" : result.status;
-    lightboxStatus.hidden = result.source === "api";
+    lightboxStatus.textContent = result.status;
+    lightboxStatus.dataset.state = archiveLoaded ? "ready" : "error";
+    lightboxStatus.hidden = archiveLoaded;
   } catch {
     lightboxStatus.textContent = "Unable to load the archive. Try again from Works.";
     lightboxStatus.dataset.state = "error";
   }
   renderLightbox({ reconcileSelection: archiveLoaded });
+  if (!archiveLoaded) lightboxEmpty.hidden = true;
+  if (lightboxRetry) { lightboxRetry.disabled = false; lightboxRetry.hidden = archiveLoaded; }
   lightboxInitialized = true;
 }
+
+lightboxRetry?.addEventListener("click", () => { initLightbox(); });
 
 lightboxGallery?.addEventListener("click", (event) => {
   const selectionButton = event.target.closest("[data-toggle-inquiry-work]");

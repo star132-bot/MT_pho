@@ -496,12 +496,17 @@ do $$
 begin
   if (select count(*) from public.review_submissions where id = '00000000-0000-4000-8000-00000000f331') <> 1
      or (select count(*) from public.image_assets where image_id = '00000000-0000-4000-8000-00000000f311') <> 3
-     or not public.can_read_review_storage_object(
+     or public.can_read_review_storage_object(
        'image-originals',
        '00000000-0000-4000-8000-00000000f301/phase3/original.jpg',
        '00000000-0000-4000-8000-00000000f301'
+     )
+     or not public.can_read_review_storage_object(
+       'image-display',
+       '00000000-0000-4000-8000-00000000f301/phase3/display.jpg',
+       '00000000-0000-4000-8000-00000000f301'
      ) then
-    raise exception 'Admin AAL2 full Review scope is incomplete';
+    raise exception 'Admin AAL2 derivative-only Review scope is invalid';
   end if;
 end
 $$;

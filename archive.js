@@ -357,6 +357,7 @@ const typeFilters = document.querySelector("[data-type-filters]");
 const ratioFilters = document.querySelector("[data-ratio-filters]");
 const emptyState = document.querySelector("[data-archive-empty]");
 const dataStatus = document.querySelector("[data-archive-data-status]");
+const archiveRetry = document.querySelector("[data-archive-retry]");
 const arrangeToggle = document.querySelector("[data-arrange-toggle]");
 const saveOrderButton = document.querySelector("[data-save-order]");
 const arrangeDoneButton = document.querySelector("[data-arrange-done]");
@@ -562,6 +563,8 @@ function setArchiveDataStatus(message = "", state = "ready") {
   dataStatus.textContent = message;
   dataStatus.hidden = !message;
   dataStatus.dataset.state = state;
+  dataStatus.classList.toggle("visually-hidden", state !== "error" && state !== "loading");
+  if (archiveRetry) archiveRetry.hidden = state !== "error";
 }
 
 function showArchiveToast(message, type = "default") {
@@ -892,23 +895,8 @@ function archiveApiRowToItem(row, deliverySource = "") {
 }
 
 async function fetchArchiveApiItems() {
-  const response = await fetch(ARCHIVE_API_URL, {
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-  });
-  const payload = await response.json().catch(() => ({}));
+  const payload = await publicArchive.fetchArchivePayload();
   const source = cleanText(payload.source) || "api";
-  if (!response.ok) {
-    const message = cleanText(
-      payload?.error?.message
-      || (typeof payload?.error === "string" ? payload.error : "")
-      || payload?.hint,
-    ) || `Archive API returned ${response.status}.`;
-    const error = new Error(message);
-    error.source = source;
-    error.authoritative = publicArchive?.isAuthoritativeSource?.(source) === true;
-    throw error;
-  }
 
   const rows = Array.isArray(payload.items) ? payload.items : [];
   const items = rows.map((row) => archiveApiRowToItem(row, source)).filter((item) => item.id && item.src);
@@ -2715,7 +2703,7 @@ function renderGallery() {
       : showSavedOnly
         ? "No saved works match this view."
         : "No works match this search.";
-    emptyState.hidden = items.length > 0;
+    emptyState.hidden = items.length > 0 || ["error", "loading"].includes(dataStatus?.dataset.state);
   }
   updateSavedFilterButton();
 
@@ -3240,6 +3228,7 @@ uploadInput?.addEventListener("change", async (event) => {
 });
 
 async function initArchive() {
+  if (archiveRetry) archiveRetry.disabled = true;
   setArchiveDataStatus("Loading archive.", "loading");
   hydrateArchiveUrlState();
   let apiResult = null;
@@ -3311,7 +3300,10 @@ async function initArchive() {
   if (requestedWorkId) {
     openWorkViewer(requestedWorkId);
   }
+  if (archiveRetry) archiveRetry.disabled = false;
 }
+
+archiveRetry?.addEventListener("click", () => { initArchive(); });
 
 window.addEventListener("mt:lightbox-change", (event) => {
   reconcileLightboxWorkIds(event.detail?.ids || publicArchive.readLightboxIds(), {

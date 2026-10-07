@@ -21,6 +21,12 @@ const identityList = document.querySelector("[data-identity-list]");
 const identityConnect = document.querySelector("[data-identity-connect]");
 const identityNote = document.querySelector("[data-identity-note]");
 const identityCount = document.querySelector("[data-identity-count]");
+const enabledOAuthProviders = new Set(
+  (document.querySelector("[data-enabled-oauth-providers]")?.content.textContent || "google,apple")
+    .split(",")
+    .map((provider) => provider.trim().toLowerCase())
+    .filter(Boolean),
+);
 const identityDialog = document.querySelector("[data-identity-dialog]");
 const identityDialogForm = document.querySelector("[data-identity-dialog-form]");
 const identityDialogTitle = document.querySelector("[data-identity-dialog-title]");
@@ -661,8 +667,9 @@ function renderIdentities(identities) {
   let connectable = 0;
   identityConnect.querySelectorAll("[data-identity-connect-provider]").forEach((button) => {
     const linked = linkedProviders.has(button.dataset.identityConnectProvider);
-    button.hidden = linked;
-    if (!linked) connectable += 1;
+    const enabled = enabledOAuthProviders.has(button.dataset.identityConnectProvider);
+    button.hidden = linked || !enabled;
+    if (!linked && enabled) connectable += 1;
   });
   identityConnect.hidden = connectable === 0;
   identityNote.hidden = canUnlink || !safeIdentities.length;

@@ -675,7 +675,8 @@ h2 {
   animation: gallery-marquee 68s linear infinite;
 }
 
-.marquee-gallery:hover .marquee-track {
+.marquee-gallery:hover .marquee-track,
+.marquee-gallery.is-paused .marquee-track {
   animation-play-state: paused;
 }
 
@@ -13976,6 +13977,13 @@ button.upload-studio-card-main:focus-visible {
   text-align: right;
   text-transform: none;
   white-space: nowrap;
+}
+
+.archive-page [data-archive-data-status]:not(.visually-hidden) {
+  margin: 24px 0 12px;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .archive-page .archive-gallery {

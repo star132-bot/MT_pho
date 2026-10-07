@@ -12,6 +12,20 @@ const HOME_SETTINGS_STORE = "site_settings";
 const HOME_SETTINGS_ID = "homepage";
 const archiveSeedData = window.MTPresenceArchiveData || {};
 const baseArchiveItems = Array.isArray(archiveSeedData.sampleItems) ? archiveSeedData.sampleItems : [];
+const marqueeGallery = document.querySelector(".marquee-gallery");
+const marqueePause = document.querySelector("[data-marquee-pause]");
+
+function syncMarqueeMotion() {
+  if (marqueePause) marqueePause.hidden = reduceMotion.matches;
+}
+
+marqueePause?.addEventListener("click", () => {
+  const paused = marqueeGallery.classList.toggle("is-paused");
+  marqueePause.setAttribute("aria-pressed", String(paused));
+  marqueePause.textContent = paused ? "Resume motion" : "Pause motion";
+});
+reduceMotion.addEventListener("change", syncMarqueeMotion);
+syncMarqueeMotion();
 
 function easeInOutCubic(value) {
   return value < 0.5 ? 4 * value * value * value : 1 - Math.pow(-2 * value + 2, 3) / 2;
@@ -307,8 +321,12 @@ window.addEventListener("scroll", updateHeroTransition, { passive: true });
 window.addEventListener("resize", updateHeroTransition);
 updateHeroTransition();
 
-readHomepageSettings()
-  .then(applyHomepageSettings)
-  .catch(() => {
-    applyHomepageSettings({ settings: defaultHomepageSettings(), storedRecords: [] });
-  });
+// Private legacy settings are only meaningful in explicit loopback preview.
+const localHomepagePreview = document.querySelector("[data-local-archive-preview]")?.content.textContent.trim() === "true";
+if (localHomepagePreview) {
+  readHomepageSettings()
+    .then(applyHomepageSettings)
+    .catch(() => {
+      applyHomepageSettings({ settings: defaultHomepageSettings(), storedRecords: [] });
+    });
+}

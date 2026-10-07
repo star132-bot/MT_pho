@@ -1,6 +1,7 @@
 (function initPublicArchive(global) {
   const archiveSeedData = global.MTPresenceArchiveData || {};
   const ARCHIVE_API_URL = "/api/archive/images";
+  const ARCHIVE_REQUEST_TIMEOUT_MS = 12000;
   const DB_NAME = "mt-cijian-archive";
   const DB_VERSION = 4;
   const DB_STORE = "images";
@@ -51,8 +52,7 @@
     const assets = record?.assets;
     if (Array.isArray(assets)) {
       const display = assets.find((asset) => asset.kind === "display");
-      const original = assets.find((asset) => asset.kind === "original");
-      return assetUrl(display) || assetUrl(original) || cleanText(record.image_url || record.display_url || record.src);
+      return assetUrl(display) || cleanText(record.image_url || record.display_url || record.src);
     }
     return assetUrl(assets?.display) || cleanText(record?.image_url || record?.display_url || record?.src);
   }
@@ -152,19 +152,43 @@
     };
   }
 
-  async function fetchArchiveWorks() {
-    const response = await fetch(ARCHIVE_API_URL, {
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-    });
-    const payload = await response.json().catch(() => ({}));
-    const source = cleanText(payload.source) || "api";
-    if (!response.ok) {
-      const error = new Error(responseErrorMessage(payload, `Archive API returned ${response.status}.`));
-      error.source = source;
-      error.authoritative = isAuthoritativeSource(source);
+  async function fetchArchivePayload() {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ARCHIVE_REQUEST_TIMEOUT_MS);
+    try {
+      const response = await fetch(ARCHIVE_API_URL, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        const error = new Error(responseErrorMessage(payload, "Published works are temporarily unavailable. Please retry."));
+        error.source = cleanText(payload?.source) || "supabase";
+        error.authoritative = true;
+        throw error;
+      }
+      if (!payload || !Array.isArray(payload.items)
+          || !payload.items.every((row) => row && typeof row === "object" && cleanText(row.id) && displayUrl(row))) {
+        throw new Error("The archive returned an invalid response. Please retry.");
+      }
+      return payload;
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        throw new Error("Loading works timed out. Please retry.");
+      }
+      if (error instanceof SyntaxError) {
+        throw new Error("The archive returned an invalid response. Please retry.");
+      }
       throw error;
+    } finally {
+      clearTimeout(timer);
     }
+  }
+
+  async function fetchArchiveWorks() {
+    const payload = await fetchArchivePayload();
+    const source = cleanText(payload.source) || "api";
     const works = (Array.isArray(payload.items) ? payload.items : [])
       .map((row) => normalizeApiWork(row, source))
       .filter((item) => item.id && item.src);
@@ -261,15 +285,17 @@
   }
 
   function readLightboxIds() {
-    const current = readIdArray(localStorage, LIGHTBOX_STORAGE_KEY);
-    if (current.length || localStorage.getItem(LIGHTBOX_STORAGE_KEY) !== null) {
-      return current;
+    try {
+      const current = readIdArray(localStorage, LIGHTBOX_STORAGE_KEY);
+      if (current.length || localStorage.getItem(LIGHTBOX_STORAGE_KEY) !== null) return current;
+      const migrated = [...new Set(LEGACY_LIGHTBOX_KEYS.flatMap((key) => readIdArray(localStorage, key)))];
+      if (migrated.length) {
+        try { writeLightboxIds(migrated); } catch { /* Existing saved IDs remain readable when migration cannot persist. */ }
+      }
+      return migrated;
+    } catch {
+      return [];
     }
-    const migrated = [...new Set(LEGACY_LIGHTBOX_KEYS.flatMap((key) => readIdArray(localStorage, key)))];
-    if (migrated.length) {
-      writeLightboxIds(migrated);
-    }
-    return migrated;
   }
 
   function normalizeIds(ids) {
@@ -277,8 +303,12 @@
   }
 
   function readInquirySelectionIds() {
-    const lightboxIds = new Set(readLightboxIds());
-    return readIdArray(sessionStorage, INQUIRY_SELECTION_STORAGE_KEY).filter((id) => lightboxIds.has(id));
+    try {
+      const lightboxIds = new Set(readLightboxIds());
+      return readIdArray(sessionStorage, INQUIRY_SELECTION_STORAGE_KEY).filter((id) => lightboxIds.has(id));
+    } catch {
+      return [];
+    }
   }
 
   function writeInquirySelectionIds(ids) {
@@ -351,6 +381,7 @@
     escapeHtml,
     isAuthoritativeSource,
     isLocalPreviewSource,
+    fetchArchivePayload,
     loadPublishedWorks,
     normalizeApiWork,
     ratioCssValue,

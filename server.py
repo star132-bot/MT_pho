@@ -105,8 +105,14 @@ CSRF_COOKIE = "__Host-mt_csrf_token" if COOKIE_SECURE else "mt_csrf_token"
 RECOVERY_COOKIE = "__Host-mt_recovery_grant" if COOKIE_SECURE else "mt_recovery_grant"
 OAUTH_STATE_COOKIE = "__Host-mt_oauth_state" if COOKIE_SECURE else "mt_oauth_state"
 CSRF_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{40,128}$")
-OAUTH_PROVIDERS = frozenset({"google", "apple"})
-IDENTITY_PROVIDERS = frozenset({"email", *OAUTH_PROVIDERS})
+SUPPORTED_OAUTH_PROVIDERS = frozenset({"google", "apple"})
+_oauth_default = "google" if RUNTIME_ENVIRONMENT == "production" else "google,apple"
+OAUTH_PROVIDERS = frozenset(
+    provider.strip().lower()
+    for provider in os.environ.get("MT_ENABLED_OAUTH_PROVIDERS", _oauth_default).split(",")
+    if provider.strip().lower() in SUPPORTED_OAUTH_PROVIDERS
+)
+IDENTITY_PROVIDERS = frozenset({"email", *SUPPORTED_OAUTH_PROVIDERS})
 OAUTH_PROVIDER_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{1,39}$")
 RECOVERY_GRANT_TTL_SECONDS = 10 * 60
 RECOVERY_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30
@@ -592,6 +598,11 @@ def canonical_url_path(value: str) -> str:
 
 def auth_configured() -> bool:
     return bool(SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY)
+
+
+def enabled_oauth_providers_markup() -> str:
+    """Return the configured provider list for server-rendered auth shells."""
+    return ",".join(sorted(OAUTH_PROVIDERS))
 
 
 def safe_auth_destination(value: str, fallback: str = "/works.html") -> str:
@@ -5884,6 +5895,22 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         rendered_bootstrap = f'<template id="mt-header-identity" data-header-identity>{bootstrap}</template>'
         source = source.replace(bootstrap_marker, rendered_bootstrap, 1)
         source = source.replace(HEADER_IDENTITY_SLOT_MARKER, self.render_header_identity(identity), 1)
+        source = source.replace(
+            '<template id="mt-enabled-oauth-providers" data-enabled-oauth-providers>google,apple</template>',
+            f'<template id="mt-enabled-oauth-providers" data-enabled-oauth-providers>{enabled_oauth_providers_markup()}</template>',
+            1,
+        )
+        if (
+            filename == "index.html"
+            and LOCAL_ARCHIVE_PREVIEW
+            and RUNTIME_ENVIRONMENT == "development"
+            and self.is_loopback_request()
+        ):
+            source = source.replace(
+                '<template data-local-archive-preview>false</template>',
+                '<template data-local-archive-preview>true</template>',
+                1,
+            )
         if identity.get("can_review"):
             source = source.replace(" data-review-nav hidden", " data-review-nav")
         if identity.get("can_govern"):

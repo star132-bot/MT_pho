@@ -6,6 +6,19 @@ cd "$root"
 
 export PYTHONDONTWRITEBYTECODE=1
 
+# The Scanner's Pillow probe deliberately runs Python in isolated mode. Prefer
+# the same hash-locked virtual environment used by the worker so the probe has
+# an approved Pillow installation even when the developer's system Python only
+# exposes Pillow through a user site-package directory.
+scanner_test_python="${MT_SCANNER_TEST_PYTHON:-}"
+if [[ -z "$scanner_test_python" ]]; then
+  if [[ -x "$root/.venv-scanner/bin/python" ]]; then
+    scanner_test_python="$root/.venv-scanner/bin/python"
+  else
+    scanner_test_python="python3"
+  fi
+fi
+
 run_group() {
   local label="$1"
   shift
@@ -29,6 +42,7 @@ static_validators=(
   scripts/validate_communications_audit.py
   scripts/validate_interaction_integrity.py
   scripts/validate_production_deployment.py
+  scripts/test_public_image_contract.py
 )
 
 browser_scripts=(
@@ -55,6 +69,7 @@ browser_scripts=(
   inbox.js
   creator.js
   manage.js
+  script.js
 )
 
 boundary_tests=(
@@ -95,14 +110,18 @@ run_group "Python syntax" python3 -m py_compile \
   scripts/manage_production_release.py \
   scripts/export_production_storage.py \
   scripts/macos_offsite_recovery_keychain.py \
+  scripts/notify_offsite_failure.py \
   scripts/verify_production.py \
   scripts/test_workspace_trash_browser.py \
   scripts/test_review_batch_browser.py \
+  scripts/test_public_browser.py \
   "${static_validators[@]}" \
   "${boundary_tests[@]}" \
   "${production_tests[@]}" \
   scripts/test_offsite_backup.py \
   scripts/test_macos_offsite_recovery_keychain.py \
+  scripts/test_offsite_alert.py \
+  scripts/test_offsite_recovery_boundary.py \
   "${credentialed_browser_tests[@]}"
 
 run_group "Shell syntax" bash -n \
@@ -111,6 +130,7 @@ run_group "Shell syntax" bash -n \
   scripts/build_production_release.sh \
   scripts/backup_production_database.sh \
   scripts/create_offsite_backup.sh \
+  scripts/rehearse_offsite_database_restore.sh \
   scripts/verify_offsite_ciphertexts.sh \
   scripts/verify_production_backup.sh
 
@@ -124,7 +144,11 @@ done
 run_group "Public interaction state" node scripts/test_public_interaction_state.js
 
 for test_file in "${boundary_tests[@]}"; do
-  run_group "Boundary test: $test_file" python3 "$test_file"
+  if [[ "$test_file" == "scripts/test_workspace_asset_scanner.py" ]]; then
+    run_group "Boundary test: $test_file" "$scanner_test_python" "$test_file"
+  else
+    run_group "Boundary test: $test_file" python3 "$test_file"
+  fi
 done
 
 for test_file in "${production_tests[@]}"; do
@@ -132,6 +156,8 @@ for test_file in "${production_tests[@]}"; do
 done
 run_group "Offsite backup" python3 scripts/test_offsite_backup.py
 run_group "Offsite recovery Keychain" python3 scripts/test_macos_offsite_recovery_keychain.py
+run_group "Offsite alert" python3 scripts/test_offsite_alert.py
+run_group "Offsite recovery boundary" python3 scripts/test_offsite_recovery_boundary.py
 
 run_group "Patch integrity" git diff --check
 

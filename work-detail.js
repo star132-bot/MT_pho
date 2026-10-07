@@ -142,16 +142,12 @@
   save?.addEventListener("click", () => {
     if (!work) return;
     if (!publicArchive.requireAuthentication()) return;
-    const wasSaved = publicArchive.readLightboxIds().includes(work.id);
     setSavedState();
     try {
       const result = publicArchive.toggleLightboxId(work.id);
       setSavedState();
       showToast(result.added ? "Saved to Lightbox" : "Removed from Lightbox");
     } catch (_error) {
-      const ids = publicArchive.readLightboxIds();
-      if (wasSaved && !ids.includes(work.id)) publicArchive.writeLightboxIds([...ids, work.id]);
-      if (!wasSaved && ids.includes(work.id)) publicArchive.writeLightboxIds(ids.filter((id) => id !== work.id));
       setSavedState();
       showToast("Unable to update your lightbox.", "error");
     }
@@ -178,6 +174,7 @@
     const requestedId = cleanText(new URLSearchParams(window.location.search).get("id") || new URLSearchParams(window.location.search).get("work"));
     try {
       const result = await publicArchive.loadPublishedWorks();
+      if (result.error) throw new Error(result.status);
       works = result.works;
       work = works.find((item) => item.id === requestedId) || (!requestedId ? works[0] : null);
       if (!work) throw new Error(works.length ? "This work is unavailable." : "No published works are available.");

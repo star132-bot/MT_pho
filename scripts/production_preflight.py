@@ -19,6 +19,8 @@ from production_release_contract import FORBIDDEN_RELEASE_FILES, REQUIRED_RELEAS
 ROOT = Path(__file__).resolve().parents[1]
 SCANNER_TEMP_ROOT = Path("/var/lib/mt-presence-scanner")
 SCANNER_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@-]{0,119}$")
+OAUTH_PROVIDER_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{1,39}$")
+SUPPORTED_OAUTH_PROVIDERS = {"google", "apple"}
 
 
 def fail(message: str) -> None:
@@ -68,6 +70,17 @@ def check_web() -> None:
         fail("MT_COOKIE_SECURE must be 1")
     if required_environment("MT_TRUST_PROXY") != "1":
         fail("MT_TRUST_PROXY must be 1 behind the production reverse proxy")
+    enabled_providers = {
+        item.strip().lower()
+        for item in required_environment("MT_ENABLED_OAUTH_PROVIDERS").split(",")
+        if item.strip()
+    }
+    if (
+        not enabled_providers
+        or not enabled_providers.issubset(SUPPORTED_OAUTH_PROVIDERS)
+        or any(not OAUTH_PROVIDER_PATTERN.fullmatch(item) for item in enabled_providers)
+    ):
+        fail("MT_ENABLED_OAUTH_PROVIDERS must contain only supported OAuth providers")
     try:
         maximum_threads = int(required_environment("MT_MAX_REQUEST_THREADS"))
     except ValueError:

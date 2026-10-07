@@ -19,6 +19,12 @@ const oauthGroup = document.querySelector("[data-auth-oauth]");
 const oauthProviderLinks = new Map(
   [...document.querySelectorAll("[data-auth-provider]")].map((link) => [link.dataset.authProvider, link]),
 );
+const enabledOAuthProviders = new Set(
+  (document.querySelector("[data-enabled-oauth-providers]")?.content.textContent || "google")
+    .split(",")
+    .map((provider) => provider.trim().toLowerCase())
+    .filter(Boolean),
+);
 const fieldGroups = new Map(
   [...document.querySelectorAll("[data-auth-field]")].map((element) => [element.dataset.authField, element]),
 );
@@ -171,6 +177,7 @@ function configureMode() {
   oauthGroup.hidden = mode !== "signIn";
   const requestedNext = safeInternalPath(new URLSearchParams(window.location.search).get("next"));
   oauthProviderLinks.forEach((link, provider) => {
+    link.hidden = !enabledOAuthProviders.has(provider);
     link.href = `/auth/oauth/${provider}?next=${encodeURIComponent(requestedNext)}`;
   });
 

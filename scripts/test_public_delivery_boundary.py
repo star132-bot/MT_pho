@@ -7,6 +7,7 @@ import base64
 import copy
 import http.cookiejar
 import importlib
+import io
 import json
 import os
 from functools import partial
@@ -439,6 +440,49 @@ def reset_fake() -> None:
     FakeSupabaseHandler.storage_calls = []
 
 
+def check_homepage_preview_boundary(app) -> None:
+    class RenderHarness:
+        serve_header_html = app.MTRequestHandler.serve_header_html
+        loopback = True
+
+        def current_header_identity(self, **_kwargs):
+            return {"authenticated": False}
+
+        def render_header_identity(self, _identity):
+            return ""
+
+        def is_loopback_request(self):
+            return self.loopback
+
+        def send_response(self, _status):
+            pass
+
+        def send_header(self, *_args):
+            pass
+
+        def end_headers(self):
+            pass
+
+    previous = app.LOCAL_ARCHIVE_PREVIEW, app.RUNTIME_ENVIRONMENT
+    try:
+        for enabled, environment, loopback, expected in (
+            (False, "development", True, False),
+            (True, "development", True, True),
+            (True, "production", True, False),
+            (True, "development", False, False),
+        ):
+            app.LOCAL_ARCHIVE_PREVIEW, app.RUNTIME_ENVIRONMENT = enabled, environment
+            harness = RenderHarness()
+            harness.loopback = loopback
+            harness.wfile = io.BytesIO()
+            harness.serve_header_html("index.html")
+            body = harness.wfile.getvalue().decode()
+            assert ('data-local-archive-preview>true</template>' in body) is expected
+    finally:
+        app.LOCAL_ARCHIVE_PREVIEW, app.RUNTIME_ENVIRONMENT = previous
+    print("public_homepage_preview_boundary=yes")
+
+
 def main() -> None:
     reset_fake()
     provider = ThreadingHTTPServer(("127.0.0.1", 0), FakeSupabaseHandler)
@@ -450,6 +494,7 @@ def main() -> None:
     os.environ["MT_PUBLIC_BASE_URL"] = ""
     os.environ["MT_COOKIE_SECURE"] = "0"
     app = importlib.import_module("server")
+    check_homepage_preview_boundary(app)
     application = ThreadingHTTPServer(("127.0.0.1", 0), partial(app.MTRequestHandler, directory=str(ROOT)))
     app_thread = threading.Thread(target=application.serve_forever, daemon=True)
     app_thread.start()

@@ -1,5 +1,45 @@
 -- Transactional Phase 2F state-machine verification. No verdict is committed.
+\set ON_ERROR_STOP on
+\getenv mt_test_environment MT_TEST_ENVIRONMENT
+\if :{?mt_test_environment}
+  select :'mt_test_environment' = 'development' as test_allowed \gset
+\else
+  \echo Scanner database acceptance requires MT_TEST_ENVIRONMENT=development.
+  \quit 2
+\endif
+\if :test_allowed
+\else
+  \echo Scanner database acceptance refuses production.
+  \quit 2
+\endif
 begin;
+
+-- Use an empty isolated clone, so no existing user's scan job can be claimed.
+do $$ begin
+  if exists (select 1 from public.users)
+     or exists (select 1 from public.images)
+     or exists (select 1 from public.asset_scan_jobs) then
+    raise exception 'Scanner state-machine acceptance requires a data-free isolated clone';
+  end if;
+end $$;
+
+insert into public.users (id, auth_subject, email, email_verified_at, account_status)
+values ('00000000-0000-4000-8000-00000000fa01', '00000000-0000-4000-8000-00000000fa01',
+        'scanner-isolated@example.test', now(), 'active');
+insert into public.folders (id, owner_user_id, name, sort_order, is_system)
+values ('00000000-0000-4000-8000-00000000fa21', '00000000-0000-4000-8000-00000000fa01', 'Inbox', 0, true);
+insert into public.images (id, owner_user_id, original_filename, original_width, original_height, checksum_sha256)
+values ('00000000-0000-4000-8000-00000000fa11', '00000000-0000-4000-8000-00000000fa01',
+        'scanner-fixture.jpg', 20, 30, repeat('a',64));
+insert into storage.objects (bucket_id, name, owner_id, metadata)
+select bucket, '00000000-0000-4000-8000-00000000fa01/scanner-fixture-' || kind || '.jpg',
+       '00000000-0000-4000-8000-00000000fa01', jsonb_build_object('mimetype','image/jpeg','size',1200)
+from (values ('original','image-originals'), ('display','image-display'), ('thumbnail','image-thumbnails')) assets(kind,bucket);
+insert into public.image_assets (image_id, owner_user_id, kind, storage_key, mime_type, byte_size, width, height, checksum_sha256)
+select '00000000-0000-4000-8000-00000000fa11', '00000000-0000-4000-8000-00000000fa01',
+       kind, '00000000-0000-4000-8000-00000000fa01/scanner-fixture-' || kind || '.jpg',
+       'image/jpeg',1200,20,30,repeat('a',64)
+from (values ('original'), ('display'), ('thumbnail')) assets(kind);
 
 do $$
 declare
@@ -42,7 +82,9 @@ begin
   first_job := first_claim -> 'job';
   second_job := second_claim -> 'job';
   third_job := third_claim -> 'job';
-  if first_job is null or second_job is null or third_job is null then
+  if jsonb_typeof(first_job) is distinct from 'object'
+     or jsonb_typeof(second_job) is distinct from 'object'
+     or jsonb_typeof(third_job) is distinct from 'object' then
     raise exception 'three queued scanner jobs are required for the transactional test';
   end if;
 
