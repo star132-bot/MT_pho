@@ -550,6 +550,7 @@
 - 测试：CI 静态验证 Auth/RLS/Profile SQL 契约和受保护浏览器脚本语法，并运行 registration consent/password confirmation、verification required/resend、signup callback Cookie、recovery、普通用户 Profile、TOTP enroll/invalid code/AAL2、密码与 Google OAuth 强制 challenge、AAL1 停用拒绝、AAL2 停用/其他会话撤销、Admin AAL1、Session revoke、Cookie 清理和部署顺序集成回归。
 
 - `scripts/test_auth_destination.js`：用浏览器标准 `URL` 执行真实认证导航 helper，覆盖编码问号/井号与路径归一化组合绕过、控制字符、auth/api 边界和合法百分号查询保留；纳入 `scripts/release_gate.sh`。
+- `server.py` 的 `clean_auth_identities`：优先使用 Supabase 的 canonical `identity_id` UUID，保留只含旧式 UUID `id` 的兼容，拒绝显式无效的 canonical ID；Google provider subject 不作为管理身份 UUID。`scripts/test_oauth_identity_boundary.py` 用真实双字段身份形状验证列表、解绑和防 metadata 泄漏。
 
 ## 10A. Supabase User Dashboard
 

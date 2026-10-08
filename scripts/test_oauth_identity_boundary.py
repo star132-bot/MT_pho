@@ -34,12 +34,14 @@ OTHER_ID = "00000000-0000-4000-8000-000000000099"
 EMAIL_IDENTITY = "10000000-0000-4000-8000-000000000001"
 GOOGLE_IDENTITY = "10000000-0000-4000-8000-000000000002"
 APPLE_IDENTITY = "10000000-0000-4000-8000-000000000003"
+GOOGLE_PROVIDER_ID = "synthetic-google-provider-sub"
+PRIVATE_IDENTITY_DETAIL = "synthetic-private-identity-detail"
 MEMBER_TOKEN = fake_access_token({"sub": MEMBER_ID, "aal": "aal1"})
 APPLE_TOKEN = fake_access_token({"sub": OTHER_ID, "aal": "aal1"})
 
 
 def identity(identity_id: str, provider: str, email: str) -> dict:
-    return {
+    result = {
         "id": identity_id,
         "provider": provider,
         "email": email,
@@ -47,6 +49,15 @@ def identity(identity_id: str, provider: str, email: str) -> dict:
         "created_at": "2026-08-01T00:00:00Z",
         "last_sign_in_at": "2026-08-06T00:00:00Z",
     }
+    if provider == "google":
+        result["id"] = GOOGLE_PROVIDER_ID
+        result["identity_id"] = identity_id
+        result["identity_data"] = {
+            "email": email,
+            "sub": GOOGLE_PROVIDER_ID,
+            "private_detail": PRIVATE_IDENTITY_DETAIL,
+        }
+    return result
 
 
 class FakeIdentityHandler(BaseHTTPRequestHandler):
@@ -156,7 +167,7 @@ class FakeIdentityHandler(BaseHTTPRequestHandler):
                 provider = "google" if code.endswith("google") else "apple"
                 identity_id = GOOGLE_IDENTITY if provider == "google" else APPLE_IDENTITY
                 email = f"{provider}.linked@example.test"
-                if not any(item["id"] == identity_id for item in type(self).identities):
+                if not any(item.get("identity_id", item["id"]) == identity_id for item in type(self).identities):
                     type(self).identities.append(identity(identity_id, provider, email))
                 self.send_json(HTTPStatus.OK, {
                     "access_token": MEMBER_TOKEN, "refresh_token": f"refresh-link-{provider}", "expires_in": 3600,
@@ -181,7 +192,10 @@ class FakeIdentityHandler(BaseHTTPRequestHandler):
                 self.send_json(HTTPStatus.UNPROCESSABLE_ENTITY, {"message": "single identity"})
                 return
             before = len(type(self).identities)
-            type(self).identities = [item for item in type(self).identities if item["id"] != identity_id]
+            type(self).identities = [
+                item for item in type(self).identities
+                if item.get("identity_id", item["id"]) != identity_id
+            ]
             if len(type(self).identities) == before:
                 self.send_json(HTTPStatus.UNPROCESSABLE_ENTITY, {"message": "not found"})
                 return
@@ -243,6 +257,7 @@ def main() -> None:
     os.environ["SUPABASE_PUBLISHABLE_KEY"] = "test-publishable-key"
     os.environ["MT_COOKIE_SECURE"] = "0"
     os.environ["MT_RUNTIME_ENVIRONMENT"] = "development"
+    os.environ["MT_ENABLED_OAUTH_PROVIDERS"] = "google,apple"
     os.environ.pop("MT_PUBLIC_BASE_URL", None)
     app = importlib.import_module("server")
     app.OAUTH_FLOWS.clear()
@@ -252,6 +267,25 @@ def main() -> None:
     base_url = f"http://127.0.0.1:{app_server.server_address[1]}"
 
     try:
+        projected_google = app.clean_auth_identities({
+            "identities": [identity(GOOGLE_IDENTITY, "google", "google.linked@example.test")],
+        })
+        if len(projected_google) != 1 or projected_google[0].get("id") != GOOGLE_IDENTITY:
+            raise RuntimeError("Google provider subject replaced its canonical identity UUID")
+        both_uuid_fields = identity(GOOGLE_IDENTITY, "google", "google.linked@example.test")
+        both_uuid_fields["id"] = APPLE_IDENTITY
+        projected_google = app.clean_auth_identities({"identities": [both_uuid_fields]})
+        if len(projected_google) != 1 or projected_google[0].get("id") != GOOGLE_IDENTITY:
+            raise RuntimeError("Identity projection did not prefer identity_id when both fields were UUIDs")
+        legacy_identity = identity(EMAIL_IDENTITY, "email", "member@example.test")
+        legacy_projection = app.clean_auth_identities({"identities": [legacy_identity]})
+        if len(legacy_projection) != 1 or legacy_projection[0].get("id") != EMAIL_IDENTITY:
+            raise RuntimeError("Legacy UUID-only identity shape was no longer supported")
+        for invalid_id in ("not-a-canonical-uuid", "", None):
+            invalid_identity = {**both_uuid_fields, "identity_id": invalid_id}
+            if app.clean_auth_identities({"identities": [invalid_identity]}):
+                raise RuntimeError("Invalid canonical identity_id fell back to a provider id")
+
         apple = CookieOpener()
         status, _, headers = request(apple, base_url, "/auth/oauth/apple?next=/works.html")
         if status != HTTPStatus.SEE_OTHER:
@@ -297,9 +331,22 @@ def main() -> None:
             raise RuntimeError("Linked Google identity was not visible")
 
         google_id = next(item["id"] for item in result["identities"] if item["provider"] == "google")
+        if google_id != GOOGLE_IDENTITY:
+            raise RuntimeError("Linked identity API returned a provider subject instead of its canonical UUID")
+        if (
+            any("identity_data" in item or "identity_id" in item for item in result["identities"])
+            or GOOGLE_PROVIDER_ID in json.dumps(result)
+            or PRIVATE_IDENTITY_DETAIL in json.dumps(result)
+        ):
+            raise RuntimeError("Linked identity API exposed raw provider identifiers or metadata")
+        before_unlinks = len(FakeIdentityHandler.unlink_ids)
         status, result, _ = request(member, base_url, f"/api/me/identities/{google_id}", payload={}, origin=base_url, method="DELETE")
         if status != HTTPStatus.OK or len(result.get("identities", [])) != 1:
             raise RuntimeError("Google identity could not be unlinked")
+        if FakeIdentityHandler.unlink_ids[before_unlinks:] != [GOOGLE_IDENTITY]:
+            raise RuntimeError("Identity unlink sent a provider subject instead of the canonical UUID")
+        if GOOGLE_PROVIDER_ID in json.dumps(result) or PRIVATE_IDENTITY_DETAIL in json.dumps(result):
+            raise RuntimeError("Identity unlink response exposed provider identifiers or metadata")
         status, _, _ = request(member, base_url, f"/api/me/identities/{EMAIL_IDENTITY}", payload={}, origin=base_url, method="DELETE")
         if status != HTTPStatus.CONFLICT:
             raise RuntimeError("Last identity could be removed")
@@ -311,6 +358,10 @@ def main() -> None:
         print("apple_provider_token_not_persisted=yes")
         print("identity_link_csrf_and_pkce_validated=yes")
         print("identity_linked_projection_validated=yes")
+        print("identity_canonical_uuid_preferred=yes")
+        print("identity_legacy_uuid_supported=yes")
+        print("identity_invalid_canonical_uuid_rejected=yes")
+        print("identity_provider_metadata_not_exposed=yes")
         print("identity_unlink_owner_and_last_guard_validated=yes")
     finally:
         app_server.shutdown()

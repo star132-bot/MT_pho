@@ -15,6 +15,7 @@
 3. 未验证邮箱的密码登录被误报为密码错误。现在兼容 provider 的 `error_code`/`code`，返回 `EMAIL_NOT_VERIFIED` 并启用已有重发入口。
 4. OAuth 取消后丢失目标页面，且 `next` 允许控制字符/路径编码绕过。现在在服务端和浏览器校验，回调失败保留安全目标页面，阻止 `/auth`、`/api`、站外和响应头注入目的地。
 5. 最终自审发现浏览器校验还需检查最终规范化路径（编码 `?/#` 与 dot-segment 组合），同时保留合法 `%25` 查询；补齐独立浏览器导航回归并纳入 release gate。
+6. 真实浏览器账号页出现 `0 METHODS`。`clean_auth_identities` 错把 Supabase 的 provider `id` 优先当作管理身份 UUID，丢弃非 UUID 的 Google subject。现在优先使用 canonical `identity_id`，兼容旧式仅有 UUID `id` 的响应；显式无效 canonical ID 不回退。回归 fixture 改为真实双字段形状。[Supabase 身份模型源码](https://github.com/supabase/auth/blob/master/internal/models/identity.go)
 
 ## 生产邮箱验收
 
@@ -49,6 +50,7 @@
 - `scripts/test_auth_destination.js`：21 个恶意跳转、六个合法目的地、正常路径归一化通过，覆盖最终路径解析绕过和百分号查询保留。
 - 完整 `bash scripts/release_gate.sh`：通过；日志为本机 `/tmp/mt-auth-release-gate.log`。此次无数据库变更，不运行连接生产主库的数据库 fixture gate。
 - 包含浏览器导航新回归的完整 release gate 再次通过：`/tmp/mt-auth-release-gate-v163.log`。
+- canonical 身份修复后的完整 release gate：通过，`/tmp/mt-auth-release-gate-v164.log`；身份测试使用真实 provider subject + canonical UUID 形状，所有兼容/拒绝/列表/解绑/隐私断言通过。
 
 ## Google 真实账号验收
 
@@ -60,5 +62,6 @@
 
 - `v1.6.2`：commit `7fd0661150c33a90bdfc5f0d4a3c9f9d6f7c80d0`，archive SHA-256 `19fbd5122d0bde9a278b381840bc02d11756f015510833c0b21ae1efec77319f`；main/tag 已推送，版本已安装并激活。
 - 重启后的首次立即 smoke 遇到暂时 liveness 失败；随后 public/loopback health 均 200，readiness 为 ready、Supabase available，完整 HTTPS smoke 重跑全部通过，Web/Scanner active。
-- 候选版本 `v1.6.3` 补齐最后两个浏览器跳转边界，按不可变 release 流程发布；Google 实际账号验收在最终版本进行。
+- `v1.6.3`：补齐浏览器导航边界，已构建并推送 commit/tag，未激活；浏览器随后的真实身份列表检查发现第六项兼容问题。
+- 最终候选版本 `v1.6.4` 加入 canonical 身份 UUID 修复，验收后统一激活；Google 实际账号验收在最终版本进行。
 - 本轮无数据库迁移或认证 provider 配置修改。

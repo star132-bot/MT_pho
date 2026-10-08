@@ -79,6 +79,7 @@
 - OAuth 和密码登录的 `next` 拒绝控制字符、编码绕过、站外/反斜杠路径和解码规范化后进入 `/auth`、`/api` 的路径；取消或失败后重试继续原安全页面。
 - 错误响应使用稳定 code、用户消息和可选字段错误；不返回是否存在某个邮箱的差异信息。
 - 同一 mutation 重试不能造成重复身份、重复链接或重复审计动作。
+- Linked accounts 必须以 provider 返回的 `identity_id` UUID 识别身份；`id` 是 provider subject，不能把 Google subject 当 UUID 校验后静默丢弃。对旧式只含 UUID `id` 的响应保留兼容；显式无效 `identity_id` 拒绝，不退回其他身份 ID。浏览器 DTO 仅提供 canonical ID/provider/email/timestamps，不暴露 provider subject 或原始 metadata。
 
 ### 性能与容量验收目标
 

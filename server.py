@@ -1049,8 +1049,11 @@ def clean_auth_identities(user: dict) -> list[dict]:
         if not isinstance(raw_identity, dict):
             continue
         try:
+            # Supabase's identity_id is the identity UUID; id is the
+            # provider's subject (often a Google numeric ID or email).
+            # Older fixtures/providers may expose only a UUID in id.
             identity_id = clean_uuid(
-                raw_identity.get("id") or raw_identity.get("identity_id"),
+                raw_identity.get("identity_id", raw_identity.get("id")),
                 "identity id",
             )
         except ValueError:
