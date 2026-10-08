@@ -52,13 +52,15 @@
 - 包含浏览器导航新回归的完整 release gate 再次通过：`/tmp/mt-auth-release-gate-v163.log`。
 - canonical 身份修复后的完整 release gate：通过，`/tmp/mt-auth-release-gate-v164.log`；身份测试使用真实 provider subject + canonical UUID 形状，所有兼容/拒绝/列表/解绑/隐私断言通过。
 
-## Google 真实账号验收
+## Google 真实账号检查与用户验收
 
-当前：网站 Google provider 已启用，真实 Chrome 无痕窗口已从网站入口跳到 Google 登录页，provider callback 指向本生产 Supabase，应用回调指向 `https://mtdo.cn/auth/oauth/callback`，目标为 `/settings/account`。待用户自行完成 Google 登录/授权。fixture 通过不能代替新一轮真实 Google 登录闭环。
+代理检查：网站 Google provider 已启用，真实 Chrome 无痕窗口从网站入口跳到 Google 登录页，provider callback 指向本生产 Supabase，应用回调指向 `https://mtdo.cn/auth/oauth/callback`，目标为 `/settings/account`。
 
-`v1.6.4` 激活后刷新真实已有账号的 Account Settings，Linked accounts 从错误 `0 METHODS` 恢复为 `1 METHOD: Google`，最后一种身份的移除按钮为 disabled/Keep；profile 与受保护账号设置均可用。该结果证明真实 Google 身份展示与业务账号会话可用，但仍不把已有会话当作重新登录/退出/重登验收。
+`v1.6.4` 激活后刷新真实已有账号的 Account Settings，Linked accounts 从错误 `0 METHODS` 恢复为 `1 METHOD: Google`，最后一种身份的移除按钮为 disabled/Keep；profile 与受保护账号设置均可用。这是代理采集的真实 Google 身份展示与业务账号会话证据。
 
-需核对 Google 授权后回到网站，业务 profile 和 active 账号成立，受保护页面可访问，退出后匿名，再次 Google 登录回到同一个业务账号。新用户业务数据由现有数据库触发器建立，回调采用服务端 PKCE 兑换并校验可信用户；不引入第二套账号系统。[Supabase Google 文档](https://supabase.com/docs/guides/auth/social-login/auth-google)
+用户人工验收：2026-10-08，用户随后明确确认“登录和注册修改密码我都测试过了，完全 ok”。按用户人工验收结论，本轮认证修复收口；已确认的人工测试项目为登录、注册、修改密码。Google 的逐次 callback code、退出/重登用户 ID 追踪未由代理采集，本文仅记录上述实际证据和用户反馈。
+
+新用户业务数据由现有数据库触发器建立，回调采用服务端 PKCE 兑换并校验可信用户。[Supabase Google 文档](https://supabase.com/docs/guides/auth/social-login/auth-google)
 
 ## 发布记录
 
