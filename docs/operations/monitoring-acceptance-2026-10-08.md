@@ -22,6 +22,14 @@
 - 16项隔离监控验收全部通过，包含远端checkpoint恢复后保持同一event ID/FIFO、先记录后发送及演练resume；原offsite alert测试通过且不继承真实告警环境；完整 `bash scripts/release_gate.sh`通过；workflow YAML与嵌入shell语法及patch integrity通过。
 - 功能地图、模块规格和运维runbook同步更新，见 `health-monitoring.md`。
 
+## 候选包与服务器准备证据
+
+- 代码提交 `5fb5ff4b1a35a22c4256165ee7634c42af500e82` 已推送main，候选tag `v1.6.5` 已推送。干净工作区的exact-tag构建通过。
+- 包名 `mt-presence-v1.6.5.tar.gz`，SHA-256 `7936f08f256bcdafd426f9449ad19ebf770e089af6439ef4dd6196ebaed7db34`；安装器校验并安装到 `/opt/mt-presence/releases/v1.6.5`。
+- **尚未activate**。应用仍运行 `v1.6.4`，原healthcheck unit/timer继续工作；候选脚本对生产回环readiness以record-only运行：healthy、pending=0。外部工作站对公开HTTPS以record-only运行：healthy、pending=0；两次均未发送通知，这些是probe兼容证据，不能代替持续外部运行。
+- 生产systemd解析候选units退出0。GitHub外部workflow已进入仓库但 `MT_UPTIME_ENABLED` 尚未设置、没有新增告警Secrets或state分支，故未启用外部监控。
+- GitHub托管Linux的 [Production Release Gate #37756683775](https://github.com/star132-bot/MT_pho/actions/runs/37756683775) success，本地最终完整release gate与16项监控验收均通过。
+
 ## 完成最终验收还需要的信息与操作
 
 1. 确认现有告警收件邮箱是授权运维渠道，或提供替代渠道。
