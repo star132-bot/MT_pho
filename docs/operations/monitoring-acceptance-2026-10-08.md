@@ -4,7 +4,7 @@
 
 按既有release-readiness第4项实施网站/Supabase持续监控、故障和恢复通知。用户已确认现有告警邮箱由本人接收。认证沿用已验收版本，异地备份继续搁置。
 
-**生产监控已启用，故障与恢复通知的真实收件验收通过。** GitHub外部首轮自动schedule记录正在观察；其手工演练和独立runner状态恢复均单独记录，不能冒充自动调度证据。
+**生产监控已启用，故障与恢复通知的真实收件验收通过。** GitHub外部探测的手工演练和独立runner状态恢复均单独记录；截至验收截止时间仍没有原生自动schedule成功证据，因此自动调度验收未完成。
 
 ## 发布与应用主机
 
@@ -23,7 +23,7 @@
 - 运维通知配置经加密SSH传递到GitHub Actions Secrets。没有写入仓库或发布包；未向GitHub提供生产SSH、Supabase或数据库权限。只复用用户授权的SMTP邮箱渠道。
 - [独立外部故障/恢复演练 #37758161818](https://github.com/star132-bot/MT_pho/actions/runs/37758161818) success；真实公开probe healthy，演练两条事件均smtp delivered/errors=[]，state分支pending=0。
 - [独立第二轮dispatch #37758803142](https://github.com/star132-bot/MT_pho/actions/runs/37758803142) success：另一runner恢复既有state，production-https.successes=2、pending=0，无新故障或恢复通知。手工dispatch记录与自动schedule分别核验。
-- 截至2026-10-08 10:02 UTC，workflow状态active、变量true，但查询event=schedule尚无原生自动运行记录；不能把两次dispatch写成自动调度验收完成。已重新enable workflow，并建立本聊天的15分钟自动验收跟进（automation `mt`），首次真实schedule成功后补充报告并删除该跟进；无变化保持安静，至11:00 UTC仍无记录则明确报告未完成及后续方案。该跟进用于收口验收，网站自身GitHub定时任务和本机timer持续保留。
+- 截至2026-10-08 11:03 UTC，workflow状态为active、默认分支为`main`、变量`MT_UPTIME_ENABLED=true`，但限定`event=schedule`查询仍无运行记录；不能把两次`workflow_dispatch`写成自动调度验收完成。已核对远端workflow定义仍包含`2-59/5 * * * *`，未发现配置缺失。由于GitHub schedule可能延迟或丢弃，当前结论为自动调度尚未验收；后续应在仓库有新的schedule记录后，用run链接、生产probe和`codex/monitor-state`状态完成一次只读复核。截止跟进已删除，网站自身GitHub定时任务和本机timer持续保留。
 
 ## 真实通知与收件证据
 

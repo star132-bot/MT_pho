@@ -14,7 +14,7 @@
 
 本轮完成代码发布、首轮生产观察、认证修复及持续监控/告警实施；受控容量压测和最终媒体授权仍是后续独立验收工作，异地备份按用户要求暂时搁置。TUS、云端收藏、支付、AI、配额扩展和新的审核状态必须另立需求。线上日志 request_time 观察不能替代受控容量压测。
 
-2026-10-08持续监控 `v1.6.5` 已生产激活：应用服务器每分钟受信Supabase readiness、GitHub外部节点计划每5分钟公开HTTPS健康探测；严格probe、故障/恢复incident与持久通知重试已启用。用户确认本人接收现有运维告警；两条路径的4封TEST故障/恢复通知均已按事件header在授权INBOX查到。两次workflow_dispatch已验证独立外部探测及跨runner状态恢复，首次自动schedule仍待观察；证据见 `monitoring-acceptance-2026-10-08.md`，GitHub调度限制见runbook。
+2026-10-08持续监控 `v1.6.5` 已生产激活：应用服务器每分钟受信Supabase readiness、GitHub外部节点计划每5分钟公开HTTPS健康探测；严格probe、故障/恢复incident与持久通知重试已启用。用户确认本人接收现有运维告警；两条路径的4封TEST故障/恢复通知均已按事件header在授权INBOX查到。两次workflow_dispatch已验证独立外部探测及跨runner状态恢复；截至11:03 UTC仍无`event=schedule`运行记录，自动调度验收未完成。workflow仍active、默认分支为`main`且`MT_UPTIME_ENABLED=true`，后续需在真实schedule记录出现后补做只读复核；验收跟进已结束。证据见 `monitoring-acceptance-2026-10-08.md`，GitHub调度限制见runbook。
 
 ## 2. 执行原则
 
