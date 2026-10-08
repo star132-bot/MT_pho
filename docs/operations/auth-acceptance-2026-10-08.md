@@ -54,7 +54,9 @@
 
 ## Google 真实账号验收
 
-当前：待用户在 Google 页面自行完成账号登录/授权。fixture 通过不能代替真实 Google 闭环。
+当前：网站 Google provider 已启用，真实 Chrome 无痕窗口已从网站入口跳到 Google 登录页，provider callback 指向本生产 Supabase，应用回调指向 `https://mtdo.cn/auth/oauth/callback`，目标为 `/settings/account`。待用户自行完成 Google 登录/授权。fixture 通过不能代替新一轮真实 Google 登录闭环。
+
+`v1.6.4` 激活后刷新真实已有账号的 Account Settings，Linked accounts 从错误 `0 METHODS` 恢复为 `1 METHOD: Google`，最后一种身份的移除按钮为 disabled/Keep；profile 与受保护账号设置均可用。该结果证明真实 Google 身份展示与业务账号会话可用，但仍不把已有会话当作重新登录/退出/重登验收。
 
 需核对 Google 授权后回到网站，业务 profile 和 active 账号成立，受保护页面可访问，退出后匿名，再次 Google 登录回到同一个业务账号。新用户业务数据由现有数据库触发器建立，回调采用服务端 PKCE 兑换并校验可信用户；不引入第二套账号系统。[Supabase Google 文档](https://supabase.com/docs/guides/auth/social-login/auth-google)
 
@@ -63,5 +65,6 @@
 - `v1.6.2`：commit `7fd0661150c33a90bdfc5f0d4a3c9f9d6f7c80d0`，archive SHA-256 `19fbd5122d0bde9a278b381840bc02d11756f015510833c0b21ae1efec77319f`；main/tag 已推送，版本已安装并激活。
 - 重启后的首次立即 smoke 遇到暂时 liveness 失败；随后 public/loopback health 均 200，readiness 为 ready、Supabase available，完整 HTTPS smoke 重跑全部通过，Web/Scanner active。
 - `v1.6.3`：补齐浏览器导航边界，已构建并推送 commit/tag，未激活；浏览器随后的真实身份列表检查发现第六项兼容问题。
-- 最终候选版本 `v1.6.4` 加入 canonical 身份 UUID 修复，验收后统一激活；Google 实际账号验收在最终版本进行。
+- `v1.6.4`：commit `6470571ca6810f1f9de5f7bb4b862fe99e1ee91f`，archive SHA-256 `28f4759a376f7ba3b98649ec3c67ceb9918aafaae71848f928e2b108941ae251`；main/tag 已推送，已安装并激活，previous 为 `v1.6.2`。
+- `v1.6.4` Web/Scanner 均 active；完整 HTTPS smoke 验证 liveness、provider readiness、安全头、公开作品、私有路径隔离、匿名受保护页面及 CSRF Cookie，全部通过。生产 Supabase settings 200，Google/email enabled，signup 可用，email auto-confirm disabled。
 - 本轮无数据库迁移或认证 provider 配置修改。
