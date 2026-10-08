@@ -1,1 +1,1 @@
-{"version": 1, "checks": {}, "pending": []}
+{"checks": {"production-https": {"failures": 0, "incident": null, "successes": 1}}, "pending": [], "version": 1}
