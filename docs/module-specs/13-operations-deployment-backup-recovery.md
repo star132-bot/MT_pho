@@ -6,11 +6,11 @@
 
 主要目录：`deploy/`、`scripts/production_preflight.py`、`scripts/verify_production.py`、`scripts/build_production_release.sh`、`scripts/manage_production_release.py`、`scripts/release_gate.sh`、备份/恢复脚本和 `docs/operations/`。
 
-生产域名和部署已存在：`domain-migration.md` 与 `offsite-recovery-rehearsal-2026-09-17.md` 记录 `mtdo.cn`、生产备份定时器和完整隔离恢复；release `v1.6.1` 已于 2026-10-07 激活，运行时代码沿用已验收的 `v1.6.0`，线上 HTTPS smoke、Web/Scanner preflight 和回环 readiness 已通过。历史演练不代替每次发布的门禁；外部邮箱/provider 真实账号、容量压测、最终媒体授权和异地接收端状态见 `docs/operations/release-observation-2026-10-07-v1.6.1.md`。
+生产域名和部署已存在：`domain-migration.md` 与 `offsite-recovery-rehearsal-2026-09-17.md`记录域名及历史完整隔离恢复。2026-10-08当前release为 `v1.6.5`，保留已由用户验收的认证修复，并启用本机readiness和GitHub外部health监控；激活后HTTPS smoke、Web/Scanner preflight与受信Supabase readiness通过，两条路径的故障/恢复TEST通知实际进入授权收件箱。历史演练不能代替当前门禁；认证、监控证据见 `auth-acceptance-2026-10-08.md`、`monitoring-acceptance-2026-10-08.md`，容量压测、最终素材授权仍独立验收，异地备份按用户要求搁置。
 
 ## 2. 发布前置条件
 
-2026-10-08健康监控切片：`scripts/monitor_health.py`使用严格HTTP/JSON探测、连续两次故障/恢复、incident持久状态和FIFO通知重试。应用节点每分钟受信readiness；外部独立节点检查公开health。通知与测试、异常恢复、性能边界见 `docs/operations/health-monitoring.md`；部署及真实收件必须另有验收证据。认证已由用户人工验收，异地备份按要求搁置。
+2026-10-08健康监控切片：`scripts/monitor_health.py`使用严格HTTP/JSON探测、连续两次故障/恢复、incident持久状态和FIFO通知重试。应用节点每分钟受信readiness；GitHub外部独立节点计划每5分钟检查公开health。通知与测试、异常恢复、性能边界见 `docs/operations/health-monitoring.md`；当前启用和真实收件证据见 `docs/operations/monitoring-acceptance-2026-10-08.md`。
 
 - 精确 release tag、clean worktree、release gate 通过、构建包 checksum 可验证。
 - Web/scanner/database secrets 分离且权限正确；不把 `.env`、`.env.worker`、私钥和生产数据库凭据放入包。

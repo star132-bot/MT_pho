@@ -183,7 +183,7 @@ systemctl status mt-presence-offsite-verify.service --no-pager
 
 For a recovery rehearsal, choose one root-only vault batch, verify its ciphertext checksum on the receiving host, decrypt it in a root-only temporary directory with the offline recovery key, extract it without following links, run `sha256sum --check FILES.sha256`, run `scripts/verify_production_backup.sh` against the dump, and run `scripts/export_production_storage.py verify` against the included inventory/object tree/manifest. Restore the database into a disposable isolated PostgreSQL project and restore one disposable object under a non-production bucket before declaring the rehearsal complete. Never restore over production and never use the target host's existing application database as the rehearsal destination.
 
-The first cryptographic/content rehearsal is recorded in `docs/operations/offsite-recovery-rehearsal-2026-08-13.md`. It proves ciphertext decryption, archive safety, every file hash, Storage object integrity, and PostgreSQL catalog readability. It does **not** replace the outstanding full restore into a disposable Supabase-compatible project.
+The first cryptographic/content rehearsal is recorded in `docs/operations/offsite-recovery-rehearsal-2026-08-13.md`. At that date, the full Supabase-compatible restore remained outstanding. The subsequent `docs/operations/offsite-recovery-rehearsal-2026-09-17.md` records the completed isolated database restore and all 165 Storage objects; historical acceptance does not establish current backup freshness. Offsite backup work is currently deferred at the user's request.
 
 Do not automatically delete offsite batches until an approved retention policy and monitoring threshold exist. With append-only transfer, cleanup is an explicit receiving-host operation. Start with at least 30 daily recovery points, review growth monthly, and preserve any legal-hold or incident batch independently of routine retention.
 
@@ -239,6 +239,8 @@ systemctl reload nginx
 Both services run without root privileges, without Linux capabilities, with a read-only operating system view and separate writable directories. If either runtime preflight fails, systemd refuses to start that process.
 
 ## Verification
+
+As of 2026-10-08, release `v1.6.5` also enables the incident-aware readiness timer and the independent GitHub HTTPS health workflow. Both paths passed TEST failure/recovery delivery with event IDs found in the authorized recipient's inbox. See `health-monitoring.md` for operation and schedule limits, and `monitoring-acceptance-2026-10-08.md` for deployment and receipt evidence.
 
 Run the read-only automated smoke check through the public HTTPS origin:
 

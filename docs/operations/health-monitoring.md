@@ -26,6 +26,8 @@
 
 ## 配置与运维
 
+当前生产已于2026-10-08启用：`v1.6.5`、应用主机readiness timer、GitHub外部workflow及 `MT_UPTIME_ENABLED=true`。现有运维邮箱经用户确认由本人接收；两条路径的TEST故障/恢复均验证实际进入INBOX。初始化与发送证据见 `monitoring-acceptance-2026-10-08.md`。
+
 - 应用节点安装 `deploy/mt-presence-healthcheck.service`/`.timer`，代码通过 `/opt/mt-presence/current/scripts/monitor_health.py` 跟随release。
 - 外部Linux节点将 `monitor_health.py`/`notify_offsite_failure.py` 安装到 `/opt/mt-presence-monitor/scripts/`，安装 `deploy/mt-presence-uptime.service`/`.timer`；节点必须与应用服务器独立。
 - 共享告警环境文件只提供运维邮件/webhook配置，不包含应用数据库权限。`systemctl list-timers`和对应unit的`journalctl`用于检查下一次调度、最近探测及发送失败。
