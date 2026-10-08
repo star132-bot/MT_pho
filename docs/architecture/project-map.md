@@ -549,6 +549,8 @@
 - 部署：fresh database 运行完整 baseline；已有数据库设置 `MT_APPLY_PHASE1_BASELINE=no`，只按文件名顺序执行 transaction-wrapped 增量 migrations。
 - 测试：CI 静态验证 Auth/RLS/Profile SQL 契约和受保护浏览器脚本语法，并运行 registration consent/password confirmation、verification required/resend、signup callback Cookie、recovery、普通用户 Profile、TOTP enroll/invalid code/AAL2、密码与 Google OAuth 强制 challenge、AAL1 停用拒绝、AAL2 停用/其他会话撤销、Admin AAL1、Session revoke、Cookie 清理和部署顺序集成回归。
 
+- `scripts/test_auth_destination.js`：用浏览器标准 `URL` 执行真实认证导航 helper，覆盖编码问号/井号与路径归一化组合绕过、控制字符、auth/api 边界和合法百分号查询保留；纳入 `scripts/release_gate.sh`。
+
 ## 10A. Supabase User Dashboard
 
 ### 功能说明

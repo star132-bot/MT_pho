@@ -145,7 +145,9 @@ function safeInternalPath(value, fallback = DEFAULT_AUTH_DESTINATION) {
     let decoded = value;
     for (let depth = 0; depth < 5; depth += 1) {
       if (/[\u0000-\u001f\u007f\\]/.test(decoded)) return fallback;
-      const next = decodeURIComponent(decoded);
+      // A decoded literal percent is valid in a query. Escape stray percents
+      // before the next pass while still decoding nested encoded controls.
+      const next = decodeURIComponent(decoded.replace(/%(?![0-9a-f]{2})/gi, "%25"));
       if (next === decoded) break;
       if (depth === 4) return fallback;
       decoded = next;
@@ -155,7 +157,9 @@ function safeInternalPath(value, fallback = DEFAULT_AUTH_DESTINATION) {
     if (decodedURL.origin !== window.location.origin
       || /^\/(?:auth|api)(?:\/|$)/.test(decodedURL.pathname)) return fallback;
     const url = new URL(value, window.location.origin);
-    if (url.origin !== window.location.origin || BLOCKED_NEXT_PATHS.has(url.pathname)) return fallback;
+    if (url.origin !== window.location.origin
+      || /^\/(?:auth|api)(?:\/|$)/.test(url.pathname)
+      || BLOCKED_NEXT_PATHS.has(url.pathname)) return fallback;
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
     return fallback;

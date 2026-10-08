@@ -112,4 +112,5 @@
 - 服务：`server.py` 的认证、OAuth、MFA 和 session helpers。
 - 关键接口：`/api/auth/*`、`/api/me`、`/api/admin/access-check`。
 - 验收：`scripts/validate_auth_foundation.py`、`scripts/test_auth_security_boundary.py`、`scripts/test_local_auth_session_refresh.py`、`scripts/test_supabase_admin_mfa.py`。
+- 浏览器导航边界：`scripts/test_auth_destination.js`，随 release gate 运行；合法百分号查询和 query/fragment 保留，编码分隔符与 dot-segment 组合不进入认证/API 页面。
 - 2026-10-08：生产临时邮箱完成注册/重发收信、OTP 验证及重放拒绝、密码登录/退出、找回/重置和新密码登录；收信约 10 秒（单次验收样本，不代表 p95/SLA）。Google fixture 覆盖 profile、受保护页、退出/重复登录；真实账号验收须由用户完成 Google 登录授权，结果记录于 `docs/operations/auth-acceptance-2026-10-08.md`。
