@@ -525,6 +525,7 @@
 
 ### 相关文件
 
+- `server.py` 的 `auth_email_provider_failure`：为注册、重发、找回复用稳定的 502/503 邮件故障响应，防止 SMTP 5xx 被误报为字段错误或重发成功；未确认邮箱密码登录返回可重发的 `EMAIL_NOT_VERIFIED`。`safe_auth_destination` 和 `auth.js` 的 `safeInternalPath` 拒绝控制字符、编码及路径归一化绕过；OAuth 失败保留安全 `next`。`scripts/test_auth_security_boundary.py` 覆盖邮件 5xx/429、防枚举、未验证邮箱和 Google profile/受保护页/退出/再次登录闭环。真实外部认证记录：`docs/operations/auth-acceptance-2026-10-08.md`。
 - `auth.html` / `auth.js`：统一 Auth shell；邮箱密码表单之后按同一宽度纵向排列 Google 浅灰胶囊和 Apple 黑色胶囊登录入口，使用各自品牌标识并在桌面/移动端保持稳定尺寸；继续覆盖注册密码确认、条款确认、验证邮件重发、各认证模式字段和 callback 结果。Mutation 使用 same-origin CSRF，敏感 token 仅在函数内存短暂存在并立即清理 URL。
 - `mfa.html` / `mfa.js`：普通用户与管理员共用 TOTP enrollment/challenge/verify 和失败恢复；普通用户可选开启，已验证因子会把密码、Google、Apple 登录及所有受保护 API 提升到 AAL2，管理员因角色策略始终要求 AAL2。
 - `account-settings.html` / `account-settings.js`：无重复全局 rail 的 Account Settings 页面；紧凑标题栏、sticky Profile/Preferences/Security/Sessions 本地导航和分组式资料工作台；头像选择在浏览器中心裁切、去除原文件并重编码为 512x512 JPEG，经 owner-scoped signed upload intent 完成/取消/删除后通过共享事件即时更新 Header；专业角色使用最多三项的真实 checkbox 多选并序列化回既有 `professional_headline` 字段，同时保留旧自定义标题。Security 新增 Linked accounts 与 Authenticator app 状态/开关，显示服务端 allowlist 投影的 Email/Google/Apple 身份，支持连接未绑定 provider、确认后移除身份，并禁止移除最后一种登录方式；普通用户停用 2FA 需当前 AAL2、CSRF、确认并撤销其他会话，管理员开关保持 Required；页面继续覆盖 Preferences、Security、Sessions、dirty/save/error 与 bulk revoke。

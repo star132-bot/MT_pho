@@ -19,7 +19,7 @@ import tempfile
 import threading
 import urllib.error
 import urllib.request
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -93,6 +93,8 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
     authorization_failures_remaining = 0
     member_mfa_state = "off"
     google_mfa_enabled = False
+    email_response_override: tuple[int, dict] | None = None
+    unverified_signin_error_field = "error_code"
     profile = {
         "display_name": "MT Member",
         "avatar_url": None,
@@ -104,6 +106,7 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
         "copyright_name": "MT Member",
         "default_license_preference": "all-rights-reserved",
     }
+    google_profile = {**profile, "display_name": "Google Member"}
 
     def log_message(self, _format, *_args) -> None:
         return
@@ -180,6 +183,11 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                 "email": "google.member@example.test",
                 "email_confirmed_at": "2026-08-05T00:00:00Z",
                 "app_metadata": {"provider": "google", "providers": ["google"]},
+                "identities": [{
+                    "id": "40000000-0000-4000-8000-000000000005",
+                    "provider": "google",
+                    "identity_data": {"email": "google.member@example.test"},
+                }],
                 "factors": type(self).google_factors(),
             },
         }
@@ -192,11 +200,24 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
         ):
             self.send_json(HTTPStatus.OK, [dict(type(self).profile)])
             return
+        if (
+            urlparse(self.path).path == "/rest/v1/user_profiles"
+            and authorization == f"Bearer {GOOGLE_ACCESS_TOKEN}"
+            and parse_qs(urlparse(self.path).query).get("user_id") == [f"eq.{GOOGLE_USER_ID}"]
+        ):
+            self.send_json(HTTPStatus.OK, [dict(type(self).google_profile)])
+            return
         self.send_json(HTTPStatus.UNAUTHORIZED, {"message": "invalid token"})
 
     def do_POST(self) -> None:
         authorization = self.headers.get("Authorization")
         parsed = urlparse(self.path)
+        if parsed.path in {"/auth/v1/signup", "/auth/v1/resend", "/auth/v1/recover"}:
+            override = type(self).email_response_override
+            if override is not None:
+                self.body()
+                self.send_json(*override)
+                return
         if parsed.path == "/auth/v1/signup":
             body = self.body()
             type(self).registrations.append(body)
@@ -219,6 +240,12 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/auth/v1/token?grant_type=password":
             body = self.body()
+            if body.get("email") == "unverified@example.test":
+                self.send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {type(self).unverified_signin_error_field: "email_not_confirmed", "msg": "Email not confirmed"},
+                )
+                return
             sessions = {
                 "member@example.test": ("Member-password-2026!", MEMBER_ACCESS_TOKEN, MEMBER_USER_ID),
                 "admin@example.test": ("Admin-password-2026!", ADMIN_ACCESS_TOKEN, ADMIN_USER_ID),
@@ -565,6 +592,8 @@ def main() -> None:
     FakeSupabaseHandler.authorization_failures_remaining = 0
     FakeSupabaseHandler.member_mfa_state = "off"
     FakeSupabaseHandler.google_mfa_enabled = False
+    FakeSupabaseHandler.email_response_override = None
+    FakeSupabaseHandler.unverified_signin_error_field = "error_code"
     FakeSupabaseHandler.profile = {
         "display_name": "MT Member",
         "avatar_url": None,
@@ -576,6 +605,10 @@ def main() -> None:
         "copyright_name": "MT Member",
         "default_license_preference": "all-rights-reserved",
     }
+    FakeSupabaseHandler.google_profile = {
+        **FakeSupabaseHandler.profile,
+        "display_name": "Google Member",
+    }
     fake_server = ThreadingHTTPServer(("127.0.0.1", 0), FakeSupabaseHandler)
     fake_thread = threading.Thread(target=fake_server.serve_forever, daemon=True)
     fake_thread.start()
@@ -584,6 +617,8 @@ def main() -> None:
     os.environ["SUPABASE_PUBLISHABLE_KEY"] = "test-publishable-key"
     os.environ["MT_PUBLIC_BASE_URL"] = "http://127.0.0.1:9"
     os.environ["MT_COOKIE_SECURE"] = "0"
+    os.environ["MT_RUNTIME_ENVIRONMENT"] = "test"
+    os.environ["MT_ENABLED_OAUTH_PROVIDERS"] = "google"
     app = importlib.import_module("server")
     app.ARCHIVE_DB_PATH = archive_db
     app.UPLOAD_ASSET_ROOT = upload_root
@@ -595,6 +630,32 @@ def main() -> None:
     opener = CookieOpener()
 
     try:
+        unsafe_destinations = [
+            "/works.html\r\nX-Audit-Test: synthetic",
+            "/works.html\x00",
+            "/works.html%0d%0aX-Audit-Test:%20synthetic",
+            "/works.html%250d%250aX-Audit-Test:%20synthetic",
+            "/public/../auth/oauth/google",
+            "/public/%2e%2e/auth/oauth/google",
+            "/public/%252e%252e/auth/oauth/google",
+            "/public/../api/me",
+            "/%61uth/oauth/google",
+            "/%2561uth/oauth/google",
+            "/%2fexample.test/steal",
+            "/%252fexample.test/steal",
+            "/%5cexample.test/steal",
+            "/%255cexample.test/steal",
+            "//example.test/steal",
+            "/api/me",
+            "/auth/verify-email",
+        ]
+        for case_number, destination in enumerate(unsafe_destinations, start=1):
+            if app.safe_auth_destination(destination) != "/works.html":
+                raise RuntimeError(f"Unsafe authentication destination case {case_number} was accepted")
+        safe_destination = "/workspace/images?filter=drafts#list"
+        if app.safe_auth_destination(safe_destination) != safe_destination:
+            raise RuntimeError("Safe internal authentication destination lost its query or fragment")
+
         oauth_opener = CookieOpener()
         status, _, headers = request(oauth_opener, base_url, "/auth/oauth/google?next=/workspace/images")
         if status != HTTPStatus.SEE_OTHER:
@@ -627,8 +688,93 @@ def main() -> None:
             raise RuntimeError("Google provider credentials leaked into browser cookies")
 
         status, _, headers = request(oauth_opener, base_url, "/auth/oauth/callback?code=valid-google-code")
-        if status != HTTPStatus.SEE_OTHER or headers.get("Location") != "/auth/sign-in?oauth_error=invalid":
+        replay_destination = urlparse(headers.get("Location", ""))
+        if (
+            status != HTTPStatus.SEE_OTHER
+            or replay_destination.path != "/auth/sign-in"
+            or parse_qs(replay_destination.query).get("oauth_error") != ["invalid"]
+        ):
             raise RuntimeError("Google OAuth callback could be replayed")
+
+        for login_attempt in range(2):
+            status, result, _ = request(oauth_opener, base_url, "/api/me")
+            if (
+                status != HTTPStatus.OK
+                or result.get("user", {}).get("id") != GOOGLE_USER_ID
+                or result.get("profile", {}).get("display_name") != "Google Member"
+                or result.get("account", {}).get("account_status") != "active"
+                or {identity["provider"] for identity in result.get("account", {}).get("identities", [])} != {"google"}
+            ):
+                raise RuntimeError("Google OAuth session did not load its own active account and profile")
+            for protected_path in ("/workspace/images", "/settings/account"):
+                status, _, _ = request(oauth_opener, base_url, protected_path)
+                if status != HTTPStatus.OK:
+                    raise RuntimeError("Google OAuth session could not open its protected account pages")
+
+            status, result, _ = request(oauth_opener, base_url, "/api/auth/csrf")
+            if status != HTTPStatus.OK or not result.get("csrf_token"):
+                raise RuntimeError("Google OAuth session could not initialize protected sign-out")
+            previous_logouts = len(FakeSupabaseHandler.logout_scopes)
+            status, result, _ = request(
+                oauth_opener,
+                base_url,
+                "/api/auth/sign-out",
+                payload={},
+                origin=base_url,
+            )
+            if (
+                status != HTTPStatus.OK
+                or result.get("signed_out") is not True
+                or oauth_opener.cookie_value("mt_access_token")
+                or oauth_opener.cookie_value("mt_refresh_token")
+                or FakeSupabaseHandler.logout_scopes[previous_logouts:] != ["local"]
+            ):
+                raise RuntimeError("Google OAuth sign-out did not revoke the provider session and clear cookies")
+            status, _, _ = request(oauth_opener, base_url, "/api/me")
+            if status != HTTPStatus.UNAUTHORIZED:
+                raise RuntimeError("Signed-out Google OAuth account remained authenticated")
+            for protected_path in ("/workspace/images", "/settings/account"):
+                status, _, headers = request(oauth_opener, base_url, protected_path)
+                destination = urlparse(headers.get("Location", ""))
+                if (
+                    status != HTTPStatus.SEE_OTHER
+                    or destination.path != "/auth/sign-in"
+                    or parse_qs(destination.query).get("next") != [protected_path]
+                ):
+                    raise RuntimeError("Signed-out Google account could still open a protected page")
+            if login_attempt == 0:
+                status, _, _ = request(oauth_opener, base_url, "/auth/oauth/google?next=/settings/account")
+                if status != HTTPStatus.SEE_OTHER:
+                    raise RuntimeError("Google OAuth could not start again after sign-out")
+                status, _, headers = request(oauth_opener, base_url, "/auth/oauth/callback?code=valid-google-code")
+                if status != HTTPStatus.SEE_OTHER or headers.get("Location") != "/settings/account":
+                    raise RuntimeError("Repeated Google OAuth login lost its requested destination")
+
+        cancelled_oauth = CookieOpener()
+        request(cancelled_oauth, base_url, "/auth/oauth/google?next=/workspace/images")
+        status, _, headers = request(cancelled_oauth, base_url, "/auth/oauth/callback?error=access_denied")
+        cancelled_destination = urlparse(headers.get("Location", ""))
+        cancelled_query = parse_qs(cancelled_destination.query)
+        if (
+            status != HTTPStatus.SEE_OTHER
+            or cancelled_destination.path != "/auth/sign-in"
+            or cancelled_query.get("oauth_error") != ["cancelled"]
+            or cancelled_query.get("oauth_provider") != ["google"]
+            or cancelled_query.get("next") != ["/workspace/images"]
+            or cancelled_oauth.cookie_value("mt_oauth_state")
+            or cancelled_oauth.cookie_value("mt_access_token")
+        ):
+            raise RuntimeError("Cancelled Google OAuth did not preserve a safe retry destination and clear its flow")
+
+        unsafe_cancelled_oauth = CookieOpener()
+        request(
+            unsafe_cancelled_oauth,
+            base_url,
+            f"/auth/oauth/google?{urlencode({'next': '/public/%2e%2e/auth/oauth/google'})}",
+        )
+        status, _, headers = request(unsafe_cancelled_oauth, base_url, "/auth/oauth/callback?error=access_denied")
+        if status != HTTPStatus.SEE_OTHER or parse_qs(urlparse(headers.get("Location", "")).query).get("next") != ["/works.html"]:
+            raise RuntimeError("Cancelled Google OAuth retained an unsafe requested destination")
 
         external_next_opener = CookieOpener()
         status, _, _ = request(external_next_opener, base_url, "/auth/oauth/google?next=https://attacker.example/steal")
@@ -713,6 +859,113 @@ def main() -> None:
             raise RuntimeError("Verification resend revealed provider identity state")
         if FakeSupabaseHandler.verification_resends[-1] != {"type": "signup", "email": "unregistered@example.test"}:
             raise RuntimeError("Verification resend sent an unexpected provider payload")
+
+        email_endpoints = {
+            "/api/auth/register": "REGISTRATION_RATE_LIMITED",
+            "/api/auth/resend-verification": "VERIFICATION_RATE_LIMITED",
+            "/api/auth/forgot-password": "RECOVERY_RATE_LIMITED",
+        }
+        smtp_detail = "synthetic-smtp.internal: authentication failed for synthetic-sender@example.test"
+        try:
+            for endpoint_number, (endpoint, rate_code) in enumerate(email_endpoints.items()):
+                for provider_status in (
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    HTTPStatus.BAD_GATEWAY,
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    HTTPStatus.GATEWAY_TIMEOUT,
+                ):
+                    FakeSupabaseHandler.email_response_override = (
+                        provider_status,
+                        {"error_code": "unexpected_failure", "msg": smtp_detail},
+                    )
+                    email = f"mail-failure-{endpoint_number}-{provider_status}@example.test"
+                    payload = {**registration_payload, "email": email} if endpoint.endswith("register") else {"email": email}
+                    status, result, _ = request(
+                        registration_opener,
+                        base_url,
+                        endpoint,
+                        payload=payload,
+                        origin=base_url,
+                    )
+                    expected_status = (
+                        HTTPStatus.SERVICE_UNAVAILABLE
+                        if provider_status == HTTPStatus.SERVICE_UNAVAILABLE
+                        else HTTPStatus.BAD_GATEWAY
+                    )
+                    message = result.get("error", {}).get("message")
+                    if (
+                        status != expected_status
+                        or result.get("error", {}).get("code") != "AUTH_EMAIL_UNAVAILABLE"
+                        or not isinstance(message, str)
+                        or not message
+                        or "status" in result
+                        or any(detail in json.dumps(result) for detail in (smtp_detail, "synthetic-smtp.internal", "synthetic-sender@example.test"))
+                    ):
+                        raise RuntimeError(f"Email endpoint {endpoint} did not safely report provider status {provider_status}")
+
+                FakeSupabaseHandler.email_response_override = (
+                    HTTPStatus.TOO_MANY_REQUESTS,
+                    {"error_code": "over_email_send_rate_limit", "msg": "Synthetic provider email rate limit"},
+                )
+                email = f"mail-rate-{endpoint_number}@example.test"
+                payload = {**registration_payload, "email": email} if endpoint.endswith("register") else {"email": email}
+                status, result, _ = request(
+                    registration_opener,
+                    base_url,
+                    endpoint,
+                    payload=payload,
+                    origin=base_url,
+                )
+                if status != HTTPStatus.TOO_MANY_REQUESTS or result.get("error", {}).get("code") != rate_code:
+                    raise RuntimeError(f"Email endpoint {endpoint} lost its provider rate-limit response")
+
+            for provider_status, provider_code in (
+                (HTTPStatus.BAD_REQUEST, "email_already_confirmed"),
+                (HTTPStatus.NOT_FOUND, "user_not_found"),
+                (HTTPStatus.UNPROCESSABLE_ENTITY, "identity_not_found"),
+            ):
+                FakeSupabaseHandler.email_response_override = (
+                    provider_status,
+                    {"error_code": provider_code, "msg": "Synthetic private identity detail"},
+                )
+                status, result, _ = request(
+                    registration_opener,
+                    base_url,
+                    "/api/auth/resend-verification",
+                    payload={"email": f"resend-private-{provider_status}@example.test"},
+                    origin=base_url,
+                )
+                if (
+                    status != HTTPStatus.ACCEPTED
+                    or result.get("status") != "verification_email_requested"
+                    or "Synthetic private identity detail" in json.dumps(result)
+                    or provider_code in json.dumps(result)
+                ):
+                    raise RuntimeError("Verification resend exposed private provider identity state")
+        finally:
+            FakeSupabaseHandler.email_response_override = None
+
+        unverified_signin = CookieOpener()
+        request(unverified_signin, base_url, "/api/auth/csrf")
+        try:
+            for error_field in ("error_code", "code"):
+                FakeSupabaseHandler.unverified_signin_error_field = error_field
+                status, result, _ = request(
+                    unverified_signin,
+                    base_url,
+                    "/api/auth/sign-in",
+                    payload={"email": "unverified@example.test", "password": "Synthetic-unverified-password!"},
+                    origin=base_url,
+                )
+                if (
+                    status != HTTPStatus.FORBIDDEN
+                    or result.get("error", {}).get("code") != "EMAIL_NOT_VERIFIED"
+                    or unverified_signin.cookie_value("mt_access_token")
+                    or unverified_signin.cookie_value("mt_refresh_token")
+                ):
+                    raise RuntimeError(f"Unverified email sign-in did not map provider {error_field} without creating a session")
+        finally:
+            FakeSupabaseHandler.unverified_signin_error_field = "error_code"
 
         status, result, _ = request(
             registration_opener,
@@ -1164,13 +1417,20 @@ def main() -> None:
 
         print("csrf_missing_rejected=yes")
         print("google_oauth_pkce_validated=yes")
+        print("google_oauth_account_profile_and_protected_pages=yes")
+        print("google_oauth_signout_and_repeat_login=yes")
+        print("google_oauth_cancelled_next_preserved=yes")
         print("google_oauth_replay_rejected=yes")
         print("google_oauth_external_next_rejected=yes")
+        print("auth_destination_control_encoding_and_path_guards=yes")
         print("google_oauth_mfa_required=yes")
         print("google_provider_token_not_persisted=yes")
         print("email_registration_verification_required=yes")
         print("email_registration_consent_recorded=yes")
         print("verification_resend_enumeration_safe=yes")
+        print("auth_email_provider_failures_safe=yes")
+        print("auth_email_provider_rate_limits_preserved=yes")
+        print("unverified_email_signin_recovery_available=yes")
         print("signup_verification_session_established=yes")
         print("csrf_cross_origin_rejected=yes")
         print("forgot_response_enumeration_safe=yes")

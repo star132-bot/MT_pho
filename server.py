@@ -606,13 +606,43 @@ def enabled_oauth_providers_markup() -> str:
 
 
 def safe_auth_destination(value: str, fallback: str = "/works.html") -> str:
+    # Check before parsing: urlparse strips some control characters, while
+    # Location headers and browsers must never receive them from user input.
+    decoded_value = str(value or "")
+    for _ in range(5):
+        if re.search(r"[\x00-\x1f\x7f]", decoded_value) or "\\" in decoded_value:
+            return fallback
+        next_value = unquote(decoded_value)
+        if next_value == decoded_value:
+            break
+        decoded_value = next_value
+    else:
+        return fallback
     value = clean_text(value, 2048)
     if not value.startswith("/") or value.startswith("//") or "\\" in value:
         return fallback
     parsed = urlparse(value)
-    if parsed.scheme or parsed.netloc or parsed.path.startswith("/auth/") or parsed.path.startswith("/api/"):
+    if parsed.scheme or parsed.netloc:
         return fallback
-    return value
+    decoded_path = parsed.path
+    for _ in range(5):
+        next_path = unquote(decoded_path)
+        if next_path == decoded_path:
+            break
+        decoded_path = next_path
+    if decoded_path.startswith("//"):
+        return fallback
+    canonical_path = posixpath.normpath(decoded_path)
+    if any(canonical_path == prefix or canonical_path.startswith(prefix + "/") for prefix in ("/auth", "/api")):
+        return fallback
+    if decoded_path.endswith("/") and canonical_path != "/":
+        canonical_path += "/"
+    destination = quote(canonical_path, safe="/:@!$&'()*+,;=-._~")
+    if parsed.query:
+        destination += f"?{parsed.query}"
+    if parsed.fragment:
+        destination += f"#{parsed.fragment}"
+    return destination
 
 
 def create_oauth_flow(
@@ -679,6 +709,17 @@ def auth_error(
     if details:
         error["details"] = details
     return {"error": error}
+
+
+def auth_email_provider_failure(status: int) -> tuple[int, dict] | None:
+    """Keep mail outages retryable and never return provider/SMTP details."""
+    if status < 500:
+        return None
+    response_status = HTTPStatus.SERVICE_UNAVAILABLE if status == HTTPStatus.SERVICE_UNAVAILABLE else HTTPStatus.BAD_GATEWAY
+    return response_status, auth_error(
+        "AUTH_EMAIL_UNAVAILABLE",
+        "Email delivery is temporarily unavailable. Wait a minute and try again.",
+    )
 
 
 def decode_jwt_payload(token: str) -> dict:
@@ -6294,8 +6335,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 "terms_accepted_at": now_iso(),
             },
         })
-        if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
-            self.send_json(status, result)
+        email_failure = auth_email_provider_failure(status)
+        if email_failure:
+            self.send_json(*email_failure)
             return
         if status == HTTPStatus.TOO_MANY_REQUESTS:
             self.send_json(
@@ -6341,13 +6383,14 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             f"resend?{urlencode({'redirect_to': redirect_to})}",
             {"type": "signup", "email": email},
         )
-        if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
-            self.send_json(status, result)
+        email_failure = auth_email_provider_failure(status)
+        if email_failure:
+            self.send_json(*email_failure)
             return
         if status == HTTPStatus.TOO_MANY_REQUESTS:
             self.send_json(
                 HTTPStatus.TOO_MANY_REQUESTS,
-                auth_error("VERIFICATION_RATE_LIMITED", "Please wait before requesting another verification email."),
+                auth_error("VERIFICATION_RATE_LIMITED", "Wait at least a minute before requesting another verification email. Use the latest code already sent to you."),
             )
             return
         # A missing, already verified, or provider-rejected identity receives the
@@ -6447,8 +6490,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             f"recover?{urlencode({'redirect_to': redirect_to})}",
             {"email": email},
         )
-        if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
-            self.send_json(status, result)
+        email_failure = auth_email_provider_failure(status)
+        if email_failure:
+            self.send_json(*email_failure)
             return
         if status == HTTPStatus.TOO_MANY_REQUESTS:
             self.send_json(
@@ -6690,6 +6734,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
             self.send_json(status, session)
             return
+        if status != HTTPStatus.OK and (session.get("error_code") or session.get("code")) == "email_not_confirmed":
+            self.send_json(HTTPStatus.FORBIDDEN, auth_error("EMAIL_NOT_VERIFIED", "Verify your email before signing in. Request a new code if needed."))
+            return
         if status != HTTPStatus.OK or not session.get("access_token") or not session.get("refresh_token"):
             self.send_json(HTTPStatus.UNAUTHORIZED, auth_error("INVALID_CREDENTIALS", "Email or password is incorrect."))
             return
@@ -6742,6 +6789,8 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         query = {"oauth_error": code}
         if provider in OAUTH_PROVIDERS:
             query["oauth_provider"] = provider
+        if flow.get("next_path"):
+            query["next"] = safe_auth_destination(flow["next_path"])
         self.send_auth_redirect(f"/auth/sign-in?{urlencode(query)}", [*pending_cookies, clear_flow_cookie])
 
     def handle_oauth_start(self, provider: str, parsed) -> None:
@@ -6900,7 +6949,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                     clear_flow_cookie,
                 )
                 return
-            destination = clean_text(flow.get("next_path"), 2048) or "/settings/account"
+            destination = safe_auth_destination(flow.get("next_path"), "/settings/account")
             if self.mfa_required_for_session(user, authorization):
                 destination = f"/auth/mfa?{urlencode({'next': destination})}"
             self.send_auth_redirect(destination, [*self.session_cookie_headers(session), clear_flow_cookie])
@@ -6928,7 +6977,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             )
             return
 
-        next_path = clean_text(flow.get("next_path"), 2048) or "/works.html"
+        next_path = safe_auth_destination(flow.get("next_path"))
         destination = next_path
         if self.mfa_required_for_session(user, authorization):
             destination = f"/auth/mfa?{urlencode({'next': next_path})}"

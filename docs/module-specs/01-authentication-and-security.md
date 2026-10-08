@@ -38,7 +38,7 @@
 2. BFF 验证 provider 返回的用户、邮箱验证状态和 `current_authorization`；inactive、恢复会话或权限不足不得进入 Workspace。
 3. 若用户有已验证 TOTP，登录先进入 `/auth/mfa`；否则建立普通会话。
 4. MFA challenge 创建后，用户输入 6 位验证码；验证成功才提升到 AAL2，并继续原来的安全 `next`。
-5. OAuth callback 的 code、state、PKCE verifier 只在服务端短期使用；错误统一回到登录页的可解释状态。
+5. OAuth callback 的 code、state、PKCE verifier 只在服务端短期使用；错误统一回到登录页的可解释状态，并保留已校验的目标页面供重试。
 
 ### 3.3 恢复与重置
 
@@ -54,6 +54,8 @@
 - `Invalid/expired`：验证码、链接或 MFA 过期显示“已失效/请重新请求”，提供重新发送或返回登录入口。
 - `Rate limited`：显示等待提示，不暴露剩余账户数量；注册、验证、恢复分别限流。
 - `Provider unavailable`：显示暂时不可用和稍后重试；不能显示上游响应、密钥或 URL。
+- `Email unavailable`：注册、重发、找回遇到邮件 provider 5xx/网络失败时统一返回 `AUTH_EMAIL_UNAVAILABLE`（502；上游 503 保持 503），显示一分钟后重试；重发不得显示发送成功，表单保留输入。正常发送后的重发须等待 provider 的发送冷却窗口；429 提示等待并使用已发送的最新验证码。
+- `Unverified email`：密码登录识别 provider 的 `email_not_confirmed`，返回 `EMAIL_NOT_VERIFIED`，显示验证邮件重发入口，不创建登录会话。
 - `Permission`：未登录受保护页面 303 到带安全 `next` 的登录页；AAL1/Admin 不足跳 MFA 或返回受控 403。
 - `Success`：注册显示“验证码已发送”，验证显示“身份已验证”，登录显示目标页面，登出清空身份并回公开页。
 
@@ -74,6 +76,7 @@
 - 登录后服务端必须再次向 provider 验证用户和账户状态，不能只相信浏览器字段。
 - recovery session、AAL1、inactive、未验证邮箱和角色不足必须在服务端 fail closed。
 - OAuth 必须使用 server-side PKCE/state；provider token 不得进入浏览器存储、日志、截图或审计记录。
+- OAuth 和密码登录的 `next` 拒绝控制字符、编码绕过、站外/反斜杠路径和解码规范化后进入 `/auth`、`/api` 的路径；取消或失败后重试继续原安全页面。
 - 错误响应使用稳定 code、用户消息和可选字段错误；不返回是否存在某个邮箱的差异信息。
 - 同一 mutation 重试不能造成重复身份、重复链接或重复审计动作。
 
@@ -109,3 +112,4 @@
 - 服务：`server.py` 的认证、OAuth、MFA 和 session helpers。
 - 关键接口：`/api/auth/*`、`/api/me`、`/api/admin/access-check`。
 - 验收：`scripts/validate_auth_foundation.py`、`scripts/test_auth_security_boundary.py`、`scripts/test_local_auth_session_refresh.py`、`scripts/test_supabase_admin_mfa.py`。
+- 2026-10-08：生产临时邮箱完成注册/重发收信、OTP 验证及重放拒绝、密码登录/退出、找回/重置和新密码登录；收信约 10 秒（单次验收样本，不代表 p95/SLA）。Google fixture 覆盖 profile、受保护页、退出/重复登录；真实账号验收须由用户完成 Google 登录授权，结果记录于 `docs/operations/auth-acceptance-2026-10-08.md`。

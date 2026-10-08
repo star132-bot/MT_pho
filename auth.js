@@ -142,6 +142,18 @@ let recoveryEmail = "";
 function safeInternalPath(value, fallback = DEFAULT_AUTH_DESTINATION) {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return fallback;
   try {
+    let decoded = value;
+    for (let depth = 0; depth < 5; depth += 1) {
+      if (/[\u0000-\u001f\u007f\\]/.test(decoded)) return fallback;
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) break;
+      if (depth === 4) return fallback;
+      decoded = next;
+    }
+    if (decoded.startsWith("//")) return fallback;
+    const decodedURL = new URL(decoded, window.location.origin);
+    if (decodedURL.origin !== window.location.origin
+      || /^\/(?:auth|api)(?:\/|$)/.test(decodedURL.pathname)) return fallback;
     const url = new URL(value, window.location.origin);
     if (url.origin !== window.location.origin || BLOCKED_NEXT_PATHS.has(url.pathname)) return fallback;
     return `${url.pathname}${url.search}${url.hash}`;
