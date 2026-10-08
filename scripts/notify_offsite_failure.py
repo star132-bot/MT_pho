@@ -143,6 +143,11 @@ def update_spool(path: Path, payload: dict[str, object]) -> None:
         output.flush()
         os.fsync(output.fileno())
     os.replace(temporary, path)
+    descriptor = os.open(path.parent, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def send_smtp(payload: dict[str, object], body: str) -> None:
@@ -161,22 +166,30 @@ def send_smtp(payload: dict[str, object], body: str) -> None:
     message["From"] = sender
     message["To"] = recipient
     subject = "Offsite alert channel test" if payload.get("test") else "Offsite job failed"
+    if payload.get("source") == "health-monitor":
+        subject = "Health failure" if payload.get("event_kind") == "failure" else "Health recovered"
+        if payload.get("test"):
+            subject = "TEST " + subject
     message["Subject"] = f"[MT Presence] {subject}: {payload['unit']}"
+    message["X-MT-Presence-Event-ID"] = str(payload["event_id"])
     message.set_content(body)
     context = ssl.create_default_context()
-    if security == "ssl":
-        with smtplib.SMTP_SSL(host, port, timeout=15, context=context) as connection:
-            connection.login(username, password)
-            connection.send_message(message)
-    elif security == "starttls":
-        with smtplib.SMTP(host, port, timeout=15) as connection:
-            connection.ehlo()
-            connection.starttls(context=context)
-            connection.ehlo()
-            connection.login(username, password)
-            connection.send_message(message)
-    else:
-        raise AlertError("smtp_security_invalid")
+    try:
+        if security == "ssl":
+            with smtplib.SMTP_SSL(host, port, timeout=15, context=context) as connection:
+                connection.login(username, password)
+                connection.send_message(message)
+        elif security == "starttls":
+            with smtplib.SMTP(host, port, timeout=15) as connection:
+                connection.ehlo()
+                connection.starttls(context=context)
+                connection.ehlo()
+                connection.login(username, password)
+                connection.send_message(message)
+        else:
+            raise AlertError("smtp_security_invalid")
+    except (smtplib.SMTPException, OSError, TimeoutError) as error:
+        raise AlertError("smtp_delivery_failed") from error
 
 
 def send_webhook(payload: dict[str, object], body: str) -> None:

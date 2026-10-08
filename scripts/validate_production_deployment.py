@@ -80,6 +80,8 @@ def main() -> None:
     sshd_hardening = source("deploy/05-mt-presence-sshd-hardening.conf")
     health_service = source("deploy/mt-presence-healthcheck.service")
     health_timer = source("deploy/mt-presence-healthcheck.timer")
+    health_monitor = source("scripts/monitor_health.py")
+    uptime_workflow = source(".github/workflows/uptime.yml")
     offsite_environment = source("deploy/offsite-backup-environment.example")
     offsite_service = source("deploy/mt-presence-offsite-backup.service")
     offsite_timer = source("deploy/mt-presence-offsite-backup.timer")
@@ -166,10 +168,14 @@ def main() -> None:
     reject(scanner_environment, "MT_SCANNER_WORKER_ID", "scanner environment")
     for marker in ("PGPASSWORD=", "PGSSLMODE=require", "MT_DEPLOY_ENVIRONMENT=production", "MT_APPLY_PHASE1_BASELINE=no"):
         require(database_environment, marker, "database environment")
-    for marker in ("User=mtpresence", "--max-time 8", "http://127.0.0.1:8131/readyz", "NoNewPrivileges=true"):
+    for marker in ("User=root", "monitor_health.py", "--check-id production-readiness", "http://127.0.0.1:8131/readyz", "NoNewPrivileges=true", "EnvironmentFile=/etc/mt-presence/offsite-alert.env", "StateDirectory=mt-presence-health-monitor", "StateDirectoryMode=0700"):
         require(health_service, marker, "health service")
     for marker in ("OnBootSec=2min", "OnUnitActiveSec=1min", "Persistent=true"):
         require(health_timer, marker, "health timer")
+    for marker in ("timeout=8", "RejectRedirects", "monitor_state_invalid_preserved", 'state["pending"]', '"health-monitor"'):
+        require(health_monitor, marker, "health monitor")
+    for marker in ("vars.MT_UPTIME_ENABLED == 'true'", "codex/monitor-state", "https://mtdo.cn/healthz", "persist-credentials: false", "cancel-in-progress: false", "rehearse_health_notifications.py", "--record-only", "--deliver-only", "Persist queued transitions before delivery"):
+        require(uptime_workflow, marker, "external health monitor")
     for marker in (
         "PasswordAuthentication no",
         "KbdInteractiveAuthentication no",
@@ -339,6 +345,7 @@ def main() -> None:
         "test_verify_production.py",
         "test_offsite_backup.py",
         "test_offsite_alert.py",
+        "test_health_monitor.py",
         "test_offsite_recovery_boundary.py",
         "bash -n",
         "MT_TEST_ENVIRONMENT=development bash scripts/database_acceptance_gate.sh",

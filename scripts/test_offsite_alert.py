@@ -72,7 +72,7 @@ def main() -> None:
             root = Path(temporary)
             spool = root / "spool"
             base = {
-                **os.environ,
+                **{key: value for key, value in os.environ.items() if not key.startswith("MT_OFFSITE_ALERT_")},
                 "MT_OFFSITE_ALERT_HOST_LABEL": "fixture-backup-host",
                 "MT_OFFSITE_ALERT_SPOOL_DIR": str(spool),
                 "MT_OFFSITE_ALERT_MIN_INTERVAL_SECONDS": "900",

@@ -111,6 +111,9 @@ run_group "Python syntax" python3 -m py_compile \
   scripts/export_production_storage.py \
   scripts/macos_offsite_recovery_keychain.py \
   scripts/notify_offsite_failure.py \
+  scripts/monitor_health.py \
+  scripts/rehearse_health_notifications.py \
+  scripts/test_health_monitor.py \
   scripts/verify_production.py \
   scripts/test_workspace_trash_browser.py \
   scripts/test_review_batch_browser.py \
@@ -158,6 +161,7 @@ done
 run_group "Offsite backup" python3 scripts/test_offsite_backup.py
 run_group "Offsite recovery Keychain" python3 scripts/test_macos_offsite_recovery_keychain.py
 run_group "Offsite alert" python3 scripts/test_offsite_alert.py
+run_group "Health monitor" python3 scripts/test_health_monitor.py
 run_group "Offsite recovery boundary" python3 scripts/test_offsite_recovery_boundary.py
 
 run_group "Patch integrity" git diff --check

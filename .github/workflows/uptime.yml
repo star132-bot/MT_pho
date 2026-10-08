@@ -1,0 +1,111 @@
+name: External Website Health Monitor
+
+on:
+  schedule:
+    - cron: '2-59/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      rehearse_notifications:
+        description: Send TEST failure and recovery using an isolated probe
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mt-external-health-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    if: github.repository == 'star132-bot/MT_pho' && vars.MT_UPTIME_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out trusted monitor code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Restore durable monitor state
+        uses: actions/checkout@v4
+        with:
+          ref: codex/monitor-state
+          path: monitor-state
+      - name: Record probes and isolated rehearsal before any delivery
+        id: probe
+        env:
+          MT_OFFSITE_ALERT_HOST_LABEL: GitHub external observer
+          REHEARSE: ${{ inputs.rehearse_notifications }}
+        run: |
+          set +e
+          python3 scripts/monitor_health.py --record-only --check-id production-https --url https://mtdo.cn/healthz --state-dir monitor-state
+          probe_result=$?
+          rehearsal_result=0
+          if [ "$REHEARSE" = "true" ] && [ ! -f "monitor-state/rehearsals/$GITHUB_RUN_ID/state.json" ]; then
+            python3 scripts/rehearse_health_notifications.py --record-only --state-dir "monitor-state/rehearsals/$GITHUB_RUN_ID"
+            rehearsal_result=$?
+          fi
+          echo "result=$probe_result" >> "$GITHUB_OUTPUT"
+          echo "rehearsal_result=$rehearsal_result" >> "$GITHUB_OUTPUT"
+          test "$probe_result" -lt 2 && test "$rehearsal_result" = 0
+      - name: Persist queued transitions before delivery
+        working-directory: monitor-state
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add state.json
+          if [ -d rehearsals ]; then git add rehearsals; fi
+          git reset -- ':(glob)**/.monitor.lock'
+          if ! git diff --cached --quiet; then
+            git commit -m 'Queue health monitor transitions'
+            git push origin HEAD:codex/monitor-state
+          fi
+      - name: Deliver durable pending notifications
+        id: delivery
+        env:
+          MT_OFFSITE_ALERT_SMTP_HOST: ${{ secrets.MT_MONITOR_SMTP_HOST }}
+          MT_OFFSITE_ALERT_SMTP_PORT: ${{ secrets.MT_MONITOR_SMTP_PORT || '465' }}
+          MT_OFFSITE_ALERT_SMTP_SECURITY: ${{ secrets.MT_MONITOR_SMTP_SECURITY || 'ssl' }}
+          MT_OFFSITE_ALERT_SMTP_USERNAME: ${{ secrets.MT_MONITOR_SMTP_USERNAME }}
+          MT_OFFSITE_ALERT_SMTP_PASSWORD: ${{ secrets.MT_MONITOR_SMTP_PASSWORD }}
+          MT_OFFSITE_ALERT_FROM: ${{ secrets.MT_MONITOR_FROM }}
+          MT_OFFSITE_ALERT_RECIPIENT: ${{ secrets.MT_MONITOR_RECIPIENT }}
+          MT_OFFSITE_ALERT_WEBHOOK_URL: ${{ secrets.MT_MONITOR_WEBHOOK_URL }}
+          MT_OFFSITE_ALERT_WEBHOOK_SECRET: ${{ secrets.MT_MONITOR_WEBHOOK_SECRET }}
+        run: |
+          set +e
+          python3 scripts/monitor_health.py --deliver-only --state-dir monitor-state
+          delivery_result=$?
+          for rehearsal_dir in monitor-state/rehearsals/*; do
+            if [ -f "$rehearsal_dir/state.json" ]; then
+              python3 scripts/rehearse_health_notifications.py --resume --state-dir "$rehearsal_dir"
+              if [ "$?" != 0 ]; then delivery_result=1; fi
+            fi
+          done
+          echo "result=$delivery_result" >> "$GITHUB_OUTPUT"
+      - name: Persist delivery acknowledgements and audit
+        if: always() && steps.delivery.outcome == 'success'
+        working-directory: monitor-state
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add state.json
+          if [ -d events ]; then git add events; fi
+          if [ -d rehearsals ]; then git add rehearsals; fi
+          git reset -- ':(glob)**/.monitor.lock'
+          if ! git diff --cached --quiet; then
+            git commit -m 'Record health monitor delivery audit'
+            git push origin HEAD:codex/monitor-state
+          fi
+      - name: Report probe or delivery failure
+        if: always()
+        env:
+          PROBE_RESULT: ${{ steps.probe.outputs.result }}
+          REHEARSAL_RESULT: ${{ steps.probe.outputs.rehearsal_result }}
+          DELIVERY_RESULT: ${{ steps.delivery.outputs.result }}
+        run: |
+          test "$PROBE_RESULT" = "0"
+          test "$REHEARSAL_RESULT" = "0"
+          test "$DELIVERY_RESULT" = "0"

@@ -1,13 +1,14 @@
 [Unit]
-Description=Check MT Presence provider readiness
-After=mt-presence.service
+Description=Probe MT Presence HTTPS from an independent monitoring host
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=oneshot
 User=root
 Group=root
 EnvironmentFile=/etc/mt-presence/offsite-alert.env
-ExecStart=/usr/bin/python3 /opt/mt-presence/current/scripts/monitor_health.py --check-id production-readiness --url http://127.0.0.1:8131/readyz
+ExecStart=/usr/bin/python3 /opt/mt-presence-monitor/scripts/monitor_health.py --check-id production-https --url https://mtdo.cn/healthz
 UMask=0077
 StateDirectory=mt-presence-health-monitor
 StateDirectoryMode=0700

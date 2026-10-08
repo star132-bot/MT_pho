@@ -10,6 +10,8 @@
 
 ## 2. 发布前置条件
 
+2026-10-08健康监控切片：`scripts/monitor_health.py`使用严格HTTP/JSON探测、连续两次故障/恢复、incident持久状态和FIFO通知重试。应用节点每分钟受信readiness；外部独立节点检查公开health。通知与测试、异常恢复、性能边界见 `docs/operations/health-monitoring.md`；部署及真实收件必须另有验收证据。认证已由用户人工验收，异地备份按要求搁置。
+
 - 精确 release tag、clean worktree、release gate 通过、构建包 checksum 可验证。
 - Web/scanner/database secrets 分离且权限正确；不把 `.env`、`.env.worker`、私钥和生产数据库凭据放入包。
 - 目标服务器 SSH、磁盘、Nginx、systemd、Python、PostgreSQL client、ClamAV 和对象存储状态已只读核验。
