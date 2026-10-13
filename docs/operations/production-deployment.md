@@ -66,6 +66,7 @@ The host needs Python 3.11+, Nginx, PostgreSQL client tools, Certbot or an equiv
 - `MT_AUTH_EMAIL_RATE_LIMIT_PER_HOUR=6`
 - `MT_ENABLED_OAUTH_PROVIDERS=google` (Apple remains hidden until its provider configuration and real account flow pass.)
 - bounded inquiry rate configuration
+- optional `MT_INQUIRY_NOTIFY_*` values that email each new Contact inquiry to the photographer through a dedicated mailbox app password; leave all unset to disable, since preflight rejects a partial configuration
 
 It must not contain `PGPASSWORD`, `SUPABASE_SECRET_KEY`, or `SUPABASE_SERVICE_ROLE_KEY`.
 

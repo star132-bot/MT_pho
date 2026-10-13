@@ -85,6 +85,7 @@ boundary_tests=(
   scripts/test_admin_works_boundary.py
   scripts/test_admin_users_boundary.py
   scripts/test_communications_audit_boundary.py
+  scripts/test_inquiry_notification.py
   scripts/test_supabase_deploy_script.py
 )
 

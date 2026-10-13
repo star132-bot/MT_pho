@@ -1,0 +1,14 @@
+User-agent: *
+Disallow: /api/
+Disallow: /auth
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /workspace
+Disallow: /settings
+Disallow: /inbox
+Disallow: /notifications
+Disallow: /mfa
+Disallow: /manage.html
+Disallow: /lightbox.html
+
+Sitemap: https://mtdo.cn/sitemap.xml

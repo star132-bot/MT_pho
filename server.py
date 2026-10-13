@@ -14,7 +14,10 @@ import os
 import posixpath
 import secrets
 import shutil
+import smtplib
 import sqlite3
+import ssl
+import sys
 import re
 import threading
 import time
@@ -23,6 +26,8 @@ import urllib.request
 import uuid
 from datetime import datetime, timedelta, timezone
 from email import policy
+from email.message import EmailMessage
+from email.utils import formataddr, formatdate, make_msgid
 from email.parser import BytesParser
 from functools import partial
 from http import HTTPStatus
@@ -553,6 +558,17 @@ INQUIRY_RATE_MAX_BUCKETS = 4096
 INQUIRY_RATE_SECRET = secrets.token_bytes(32)
 INQUIRY_RATE_BUCKETS: dict[str, list[float]] = {}
 INQUIRY_RATE_LOCK = threading.Lock()
+# Optional email notification to the photographer for each new inquiry. All
+# values are required to enable it; the inquiry is stored either way.
+INQUIRY_NOTIFY_SETTINGS = {
+    "recipient": os.environ.get("MT_INQUIRY_NOTIFY_TO", "").strip(),
+    "sender": os.environ.get("MT_INQUIRY_NOTIFY_FROM", "").strip(),
+    "host": os.environ.get("MT_INQUIRY_NOTIFY_SMTP_HOST", "").strip(),
+    "port": os.environ.get("MT_INQUIRY_NOTIFY_SMTP_PORT", "465").strip(),
+    "security": os.environ.get("MT_INQUIRY_NOTIFY_SMTP_SECURITY", "ssl").strip().lower(),
+    "username": os.environ.get("MT_INQUIRY_NOTIFY_SMTP_USERNAME", "").strip(),
+    "password": os.environ.get("MT_INQUIRY_NOTIFY_SMTP_PASSWORD", ""),
+}
 AUTH_EMAIL_RATE_WINDOW_SECONDS = 60 * 60
 try:
     AUTH_EMAIL_RATE_LIMIT_PER_HOUR = int(os.environ.get("MT_AUTH_EMAIL_RATE_LIMIT_PER_HOUR", "6"))
@@ -577,7 +593,7 @@ PUBLIC_ROOT_STATIC_FILES = {
     "creator.html", "collections.html", "auth.html", "mfa.html", "account-settings.html",
     "dashboard.html", "upload-studio.html", "notifications.html", "inbox.html", "admin-reviews.html",
     "admin-works.html", "admin-users.html", "admin-audit.html", "manage.html",
-    "styles.css", "privacy.css", "admin-audit.css",
+    "styles.css", "privacy.css", "admin-audit.css", "robots.txt", "sitemap.xml",
     "script.js", "global-header.js", "archive.js", "archive-data.js", "archive-upload.js", "public-archive.js",
     "work-detail.js", "about.js",
     "public-navigation.js", "series-data.js", "lightbox.js", "contact.js", "creator.js",
@@ -1230,6 +1246,80 @@ def consume_inquiry_rate_limit(client_ip: str, sender_email: str) -> bool:
         for key in keys.values():
             INQUIRY_RATE_BUCKETS.setdefault(key, []).append(now)
     return True
+
+
+def inquiry_notification_enabled() -> bool:
+    settings = INQUIRY_NOTIFY_SETTINGS
+    return all(settings[name] for name in ("recipient", "sender", "host", "username", "password"))
+
+
+def single_line(value, max_length: int) -> str:
+    """Collapse whitespace so visitor text cannot add email header lines."""
+    return re.sub(r"\s+", " ", clean_text(value, max_length))
+
+
+def build_inquiry_notification(details: dict) -> EmailMessage:
+    settings = INQUIRY_NOTIFY_SETTINGS
+    name = single_line(details.get("sender_name"), 120)
+    inquiry_type = single_line(details.get("inquiry_type"), 40)
+    lines = [
+        f"New inquiry {details['reference']} from the MT Presence website.",
+        "",
+        f"Name: {name}",
+        f"Email: {details['sender_email']}",
+        f"Type: {inquiry_type}",
+    ]
+    for label, key in (("Organization", "organization"), ("Timeline", "timeline"), ("Budget", "budget_range")):
+        if details.get(key):
+            lines.append(f"{label}: {single_line(details[key], 180)}")
+    lines += [f"Project use: {single_line(details.get('project_use'), 280)}"]
+    if details.get("selected_work_count"):
+        lines.append(f"Selected works: {details['selected_work_count']}")
+    lines += ["", "Message:", clean_text(details.get("message"), 5000), "", "Reply to this email to answer the sender directly."]
+    if PUBLIC_BASE_URL:
+        lines.append(f"Inbox: {PUBLIC_BASE_URL}/inbox")
+
+    message = EmailMessage()
+    message["Subject"] = f"New inquiry {details['reference']}: {inquiry_type} from {name}"
+    message["From"] = settings["sender"]
+    message["To"] = settings["recipient"]
+    message["Reply-To"] = formataddr((name, details["sender_email"]))
+    message["Date"] = formatdate(localtime=False, usegmt=True)
+    message["Message-ID"] = make_msgid(domain=settings["sender"].rpartition("@")[2] or None)
+    message.set_content("\n".join(lines))
+    return message
+
+
+def send_inquiry_notification(details: dict) -> None:
+    settings = INQUIRY_NOTIFY_SETTINGS
+    reference = details["reference"]
+    try:
+        port = int(settings["port"])
+        message = build_inquiry_notification(details)
+        context = ssl.create_default_context()
+        if settings["security"] == "ssl":
+            with smtplib.SMTP_SSL(settings["host"], port, timeout=15, context=context) as connection:
+                connection.login(settings["username"], settings["password"])
+                connection.send_message(message)
+        elif settings["security"] == "starttls":
+            with smtplib.SMTP(settings["host"], port, timeout=15) as connection:
+                connection.starttls(context=context)
+                connection.login(settings["username"], settings["password"])
+                connection.send_message(message)
+        else:
+            raise ValueError("unsupported SMTP security mode")
+    except (smtplib.SMTPException, OSError, ValueError) as error:
+        # Log only the opaque reference and error class, never visitor data.
+        print(f"inquiry_notification reference={reference} result=failed error={type(error).__name__}", file=sys.stderr, flush=True)
+        return
+    print(f"inquiry_notification reference={reference} result=sent", file=sys.stderr, flush=True)
+
+
+def notify_inquiry_async(details: dict) -> None:
+    """Email the photographer without delaying the visitor's response."""
+    if not inquiry_notification_enabled():
+        return
+    threading.Thread(target=send_inquiry_notification, args=(details,), name="inquiry-notify", daemon=True).start()
 
 
 def auth_email_rate_digest(scope: str, value: str) -> str:
@@ -9256,6 +9346,19 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 auth_error("COMMUNICATIONS_PROVIDER_FAILED", "The inquiry response was invalid."),
             )
             return
+        if not response["replayed"]:
+            notify_inquiry_async(
+                {
+                    "reference": response["reference"],
+                    "sender_name": sender_name,
+                    "sender_email": normalized_email,
+                    "inquiry_type": inquiry_type.strip().lower(),
+                    "project_use": project_use,
+                    "message": message,
+                    "selected_work_count": response["selected_work_count"],
+                    **optional_values,
+                }
+            )
         if initiator_id is None:
             self.send_json(HTTPStatus.ACCEPTED, {"reference": response["reference"], "status": response["status"]})
             return

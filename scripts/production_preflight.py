@@ -102,6 +102,37 @@ def check_web() -> None:
     forbidden = [name for name in ("SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY", "PGPASSWORD") if os.environ.get(name)]
     if forbidden:
         fail(f"privileged credentials are forbidden in the Web process: {', '.join(forbidden)}")
+    check_inquiry_notification()
+
+
+INQUIRY_NOTIFY_REQUIRED = (
+    "MT_INQUIRY_NOTIFY_TO",
+    "MT_INQUIRY_NOTIFY_FROM",
+    "MT_INQUIRY_NOTIFY_SMTP_HOST",
+    "MT_INQUIRY_NOTIFY_SMTP_USERNAME",
+    "MT_INQUIRY_NOTIFY_SMTP_PASSWORD",
+)
+
+
+def check_inquiry_notification() -> None:
+    """Inquiry email is optional, but a partial configuration must not start silently."""
+    configured = [name for name in INQUIRY_NOTIFY_REQUIRED if os.environ.get(name, "").strip()]
+    if not configured:
+        return
+    missing = [name for name in INQUIRY_NOTIFY_REQUIRED if name not in configured]
+    if missing:
+        fail(f"inquiry notification is partially configured; missing {', '.join(missing)}")
+    for name in ("MT_INQUIRY_NOTIFY_TO", "MT_INQUIRY_NOTIFY_FROM"):
+        if not re.fullmatch(r"[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+", os.environ[name].strip()):
+            fail(f"{name} must be a plain email address")
+    if os.environ.get("MT_INQUIRY_NOTIFY_SMTP_SECURITY", "ssl").strip().lower() not in {"ssl", "starttls"}:
+        fail("MT_INQUIRY_NOTIFY_SMTP_SECURITY must be ssl or starttls")
+    try:
+        port = int(os.environ.get("MT_INQUIRY_NOTIFY_SMTP_PORT", "465"))
+    except ValueError:
+        fail("MT_INQUIRY_NOTIFY_SMTP_PORT must be an integer")
+    if not 1 <= port <= 65535:
+        fail("MT_INQUIRY_NOTIFY_SMTP_PORT must be a valid port")
 
 
 def check_scanner() -> None:

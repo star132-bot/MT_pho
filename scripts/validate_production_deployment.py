@@ -144,6 +144,9 @@ def main() -> None:
         "limit_req_status 429",
         "server_tokens off",
         "add_header X-Request-ID $request_id always",
+        "add_header Cache-Control $mt_static_cache_control;",
+        "map \"$upstream_http_cache_control|$arg_v|$uri\" $mt_static_cache_control",
+        "gzip_types text/css application/javascript text/javascript image/svg+xml;",
     ):
         require(nginx, marker, "nginx")
     reject(nginx, "$request ", "query-safe access log")

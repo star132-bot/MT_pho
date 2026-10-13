@@ -40,13 +40,23 @@ VALID_SCANNER_ENVIRONMENT = {
     "MT_SCANNER_CLAMAV_COMMAND": "clamdscan --stream --no-summary",
 }
 
+VALID_INQUIRY_NOTIFY_ENVIRONMENT = {
+    "MT_INQUIRY_NOTIFY_TO": "photographer@example.com",
+    "MT_INQUIRY_NOTIFY_FROM": "inquiries@example.com",
+    "MT_INQUIRY_NOTIFY_SMTP_HOST": "smtp.example.com",
+    "MT_INQUIRY_NOTIFY_SMTP_PORT": "465",
+    "MT_INQUIRY_NOTIFY_SMTP_SECURITY": "ssl",
+    "MT_INQUIRY_NOTIFY_SMTP_USERNAME": "inquiries@example.com",
+    "MT_INQUIRY_NOTIFY_SMTP_PASSWORD": "fixture-app-password",
+}
+
 
 @contextmanager
 def environment(values: dict[str, str]):
     names = set(VALID_ENVIRONMENT) | set(VALID_SCANNER_ENVIRONMENT) | {
         "SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY", "PGPASSWORD",
         "MT_SCANNER_WORKER_ID", "MT_SCANNER_TEMP_DIR", "MT_LOCAL_ARCHIVE_PREVIEW",
-        "MT_ENABLED_OAUTH_PROVIDERS",
+        "MT_ENABLED_OAUTH_PROVIDERS", *VALID_INQUIRY_NOTIFY_ENVIRONMENT,
     }
     previous = {name: os.environ.get(name) for name in names}
     for name in names:
@@ -96,6 +106,15 @@ def main() -> None:
             expect_failure({**VALID_ENVIRONMENT, "MT_PUBLIC_BASE_URL": "http://portfolio.example.com"})
             expect_failure({**VALID_ENVIRONMENT, "SUPABASE_PUBLISHABLE_KEY": "sb_secret_fixture"})
             expect_failure({**VALID_ENVIRONMENT, "PGPASSWORD": "forbidden"})
+
+            with environment({**VALID_ENVIRONMENT, **VALID_INQUIRY_NOTIFY_ENVIRONMENT}):
+                PREFLIGHT.check_web()
+            notify = {**VALID_ENVIRONMENT, **VALID_INQUIRY_NOTIFY_ENVIRONMENT}
+            expect_failure({**VALID_ENVIRONMENT, "MT_INQUIRY_NOTIFY_TO": "photographer@example.com"})
+            expect_failure({key: value for key, value in notify.items() if key != "MT_INQUIRY_NOTIFY_SMTP_PASSWORD"})
+            expect_failure({**notify, "MT_INQUIRY_NOTIFY_TO": "Boss <boss@example.com>"})
+            expect_failure({**notify, "MT_INQUIRY_NOTIFY_SMTP_SECURITY": "plain"})
+            expect_failure({**notify, "MT_INQUIRY_NOTIFY_SMTP_PORT": "smtp"})
 
             (root / ".env").write_text("SECRET=forbidden\n", encoding="utf-8")
             expect_failure(VALID_ENVIRONMENT)

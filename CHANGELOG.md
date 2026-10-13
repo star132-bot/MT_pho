@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.6.6 - 2026-10-13
+
+- Contact inquiries can now email the photographer directly. New, non-replayed inquiries are sent in the background through a dedicated SMTP mailbox with the visitor as Reply-To; the inquiry is stored whether or not mail succeeds, logs contain only the opaque reference, and production preflight rejects a partial mail configuration. Disabled unless every `MT_INQUIRY_NOTIFY_*` value is set.
+- Added `robots.txt` (private, account, and API routes excluded) and `sitemap.xml`, plus canonical, Open Graph, and Twitter card metadata on Home, Works, About, and Contact so shared links render a preview image.
+- Nginx now gzip-compresses CSS/JS/SVG (styles.css 497 KB to about 76 KB) and lets browsers cache public static files: versioned CSS/JS for 30 days, unversioned CSS/JS for 10 minutes, `/assets/` images for 1 day. Any application `Cache-Control` (such as `no-store` on auth and workspace scripts) still takes precedence. API JSON stays uncompressed.
+- Corrected `VERSION`, which had not been updated since 1.4.9.
+
 ## v1.6.1 - 2026-10-07
 
 - Closed the reviewed release record for the public-site optimization, production observation, module specifications, and recovery operations.

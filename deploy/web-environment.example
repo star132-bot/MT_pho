@@ -13,3 +13,14 @@ SUPABASE_PUBLISHABLE_KEY=sb_publishable_replace_me
 # The BFF applies an additional bounded limiter behind nginx.
 MT_INQUIRY_RATE_LIMIT_PER_HOUR=5
 MT_AUTH_EMAIL_RATE_LIMIT_PER_HOUR=6
+
+# Optional: email each new Contact inquiry to the photographer. Leave all unset
+# to disable; preflight refuses a partial configuration. Use a dedicated
+# mailbox app password, never a personal account password.
+#MT_INQUIRY_NOTIFY_TO=photographer@example.com
+#MT_INQUIRY_NOTIFY_FROM=mt-presence-inquiries@example.com
+#MT_INQUIRY_NOTIFY_SMTP_HOST=smtp.example.com
+#MT_INQUIRY_NOTIFY_SMTP_PORT=465
+#MT_INQUIRY_NOTIFY_SMTP_SECURITY=ssl
+#MT_INQUIRY_NOTIFY_SMTP_USERNAME=REPLACE_WITH_MAILBOX
+#MT_INQUIRY_NOTIFY_SMTP_PASSWORD=REPLACE_WITH_APP_PASSWORD
