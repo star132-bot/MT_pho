@@ -92,7 +92,7 @@ def main() -> None:
         # A list built before a publication change must not be stored afterwards.
         generation = server.public_works_cache_generation()
         server.invalidate_public_works_cache()
-        server.store_public_works(server.PUBLIC_DELIVERY_MAX_WORKS, fixture_works(99), generation)
+        server.store_public_response(f"works:{server.PUBLIC_DELIVERY_MAX_WORKS}", fixture_works(99), generation)
         if get(port)["items"][0]["id"] == "work-99":
             raise RuntimeError("a stale in-flight build overwrote fresh publication state")
 

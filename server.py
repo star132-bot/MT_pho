@@ -214,8 +214,9 @@ PUBLIC_DELIVERY_ASSET_BUCKETS = {
 PUBLIC_DELIVERY_SIGNED_URL_TTL = 10 * 60
 PUBLIC_DELIVERY_MAX_WORKS = 250
 PUBLIC_DELIVERY_SIGN_BATCH_SIZE = 100
-# The anonymous Works list is identical for every visitor and takes ~4 s to
-# build from Supabase, so it is cached briefly and refreshed in the background.
+# The anonymous Works list and public creator profiles are identical for every
+# visitor and take 4-7 s to build from Supabase, so they are cached briefly and
+# refreshed in the background.
 # Keep this far below PUBLIC_DELIVERY_SIGNED_URL_TTL so cached signed URLs
 # always have minutes of validity left. 0 disables the cache.
 try:
@@ -223,7 +224,7 @@ try:
 except ValueError:
     PUBLIC_WORKS_CACHE_SECONDS = 120
 PUBLIC_WORKS_CACHE_SECONDS = max(0, min(PUBLIC_WORKS_CACHE_SECONDS, 240))
-PUBLIC_WORKS_CACHE: dict[int, tuple[float, dict]] = {}
+PUBLIC_WORKS_CACHE: dict[str, tuple[float, dict]] = {}
 PUBLIC_WORKS_CACHE_LOCK = threading.Lock()
 PUBLIC_WORKS_CACHE_GENERATION = 0
 WORKSPACE_ASSET_KINDS = {"original", "display", "thumbnail"}
@@ -607,7 +608,7 @@ PUBLIC_ROOT_STATIC_FILES = {
     "creator.html", "collections.html", "auth.html", "mfa.html", "account-settings.html",
     "dashboard.html", "upload-studio.html", "notifications.html", "inbox.html", "admin-reviews.html",
     "admin-works.html", "admin-users.html", "admin-audit.html", "manage.html",
-    "styles.css", "privacy.css", "admin-audit.css", "robots.txt", "sitemap.xml",
+    "styles.css", "privacy.css", "admin-audit.css", "robots.txt", "sitemap.xml", "favicon.svg",
     "script.js", "global-header.js", "archive.js", "archive-data.js", "archive-upload.js", "public-archive.js",
     "work-detail.js", "about.js",
     "public-navigation.js", "series-data.js", "lightbox.js", "contact.js", "creator.js",
@@ -5779,32 +5780,40 @@ def public_works_cache_generation() -> int:
         return PUBLIC_WORKS_CACHE_GENERATION
 
 
-def cached_public_works(page_limit: int) -> dict | None:
+def refresh_signed_expiry(value, remaining: int) -> None:
+    """Report the real remaining lifetime of cached public delivery URLs."""
+    if isinstance(value, dict):
+        if "signed_url" in value and "expires_in" in value:
+            value["expires_in"] = remaining
+        for child in value.values():
+            refresh_signed_expiry(child, remaining)
+    elif isinstance(value, list):
+        for child in value:
+            refresh_signed_expiry(child, remaining)
+
+
+def cached_public_response(key: str) -> dict | None:
     if PUBLIC_WORKS_CACHE_SECONDS <= 0:
         return None
     with PUBLIC_WORKS_CACHE_LOCK:
-        entry = PUBLIC_WORKS_CACHE.get(page_limit)
+        entry = PUBLIC_WORKS_CACHE.get(key)
     if entry is None:
         return None
     age = time.monotonic() - entry[0]
     if age >= PUBLIC_WORKS_CACHE_SECONDS:
         return None
     response = copy.deepcopy(entry[1])
-    remaining = max(1, int(PUBLIC_DELIVERY_SIGNED_URL_TTL - age))
-    for item in response.get("items", []):
-        for key in ("display", "thumbnail"):
-            if isinstance(item.get(key), dict):
-                item[key]["expires_in"] = remaining
+    refresh_signed_expiry(response, max(1, int(PUBLIC_DELIVERY_SIGNED_URL_TTL - age)))
     return response
 
 
-def store_public_works(page_limit: int, response: dict, generation: int) -> None:
-    """Store only if no publication change happened while the list was built."""
+def store_public_response(key: str, response: dict, generation: int) -> None:
+    """Store only if no publication change happened while the response was built."""
     if PUBLIC_WORKS_CACHE_SECONDS <= 0:
         return
     with PUBLIC_WORKS_CACHE_LOCK:
         if generation == PUBLIC_WORKS_CACHE_GENERATION:
-            PUBLIC_WORKS_CACHE[page_limit] = (time.monotonic(), copy.deepcopy(response))
+            PUBLIC_WORKS_CACHE[key] = (time.monotonic(), copy.deepcopy(response))
 
 
 def invalidate_public_works_cache() -> None:
@@ -8638,7 +8647,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 return None
         return {"items": items, "count": total_count or 0}
 
-    def handle_public_creator_get(self, slug: str) -> None:
+    def handle_public_creator_get(self, slug: str, *, use_cache: bool = True) -> None:
         normalized_slug = clean_text(slug, 96).lower()
         if not PUBLIC_CREATOR_SLUG_PATTERN.fullmatch(normalized_slug):
             self.send_json(
@@ -8649,6 +8658,12 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if not auth_configured():
             self.handle_local_creator_get(normalized_slug)
             return
+        cache_key = f"creator:{normalized_slug}"
+        cached = cached_public_response(cache_key) if use_cache else None
+        if cached is not None:
+            self.send_json(HTTPStatus.OK, cached)
+            return
+        generation = public_works_cache_generation()
         result = self.public_delivery_rpc(
             "get_public_creator",
             {"target_creator_slug": normalized_slug},
@@ -8713,7 +8728,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         creator.pop("href", None)
         creator["cover"] = cover
         creator["works"] = works
-        self.send_json(HTTPStatus.OK, {"creator": creator, "source": "supabase-public"})
+        response = {"creator": creator, "source": "supabase-public"}
+        store_public_response(cache_key, response, generation)
+        self.send_json(HTTPStatus.OK, response)
 
     def handle_local_creator_get(self, slug: str) -> None:
         """Provide an explicit local preview without weakening configured delivery."""
@@ -11638,7 +11655,8 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 {"error": f"Archive limit must be between 1 and {PUBLIC_DELIVERY_MAX_WORKS}."},
             )
             return
-        cached = cached_public_works(page_limit)
+        cache_key = f"works:{page_limit}"
+        cached = cached_public_response(cache_key)
         if cached is not None:
             self.send_json(HTTPStatus.OK, cached)
             return
@@ -11650,7 +11668,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if response is None:
             self.send_public_delivery_error()
             return
-        store_public_works(page_limit, response, generation)
+        store_public_response(cache_key, response, generation)
         self.send_json(HTTPStatus.OK, response)
 
     def handle_archive_image_update(self, image_id: str) -> None:
@@ -12636,7 +12654,7 @@ for _verb in ("do_POST", "do_PATCH", "do_DELETE"):
 
 
 class PublicWorksRefresher(MTRequestHandler):
-    """Request-free handler used only to rebuild the cached public Works list."""
+    """Request-free handler used only to rebuild cached public Works and creators."""
 
     def __init__(self) -> None:  # noqa: D107 - no socket or request to bind
         pass
@@ -12650,7 +12668,14 @@ class PublicWorksRefresher(MTRequestHandler):
         response = self.signed_public_works(result, maximum=PUBLIC_DELIVERY_MAX_WORKS) if result else None
         if response is None:
             return False
-        store_public_works(PUBLIC_DELIVERY_MAX_WORKS, response, generation)
+        store_public_response(f"works:{PUBLIC_DELIVERY_MAX_WORKS}", response, generation)
+        slugs = {
+            item["creator"]["slug"]
+            for item in response.get("items", [])
+            if isinstance(item.get("creator"), dict) and item["creator"].get("slug")
+        }
+        for slug in sorted(slugs):
+            self.handle_public_creator_get(slug, use_cache=False)
         return True
 
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.6.9 - 2026-10-14
+
+- Public creator profiles (used by About and `/creators/{slug}`) now share the public Works cache and background refresh, so they load instantly instead of taking 6-9 seconds. The same admin/profile write invalidation applies.
+- Added an `MT` site icon (`favicon.svg`) to every page in place of the empty placeholder.
+
 ## v1.6.8 - 2026-10-14
 
 - The anonymous public Works list is now cached for up to 120 seconds (`MT_PUBLIC_WORKS_CACHE_SECONDS`, 0 disables, capped at 240) and kept warm by a background refresher, so the archive answers instantly instead of waiting about 4 seconds on Supabase. Any write under `/api/admin/` or `/api/me/` clears the cache immediately, a list built before such a change is never stored, and cached responses report the remaining signed-URL lifetime truthfully.
