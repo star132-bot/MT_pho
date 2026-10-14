@@ -775,6 +775,9 @@ def main() -> None:
     os.environ["SUPABASE_PUBLISHABLE_KEY"] = PUBLISHABLE_KEY
     os.environ["MT_PUBLIC_BASE_URL"] = "http://127.0.0.1:9"
     os.environ["MT_COOKIE_SECURE"] = "0"
+    # These tests switch provider responses between requests; the public
+    # Works cache is covered separately by test_public_works_cache.py.
+    os.environ["MT_PUBLIC_WORKS_CACHE_SECONDS"] = "0"
     app = importlib.import_module("server")
 
     class CapturingAppHandler(app.MTRequestHandler):

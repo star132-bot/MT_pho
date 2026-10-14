@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import copy
 import html
 import hmac
 import hashlib
@@ -213,6 +214,18 @@ PUBLIC_DELIVERY_ASSET_BUCKETS = {
 PUBLIC_DELIVERY_SIGNED_URL_TTL = 10 * 60
 PUBLIC_DELIVERY_MAX_WORKS = 250
 PUBLIC_DELIVERY_SIGN_BATCH_SIZE = 100
+# The anonymous Works list is identical for every visitor and takes ~4 s to
+# build from Supabase, so it is cached briefly and refreshed in the background.
+# Keep this far below PUBLIC_DELIVERY_SIGNED_URL_TTL so cached signed URLs
+# always have minutes of validity left. 0 disables the cache.
+try:
+    PUBLIC_WORKS_CACHE_SECONDS = int(os.environ.get("MT_PUBLIC_WORKS_CACHE_SECONDS", "120"))
+except ValueError:
+    PUBLIC_WORKS_CACHE_SECONDS = 120
+PUBLIC_WORKS_CACHE_SECONDS = max(0, min(PUBLIC_WORKS_CACHE_SECONDS, 240))
+PUBLIC_WORKS_CACHE: dict[int, tuple[float, dict]] = {}
+PUBLIC_WORKS_CACHE_LOCK = threading.Lock()
+PUBLIC_WORKS_CACHE_GENERATION = 0
 WORKSPACE_ASSET_KINDS = {"original", "display", "thumbnail"}
 WORKSPACE_ASSET_LIMITS = {
     "original": 50 * 1024 * 1024,
@@ -5759,6 +5772,46 @@ def write_upload_assets(
                 timestamp,
             ),
         )
+
+
+def public_works_cache_generation() -> int:
+    with PUBLIC_WORKS_CACHE_LOCK:
+        return PUBLIC_WORKS_CACHE_GENERATION
+
+
+def cached_public_works(page_limit: int) -> dict | None:
+    if PUBLIC_WORKS_CACHE_SECONDS <= 0:
+        return None
+    with PUBLIC_WORKS_CACHE_LOCK:
+        entry = PUBLIC_WORKS_CACHE.get(page_limit)
+    if entry is None:
+        return None
+    age = time.monotonic() - entry[0]
+    if age >= PUBLIC_WORKS_CACHE_SECONDS:
+        return None
+    response = copy.deepcopy(entry[1])
+    remaining = max(1, int(PUBLIC_DELIVERY_SIGNED_URL_TTL - age))
+    for item in response.get("items", []):
+        for key in ("display", "thumbnail"):
+            if isinstance(item.get(key), dict):
+                item[key]["expires_in"] = remaining
+    return response
+
+
+def store_public_works(page_limit: int, response: dict, generation: int) -> None:
+    """Store only if no publication change happened while the list was built."""
+    if PUBLIC_WORKS_CACHE_SECONDS <= 0:
+        return
+    with PUBLIC_WORKS_CACHE_LOCK:
+        if generation == PUBLIC_WORKS_CACHE_GENERATION:
+            PUBLIC_WORKS_CACHE[page_limit] = (time.monotonic(), copy.deepcopy(response))
+
+
+def invalidate_public_works_cache() -> None:
+    global PUBLIC_WORKS_CACHE_GENERATION
+    with PUBLIC_WORKS_CACHE_LOCK:
+        PUBLIC_WORKS_CACHE_GENERATION += 1
+        PUBLIC_WORKS_CACHE.clear()
 
 
 class MTRequestHandler(SimpleHTTPRequestHandler):
@@ -11585,6 +11638,11 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 {"error": f"Archive limit must be between 1 and {PUBLIC_DELIVERY_MAX_WORKS}."},
             )
             return
+        cached = cached_public_works(page_limit)
+        if cached is not None:
+            self.send_json(HTTPStatus.OK, cached)
+            return
+        generation = public_works_cache_generation()
         result = self.load_public_delivery_works(None, page_limit)
         if result is None:
             return
@@ -11592,6 +11650,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if response is None:
             self.send_public_delivery_error()
             return
+        store_public_works(page_limit, response, generation)
         self.send_json(HTTPStatus.OK, response)
 
     def handle_archive_image_update(self, image_id: str) -> None:
@@ -12557,6 +12616,55 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         self.send_json(HTTPStatus.NOT_FOUND, {"error": "API endpoint not found."})
 
 
+PUBLIC_WORKS_INVALIDATING_PREFIXES = ("/api/admin/", "/api/me/")
+
+
+def invalidate_public_works_after(method):
+    """Clear the public Works cache after admin or profile writes finish."""
+    def wrapper(self) -> None:
+        try:
+            method(self)
+        finally:
+            if canonical_url_path(self.path).startswith(PUBLIC_WORKS_INVALIDATING_PREFIXES):
+                invalidate_public_works_cache()
+    wrapper.__name__ = method.__name__
+    return wrapper
+
+
+for _verb in ("do_POST", "do_PATCH", "do_DELETE"):
+    setattr(MTRequestHandler, _verb, invalidate_public_works_after(getattr(MTRequestHandler, _verb)))
+
+
+class PublicWorksRefresher(MTRequestHandler):
+    """Request-free handler used only to rebuild the cached public Works list."""
+
+    def __init__(self) -> None:  # noqa: D107 - no socket or request to bind
+        pass
+
+    def send_json(self, status: HTTPStatus, payload: dict) -> None:
+        return
+
+    def refresh(self) -> bool:
+        generation = public_works_cache_generation()
+        result = self.load_public_delivery_works(None, PUBLIC_DELIVERY_MAX_WORKS)
+        response = self.signed_public_works(result, maximum=PUBLIC_DELIVERY_MAX_WORKS) if result else None
+        if response is None:
+            return False
+        store_public_works(PUBLIC_DELIVERY_MAX_WORKS, response, generation)
+        return True
+
+
+def keep_public_works_warm() -> None:
+    interval = max(30, PUBLIC_WORKS_CACHE_SECONDS - 30)
+    refresher = PublicWorksRefresher()
+    while True:
+        try:
+            refresher.refresh()
+        except Exception as error:  # never let the warmer kill itself
+            print(f"public_works_cache refresh failed: {type(error).__name__}", file=sys.stderr, flush=True)
+        time.sleep(interval)
+
+
 class BoundedThreadingHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
     request_queue_size = 128
@@ -12592,6 +12700,8 @@ def main() -> None:
     handler = partial(MTRequestHandler, directory=str(ROOT))
     server = BoundedThreadingHTTPServer((args.host, args.port), handler)
     actual_port = server.server_address[1]
+    if auth_configured() and PUBLIC_WORKS_CACHE_SECONDS > 0:
+        threading.Thread(target=keep_public_works_warm, name="public-works-cache", daemon=True).start()
     print(f"Serving MT Presence at http://{args.host}:{actual_port}/")
     try:
         server.serve_forever()

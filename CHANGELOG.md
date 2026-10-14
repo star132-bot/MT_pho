@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.6.8 - 2026-10-14
+
+- The anonymous public Works list is now cached for up to 120 seconds (`MT_PUBLIC_WORKS_CACHE_SECONDS`, 0 disables, capped at 240) and kept warm by a background refresher, so the archive answers instantly instead of waiting about 4 seconds on Supabase. Any write under `/api/admin/` or `/api/me/` clears the cache immediately, a list built before such a change is never stored, and cached responses report the remaining signed-URL lifetime truthfully.
+
 ## v1.6.7 - 2026-10-14
 
 - Fixed the public Works archive, Home selected works, work detail, and Lightbox hanging on "Loading archive." The server signed every image derivative with its own Storage request, so 27 works took about 16 seconds and the browser's 12-second timeout aborted the page. Derivatives are now signed with one Storage batch request per bucket (3 provider calls instead of about 55); any asset the batch cannot sign still falls back to the original single-object request.
