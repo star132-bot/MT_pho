@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.6.7 - 2026-10-14
+
+- Fixed the public Works archive, Home selected works, work detail, and Lightbox hanging on "Loading archive." The server signed every image derivative with its own Storage request, so 27 works took about 16 seconds and the browser's 12-second timeout aborted the page. Derivatives are now signed with one Storage batch request per bucket (3 provider calls instead of about 55); any asset the batch cannot sign still falls back to the original single-object request.
+
 ## v1.6.6 - 2026-10-13
 
 - Contact inquiries can now email the photographer directly. New, non-replayed inquiries are sent in the background through a dedicated SMTP mailbox with the visitor as Reply-To; the inquiry is stored whether or not mail succeeds, logs contain only the opaque reference, and production preflight rejects a partial mail configuration. Disabled unless every `MT_INQUIRY_NOTIFY_*` value is set.

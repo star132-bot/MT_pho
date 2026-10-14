@@ -269,6 +269,13 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                 self.send_json(HTTPStatus.UNAUTHORIZED, {})
                 return
             suffix = self.path.removeprefix("/storage/v1")
+            if isinstance(body, dict) and isinstance(body.get("paths"), list):
+                # Batch signing: POST /object/sign/{bucket} with {"paths": [...]}.
+                self.send_json(HTTPStatus.OK, [
+                    {"path": path, "signedURL": f"{suffix}/{path}?token=public-signed-read", "error": None}
+                    for path in body["paths"]
+                ])
+                return
             self.send_json(HTTPStatus.OK, {"signedURL": f"{suffix}?token=public-signed-read"})
             return
 
@@ -557,6 +564,8 @@ def main() -> None:
         assert_private_fields_absent(works)
         if len(FakeSupabaseHandler.storage_calls) - signs_before != 2:
             raise RuntimeError("Published Works did not perform exactly two derivative signatures")
+        if not all(isinstance(call[1], dict) and isinstance(call[1].get("paths"), list) for call in FakeSupabaseHandler.storage_calls[signs_before:]):
+            raise RuntimeError("Published Works fell back to per-object signing instead of one batch per bucket")
         if works_headers.get("Cache-Control") != "no-store":
             raise RuntimeError("Signed public Works response was cacheable")
 

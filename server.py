@@ -212,6 +212,7 @@ PUBLIC_DELIVERY_ASSET_BUCKETS = {
 }
 PUBLIC_DELIVERY_SIGNED_URL_TTL = 10 * 60
 PUBLIC_DELIVERY_MAX_WORKS = 250
+PUBLIC_DELIVERY_SIGN_BATCH_SIZE = 100
 WORKSPACE_ASSET_KINDS = {"original", "display", "thumbnail"}
 WORKSPACE_ASSET_LIMITS = {
     "original": 50 * 1024 * 1024,
@@ -8410,6 +8411,49 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return None
         return result
 
+    @staticmethod
+    def public_delivery_asset_dto(asset: dict, signed_url: str) -> dict:
+        return {
+            "id": asset["id"],
+            "image_id": asset["image_id"],
+            "kind": asset["kind"],
+            "mime_type": asset["mime_type"],
+            "width": asset["width"],
+            "height": asset["height"],
+            "signed_url": signed_url,
+            "expires_in": PUBLIC_DELIVERY_SIGNED_URL_TTL,
+        }
+
+    def prefetch_public_delivery_signatures(self, assets: list[dict], cache: dict[str, dict]) -> None:
+        """Sign uncached assets with one Storage request per bucket and chunk.
+
+        Signing each object separately made a 27-work archive take ~16 s, past
+        the browser's 12 s timeout. Anything the batch cannot sign stays
+        uncached, so sign_public_delivery_asset falls back to one request.
+        """
+        by_bucket: dict[str, dict[str, list[dict]]] = {}
+        for asset in assets:
+            if asset["id"] not in cache:
+                by_bucket.setdefault(asset["storage_bucket"], {}).setdefault(asset["storage_key"], []).append(asset)
+        for bucket, by_key in by_bucket.items():
+            keys = list(by_key)
+            for start in range(0, len(keys), PUBLIC_DELIVERY_SIGN_BATCH_SIZE):
+                status, signed = supabase_storage_request(
+                    f"object/sign/{quote(bucket, safe='')}",
+                    SUPABASE_PUBLISHABLE_KEY,
+                    {"expiresIn": PUBLIC_DELIVERY_SIGNED_URL_TTL, "paths": keys[start:start + PUBLIC_DELIVERY_SIGN_BATCH_SIZE]},
+                )
+                if status != HTTPStatus.OK or not isinstance(signed, list):
+                    continue
+                for entry in signed:
+                    if not isinstance(entry, dict) or entry.get("error") or entry.get("path") not in by_key:
+                        continue
+                    signed_url = self.absolute_storage_url(entry.get("signedURL") or entry.get("signedUrl") or "")
+                    if not signed_url:
+                        continue
+                    for asset in by_key[entry["path"]]:
+                        cache[asset["id"]] = self.public_delivery_asset_dto(asset, signed_url)
+
     def sign_public_delivery_asset(self, asset: dict, cache: dict[str, dict]) -> dict | None:
         asset_id = asset["id"]
         if asset_id in cache:
@@ -8429,16 +8473,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         signed_url = self.absolute_storage_url(signed_value)
         if status != HTTPStatus.OK or not signed_url:
             return None
-        safe_asset = {
-            "id": asset_id,
-            "image_id": asset["image_id"],
-            "kind": asset["kind"],
-            "mime_type": asset["mime_type"],
-            "width": asset["width"],
-            "height": asset["height"],
-            "signed_url": signed_url,
-            "expires_in": PUBLIC_DELIVERY_SIGNED_URL_TTL,
-        }
+        safe_asset = self.public_delivery_asset_dto(asset, signed_url)
         cache[asset_id] = safe_asset
         return dict(safe_asset)
 
@@ -8502,6 +8537,10 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if cleaned is None:
             return None
         cache: dict[str, dict] = {}
+        self.prefetch_public_delivery_signatures(
+            [asset for work in cleaned["items"] for asset in (work["display_asset"], work["thumbnail_asset"])],
+            cache,
+        )
         items = []
         for work in cleaned["items"]:
             item = self.public_work_payload(work, cache)
@@ -8601,6 +8640,11 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 return
             creator["works"] = complete_works["items"]
         cache: dict[str, dict] = {}
+        self.prefetch_public_delivery_signatures(
+            [asset for work in creator["works"] for asset in (work["display_asset"], work["thumbnail_asset"])]
+            + ([creator["cover_asset"]] if creator.get("cover_asset") else []),
+            cache,
+        )
         works = []
         for work in creator.pop("works"):
             item = self.public_work_payload(work, cache)

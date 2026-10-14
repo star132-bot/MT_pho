@@ -176,7 +176,10 @@ def validate_server(server: str) -> None:
     }, "Anonymous public RPC provider")
     forbid(provider, {"current_access_token", "SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"}, "Anonymous public RPC provider")
 
-    signer = python_function(server, "sign_public_delivery_asset")
+    signer = "\n".join(
+        python_function(server, name)
+        for name in ("sign_public_delivery_asset", "prefetch_public_delivery_signatures", "public_delivery_asset_dto")
+    )
     require(signer, {
         "SUPABASE_PUBLISHABLE_KEY",
         "asset['storage_bucket']",
