@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.6.10 - 2026-10-14
+
+- The Contact form now checks the 10-character message minimum before submitting. Previously a short message passed the browser checks, the server rejected it, and the visitor only saw a generic "review the inquiry fields" error with no field highlighted.
+- Contact inquiries are now emailed to the photographer through Brevo (`inquiries@mtdo.cn`, domain-authenticated), and Supabase Auth verification and recovery codes are sent through Brevo as `no-reply@mtdo.cn`. Both are provider configuration, not code changes.
+
 ## v1.6.9 - 2026-10-14
 
 - Public creator profiles (used by About and `/creators/{slug}`) now share the public Works cache and background refresh, so they load instantly instead of taking 6-9 seconds. The same admin/profile write invalidation applies.

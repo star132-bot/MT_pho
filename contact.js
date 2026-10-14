@@ -147,6 +147,12 @@ function validateContactPayload(payload) {
     setContactError("project_use", "Enter at least 5 characters.");
     isValid = false;
   }
+  // Matches the server's 10-character minimum so short messages get a field
+  // error instead of a generic rejection after submit.
+  if (payload.message && payload.message.length < 10) {
+    setContactError("message", "Enter at least 10 characters.");
+    isValid = false;
+  }
   if (!payload.sender_email) {
     setContactError("sender_email", "Email is required.");
     isValid = false;
