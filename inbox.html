@@ -6,7 +6,7 @@
     <title>Inbox | MT Presence</title>
     <meta name="description" content="Your recorded MT Presence inquiry conversations." />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css?v=20261002-public-recovery" />
+    <link rel="stylesheet" href="/styles.css?v=20261018-i18n" />
     <template id="mt-header-identity">{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="communications-page inbox-page">
@@ -27,13 +27,13 @@
     </svg>
 
     <header class="site-header communications-header" aria-label="Workspace navigation">
-      <a class="brand-mark" href="/dashboard" aria-label="Open Dashboard"><span>MT</span><span>Artist Workspace</span></a>
-      <nav class="site-nav" aria-label="Workspace navigation">
-        <a href="/dashboard">Dashboard</a>
+      <a class="brand-mark" href="/admin" aria-label="Open the staff admin"><span>MT</span><span>Artist Workspace</span></a>
+      <nav class="site-nav" aria-label="Staff navigation">
+        <a href="/admin">Admin</a>
         <a href="/workspace/images">Upload</a>
-        <a href="/admin/reviews" data-review-nav hidden>Review</a>
-        <a href="/admin/works" data-governance-nav hidden>Governance</a>
-        <a href="/admin/users" data-users-nav hidden>Users</a>
+        <a href="/admin/works">Works</a>
+        <a href="/inbox" aria-current="page">Inquiries</a>
+        <a href="/">Website</a>
       </nav>
       <div class="header-identity-slot" data-header-identity-slot></div>
     </header>
@@ -154,8 +154,8 @@
     <div class="contact-toast" role="status" aria-live="polite" data-inbox-toast></div>
     <div class="visually-hidden" aria-live="polite" aria-atomic="true" data-inbox-live></div>
 
-    <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
-    <script src="/account-menu.js?v=20260730-auth-gate"></script>
+    <script src="/site-footer.js?v=20261018-staff-only"></script>
+    <script src="/account-menu.js?v=20261018-staff-admin"></script>
     <script src="/inbox.js?v=20260723-communications-v1"></script>
   </body>
 </html>

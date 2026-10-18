@@ -5,7 +5,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = ROOT / "database" / "product_schema.sql"
-PUBLIC_PAGES = ["index.html", "works.html", "work.html", "about.html", "contact.html", "lightbox.html"]
+PUBLIC_PAGES = ["index.html", "works.html", "work.html", "about.html", "contact.html", "privacy.html", "terms.html"]
+RETIRED_PAGES = ["lightbox.html", "collections.html", "creator.html", "dashboard.html"]
 
 
 def require(source: str, tokens: set[str], label: str) -> None:
@@ -46,9 +47,16 @@ def main() -> None:
             'class="header-identity-slot"',
             "data-header-identity-slot",
             'src="/global-header.js',
-            'src="/account-menu.js',
             'src="/public-navigation.js',
         }, f"{name} unified public navigation")
+        # Visitors have no accounts: no account menu, Lightbox, or sign-in links.
+        for forbidden in ('src="/account-menu.js', 'href="/lightbox.html', 'href="/auth/sign-in', 'href="/auth/register'):
+            if forbidden in html:
+                raise RuntimeError(f"{name} still exposes a retired account entry point: {forbidden}")
+
+    for name in RETIRED_PAGES:
+        if (ROOT / name).exists():
+            raise RuntimeError(f"Retired page {name} still exists")
 
     global_header = (ROOT / "global-header.js").read_text()
     require(global_header, {
@@ -57,10 +65,19 @@ def main() -> None:
         '["home", "Home", "/"]',
         '["works", "Works", "/works.html"]',
         '["about", "About", "/about.html"]',
-        '["lightbox", "Lightbox", "/lightbox.html"]',
         '["contact", "Contact", "/contact.html"]',
-        '["review", "Review", "/admin/reviews"]',
+        "const visitorPage = VISITOR_PATHS.has(path);",
+        # Visitor pages are served without an identity slot; the header must still render.
+        "if (!identitySlot && !visitorPage) return;",
     }, "reusable GlobalHeader navigation")
+    for forbidden in ("lightbox", "Lightbox", '"/admin/reviews"'):
+        if forbidden in global_header:
+            raise RuntimeError(f"GlobalHeader still exposes retired navigation: {forbidden}")
+
+    footer = (ROOT / "site-footer.js").read_text()
+    for forbidden in ("/auth/sign-in", "/lightbox.html", "/dashboard", "data-footer-account-nav"):
+        if forbidden in footer:
+            raise RuntimeError(f"Public footer still exposes a retired account link: {forbidden}")
 
     require(server, {
         "HEADER_IDENTITY_BOOTSTRAP_MARKER",
@@ -73,10 +90,13 @@ def main() -> None:
         "HEADER_IDENTITY_BOOTSTRAP_FALLBACK_MARKER",
         "rendered_bootstrap = f'<template id=\"mt-header-identity\" data-header-identity>{bootstrap}</template>'",
         "source = source.replace(bootstrap_marker, rendered_bootstrap, 1)",
-        "source = source.replace(HEADER_IDENTITY_SLOT_MARKER, self.render_header_identity(identity), 1)",
+        '"" if visitor else self.render_header_identity(identity),',
         'self.send_header("Cache-Control", "private, no-store")',
         "public_header_page = HEADER_IDENTITY_PUBLIC_PAGES.get(parsed.path)",
-        "self.serve_header_html(public_header_page)",
+        "self.serve_header_html(public_header_page, visitor=True)",
+        '{"authenticated": False, "status": "anonymous"}',
+        "RETIRED_PAGE_REDIRECTS",
+        "def is_staff_authorization(authorization) -> bool:",
     }, "server-rendered public header identity boundary")
 
     public_navigation = (ROOT / "public-navigation.js").read_text()

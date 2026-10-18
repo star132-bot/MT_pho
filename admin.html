@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Staff Admin | MT Presence</title>
+    <meta name="description" content="Staff admin for the MT Presence website." />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css?v=20261018-i18n" />
+    <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
+  </head>
+  <body class="staff-admin-page">
+    <header class="site-header staff-admin-header" aria-label="Staff navigation">
+      <a class="brand-mark" href="/admin" aria-label="Open the staff admin"><span>MT</span><span>Admin</span></a>
+      <nav class="site-nav" aria-label="Staff navigation">
+        <a href="/admin" aria-current="page">Admin</a>
+        <a href="/workspace/images">Upload</a>
+        <a href="/admin/works">Works</a>
+        <a href="/inbox">Inquiries</a>
+        <a href="/">Website</a>
+      </nav>
+      <div class="header-identity-slot" data-header-identity-slot></div>
+    </header>
+
+    <main class="staff-admin-shell" id="staff-admin-main">
+      <header class="staff-admin-intro">
+        <p class="section-kicker">Staff Admin · 后台</p>
+        <h1>Manage the website</h1>
+        <p>Upload and publish photographs, take works offline, and answer inquiries from visitors.</p>
+      </header>
+
+      <nav class="staff-admin-grid" aria-label="Admin tasks">
+        <a class="staff-admin-card" href="/workspace/images">
+          <span class="staff-admin-card-kicker">上传作品</span>
+          <strong>Upload &amp; publish</strong>
+          <span>Add photographs with a title, series, introduction and tags, then publish them straight to the website.</span>
+        </a>
+        <a class="staff-admin-card" href="/admin/works">
+          <span class="staff-admin-card-kicker">作品管理</span>
+          <strong>Manage works</strong>
+          <span>See every work and its status. Take a published work offline or restore it.</span>
+        </a>
+        <a class="staff-admin-card" href="/inbox">
+          <span class="staff-admin-card-kicker">询价</span>
+          <strong>Inquiries</strong>
+          <span>Read Contact inquiries. Each one is also emailed to the photographer, who can reply directly.</span>
+        </a>
+        <a class="staff-admin-card" href="/settings/account">
+          <span class="staff-admin-card-kicker">账号与安全</span>
+          <strong>Account &amp; security</strong>
+          <span>Your profile, password and two-factor authentication.</span>
+        </a>
+      </nav>
+    </main>
+
+    <footer class="site-footer workspace-footer" data-site-footer data-footer-variant="workspace"></footer>
+    <script src="/site-footer.js?v=20261018-staff-only"></script>
+    <script src="/account-menu.js?v=20261018-staff-admin"></script>
+  </body>
+</html>

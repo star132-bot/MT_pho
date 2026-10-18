@@ -2112,7 +2112,7 @@ function renderViewerRelated(item, detail) {
   viewerRelated.innerHTML = related
     .map(
       (work) => `
-        <button class="work-viewer-related-item" type="button" data-related-work-id="${escapeHtml(work.id)}">
+        <button class="work-viewer-related-item" type="button" data-related-work-id="${escapeHtml(work.id)}" data-i18n-skip>
           <img src="${escapeHtml(work.src)}" alt="" loading="lazy" decoding="async" />
           <span>
             <strong>${escapeHtml(work.title)}</strong>
@@ -2146,21 +2146,15 @@ function renderViewerCreator(item) {
   if (!viewerCreator) {
     return;
   }
+  // Public creator profile pages were retired; show the name as plain text.
   const creator = item?.creator;
-  const slug = cleanText(creator?.slug);
   const displayName = cleanText(creator?.displayName || creator?.display_name);
   viewerCreator.replaceChildren();
-  if (!slug || !displayName) {
+  if (!displayName) {
     viewerCreator.hidden = true;
     return;
   }
-  const prefix = document.createElement("span");
-  prefix.textContent = "By ";
-  const link = document.createElement("a");
-  link.href = `/creators/${encodeURIComponent(slug)}`;
-  link.textContent = displayName;
-  link.setAttribute("aria-label", `Open ${displayName}'s public profile`);
-  viewerCreator.append(prefix, link);
+  viewerCreator.textContent = `By ${displayName}`;
   viewerCreator.hidden = false;
 }
 
@@ -2747,21 +2741,13 @@ function renderGallery() {
                 ? ""
                 : `
                   <div class="archive-hover-layer">
-                    <a class="archive-hover-detail-link" href="/work.html?id=${encodeURIComponent(item.id)}" aria-label="View details for ${escapeHtml(item.title)}">${escapeHtml(item.title)}</a>
-                    <div class="archive-hover-actions">
-                      <button class="archive-hover-icon ${isInLightbox ? "is-active" : ""}" type="button" data-card-action="lightbox" aria-pressed="${String(isInLightbox)}" aria-label="${isInLightbox ? "Remove from Lightbox" : "Add to Lightbox"}" data-tooltip="${isInLightbox ? "Remove from Lightbox" : "Add to Lightbox"}">
-                        ${iconSvg("bookmark")}
-                      </button>
-                      <button class="archive-hover-icon" type="button" data-card-action="download" aria-label="Download display image" data-tooltip="Download">
-                        ${iconSvg("download")}
-                      </button>
-                    </div>
+                    <a class="archive-hover-detail-link" href="/work.html?id=${encodeURIComponent(item.id)}" aria-label="View details for ${escapeHtml(item.title)}" data-i18n-skip>${escapeHtml(item.title)}</a>
                   </div>
                 `
             }
           </figure>
           <div class="archive-item-meta">
-            <h3>${escapeHtml(item.title)}</h3>
+            <h3 data-i18n-skip>${escapeHtml(item.title)}</h3>
             <dl>
               <div>
                 <dt>Type</dt>

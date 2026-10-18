@@ -31,52 +31,20 @@ const fieldGroups = new Map(
 
 const MODE_BY_PATH = {
   "/auth/sign-in": "signIn",
-  "/auth/register": "register",
-  "/auth/resend-verification": "resendVerification",
   "/auth/forgot-password": "forgotPassword",
   "/auth/reset-password": "resetPassword",
-  "/auth/verify-email": "verifyEmail",
 };
 
 const MODES = {
   signIn: {
-    documentTitle: "Sign In",
-    eyebrow: "Private Workspace",
+    documentTitle: "Staff Sign In",
+    eyebrow: "Site Staff",
     title: "Sign in",
-    intro: "Continue to your images, drafts, and review activity.",
+    intro: "Sign in to manage the MT Presence website. Visitors do not need an account.",
     fields: ["email", "password"],
     endpoint: "/api/auth/sign-in",
     submit: "Sign in",
     pending: "Signing in…",
-    switchCopy: "New to MT Presence?",
-    switchLabel: "Create an account",
-    switchHref: "/auth/register",
-  },
-  register: {
-    documentTitle: "Create Account",
-    eyebrow: "Private Workspace",
-    title: "Create account",
-    intro: "Create a verified account to upload images and submit work for review.",
-    fields: ["display_name", "email", "password", "password_confirmation", "terms_accepted"],
-    endpoint: "/api/auth/register",
-    submit: "Create account",
-    pending: "Creating account…",
-    switchCopy: "Already have an account?",
-    switchLabel: "Sign in",
-    switchHref: "/auth/sign-in",
-  },
-  resendVerification: {
-    documentTitle: "Resend Verification",
-    eyebrow: "Email Verification",
-    title: "Resend verification",
-    intro: "Enter the email used to create your account. We’ll send a new 8-digit code if the account is still waiting for confirmation.",
-    fields: ["email"],
-    endpoint: "/api/auth/resend-verification",
-    submit: "Send verification code",
-    pending: "Requesting verification…",
-    switchCopy: "Already verified?",
-    switchLabel: "Return to sign in",
-    switchHref: "/auth/sign-in",
   },
   forgotPassword: {
     documentTitle: "Reset Password",
@@ -106,32 +74,14 @@ const MODES = {
     callbackType: "recovery",
     callbackEndpoint: "/api/auth/recovery-session",
   },
-  verifyEmail: {
-    documentTitle: "Verify Email",
-    eyebrow: "Email Verification",
-    title: "Verify your email",
-    intro: "Enter the 8-digit verification code sent to your email.",
-    fields: ["email", "verification_code"],
-    endpoint: "/api/auth/verify-email-code",
-    submit: "Verify email",
-    pending: "Verifying code…",
-    switchCopy: "Already verified?",
-    switchLabel: "Return to sign in",
-    switchHref: "/auth/sign-in",
-    callbackType: "signup",
-    callbackEndpoint: "/api/auth/verify-email",
-  },
 };
 
 const mode = MODE_BY_PATH[window.location.pathname] || "signIn";
 const config = MODES[mode];
 const BLOCKED_NEXT_PATHS = new Set([
   "/auth/sign-in",
-  "/auth/register",
-  "/auth/resend-verification",
   "/auth/forgot-password",
   "/auth/reset-password",
-  "/auth/verify-email",
   "/auth/mfa",
 ]);
 const DEFAULT_AUTH_DESTINATION = "/works.html";
@@ -183,10 +133,12 @@ function configureMode() {
   title.textContent = config.title;
   intro.textContent = config.intro;
   submitButton.textContent = config.submit || "Continue";
-  switchCopy.textContent = config.switchCopy;
-  switchLink.textContent = config.switchLabel;
-  switchLink.href = config.switchHref;
-  switchRow.hidden = false;
+  switchRow.hidden = !config.switchHref;
+  if (config.switchHref) {
+    switchCopy.textContent = config.switchCopy;
+    switchLink.textContent = config.switchLabel;
+    switchLink.href = config.switchHref;
+  }
   forgotLink.hidden = mode !== "signIn";
   resendLink.hidden = true;
   nextLink.hidden = true;
@@ -205,18 +157,16 @@ function configureMode() {
     passwordLabel.textContent = mode === "resetPassword" ? "New password" : "Password";
     password.minLength = mode === "signIn" ? 1 : 12;
     password.maxLength = mode === "signIn" ? 256 : 128;
-    passwordHint.hidden = !["register", "resetPassword"].includes(mode);
+    passwordHint.hidden = mode !== "resetPassword";
   }
   if (passwordConfirmationLabel) {
     passwordConfirmationLabel.textContent = mode === "resetPassword" ? "Confirm new password" : "Confirm password";
   }
 
-  if (config.callbackType && mode !== "verifyEmail") {
+  if (config.callbackType) {
     form.hidden = true;
     loading.hidden = false;
-    loadingCopy.textContent = config.callbackType === "recovery"
-      ? "Validating your recovery link…"
-      : "Confirming your email…";
+    loadingCopy.textContent = "Validating your recovery link…";
   }
 }
 
@@ -228,7 +178,7 @@ function showOAuthResult() {
   const provider = url.searchParams.get("oauth_provider") === "apple" ? "Apple" : "Google";
   const messages = {
     cancelled: `${provider} sign-in was cancelled.`,
-    restricted: `This ${provider} account cannot access the Workspace.`,
+    restricted: `This ${provider} account is not a site staff account.`,
     invalid: `The ${provider} sign-in request is invalid or has expired. Try again.`,
     unavailable: `${provider} sign-in is temporarily unavailable. Try again shortly.`,
   };
@@ -328,7 +278,6 @@ function callbackParameters() {
     type: String(params.get("type") || "").toLowerCase(),
     token_hash: String(params.get("token_hash") || ""),
     refresh_token: String(params.get("refresh_token") || ""),
-    pending_email: String(hash.get("pending_email") || ""),
     hasError: Boolean(params.get("error") || params.get("error_code")),
   };
   if (window.location.hash || query.has("token_hash") || query.has("refresh_token") || query.has("code")) {
@@ -367,17 +316,6 @@ async function prepareCallbackMode() {
 
   try {
     const hasCallback = Boolean(callback.type || callback.token_hash || callback.refresh_token);
-    if (mode === "verifyEmail" && !hasCallback) {
-      // A registration can start while another account is still signed in in
-      // this browser. Do not use that account's verification status to bypass
-      // the OTP form; the code and email submitted below are authoritative.
-      loading.hidden = true;
-      form.hidden = false;
-      const pendingEmail = callback.pending_email;
-      if (pendingEmail && form.elements.email) form.elements.email.value = pendingEmail;
-      window.setTimeout(() => (form.elements.verification_code || form.elements.email)?.focus(), 0);
-      return;
-    }
     if (hasCallback) {
       if (callback.type !== config.callbackType || (!callback.token_hash && !callback.refresh_token)) {
         showInvalidCallback("This secure link is invalid or has expired.");
@@ -396,20 +334,14 @@ async function prepareCallbackMode() {
         return;
       }
     } else {
-      const statusPath = mode === "resetPassword" ? "/api/auth/recovery-status" : "/api/auth/verification-status";
-      const { response, result } = await authRequest(statusPath);
-      const ready = mode === "resetPassword" ? result.recovery_ready === true : result.email_verified === true;
-      if (!response.ok || !ready) {
+      const { response, result } = await authRequest("/api/auth/recovery-status");
+      if (!response.ok || result.recovery_ready !== true) {
         showInvalidCallback("This secure link is invalid or has expired.");
         return;
       }
     }
 
     loading.hidden = true;
-    if (mode === "verifyEmail") {
-      showCompletion("Email verified. Your account is ready.", "View Works", DEFAULT_AUTH_DESTINATION);
-      return;
-    }
     form.hidden = false;
     window.setTimeout(() => form.elements.password?.focus(), 0);
   } catch {
@@ -421,7 +353,7 @@ async function prepareCallbackMode() {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   clearErrors();
-  if (["register", "resetPassword"].includes(mode)) {
+  if (mode === "resetPassword") {
     const password = form.elements.password.value;
     const confirmation = form.elements.password_confirmation.value;
     if (password !== confirmation) {
@@ -436,12 +368,8 @@ form.addEventListener("submit", async (event) => {
   const data = new FormData(form);
   const payload = {};
   config.fields.forEach((field) => {
-    if (field === "terms_accepted") {
-      payload[field] = data.get(field) === "on";
-    } else {
-      const value = String(data.get(field) || "");
-      payload[field] = ["password", "password_confirmation"].includes(field) ? value : value.trim();
-    }
+    const value = String(data.get(field) || "");
+    payload[field] = ["password", "password_confirmation"].includes(field) ? value : value.trim();
   });
 
   try {
@@ -464,40 +392,10 @@ form.addEventListener("submit", async (event) => {
         resendLink.textContent = "Request a new recovery code";
         resendLink.href = "/auth/forgot-password";
         resendLink.hidden = false;
-      } else {
-        resendLink.hidden = !["EMAIL_NOT_VERIFIED", "EMAIL_CODE_INVALID"].includes(result.error?.code);
       }
       return;
     }
 
-    if (mode === "register") {
-      if (result.status === "verification_required") {
-        window.location.assign(`/auth/verify-email#pending_email=${encodeURIComponent(payload.email)}`);
-        return;
-      }
-      form.reset();
-      showCompletion(result.message || "Account created. Sign in to continue.");
-      return;
-    }
-    if (mode === "resendVerification") {
-      form.reset();
-      showCompletion(
-        result.message || "If this address has an unverified account, a new verification code has been sent.",
-        "Enter verification code",
-        `/auth/verify-email#pending_email=${encodeURIComponent(payload.email)}`,
-      );
-      return;
-    }
-    if (mode === "verifyEmail") {
-      const verifiedEmail = String(result.user?.email || "").trim().toLowerCase();
-      if (verifiedEmail && verifiedEmail !== payload.email) {
-        showNotice("The verification session belongs to a different email. Sign out and try again.");
-        return;
-      }
-      form.reset();
-      showCompletion(`Email verified for ${payload.email}. You are now signed in.`, "View Works", DEFAULT_AUTH_DESTINATION);
-      return;
-    }
     if (mode === "forgotPassword") {
       if (!recoveryCodeStep) {
         recoveryEmail = payload.email;

@@ -18,7 +18,7 @@ import tempfile
 import urllib.parse
 import uuid
 
-import test_review_queue_browser as support
+import credentialed_browser_support as support
 
 
 ROOT = Path(__file__).resolve().parents[1]

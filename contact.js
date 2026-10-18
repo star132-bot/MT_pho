@@ -4,7 +4,7 @@ const contactSuccess = document.querySelector("[data-contact-success]");
 const publicArchive = window.MTPresencePublicArchive;
 const contactEmailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const contactParams = new URLSearchParams(window.location.search);
-const supportedContactSources = new Set(["general", "work", "series", "lightbox"]);
+const supportedContactSources = new Set(["general", "work", "series"]);
 const rawContactSource = String(contactParams.get("source") || "general").trim();
 const contactSource = supportedContactSources.has(rawContactSource) ? rawContactSource : "general";
 const requestedSeriesSlug = String(contactParams.get("series") || "").trim();
@@ -65,15 +65,6 @@ function updateContactSubmit() {
 function setContactContextState(state) {
   contactContextState = state;
   updateContactSubmit();
-}
-
-function replaceLightboxContextUrl(ids) {
-  if (contactSource !== "lightbox") return;
-  const nextUrl = new URL(window.location.href);
-  nextUrl.searchParams.delete("work");
-  ids.forEach((id) => nextUrl.searchParams.append("work", id));
-  if (!ids.length) nextUrl.searchParams.delete("source");
-  window.history.replaceState(window.history.state, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
 }
 
 function contactFieldElement(fieldName) {
@@ -173,7 +164,6 @@ function contextLabel() {
     const series = (window.MTPresenceSeriesData || []).find((item) => item.slug === requestedSeriesSlug);
     return series ? `Series / ${series.title}` : "Series inquiry";
   }
-  if (contactSource === "lightbox") return "Inquiry Selection";
   if (contactSource === "work") return "Selected Work";
   return "";
 }
@@ -190,6 +180,7 @@ function createContactContextItem(work) {
   const copy = document.createElement("div");
   const title = document.createElement("strong");
   title.textContent = contactText(work.title, 240) || "Selected work";
+  title.dataset.i18nSkip = "";
   const details = document.createElement("span");
   details.textContent = contactText(work.series || `${work.type || "Work"} / ${work.ratio || "Format"}`, 300);
   copy.append(title, details);
@@ -215,11 +206,7 @@ function renderContactContext() {
 async function hydrateContactContext() {
   const requestedWorkId = requestedContextWorkIds[0];
   let ids = [];
-  if (contactSource === "lightbox") {
-    const selectedIds = new Set(publicArchive.readInquirySelectionIds());
-    ids = requestedContextWorkIds.filter((id) => selectedIds.has(id));
-    replaceLightboxContextUrl(ids);
-  } else if (contactSource === "work" && requestedWorkId) {
+  if (contactSource === "work" && requestedWorkId) {
     ids = [requestedWorkId];
   } else if (contactSource === "series" && requestedSeriesSlug) {
     ids = (window.MTPresenceSeriesData || []).find((item) => item.slug === requestedSeriesSlug)?.workIds || [];
@@ -232,12 +219,11 @@ async function hydrateContactContext() {
       const byId = new Map(result.works.map((work) => [work.id, work]));
       selectedContextWorks = ids.map((id) => byId.get(id)).filter(Boolean);
       if (!selectedContextWorks.length) throw new Error("The selected works are no longer available.");
-      if (contactSource === "lightbox") replaceLightboxContextUrl(selectedContextWorks.map((work) => work.id));
       setContactContextState("ready");
     } catch (_error) {
       selectedContextWorks = [];
       setContactContextState("error");
-      setContactToast("Unable to load the selected works. Return to Lightbox and try again.", "error");
+      setContactToast("Unable to load the selected works. Return to Works and try again.", "error");
     }
   } else {
     setContactContextState("ready");
@@ -387,14 +373,6 @@ document.querySelector("[data-contact-context-list]")?.addEventListener("click",
   if (!id) return;
   selectedContextWorks = selectedContextWorks.filter((work) => work.id !== id);
   contactIdempotencyKey = "";
-  if (contactSource === "lightbox") {
-    try {
-      publicArchive.writeInquirySelectionIds(publicArchive.readInquirySelectionIds().filter((workId) => workId !== id));
-    } catch (_error) {
-      setContactToast("This work was removed here, but the temporary selection could not be updated.", "error");
-    }
-    replaceLightboxContextUrl(selectedContextWorks.map((work) => work.id));
-  }
   renderContactContext();
 });
 document.querySelector("[data-contact-another]")?.addEventListener("click", () => {

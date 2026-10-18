@@ -164,9 +164,9 @@
     identity.className = "account-menu-identity";
     const avatar = document.createElement("a");
     avatar.className = "account-menu-avatar";
-    avatar.href = "/dashboard";
+    avatar.href = "/admin";
     avatar.dataset.accountMenuAvatar = "";
-    avatar.setAttribute("aria-label", "Open personal profile");
+    avatar.setAttribute("aria-label", "Open the staff admin");
     const avatarInitials = document.createElement("span");
     avatarInitials.dataset.accountMenuAvatarInitials = "";
     avatarInitials.setAttribute("aria-hidden", "true");
@@ -191,8 +191,8 @@
     links.className = "account-menu-links";
     links.setAttribute("role", "none");
     links.append(
-      destination("Dashboard", "/dashboard"),
-      destination("Workspace", "/workspace/images"),
+      destination("Admin", "/admin"),
+      destination("Upload", "/workspace/images"),
       destination("Account Settings", "/settings/account"),
     );
     const signout = document.createElement("button");

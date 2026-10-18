@@ -130,10 +130,8 @@ def validate_server(server: str) -> None:
     require(server, {
         'if parsed.path == "/api/archive/images":',
         '["api", "public", "creators"]',
-        'self.path = "/creator.html"',
         '"get_public_works"',
         '"get_public_creator"',
-        '"rpc/get_my_public_delivery_status"',
         '"PUBLIC_DELIVERY_PROVIDER_FAILED"',
         'SUPABASE_PUBLISHABLE_KEY',
     }, "Public delivery HTTP boundary")

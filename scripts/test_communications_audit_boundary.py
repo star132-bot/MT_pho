@@ -199,7 +199,7 @@ def main() -> None:
 
     public_paths = ("/index.html", "/styles.css", "/script.js")
     blocked_paths = (
-        "/server.py", "/database/product_schema.sql", "/scripts/test_admin_users_boundary.py",
+        "/server.py", "/database/product_schema.sql", "/scripts/test_user_dashboard_boundary.py",
         "/deploy/web-environment.example", "/docs/product/user-upload-admin-spec.md", "/.git/config",
         "/.env", "/requirements-scanner.txt", "/README.md",
     )

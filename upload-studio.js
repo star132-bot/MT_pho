@@ -383,15 +383,15 @@ function hydrateQuickUploadForm() {
   if (!quickUploadForm) return;
   const stored = rememberedQuickUploadDefaults || {};
   const elements = quickUploadForm.elements;
-  elements.namedItem("copyright_holder").value = cleanText(stored.copyright_holder);
+  elements.namedItem("copyright_holder").value = cleanText(stored.copyright_holder) || staffCopyrightHolder();
   elements.namedItem("copyright_year").value = String(stored.copyright_year || new Date().getFullYear());
   elements.namedItem("content_category").value = ["concrete", "abstract"].includes(stored.content_category)
     ? stored.content_category
-    : "auto";
+    : "concrete";
   elements.namedItem("alt_text_template").value = cleanText(stored.alt_text_template) || "Photograph titled “{title}”.";
   elements.namedItem("tags").value = uniqueTextList(stored.tags || []).join(", ");
   elements.namedItem("location_name").value = cleanText(stored.location_name);
-  elements.namedItem("contains_recognizable_people").value = stored.contains_recognizable_people === true ? "true" : "false";
+  elements.namedItem("contains_recognizable_people").value = "false";
   elements.namedItem("model_release_status").value = cleanText(stored.model_release_status) || "available";
   elements.namedItem("property_release_status").value = cleanText(stored.property_release_status) || "not_applicable";
   elements.namedItem("ai_disclosure").value = cleanText(stored.ai_disclosure) || "none";
@@ -1015,6 +1015,32 @@ async function submitWorkspaceDraft(record, idempotencyKey) {
       confirmation: "submit-for-review",
       expected_version: record.lock_version,
       idempotency_key: idempotencyKey,
+    }),
+  });
+}
+
+// The site owner publishes their own work directly: the submitted version goes
+// straight through the audited Super Admin self-publish action. The ten review
+// checks are the owner's own declaration, confirmed in the publish dialog.
+const SELF_PUBLISH_CHECKLIST = Object.freeze(Object.fromEntries([
+  "file_integrity", "rights", "privacy", "minors", "sensitive_content",
+  "hate_illegal", "property_release", "third_party_ip", "ai_disclosure", "public_metadata",
+].map((code) => [code, true])));
+
+async function selfPublishSubmission(submissionId) {
+  const submissionPath = `/api/admin/review-submissions/${encodeURIComponent(submissionId)}`;
+  const detail = await workspaceRequest(submissionPath);
+  return workspaceRequest(`${submissionPath}/super-admin-self-publish`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      confirmation: "review-super-admin-self-publish",
+      expected_version: detail?.submission?.lock_version,
+      idempotency_key: crypto.randomUUID(),
+      reason_codes: ["policy_complete"],
+      user_message: "Published by the photographer from the staff upload page.",
+      internal_note: "",
+      checklist_result: { ...SELF_PUBLISH_CHECKLIST },
     }),
   });
 }
@@ -1719,8 +1745,8 @@ function setWorkspaceControls() {
   }
   if (submitRecordLabel) {
     submitRecordLabel.textContent = submissionInFlight
-      ? (record?.readiness?.status === "submitting" ? "Submitting..." : "Checking...")
-      : record?.workflow_status === "changes_requested" ? "Resubmit for Review" : "Submit for Review";
+      ? (record?.readiness?.status === "submitting" ? "Publishing..." : "Checking...")
+      : "Publish";
   }
   if (submitRecordButton) {
     submitRecordButton.disabled = !workspaceOnline
@@ -1736,8 +1762,8 @@ function setWorkspaceControls() {
   if (submitReadyButton) {
     submitReadyButton.disabled = importDisabled || !recordsForActiveFolder().length;
     submitReadyButton.textContent = bulkSubmissionInFlight
-      ? (submissionInFlight ? "Submitting ready Drafts…" : "Checking readiness…")
-      : "Check & submit ready";
+      ? (submissionInFlight ? "Publishing ready Drafts…" : "Checking readiness…")
+      : "Check & publish ready";
   }
 }
 
@@ -1789,7 +1815,30 @@ function recordFromForm(record) {
       updated_at: nowIso(),
     },
   };
-  return normalizeRecord(next, folder);
+  return normalizeRecord(staffUploadDefaults(next), folder);
+}
+
+// Staff only edit title, series, introduction and tags. The other readiness
+// fields describe the owner's own photography, so they are filled with the
+// declaration stated on the form ("Uploading confirms you own the rights").
+function staffCopyrightHolder() {
+  return cleanText(window.MTPresenceHeaderIdentity?.display_name) || "MT Presence";
+}
+
+function staffUploadDefaults(record) {
+  const title = cleanText(record.title);
+  return {
+    ...record,
+    alt_text: cleanText(record.alt_text) || (title ? `Photograph titled “${title}”.` : ""),
+    copyright_holder: cleanText(record.copyright_holder) || staffCopyrightHolder(),
+    copyright_year: Number.isInteger(record.copyright_year) ? record.copyright_year : new Date().getFullYear(),
+    contains_recognizable_people: record.contains_recognizable_people ?? false,
+    model_release_status: record.model_release_status || "not_applicable",
+    property_release_status: record.property_release_status || "not_applicable",
+    rights_declared: true,
+    ai_disclosure: record.ai_disclosure || "none",
+    sensitive_content_disclosure: record.sensitive_content_disclosure || "none",
+  };
 }
 
 function syncComplianceFieldVisibility() {
@@ -2006,9 +2055,9 @@ function confirmSubmission({ title, message, confirmLabel }) {
 function confirmDraftSubmission(record) {
   const title = record?.title || "Untitled Work";
   return confirmSubmission({
-    title: `Submit "${title}"?`,
-    message: "The saved version will be locked and added to the review queue.",
-    confirmLabel: "Submit for Review",
+    title: `Publish "${title}"?`,
+    message: "The saved version is published to the website straight away. You confirm that you own this photograph and that it is suitable for public display.",
+    confirmLabel: "Publish",
   });
 }
 
@@ -2057,6 +2106,13 @@ async function performActiveRecordSubmission() {
     const idempotencyKey = createSubmissionIdempotencyKey(recordId);
     const result = await submitWorkspaceDraft(currentRecord, idempotencyKey);
     submissionIdempotencyKeys.delete(recordId);
+    let publishError = null;
+    try {
+      await selfPublishSubmission(result.submission.id);
+    } catch (error) {
+      // The work stays safely submitted; it simply is not public yet.
+      publishError = error;
+    }
     let cacheDeleted = true;
     try {
       await deleteStoredItem(recordId);
@@ -2077,10 +2133,16 @@ async function performActiveRecordSubmission() {
     nextRecordId = activeRecordId;
     submitted = true;
     resetDraftEditState(activeRecordId ? "All changes saved." : "");
-    const submissionStatus = cleanText(result.submission?.status || "submitted").replaceAll("_", " ");
+    if (publishError) {
+      const reason = publishError.code === "REVIEW_SELF_PUBLISH_FORBIDDEN"
+        ? "Publishing needs a Super Admin account."
+        : publishError.message || "Publishing failed.";
+      showToast(`Saved and submitted, but not yet public: ${reason}`, "error");
+      return true;
+    }
     showToast(cacheDeleted
-      ? `Draft submitted for review (${submissionStatus}).`
-      : `Draft submitted for review (${submissionStatus}); offline cache cleanup is pending.`);
+      ? "Published to the website."
+      : "Published to the website; offline cache cleanup is pending.");
     return true;
   } catch (error) {
     if (error?.status && error.status < 500) submissionIdempotencyKeys.delete(recordId);
@@ -2212,9 +2274,9 @@ async function submitReadyRecordsInFolder() {
     }
 
     const confirmed = await confirmSubmission({
-      title: `Submit ${ready.length} ready Draft${ready.length === 1 ? "" : "s"}?`,
-      message: `Only ready Drafts in ${folder.name} will be locked and added to Review. Pending or blocked Drafts stay here.`,
-      confirmLabel: `Submit ${ready.length} for Review`,
+      title: `Publish ${ready.length} ready Draft${ready.length === 1 ? "" : "s"}?`,
+      message: `Only ready Drafts in ${folder.name} are published to the website. Pending or blocked Drafts stay here. You confirm that you own these photographs and that they are suitable for public display.`,
+      confirmLabel: `Publish ${ready.length}`,
     });
     if (!confirmed) return;
 
@@ -2225,26 +2287,38 @@ async function submitReadyRecordsInFolder() {
       try {
         const result = await submitWorkspaceDraft(record, idempotencyKey);
         submissionIdempotencyKeys.delete(record.id);
+        let publishError = null;
+        try {
+          await selfPublishSubmission(result.submission.id);
+        } catch (error) {
+          publishError = error;
+        }
         const cacheDeleted = await removeSubmittedWorkspaceRecord(record);
-        return { record, result, cacheDeleted, error: null };
+        return { record, result, cacheDeleted, publishError, error: null };
       } catch (error) {
         if (error?.status && error.status < 500) submissionIdempotencyKeys.delete(record.id);
         if (error?.readiness) replaceRecordReadiness(record.id, normalizeReadiness(error.readiness, record));
         return { record, result: null, cacheDeleted: true, error };
       }
     });
-    const submitted = submittedResults.filter((result) => !result.error).length;
-    const failed = submittedResults.length - submitted;
-    const cacheWarnings = submittedResults.filter((result) => !result.error && !result.cacheDeleted).length;
+    const submitted = submittedResults.filter((result) => !result.error);
+    const published = submitted.filter((result) => !result.publishError).length;
+    const notPublic = submitted.length - published;
+    const failed = submittedResults.length - submitted.length;
+    const cacheWarnings = submitted.filter((result) => !result.cacheDeleted).length;
     activeRecordId = recordsForActiveFolder()[0]?.id || null;
     resetDraftEditState(activeRecordId ? "All changes saved." : "");
+    const problems = [
+      notPublic ? `${notPublic} submitted but not yet public` : "",
+      failed ? `${failed} stayed in Drafts and need attention` : "",
+    ].filter(Boolean);
     showToast(
-      failed
-        ? `${submitted} submitted; ${failed} stayed in Drafts and need attention.`
+      problems.length
+        ? `${published} published; ${problems.join("; ")}.`
         : cacheWarnings
-          ? `${submitted} submitted; offline cache cleanup is pending.`
-          : `${submitted} Draft${submitted === 1 ? "" : "s"} submitted for review.`,
-      failed ? "error" : "info",
+          ? `${published} published; offline cache cleanup is pending.`
+          : `${published} Draft${published === 1 ? "" : "s"} published to the website.`,
+      problems.length ? "error" : "info",
     );
   } finally {
     bulkSubmissionInFlight = false;
@@ -2781,7 +2855,7 @@ quickUploadOpen?.addEventListener("click", () => {
   hydrateQuickUploadForm();
   if (typeof quickUploadDialog?.showModal === "function") quickUploadDialog.showModal();
   else quickUploadDialog?.setAttribute("open", "");
-  window.requestAnimationFrame(() => quickUploadForm?.elements.namedItem("copyright_holder")?.focus());
+  window.requestAnimationFrame(() => quickUploadForm?.elements.namedItem("content_category")?.focus());
 });
 
 quickUploadCancel?.addEventListener("click", () => {

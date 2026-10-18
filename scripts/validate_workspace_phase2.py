@@ -26,7 +26,6 @@ def main() -> None:
     server = (ROOT / "server.py").read_text()
     upload_html = (ROOT / "upload-studio.html").read_text()
     upload_js = (ROOT / "upload-studio.js").read_text()
-    manage_js = (ROOT / "manage.js").read_text()
     works_html = (ROOT / "works.html").read_text()
     account_menu = (ROOT / "account-menu.js").read_text()
     workflow = (ROOT / ".github" / "workflows" / "database.yml").read_text()
@@ -175,7 +174,8 @@ def main() -> None:
     }, "Phase 2 server boundary")
 
     require(upload_html, {
-        'accept="image/jpeg,image/png,image/webp"', ">Content Category<", ">Caption<",
+        'accept="image/jpeg,image/png,image/webp"', ">Series<", ">Introduction<",
+        "Uploading confirms that you own the rights to this photograph.", "data-studio-hidden-fields",
         "Save Draft", "Move to Trash", "data-folder-form", "data-folder-list",
         'id="icon-retry"', 'id="icon-x"',
         'data-editor-state="empty"', "Loading folders", "upload-studio-loading",
@@ -183,14 +183,24 @@ def main() -> None:
         'name="contains_recognizable_people"', 'data-model-release-field',
         'name="property_release_status"', 'name="rights_declared"',
         'name="ai_disclosure"', 'name="sensitive_content_disclosure"',
-        "data-studio-reload-record", "20260729-quick-upload",
+        "data-studio-reload-record", "20261018-staff-admin",
         "data-studio-readiness", "data-studio-readiness-refresh", "data-studio-readiness-list",
         "Submission readiness", "Submission state", "data-studio-submit-record",
-        "Submit for Review", "data-studio-submit-dialog",
+        "Publish this Draft?", "data-studio-submit-dialog",
         'data-studio-view="drafts"', 'data-studio-view="trash"', "data-studio-trash-count",
         "data-quick-upload-open", "data-quick-upload-dialog", "data-quick-upload-form",
-        "data-quick-upload-input", "data-studio-submit-ready", "Quick Upload does not bypass",
+        "data-quick-upload-input", "data-studio-submit-ready", "data-quick-hidden-fields",
+        "Uploads still go through private storage and malware scanning",
     }, "Phase 2 Upload Studio page")
+    if 'href="/admin/reviews"' in upload_html or "Submit for Review" in upload_html:
+        raise RuntimeError("Upload Studio still points at the retired review queue")
+    require(upload_js, {
+        "function staffUploadDefaults(record)",
+        "return normalizeRecord(staffUploadDefaults(next), folder);",
+        "async function selfPublishSubmission(submissionId)",
+        '"review-super-admin-self-publish"',
+        "await selfPublishSubmission(result.submission.id);",
+    }, "staff upload defaults and direct publish")
     require(upload_js, {
         'const WORKSPACE_FOLDERS_API = "/api/folders"',
         'const WORKSPACE_IMAGES_API = "/api/images"',
@@ -227,11 +237,12 @@ def main() -> None:
         "data-public-header",
         "data-global-header",
         'src="/global-header.js',
-        'src="/account-menu.js',
     }, "Works public shell")
+    if 'src="/account-menu.js' in works_html:
+        raise RuntimeError("Works public shell still loads the retired visitor account menu")
     require(account_menu, {
-        'destination("Workspace", "/workspace/images")',
-    }, "authenticated Works Upload navigation")
+        'destination("Upload", "/workspace/images")',
+    }, "staff account menu Upload navigation")
     title_input = re.search(r'<input\b[^>]*\bname="title"[^>]*>', upload_html)
     if not title_input or re.search(r"\brequired\b", title_input.group(0)):
         raise RuntimeError("Phase 2 Draft title must remain optional")
@@ -246,25 +257,9 @@ def main() -> None:
     if re.search(r"scan_status\s*[:=]\s*['\"]clean['\"]", upload_js):
         raise RuntimeError("Browser code must not mark security scans clean")
 
-    require(manage_js, {
-        "function homepageEditableSnapshot(settings)",
-        "stableStringify(homepageEditableSnapshot(settings))",
-        'window.addEventListener("beforeunload"',
-    }, "Review dirty-state boundary")
-    signature_block = re.search(
-        r"function homepageEditableSnapshot\(settings\)\s*\{(?P<body>.*?)\n\}",
-        manage_js,
-        re.DOTALL,
-    )
-    if not signature_block or "database_shape" in signature_block.group("body"):
-        raise RuntimeError("Review dirty signature still includes derived database_shape")
-    unload_block = re.search(
-        r'window\.addEventListener\("beforeunload", \(event\) => \{(?P<body>.*?)\n\}\);',
-        manage_js,
-        re.DOTALL,
-    )
-    if not unload_block or any(token in unload_block.group("body") for token in ("syncActiveFormToRecord", "syncHomepageForm")):
-        raise RuntimeError("Review beforeunload must not mutate dirty state")
+    # The browser-side homepage editor (manage.js) was retired with the staff admin.
+    if (ROOT / "manage.js").exists() or (ROOT / "manage.html").exists():
+        raise RuntimeError("The retired browser-side editor still ships")
 
     require(workflow, {
         "bash scripts/release_gate.sh",

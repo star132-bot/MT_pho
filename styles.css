@@ -21994,3 +21994,149 @@ button.upload-studio-card-main:focus-visible {
     animation: none;
   }
 }
+
+/* Staff admin hub (/admin): the single entry point for site staff. */
+.staff-admin-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+}
+
+.staff-admin-shell {
+  flex: 1;
+  width: min(1080px, 100% - 32px);
+  margin: 0 auto;
+  padding: 56px 0 72px;
+}
+
+.staff-admin-intro h1 {
+  margin: 8px 0 12px;
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 500;
+}
+
+.staff-admin-intro p:last-child {
+  max-width: 56ch;
+  margin: 0;
+  color: var(--muted);
+}
+
+.staff-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 40px;
+}
+
+.staff-admin-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius-md);
+  background: var(--paper);
+  color: var(--ink);
+  text-decoration: none;
+  transition: border-color var(--ui-motion-fast) var(--ui-ease-standard),
+    box-shadow var(--ui-motion-fast) var(--ui-ease-standard);
+}
+
+.staff-admin-card:hover {
+  border-color: rgba(var(--ink-rgb), 0.32);
+  box-shadow: var(--shadow);
+}
+
+.staff-admin-card:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus);
+}
+
+.staff-admin-card-kicker {
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+}
+
+.staff-admin-card strong {
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+
+.staff-admin-card span:last-child {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* Upload page: the rights statement that replaces the declaration fields. */
+.upload-studio-rights-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+/* The staff admin header stays in normal flow so it never covers content. */
+.staff-admin-page .staff-admin-header {
+  position: sticky;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  min-height: 64px;
+  padding: 10px clamp(16px, 4vw, 44px);
+  border-bottom: 1px solid var(--line);
+  background: rgba(var(--paper-rgb), 0.96);
+  backdrop-filter: blur(14px);
+}
+
+.staff-admin-page .staff-admin-header .site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin-left: auto;
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .staff-admin-page .staff-admin-header .site-nav {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .staff-admin-shell {
+    padding-top: 32px;
+  }
+}
+
+/* Visitor language switch (English / 中文) at the end of the navigation. */
+.global-header-language {
+  margin-left: 4px;
+  padding: 4px 22px 4px 8px;
+  border: 1px solid currentColor;
+  border-radius: var(--ui-radius-sm);
+  background: transparent
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.4'/%3E%3C/svg%3E")
+    no-repeat right 7px center / 9px 6px;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  opacity: 0.85;
+  cursor: pointer;
+  appearance: none;
+}
+
+.global-header-language:hover,
+.global-header-language:focus-visible {
+  opacity: 1;
+}
+
+.global-header-language:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus);
+}
+
+.global-header-language option {
+  color: var(--ink);
+}

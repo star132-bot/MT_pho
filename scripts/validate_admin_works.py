@@ -508,7 +508,7 @@ def validate_boundary_and_wiring(boundary: str, workflow: str, release_gate: str
         "/restore",
         "RECOVERY_SESSION_RESTRICTED",
         "ACCOUNT_RESTRICTED",
-        "ADMIN_REQUIRED",
+        "STAFF_ONLY",
         "MFA_REQUIRED",
         "CSRF_REJECTED",
         "CONTENT_TYPE_INVALID",

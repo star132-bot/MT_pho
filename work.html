@@ -6,7 +6,7 @@
     <title>Work | MT Presence</title>
     <meta name="description" content="View a published MT Presence work and its archival details." />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css?v=20261002-public-recovery" />
+    <link rel="stylesheet" href="styles.css?v=20261018-i18n" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="public-page work-detail-page">
@@ -46,46 +46,37 @@
           </div>
 
           <header class="work-detail-heading">
-            <h1 data-work-detail-title></h1>
-            <p data-work-detail-description></p>
+            <h1 data-work-detail-title data-i18n-skip></h1>
+            <p data-work-detail-description data-i18n-skip></p>
           </header>
 
           <div class="work-detail-actions" aria-label="Work actions">
-            <button class="work-detail-action work-detail-save" type="button" data-work-detail-save aria-pressed="false">
-              <svg class="ui-icon" aria-hidden="true"><use href="#icon-bookmark"></use></svg>
-              <span>Add to Lightbox</span>
-            </button>
             <a class="work-detail-action" href="/contact.html?source=work" data-work-detail-inquire>Inquire</a>
-            <button class="work-detail-action work-detail-download" type="button" data-work-detail-download>
-              <svg class="ui-icon" aria-hidden="true"><use href="#icon-download"></use></svg>
-              <span>Download</span>
-            </button>
           </div>
 
           <dl class="work-detail-metadata" data-work-detail-metadata></dl>
 
           <section class="work-detail-tags" data-work-detail-tags-section hidden>
             <h2 class="visually-hidden">Tags</h2>
-            <div data-work-detail-tags></div>
+            <div data-work-detail-tags data-i18n-skip></div>
           </section>
 
           <section class="work-detail-related" data-work-detail-related-section hidden>
             <p class="section-kicker">Related Works</p>
-            <div data-work-detail-related></div>
+            <div data-work-detail-related data-i18n-skip></div>
           </section>
         </div>
       </article>
     </main>
 
     <footer class="site-footer public-footer" aria-label="Site footer" data-site-footer data-footer-variant="public"></footer>
-    <div class="archive-toast" role="status" aria-live="polite" data-work-detail-toast hidden></div>
 
-    <script src="/global-header.js?v=20260727-final-ui"></script>
+    <script src="/i18n.js?v=20261018-i18n-4"></script>
+    <script src="/global-header.js?v=20261018-i18n"></script>
     <script src="/archive-data.js?v=20260610-works-viewer-editor"></script>
     <script src="/public-archive.js?v=20261002-public-recovery"></script>
-    <script src="/work-detail.js?v=20261002-public-recovery"></script>
-    <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
-    <script src="/account-menu.js?v=20260730-auth-gate"></script>
+    <script src="/work-detail.js?v=20261018-staff-only"></script>
+    <script src="/site-footer.js?v=20261018-staff-only"></script>
     <script src="/public-navigation.js?v=20260722-public-shell"></script>
   </body>
 </html>

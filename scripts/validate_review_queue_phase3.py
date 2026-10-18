@@ -1132,337 +1132,6 @@ def validate_database_test(database_test: str) -> None:
     )
 
 
-def validate_server(server: str) -> None:
-    ast.parse(server)
-    require(
-        server,
-        {
-            '"REVIEW_SELF_REVIEW_FORBIDDEN": HTTPStatus.FORBIDDEN',
-            '"REVIEW_SELF_PUBLISH_FORBIDDEN": HTTPStatus.FORBIDDEN',
-            '"REVIEW_ASSETS_NOT_READY": HTTPStatus.CONFLICT',
-            '"REVIEW_ALREADY_PUBLISHED": HTTPStatus.CONFLICT',
-            "def canonical_url_path(value: str)",
-            "import posixpath",
-            "from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse",
-        },
-        "Review API error/canonical path boundary",
-    )
-
-    canonical = python_function(server, "canonical_url_path")
-    require(
-        canonical,
-        {'unquote(value.split("?", 1)[0].split("#", 1)[0])', "posixpath.normpath"},
-        "Canonical URL path query/fragment normalizer",
-    )
-    private_path = python_function(server, "is_private_static_path")
-    require(
-        private_path,
-        {'part.startswith(".")', '{"data", "tmp", "shots"}', '["assets", "uploads"]'},
-        "Private static path classifier",
-    )
-    do_head = python_function(server, "do_HEAD")
-    require(
-        do_head,
-        {
-            "canonical_path = canonical_url_path(self.path)",
-            'canonical_path.startswith("/api/")',
-            'canonical_path.startswith("/admin/reviews")',
-            'canonical_path == "/assets/uploads"',
-            'canonical_path.startswith("/assets/uploads/")',
-            '"/admin-reviews.html"',
-            '"/admin-reviews.js"',
-            "is_private_static_path(canonical_path)",
-            "self.send_response(HTTPStatus.NOT_FOUND)",
-            'self.send_header("Cache-Control", "no-store")',
-            'self.send_header("Content-Length", "0")',
-            "self.path = canonical_path",
-            "super().do_HEAD()",
-        },
-        "HEAD Review/API/private/static non-disclosure boundary",
-    )
-    require_order(
-        do_head,
-        [
-            "canonical_path = canonical_url_path(self.path)",
-            "if protected_route:",
-            "self.send_response(HTTPStatus.NOT_FOUND)",
-            "return",
-            "self.path = canonical_path",
-            "super().do_HEAD()",
-        ],
-        "HEAD protected-route deny before public-static fallback",
-    )
-    do_get = python_function(server, "do_GET")
-    require(
-        do_get,
-        {
-            "canonical_path = canonical_url_path(self.path)",
-            "parsed = parsed._replace(path=canonical_path, netloc=\"\")",
-            'if canonical_path == "/assets/uploads" or canonical_path.startswith("/assets/uploads/")',
-            "if is_private_static_path(canonical_path)",
-            'if parsed.path in {"/admin/reviews", "/admin/reviews/"}',
-            'if parsed.path == "/admin-reviews.html"',
-            'if parsed.path == "/api/admin/review-submissions"',
-        },
-        "Canonical protected Review/static GET routing",
-    )
-    require_order(
-        do_get,
-        [
-            "canonical_path = canonical_url_path(self.path)",
-            "parsed = parsed._replace(path=canonical_path",
-            'if canonical_path == "/assets/uploads" or canonical_path.startswith("/assets/uploads/")',
-            "if is_private_static_path(canonical_path)",
-        ],
-        "Encoded private/static alias protection order",
-    )
-    end_headers = python_function(server, "end_headers")
-    require(
-        end_headers,
-        {"canonical_url_path(self.path)", '"/admin-reviews.html"', '"/admin-reviews.js"', '"no-store"'},
-        "Review page canonical no-store headers",
-    )
-    serve_review = python_function(server, "serve_review_page")
-    require(
-        serve_review,
-        {
-            'next_path: str = "/admin/reviews"',
-            'self.serve_header_html("admin-reviews.html", user=user, authorization=authorization)',
-            'roles.intersection({"reviewer", "admin", "super_admin"})',
-            "self.redirect_to_mfa_if_required(user, authorization, next_path)",
-        },
-        "Protected Review page role/unified MFA/no-store projection",
-    )
-
-    clean_asset = python_function(server, "clean_review_asset")
-    require(
-        clean_asset,
-        {"storage_bucket", "storage_key", "scan_status", "scan_policy_version"},
-        "Review provider asset projection",
-    )
-    sign_asset = python_function(server, "sign_review_asset")
-    require(
-        sign_asset,
-        {
-            'if key not in {"storage_bucket", "storage_key"}',
-            'safe_asset["signed_url"]',
-            'safe_asset["expires_in"] = 10 * 60',
-        },
-        "Signed Review asset public DTO",
-    )
-    for handler_name in ("handle_review_submissions_get", "handle_review_submission_get"):
-        handler = python_function(server, handler_name)
-        require(handler, {"scan_status", "scan_policy_version"}, f"{handler_name} current-scan guard")
-        require_regex(
-            handler,
-            r"\.get\(\s*[\"']scan_status[\"']\s*\)\s*!=\s*[\"']clean[\"']",
-            f"{handler_name} clean-status guard",
-        )
-        scan_match = require_regex(
-            handler,
-            r"\.get\(\s*[\"']scan_policy_version[\"']\s*\)\s*!=\s*"
-            r"(?P<expected>[A-Z][A-Z0-9_]*|[\"']mt-asset-scan-2026-07-v1[\"'])",
-            f"{handler_name} current scan-policy guard",
-        )
-        expected = scan_match.group("expected")
-        if expected[0].isupper():
-            require_regex(
-                server,
-                rf"\b{re.escape(expected)}\s*=\s*[\"']{re.escape(CURRENT_SCAN_POLICY)}[\"']",
-                f"{handler_name} scan-policy constant",
-            )
-
-    detail_handler = python_function(server, "handle_review_submission_get")
-    require(
-        detail_handler,
-        {
-            '"reviewer" in actor["roles"]',
-            'submission.get("assigned_reviewer")',
-            'submission["status"] in review_open_statuses',
-            'response["owner"]["id"] != actor["id"]',
-            'asset.get("kind") != "original" or can_read_original',
-        },
-        "Review Detail original permission projection",
-    )
-    require_order(
-        detail_handler,
-        [
-            "can_read_original =",
-            "review_assets =",
-            'asset.get("scan_status")',
-            "self.sign_review_asset(user, asset)",
-        ],
-        "Review Detail filter/scan/sign order",
-    )
-
-    decision_handler = python_function(server, "handle_review_decision")
-    require(
-        decision_handler,
-        {
-            '"request-changes": "request_changes"',
-            '"reject": "reject"',
-            '"approve": "approve"',
-            '"approve-and-publish": "approve_and_publish"',
-            '"super-admin-self-publish": "approve_and_publish"',
-            'self_publish = action == "super-admin-self-publish"',
-            '"review_super_admin_self_publish" if self_publish else "review_decide_submission"',
-            'if self_publish and "super_admin" not in roles',
-            'set(body) != expected_fields',
-            'body.get("confirmation") != f"review-{action}"',
-            'response.get("decision", {}).get("decision") != decision',
-            'response.get("submission", {}).get("status") != expected_status',
-            'response.get("image", {}).get("workflow_status") != expected_status',
-            'response.get("image", {}).get("publication_status") != "published"',
-        },
-        "Review decision request/result DTO contract",
-    )
-    do_post = python_function(server, "do_POST")
-    require(
-        do_post,
-        {
-            '["api", "admin", "review-submissions"]',
-            "if not self.require_csrf()",
-            'if action == "assign"',
-            'if action == "start"',
-            '"request-changes"',
-            '"reject"',
-            '"approve"',
-            '"approve-and-publish"',
-            '"super-admin-self-publish"',
-        },
-        "Review mutation routes and CSRF boundary",
-    )
-
-
-def validate_browser(page: str, client: str, styles: str) -> None:
-    require(
-        page,
-        {
-            'href="#admin-review-main"',
-            'data-review-count="open"',
-            'data-review-count="submitted"',
-            'data-review-count="in_review"',
-            'data-review-count="completed"',
-            ">Completed<",
-            'data-review-list-state role="status"',
-            'data-review-conflict role="alert"',
-            'data-review-detail-state role="status"',
-            'data-review-decision-form hidden',
-            'data-review-dialog aria-labelledby=',
-            'data-review-dialog-cancel',
-            'data-review-live',
-            'data-review-bulk-tools',
-            'data-review-bulk-select-all',
-            'data-review-bulk-publish',
-            'data-review-bulk-dialog',
-            'data-review-bulk-form',
-            'data-review-check-all',
-        },
-        "Review page accessible queue/detail/dialog states",
-    )
-    require(
-        client,
-        {
-            "new AbortController()",
-            "await csrfToken(true)",
-            "if (csrfPromise === request) csrfPromise = null",
-            '["request_changes", "Request changes"]',
-            '["reject", "Reject"]',
-            '["approve", "Approve"]',
-            'approve_and_publish: [["policy_complete", "Policy checks complete"]]',
-            'decisions.push(["approve_and_publish", publishOnly ? "Publish approved work" : "Approve and publish"])',
-            'detail.actor.can_publish === true',
-            'detail?.actor?.can_self_publish === true',
-            'function canSuperAdminSelfPublish(detail)',
-            'const canSelfPublish = canSuperAdminSelfPublish(detail)',
-            'const selfPublish = decision === "approve_and_publish" && canSuperAdminSelfPublish(selectedDetail)',
-            'const action = selfPublish ? "super_admin_self_publish" : decision',
-            'Super Admin self-publish is restricted to this untouched submission',
-            'submission.status === "approved"',
-            'detail.image.publication_status !== "published"',
-            'decision === "approve_and_publish"',
-            "immediately publishes the work in Works and on the creator's public profile",
-            'const closesPrivateDetail = ["request_changes", "reject", "approve"].includes(action)',
-            'setDetailState("Decision recorded", "empty"',
-            'internalLabel.textContent = "Internal note"',
-            "dialogCancel.focus()",
-            "restoreDialogFocus()",
-            'sizeToggle.setAttribute("aria-pressed"',
-            'setListState("Loading submissions", "loading"',
-            'setDetailState("Loading submission", "loading"',
-            'setDetailState("Submission unavailable", "error"',
-            'setDetailState("No submission selected", "empty"',
-            'Self-review is not permitted.',
-            'detail.owner.id === actorId',
-            'detail.owner.id !== detail.actor.id',
-            'function canSelectSelfPublishSummary(item)',
-            'function publishSelectedSubmissions()',
-            'await reviewRequest(`/api/admin/review-submissions/${encodeURIComponent(summary.id)}`)',
-            'if (!canSuperAdminSelfPublish(detail))',
-            'confirmation: "review-super-admin-self-publish"',
-            'checklist_result: checklistResult',
-            'selectedBulkIds.delete(summary.id)',
-            'function confirmAllChecklistItems()',
-        },
-        "Review client loading/error/success/security/accessibility states",
-    )
-    if client.count("new AbortController()") < 2:
-        raise RuntimeError("Queue and detail requests must each use latest-wins AbortController cancellation")
-    forbid(client, {"approve-and-publish"}, "Browser Review mutation actions")
-    for action, codes in REASON_CODES.items():
-        for code in codes:
-            expected_count = 2 if code == "policy_complete" else 1
-            if client.count(f'["{code}",') != expected_count:
-                raise RuntimeError(f"Browser reason code {action}.{code} must be declared exactly once")
-    for checklist_code in CHECKLIST_CODES:
-        if client.count(f'["{checklist_code}",') != 1:
-            raise RuntimeError(f"Browser checklist code {checklist_code} must be declared exactly once")
-
-    require(
-        styles,
-        {
-            "/* Admin Review Queue: quiet-luxury editorial moderation workspace. */",
-            ".admin-review-workspace",
-            ".admin-review-list-state[data-tone=\"loading\"]",
-            ".admin-review-list-state[data-tone=\"empty\"]",
-            ".admin-review-list-state[data-tone=\"error\"]",
-            ".admin-review-detail-state[data-tone=\"error\"]",
-            ".admin-review-image-stage > img",
-            "object-fit: contain",
-            ".admin-review-dialog::backdrop",
-            "@media (max-width: 1024px)",
-            "@media (max-width: 760px)",
-            "--admin-review-header-height: 68px",
-            "@media (max-width: 480px)",
-            "overflow-x: clip",
-        },
-        "Review gallery-white responsive state system",
-    )
-    mobile_review_blocks = [block for block in css_media_blocks(styles, 480) if ".admin-review-metrics" in block]
-    if len(mobile_review_blocks) != 1:
-        raise RuntimeError(
-            "The <=480px Review layout must have exactly one scoped metrics contract; "
-            f"found {len(mobile_review_blocks)}"
-        )
-    mobile_metrics = css_rule_body(mobile_review_blocks[0], ".admin-review-metrics")
-    require(
-        compact(mobile_metrics),
-        {
-            "display: grid",
-            "grid-template-columns: repeat(4, minmax(0, 1fr))",
-            "overflow: visible",
-        },
-        "<=480px four-metric visibility grid",
-    )
-    mobile_metric_button = css_rule_body(mobile_review_blocks[0], ".admin-review-metrics button")
-    require(compact(mobile_metric_button), {"min-width: 0"}, "<=480px metric button shrink boundary")
-    forbid(
-        mobile_review_blocks[0],
-        {".admin-review-metrics button:nth-child", ".admin-review-metrics > :nth-child"},
-        "<=480px four-metric visibility grid",
-    )
-
-
 def validate_concurrency_test(concurrency_test: str) -> None:
     require(
         concurrency_test,
@@ -1504,127 +1173,12 @@ def validate_concurrency_test(concurrency_test: str) -> None:
     )
 
 
-def validate_ci_and_docs(
-    workflow: str,
-    release_gate: str,
-    project_map: str,
-    review_testing: str,
-    product_spec: str,
-    design_system: str,
-    readme: str,
-) -> None:
-    require(
-        workflow,
-        {
-            "bash scripts/release_gate.sh",
-        },
-        "Review Queue CI entrypoint",
-    )
-    require(
-        release_gate,
-        {
-            "scripts/validate_review_queue_phase3.py",
-            "scripts/test_review_queue_boundary.py",
-            "admin-reviews.js",
-            'for validator in "${static_validators[@]}"; do',
-            'run_group "Static contract: $validator" python3 "$validator"',
-            'for script in "${browser_scripts[@]}"; do',
-            'run_group "JavaScript syntax: $script" node --check "$script"',
-            'for test_file in "${boundary_tests[@]}"; do',
-            'run_group "Boundary test: $test_file" python3 "$test_file"',
-        },
-        "Review Queue release gate contract",
-    )
-    require(
-        project_map,
-        {
-            "## 11. Supabase Admin Review Queue",
-            "`admin-reviews.html` / `admin-reviews.js`",
-            "`database/migrations/20260717_review_queue.sql`",
-            "`scripts/validate_review_queue_phase3.py` / `scripts/test_review_queue_boundary.py`",
-            "`scripts/test_review_queue_database.sql`",
-            "`scripts/test_review_queue_concurrency.py`",
-            "`docs/operations/review-testing.md`",
-            "1024px",
-            "760px",
-            "390px",
-            "migration 已部署 development",
-        },
-        "Review Queue project map",
-    )
-    require(
-        review_testing,
-        {
-            "# Admin Review Queue Testing",
-            "Role stacking must not let an Admin who also has `reviewer` bypass AAL2.",
-            "| Recovery session | Denied | Denied | Denied |",
-            "python3 scripts/validate_review_queue_phase3.py",
-            "python3 scripts/test_review_queue_boundary.py",
-            "psql --set ON_ERROR_STOP=1 --file scripts/test_review_queue_database.sql",
-            "MT_TEST_ENVIRONMENT=development python3 scripts/test_review_queue_concurrency.py",
-            "The rollback-only development test passed on 2026-07-20.",
-            "The two-session development concurrency test passed on 2026-07-20.",
-            "Static",
-            "cannot prove",
-            "PostgreSQL",
-            "self-review",
-        },
-        "Review testing runbook and honest static-check boundary",
-    )
-    require(
-        product_spec,
-        {
-            "/admin/reviews",
-            "same-key/same-payload",
-            "approve_and_publish",
-            "Admin/Super Admin 在 AAL2 下可以从浏览器执行",
-            "Reviewer 仍不能 publish",
-        },
-        "Product Review Queue contract",
-    )
-    require(
-        design_system,
-        {
-            "### Admin Review Queue",
-            "Request Changes、Reject 和 Approve",
-            "1024px",
-            "760px",
-            "68px",
-        },
-        "Review Queue design-system contract",
-    )
-    require(
-        readme,
-        {
-            "GET    /api/admin/review-submissions",
-            "POST   /api/admin/review-submissions/{submissionId}/assign",
-            "POST   /api/admin/review-submissions/{submissionId}/start",
-            "POST   /api/admin/review-submissions/{submissionId}/{request-changes|reject|approve|approve-and-publish}",
-            "`scripts/test_review_queue_database.sql`",
-            "`scripts/test_review_queue_concurrency.py`",
-            "Phase 3",
-            "deployed to development",
-        },
-        "Review Queue README status/routes",
-    )
-
-
 def main() -> None:
     migration = read(MIGRATION_PATH)
     self_publish_migration = read(SELF_PUBLISH_MIGRATION_PATH)
     server = read(SERVER_PATH)
-    page = read(PAGE_PATH)
-    client = read(CLIENT_PATH)
-    styles = read(STYLES_PATH)
-    workflow = read(WORKFLOW_PATH)
-    release_gate = read(RELEASE_GATE_PATH)
-    project_map = read(PROJECT_MAP_PATH)
-    review_testing = read(REVIEW_TESTING_PATH)
     database_test = read(DATABASE_TEST_PATH)
     concurrency_test = read(CONCURRENCY_TEST_PATH)
-    product_spec = read(PRODUCT_SPEC_PATH)
-    design_system = read(DESIGN_SYSTEM_PATH)
-    readme = read(README_PATH)
 
     normalized = migration.strip().lower()
     if not normalized.startswith("begin;") or not normalized.endswith("commit;"):
@@ -1650,14 +1204,30 @@ def main() -> None:
     validate_super_admin_self_publish(self_publish_migration)
     validate_database_test(database_test)
     validate_concurrency_test(concurrency_test)
-    validate_server(server)
-    validate_browser(page, client, styles)
-    validate_ci_and_docs(workflow, release_gate, project_map, review_testing, product_spec, design_system, readme)
+    validate_retired_review_http(server)
 
     print(
-        "Phase 3 Review Queue static contracts validated. "
-        "Static validation does not replace the rollback-only or two-session development database tests."
+        "Review database contracts validated (the review queue UI is retired; only the "
+        "owner's audited self-publish remains). Static validation does not replace the "
+        "rollback-only or two-session development database tests."
     )
+
+
+def validate_retired_review_http(server: str) -> None:
+    """The queue, claims and other decisions are gone; self-publish stays reachable."""
+    require(server, {
+        'if parts[4] == "super-admin-self-publish":',
+        "self.handle_review_decision(parts[3], parts[4])",
+        '"review_super_admin_self_publish"',
+        'if len(parts) == 4 and parts[:3] == ["api", "admin", "review-submissions"]:',
+    }, "self-publish HTTP boundary")
+    forbid(server, (
+        'parsed.path == "/api/admin/review-submissions":',
+        'action == "assign"',
+        'action == "start"',
+        '"approve-and-publish",',
+        'serve_header_html("admin-reviews.html"',
+    ), "retired review queue HTTP surface")
 
 
 if __name__ == "__main__":

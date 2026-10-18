@@ -187,17 +187,18 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
             self.send_json(HTTPStatus.OK, {
                 "user_id": ADMIN_ID,
                 "account_status": "active",
-                "roles": ["admin"],
+                "roles": ["super_admin"],
                 "aal": "aal2",
             })
             return
 
-        if self.path == "/rest/v1/rpc/review_decide_submission":
+        if self.path in {"/rest/v1/rpc/review_decide_submission", "/rest/v1/rpc/review_super_admin_self_publish"}:
             if authorization != f"Bearer {ADMIN_TOKEN}":
                 self.send_json(HTTPStatus.UNAUTHORIZED, {})
                 return
             type(self).review_calls.append(copy.deepcopy(body))
-            decision = body.get("decision")
+            # Self-publish is always an approve-and-publish decision.
+            decision = body.get("decision") or "approve_and_publish"
             if decision == "approve_and_publish":
                 type(self).published = True
             status = "approved" if decision in {"approve", "approve_and_publish"} else "in_review"
@@ -367,7 +368,7 @@ def admin_session(base_url: str) -> CookieOpener:
 def decision_body(key: str, decision: str) -> dict:
     return {
         "confirmation": f"review-{decision.replace('_', '-')}",
-        "expected_version": 3 if decision == "approve" else 4,
+        "expected_version": 4,
         "idempotency_key": key,
         "reason_codes": ["policy_complete"],
         "user_message": "The submitted work satisfies the review policy.",
@@ -529,28 +530,32 @@ def main() -> None:
             raise RuntimeError("Pre-publish public reads attempted Storage signing")
 
         admin = admin_session(base_url)
-        status, result, _ = request(
-            admin,
-            base_url,
-            f"/api/admin/review-submissions/{SUBMISSION_ID}/approve",
-            payload=decision_body("70000000-0000-4000-8000-000000000061", "approve"),
-            origin=base_url,
-        )
-        if status != HTTPStatus.OK or not isinstance(result, dict) or result.get("image", {}).get("publication_status") != "never_published":
-            raise RuntimeError("Admin Approve did not preserve the unpublished state")
+        # The review queue's other decisions were retired with it.
+        for retired_action in ("assign", "start", "approve", "approve-and-publish", "reject", "request-changes"):
+            status, result, _ = request(
+                admin,
+                base_url,
+                f"/api/admin/review-submissions/{SUBMISSION_ID}/{retired_action}",
+                payload=decision_body("70000000-0000-4000-8000-000000000061", "approve_and_publish"),
+                origin=base_url,
+            )
+            if status != HTTPStatus.NOT_FOUND:
+                raise RuntimeError(f"Retired review action {retired_action} is still reachable")
+        if FakeSupabaseHandler.published or FakeSupabaseHandler.review_calls:
+            raise RuntimeError("A retired review action reached the provider")
         status, works, _ = request(anonymous, base_url, "/api/archive/images")
         if status != HTTPStatus.OK or not isinstance(works, dict) or works.get("items") != []:
-            raise RuntimeError("Ordinary Approve leaked a work into the public archive")
+            raise RuntimeError("An unpublished work leaked into the public archive")
 
         status, result, _ = request(
             admin,
             base_url,
-            f"/api/admin/review-submissions/{SUBMISSION_ID}/approve-and-publish",
-            payload=decision_body("70000000-0000-4000-8000-000000000062", "approve_and_publish"),
+            f"/api/admin/review-submissions/{SUBMISSION_ID}/super-admin-self-publish",
+            payload=decision_body("70000000-0000-4000-8000-000000000062", "super_admin_self_publish"),
             origin=base_url,
         )
         if status != HTTPStatus.OK or not isinstance(result, dict) or result.get("image", {}).get("publication_status") != "published":
-            raise RuntimeError("Admin AAL2 Approve and Publish failed")
+            raise RuntimeError(f"Owner self-publish failed: {status} {result}")
 
         signs_before = len(FakeSupabaseHandler.storage_calls)
         status, works, works_headers = request(anonymous, base_url, "/api/archive/images")

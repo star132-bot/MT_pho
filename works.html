@@ -19,7 +19,7 @@
     <meta property="og:image:height" content="941" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css?v=20261002-public-recovery" />
+    <link rel="stylesheet" href="styles.css?v=20261018-i18n" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="archive-page">
@@ -236,35 +236,23 @@
             <img alt="" decoding="async" data-viewer-image />
           </figure>
           <aside id="work-viewer-details" class="work-viewer-info viewer-details" aria-label="Work details" aria-hidden="true" inert data-viewer-info>
-            <h2 id="work-viewer-title" data-viewer-title></h2>
+            <h2 id="work-viewer-title" data-viewer-title data-i18n-skip></h2>
             <p class="work-viewer-creator" data-viewer-creator hidden></p>
-            <p id="work-viewer-note" class="work-viewer-note" data-viewer-note></p>
+            <p id="work-viewer-note" class="work-viewer-note" data-viewer-note data-i18n-skip></p>
             <div class="work-viewer-primary-actions" aria-label="Work actions">
-              <button class="work-viewer-action-button" type="button" data-viewer-action="lightbox" aria-pressed="false">
-                <svg class="ui-icon" aria-hidden="true" focusable="false">
-                  <use href="#icon-bookmark"></use>
-                </svg>
-                <span>Add to Lightbox</span>
-              </button>
               <a class="work-viewer-action-button" href="contact.html?source=work" data-viewer-inquire>
                 <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-mail"></use></svg>
                 <span>Inquire</span>
               </a>
-              <button class="work-viewer-action-button" type="button" data-viewer-action="download">
-                <svg class="ui-icon" aria-hidden="true" focusable="false">
-                  <use href="#icon-download"></use>
-                </svg>
-                <span>Download</span>
-              </button>
             </div>
             <dl class="work-viewer-metadata" data-viewer-metadata></dl>
             <section class="work-viewer-tags" data-viewer-tags-section hidden>
               <h3>Tags</h3>
-              <div class="work-viewer-tag-groups" data-viewer-tags></div>
+              <div class="work-viewer-tag-groups" data-viewer-tags data-i18n-skip></div>
             </section>
             <section class="work-viewer-statement" data-viewer-statement-section hidden>
               <h3 data-viewer-statement-heading>Statement</h3>
-              <p data-viewer-statement></p>
+              <p data-viewer-statement data-i18n-skip></p>
             </section>
             <section class="work-viewer-related" data-viewer-related-section hidden>
               <h3>Related Works</h3>
@@ -275,12 +263,12 @@
       </section>
     </div>
 
-    <script src="/global-header.js?v=20260727-final-ui"></script>
+    <script src="/i18n.js?v=20261018-i18n-4"></script>
+    <script src="/global-header.js?v=20261018-i18n"></script>
     <script src="archive-data.js?v=20260610-works-viewer-editor"></script>
     <script src="public-archive.js?v=20261002-public-recovery"></script>
-    <script src="archive.js?v=20261002-public-recovery"></script>
-    <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
-    <script src="/account-menu.js?v=20260730-auth-gate"></script>
+    <script src="archive.js?v=20261018-i18n"></script>
+    <script src="/site-footer.js?v=20261018-staff-only"></script>
     <script src="/public-navigation.js?v=20260722-public-shell"></script>
   </body>
 </html>

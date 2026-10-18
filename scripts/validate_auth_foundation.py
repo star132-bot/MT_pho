@@ -23,7 +23,6 @@ def main() -> None:
     account_js = (ROOT / "account-settings.js").read_text()
     upload_html = (ROOT / "upload-studio.html").read_text()
     upload_js = (ROOT / "upload-studio.js").read_text()
-    manage_js = (ROOT / "manage.js").read_text()
     deploy_script = (ROOT / "scripts" / "deploy_supabase_phase1.sh").read_text()
     nginx = (ROOT / "deploy" / "nginx-mt-presence.conf").read_text()
 
@@ -41,12 +40,13 @@ def main() -> None:
         'method="DELETE"', 'MFA_RESET_FAILED', 'MFA_ALREADY_ENROLLED',
         '/api/auth/forgot-password', '/api/auth/recovery-session', '/api/auth/reset-password',
         '/api/auth/verify-email', '/api/auth/verify-email-code', '/api/auth/verify-recovery-code', '/api/auth/resend-verification', '/api/auth/recovery-status', '/api/auth/csrf',
-        '/api/auth/verification-status',
         'recover?', 'token_hash', 'method="PUT"', 'logout?scope=global',
         'CSRF_REJECTED', 'X-CSRF-Token', 'RECOVERY_GRANTS', 'MT_PUBLIC_BASE_URL',
         'normalize_auth_email', 'AUTH_PASSWORD_MIN_LENGTH', 'TERMS_POLICY_VERSION',
         'consume_auth_email_rate_limit', 'consume_auth_otp_rate_limit', 'AUTH_EMAIL_OTP_PATTERN',
-        'EMAIL_CODE_INVALID', 'VERIFICATION_RATE_LIMITED',
+        'RETIRED_REGISTRATION_PAGES', 'RETIRED_REGISTRATION_ENDPOINTS', 'REGISTRATION_CLOSED',
+        'HTTPStatus.GONE', 'STAFF_ONLY', 'def is_staff_authorization(authorization) -> bool:',
+        'self._pending_response_cookies = self.clear_session_cookie_headers()',
         'session_has_auth_method(session, "recovery")', 'request_id',
         'def is_recovery_session(self, user: dict)', 'self.is_recovery_session(user)',
         'RECOVERY_SESSION_TTL_SECONDS',
@@ -71,9 +71,9 @@ def main() -> None:
         'role="status"', 'data-auth-submit',
         'data-auth-open-browser',
         'data-auth-field="password_confirmation"', 'data-auth-forgot-link',
-        'data-auth-resend-link', 'href="/terms.html"', 'href="/privacy.html"',
+        'data-auth-resend-link',
         'data-auth-loading', 'data-auth-next-link', 'tabindex="-1"',
-        'data-auth-field="verification_code"', 'autocomplete="one-time-code"',
+        'autocomplete="one-time-code"',
         'inputmode="numeric"', 'pattern="[0-9]{8}"',
         'data-auth-field="recovery_code"', 'data-field-error="recovery_code"',
         'data-auth-oauth', 'data-auth-google', 'data-auth-provider="google"', 'data-auth-provider="apple"',
@@ -81,6 +81,13 @@ def main() -> None:
         'auth-google-logo', 'fill="#4285F4"', 'fill="#34A853"',
         'fill="#FBBC05"', 'fill="#EA4335"', 'auth-apple-logo',
     }, "auth page")
+    # Public registration is closed; staff accounts are provisioned by an operator.
+    for forbidden in ('/auth/register', 'Create an account', 'data-auth-field="display_name"', 'data-auth-field="terms_accepted"'):
+        if forbidden in auth_html:
+            raise RuntimeError(f"auth page still exposes retired registration UI: {forbidden}")
+    for forbidden in ('register', 'resendVerification', 'verifyEmail', '/api/auth/verify-email-code'):
+        if forbidden in auth_js:
+            raise RuntimeError(f"auth client still contains retired registration flow: {forbidden}")
     form_end = auth_html.index("</form>")
     oauth_start = auth_html.index('class="auth-oauth"')
     divider_start = auth_html.index('class="auth-divider"')
@@ -93,12 +100,10 @@ def main() -> None:
         'aria-invalid', '/api/auth/', 'DEFAULT_AUTH_DESTINATION = "/works.html"', 'result.next_action === "mfa"',
         'authRequest("/api/me")', 'cache: "no-store"', 'Open sign-in in a full browser',
         'safeInternalPath', 'sessionCheck.response.status === 401',
-        'forgotPassword', 'resetPassword', 'verifyEmail', 'callbackParameters',
-        '/api/auth/verification-status',
+        'forgotPassword', 'resetPassword', 'callbackParameters',
         'history.replaceState', 'token_hash', 'refresh_token', 'X-CSRF-Token',
         'If an account exists for this email', 'password_confirmation',
-        'resendVerification', '/api/auth/resend-verification',
-        '/api/auth/verify-email-code', '/api/auth/verify-recovery-code', 'recovery_code', 'pending_email',
+        '/api/auth/verify-recovery-code', 'recovery_code',
         '/auth/oauth/${provider}?next=', 'showOAuthResult', 'oauth_error', 'oauth_provider',
     }, "auth client")
     require(terms_html, {
@@ -157,17 +162,15 @@ def main() -> None:
     }, "Phase 1 incremental deployment")
 
     require(upload_html, {
-        'href="/workspace/images"', 'href="/admin/reviews"', 'src="/upload-studio.js',
+        'href="/workspace/images"', 'href="/admin"', 'src="/upload-studio.js',
     }, "protected Workspace links")
-    require(account_html, {'href="/admin/reviews"'}, "protected Account Review links")
-    protected_review_links = (
-        ("Upload Studio", upload_html, 1),
-        ("Account Settings", account_html, 1),
-    )
-    for label, source, expected_count in protected_review_links:
-        if source.count('href="/admin/reviews"') != expected_count or 'href="/manage.html"' in source:
-            raise RuntimeError(f"{label} must route its protected Review links to /admin/reviews")
-    require(upload_js + manage_js, {'archiveMutationFetch', '/api/auth/csrf', 'X-CSRF-Token'}, "legacy Archive CSRF client")
+    # The review queue and browser editor were retired; staff pages link to /admin.
+    for label, source in (("Upload Studio", upload_html), ("Account Settings", account_html)):
+        if 'href="/admin"' not in source:
+            raise RuntimeError(f"{label} must link back to the staff admin")
+        if 'href="/admin/reviews"' in source or 'href="/manage.html"' in source:
+            raise RuntimeError(f"{label} still links to a retired staff page")
+    require(upload_js, {'archiveMutationFetch', '/api/auth/csrf', 'X-CSRF-Token'}, "Archive CSRF client")
 
     if "retry with a fresh administrator test account" in mfa_js:
         raise RuntimeError("MFA recovery must not strand users on an incomplete TOTP factor")

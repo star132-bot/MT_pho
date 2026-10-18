@@ -249,6 +249,7 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
             sessions = {
                 "member@example.test": ("Member-password-2026!", MEMBER_ACCESS_TOKEN, MEMBER_USER_ID),
                 "admin@example.test": ("Admin-password-2026!", ADMIN_ACCESS_TOKEN, ADMIN_USER_ID),
+                "new.artist@example.test": ("Visitor-password-2026!", SIGNUP_ACCESS_TOKEN, SIGNUP_USER_ID),
             }
             expected = sessions.get(body.get("email"))
             if expected and body.get("password") == expected[0]:
@@ -355,13 +356,15 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
             if authorization == f"Bearer {MEMBER_ACCESS_TOKEN}":
                 self.send_json(
                     HTTPStatus.OK,
-                    {"user_id": MEMBER_USER_ID, "account_status": "active", "roles": ["user"], "aal": "aal1"},
+                    # Only staff hold sessions now; this staff session has
+                    # already passed MFA, which the Admin AAL1 cases cover.
+                    {"user_id": MEMBER_USER_ID, "account_status": "active", "roles": ["admin"], "aal": "aal2"},
                 )
                 return
             if authorization == f"Bearer {MEMBER_AAL2_ACCESS_TOKEN}":
                 self.send_json(
                     HTTPStatus.OK,
-                    {"user_id": MEMBER_USER_ID, "account_status": "active", "roles": ["user"], "aal": "aal2"},
+                    {"user_id": MEMBER_USER_ID, "account_status": "active", "roles": ["admin"], "aal": "aal2"},
                 )
                 return
             if authorization == f"Bearer {ADMIN_ACCESS_TOKEN}":
@@ -370,10 +373,21 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
                     {"user_id": ADMIN_USER_ID, "account_status": "active", "roles": ["admin"], "aal": "aal1"},
                 )
                 return
+            if authorization == f"Bearer {SIGNUP_ACCESS_TOKEN}":
+                self.send_json(
+                    HTTPStatus.OK,
+                    {"user_id": SIGNUP_USER_ID, "account_status": "active", "roles": ["user"], "aal": "aal1"},
+                )
+                return
             if authorization == f"Bearer {GOOGLE_ACCESS_TOKEN}":
                 self.send_json(
                     HTTPStatus.OK,
-                    {"user_id": GOOGLE_USER_ID, "account_status": "active", "roles": ["user"], "aal": "aal1"},
+                    {
+                        "user_id": GOOGLE_USER_ID,
+                        "account_status": "active",
+                        "roles": ["admin"],
+                        "aal": "aal1" if type(self).google_mfa_enabled else "aal2",
+                    },
                 )
                 return
             self.send_json(HTTPStatus.UNAUTHORIZED, {"message": "invalid authorization"})
@@ -802,212 +816,53 @@ def main() -> None:
             raise RuntimeError("Google OAuth AAL1 session did not fail closed behind MFA")
         FakeSupabaseHandler.google_mfa_enabled = False
 
+        # Public registration is closed: the pages send visitors to staff
+        # sign-in and the endpoints answer 410 before reaching the provider.
         registration_opener = CookieOpener()
-        status, result, _ = request(registration_opener, base_url, "/api/auth/csrf")
-        if status != HTTPStatus.OK or not result.get("csrf_token"):
-            raise RuntimeError("Registration could not establish CSRF protection")
-
-        status, result, _ = request(
-            registration_opener,
-            base_url,
+        for retired_page in ("/auth/register", "/auth/resend-verification", "/auth/verify-email"):
+            status, _, headers = request(registration_opener, base_url, retired_page)
+            if status != HTTPStatus.SEE_OTHER or headers.get("Location") != "/auth/sign-in":
+                raise RuntimeError(f"Retired registration page {retired_page} did not redirect to sign-in")
+        registrations_before = len(FakeSupabaseHandler.registrations)
+        resends_before = len(FakeSupabaseHandler.verification_resends)
+        for retired_endpoint in (
             "/api/auth/register",
-            payload={
-                "display_name": "New Artist",
-                "email": "new.artist@example.test",
-                "password": "A-unique-registration-passphrase-2026!",
-                "password_confirmation": "different-password",
-                "terms_accepted": True,
-            },
-            origin=base_url,
-        )
-        if status != HTTPStatus.UNPROCESSABLE_ENTITY or "password_confirmation" not in result.get("error", {}).get("field_errors", {}):
-            raise RuntimeError("Registration accepted mismatched passwords")
-        if FakeSupabaseHandler.registrations:
-            raise RuntimeError("Invalid registration reached the identity provider")
-
-        registration_payload = {
-            "display_name": "New Artist",
-            "email": "new.artist@example.test",
-            "password": "A-unique-registration-passphrase-2026!",
-            "password_confirmation": "A-unique-registration-passphrase-2026!",
-            "terms_accepted": True,
-        }
-        status, result, _ = request(
-            registration_opener,
-            base_url,
-            "/api/auth/register",
-            payload=registration_payload,
-            origin=base_url,
-        )
-        if status != HTTPStatus.CREATED or result.get("status") != "verification_required":
-            raise RuntimeError("Valid email registration did not require verification")
-        provider_registration = FakeSupabaseHandler.registrations[-1]
-        metadata = provider_registration.get("data", {})
-        if provider_registration.get("email") != "new.artist@example.test" or provider_registration.get("password") != registration_payload["password"]:
-            raise RuntimeError("Registration credentials were not normalized for the identity provider")
-        if metadata.get("display_name") != "New Artist" or metadata.get("terms_policy_version") != "2026-08-03" or not metadata.get("terms_accepted_at"):
-            raise RuntimeError("Registration consent metadata was incomplete")
-
-        status, result, _ = request(
-            registration_opener,
-            base_url,
             "/api/auth/resend-verification",
-            payload={"email": "unregistered@example.test"},
-            origin=base_url,
-        )
-        if status != HTTPStatus.ACCEPTED or result.get("status") != "verification_email_requested":
-            raise RuntimeError("Verification resend revealed provider identity state")
-        if FakeSupabaseHandler.verification_resends[-1] != {"type": "signup", "email": "unregistered@example.test"}:
-            raise RuntimeError("Verification resend sent an unexpected provider payload")
-
-        email_endpoints = {
-            "/api/auth/register": "REGISTRATION_RATE_LIMITED",
-            "/api/auth/resend-verification": "VERIFICATION_RATE_LIMITED",
-            "/api/auth/forgot-password": "RECOVERY_RATE_LIMITED",
-        }
-        smtp_detail = "synthetic-smtp.internal: authentication failed for synthetic-sender@example.test"
-        try:
-            for endpoint_number, (endpoint, rate_code) in enumerate(email_endpoints.items()):
-                for provider_status in (
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    HTTPStatus.BAD_GATEWAY,
-                    HTTPStatus.SERVICE_UNAVAILABLE,
-                    HTTPStatus.GATEWAY_TIMEOUT,
-                ):
-                    FakeSupabaseHandler.email_response_override = (
-                        provider_status,
-                        {"error_code": "unexpected_failure", "msg": smtp_detail},
-                    )
-                    email = f"mail-failure-{endpoint_number}-{provider_status}@example.test"
-                    payload = {**registration_payload, "email": email} if endpoint.endswith("register") else {"email": email}
-                    status, result, _ = request(
-                        registration_opener,
-                        base_url,
-                        endpoint,
-                        payload=payload,
-                        origin=base_url,
-                    )
-                    expected_status = (
-                        HTTPStatus.SERVICE_UNAVAILABLE
-                        if provider_status == HTTPStatus.SERVICE_UNAVAILABLE
-                        else HTTPStatus.BAD_GATEWAY
-                    )
-                    message = result.get("error", {}).get("message")
-                    if (
-                        status != expected_status
-                        or result.get("error", {}).get("code") != "AUTH_EMAIL_UNAVAILABLE"
-                        or not isinstance(message, str)
-                        or not message
-                        or "status" in result
-                        or any(detail in json.dumps(result) for detail in (smtp_detail, "synthetic-smtp.internal", "synthetic-sender@example.test"))
-                    ):
-                        raise RuntimeError(f"Email endpoint {endpoint} did not safely report provider status {provider_status}")
-
-                FakeSupabaseHandler.email_response_override = (
-                    HTTPStatus.TOO_MANY_REQUESTS,
-                    {"error_code": "over_email_send_rate_limit", "msg": "Synthetic provider email rate limit"},
-                )
-                email = f"mail-rate-{endpoint_number}@example.test"
-                payload = {**registration_payload, "email": email} if endpoint.endswith("register") else {"email": email}
-                status, result, _ = request(
-                    registration_opener,
-                    base_url,
-                    endpoint,
-                    payload=payload,
-                    origin=base_url,
-                )
-                if status != HTTPStatus.TOO_MANY_REQUESTS or result.get("error", {}).get("code") != rate_code:
-                    raise RuntimeError(f"Email endpoint {endpoint} lost its provider rate-limit response")
-
-            for provider_status, provider_code in (
-                (HTTPStatus.BAD_REQUEST, "email_already_confirmed"),
-                (HTTPStatus.NOT_FOUND, "user_not_found"),
-                (HTTPStatus.UNPROCESSABLE_ENTITY, "identity_not_found"),
-            ):
-                FakeSupabaseHandler.email_response_override = (
-                    provider_status,
-                    {"error_code": provider_code, "msg": "Synthetic private identity detail"},
-                )
-                status, result, _ = request(
-                    registration_opener,
-                    base_url,
-                    "/api/auth/resend-verification",
-                    payload={"email": f"resend-private-{provider_status}@example.test"},
-                    origin=base_url,
-                )
-                if (
-                    status != HTTPStatus.ACCEPTED
-                    or result.get("status") != "verification_email_requested"
-                    or "Synthetic private identity detail" in json.dumps(result)
-                    or provider_code in json.dumps(result)
-                ):
-                    raise RuntimeError("Verification resend exposed private provider identity state")
-        finally:
-            FakeSupabaseHandler.email_response_override = None
-
-        unverified_signin = CookieOpener()
-        request(unverified_signin, base_url, "/api/auth/csrf")
-        try:
-            for error_field in ("error_code", "code"):
-                FakeSupabaseHandler.unverified_signin_error_field = error_field
-                status, result, _ = request(
-                    unverified_signin,
-                    base_url,
-                    "/api/auth/sign-in",
-                    payload={"email": "unverified@example.test", "password": "Synthetic-unverified-password!"},
-                    origin=base_url,
-                )
-                if (
-                    status != HTTPStatus.FORBIDDEN
-                    or result.get("error", {}).get("code") != "EMAIL_NOT_VERIFIED"
-                    or unverified_signin.cookie_value("mt_access_token")
-                    or unverified_signin.cookie_value("mt_refresh_token")
-                ):
-                    raise RuntimeError(f"Unverified email sign-in did not map provider {error_field} without creating a session")
-        finally:
-            FakeSupabaseHandler.unverified_signin_error_field = "error_code"
-
-        status, result, _ = request(
-            registration_opener,
-            base_url,
-            "/api/auth/verify-email-code",
-            payload={"email": "new.artist@example.test", "verification_code": "12A456"},
-            origin=base_url,
-        )
-        if status != HTTPStatus.UNPROCESSABLE_ENTITY or "verification_code" not in result.get("error", {}).get("field_errors", {}):
-            raise RuntimeError("Email verification accepted a malformed code")
-
-        status, result, _ = request(
-            registration_opener,
-            base_url,
-            "/api/auth/verify-email-code",
-            payload={"email": "new.artist@example.test", "verification_code": "48273106"},
-            origin=base_url,
-        )
-        if (
-            status != HTTPStatus.OK
-            or result.get("verified") is not True
-            or result.get("type") != "email"
-            or result.get("user", {}).get("email") != "new.artist@example.test"
-        ):
-            raise RuntimeError("Email verification code did not establish a session")
-        if not registration_opener.cookie_value("mt_access_token") or not registration_opener.cookie_value("mt_refresh_token"):
-            raise RuntimeError("Email verification code did not issue application cookies")
-
-        status, result, _ = request(
-            registration_opener,
-            base_url,
             "/api/auth/verify-email",
-            payload={"type": "signup", "token_hash": "valid-signup-token-hash"},
+            "/api/auth/verify-email-code",
+        ):
+            status, result, _ = request(
+                registration_opener,
+                base_url,
+                retired_endpoint,
+                payload={"email": "visitor@example.test"},
+                origin=base_url,
+            )
+            if status != HTTPStatus.GONE or result.get("error", {}).get("code") != "REGISTRATION_CLOSED":
+                raise RuntimeError(f"Retired registration endpoint {retired_endpoint} is still active")
+        if (
+            len(FakeSupabaseHandler.registrations) != registrations_before
+            or len(FakeSupabaseHandler.verification_resends) != resends_before
+        ):
+            raise RuntimeError("A retired registration endpoint reached the identity provider")
+
+        # A former public account still exists at the provider but may not sign in.
+        visitor_opener = CookieOpener()
+        request(visitor_opener, base_url, "/api/auth/csrf")
+        logouts_before = len(FakeSupabaseHandler.logout_scopes)
+        status, result, _ = request(
+            visitor_opener,
+            base_url,
+            "/api/auth/sign-in",
+            payload={"email": "new.artist@example.test", "password": "Visitor-password-2026!"},
             origin=base_url,
         )
-        if status != HTTPStatus.OK or result.get("verified") is not True:
-            raise RuntimeError("Signup verification token did not establish a session")
-        if not registration_opener.cookie_value("mt_access_token") or not registration_opener.cookie_value("mt_refresh_token"):
-            raise RuntimeError("Signup verification did not issue application cookies")
-        status, result, _ = request(registration_opener, base_url, "/api/auth/verification-status")
-        if status != HTTPStatus.OK or result.get("email_verified") is not True:
-            raise RuntimeError("Verified registration status was not available")
+        if status != HTTPStatus.FORBIDDEN or result.get("error", {}).get("code") != "STAFF_ONLY":
+            raise RuntimeError("A non-staff account could sign in")
+        if FakeSupabaseHandler.logout_scopes[logouts_before:] != ["local"]:
+            raise RuntimeError("A refused non-staff sign-in left its provider session active")
+        if visitor_opener.cookie_value("mt_access_token") or visitor_opener.cookie_value("mt_refresh_token"):
+            raise RuntimeError("A refused non-staff sign-in issued application session cookies")
 
         status, result, _ = request(
             opener,
@@ -1160,7 +1015,7 @@ def main() -> None:
         status, result, _ = request(member_opener, base_url, "/api/me/profile")
         if status != HTTPStatus.OK or result.get("profile", {}).get("display_name") != "MT Member":
             raise RuntimeError("Member profile could not be loaded through the account boundary")
-        if result.get("account", {}).get("roles") != ["user"]:
+        if result.get("account", {}).get("roles") != ["admin"]:
             raise RuntimeError("Account response did not preserve server-derived roles")
 
         status, result, _ = request(
@@ -1209,8 +1064,12 @@ def main() -> None:
             raise RuntimeError("Session capabilities overstated provider support")
 
         status, result, _ = request(member_opener, base_url, "/api/auth/mfa/status")
-        if status != HTTPStatus.OK or result.get("mfa", {}).get("enabled") is not False:
-            raise RuntimeError("Member MFA status did not start disabled")
+        if (
+            status != HTTPStatus.OK
+            or result.get("mfa", {}).get("enabled") is not False
+            or result.get("mfa", {}).get("mandatory") is not True
+        ):
+            raise RuntimeError("Staff MFA status did not start unenrolled and mandatory")
         status, result, _ = request(
             member_opener,
             base_url,
@@ -1269,62 +1128,13 @@ def main() -> None:
             status != HTTPStatus.OK
             or member_mfa.get("enabled") is not True
             or member_mfa.get("aal") != "aal2"
-            or member_mfa.get("can_disable") is not True
+            or member_mfa.get("can_disable") is not False
         ):
-            raise RuntimeError("Verified member authenticator status was incomplete")
+            raise RuntimeError("Verified staff authenticator status was incomplete or disableable")
 
-        mfa_login_opener = CookieOpener()
-        request(mfa_login_opener, base_url, "/api/auth/csrf")
+        # Staff accounts can never turn MFA off, even from an AAL2 session.
         status, result, _ = request(
-            mfa_login_opener,
-            base_url,
-            "/api/auth/sign-in",
-            payload={"email": "member@example.test", "password": "Member-password-2026!"},
-            origin=base_url,
-        )
-        if status != HTTPStatus.OK or result.get("next_action") != "mfa":
-            raise RuntimeError("Password sign-in bypassed an enabled member authenticator")
-        status, _, headers = request(mfa_login_opener, base_url, "/workspace/images")
-        mfa_route = urlparse(headers.get("Location", ""))
-        if status != HTTPStatus.SEE_OTHER or mfa_route.path != "/auth/mfa":
-            raise RuntimeError("Enabled member MFA did not guard the Workspace route")
-        status, result, _ = request(mfa_login_opener, base_url, "/api/me/profile")
-        if status != HTTPStatus.FORBIDDEN or result.get("error", {}).get("code") != "MFA_REQUIRED":
-            raise RuntimeError("Enabled member MFA did not guard protected APIs")
-        status, result, _ = request(
-            mfa_login_opener,
-            base_url,
-            "/api/auth/mfa",
-            payload={"confirmation": "disable-mfa"},
-            origin=base_url,
-            method="DELETE",
-        )
-        if status != HTTPStatus.FORBIDDEN or result.get("error", {}).get("code") != "MFA_REQUIRED":
-            raise RuntimeError("AAL1 session could disable member MFA")
-        status, result, _ = request(
-            mfa_login_opener,
-            base_url,
-            "/api/auth/mfa/challenge",
-            payload={"factor_id": MEMBER_MFA_FACTOR_ID},
-            origin=base_url,
-        )
-        if status != HTTPStatus.OK:
-            raise RuntimeError("Returning member could not challenge the saved authenticator")
-        status, result, _ = request(
-            mfa_login_opener,
-            base_url,
-            "/api/auth/mfa/verify",
-            payload={
-                "factor_id": MEMBER_MFA_FACTOR_ID,
-                "challenge_id": result.get("id"),
-                "code": "123456",
-            },
-            origin=base_url,
-        )
-        if status != HTTPStatus.OK or mfa_login_opener.cookie_value("mt_access_token") != MEMBER_AAL2_ACCESS_TOKEN:
-            raise RuntimeError("Returning member could not complete authenticator verification")
-        status, result, _ = request(
-            mfa_login_opener,
+            member_opener,
             base_url,
             "/api/auth/mfa",
             payload={"confirmation": "disable-mfa"},
@@ -1332,25 +1142,11 @@ def main() -> None:
             method="DELETE",
         )
         if (
-            status != HTTPStatus.OK
-            or result.get("disabled") is not True
-            or result.get("other_sessions_revoked") is not True
-            or result.get("mfa", {}).get("enabled") is not False
-            or FakeSupabaseHandler.member_mfa_state != "off"
+            status != HTTPStatus.FORBIDDEN
+            or result.get("error", {}).get("code") != "MFA_MANDATORY"
+            or FakeSupabaseHandler.member_mfa_state != "verified"
         ):
-            raise RuntimeError("Verified member could not safely disable MFA")
-
-        post_disable_opener = CookieOpener()
-        request(post_disable_opener, base_url, "/api/auth/csrf")
-        status, result, _ = request(
-            post_disable_opener,
-            base_url,
-            "/api/auth/sign-in",
-            payload={"email": "member@example.test", "password": "Member-password-2026!"},
-            origin=base_url,
-        )
-        if status != HTTPStatus.OK or result.get("next_action") != "workspace":
-            raise RuntimeError("Disabled member MFA continued to force authenticator verification")
+            raise RuntimeError("A staff account could disable its mandatory MFA")
 
         status, result, _ = request(
             member_opener,

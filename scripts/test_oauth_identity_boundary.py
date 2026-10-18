@@ -131,7 +131,7 @@ class FakeIdentityHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/rest/v1/rpc/current_authorization" and token in {MEMBER_TOKEN, APPLE_TOKEN}:
             user_id = MEMBER_ID if token == MEMBER_TOKEN else OTHER_ID
-            self.send_json(HTTPStatus.OK, {"user_id": user_id, "account_status": "active", "roles": ["user"], "aal": "aal1"})
+            self.send_json(HTTPStatus.OK, {"user_id": user_id, "account_status": "active", "roles": ["admin"], "aal": "aal2"})
             return
         self.send_json(HTTPStatus.UNAUTHORIZED, {"message": "invalid token"})
 
@@ -140,7 +140,7 @@ class FakeIdentityHandler(BaseHTTPRequestHandler):
         token = (self.headers.get("Authorization") or "").removeprefix("Bearer ")
         if parsed.path == "/rest/v1/rpc/current_authorization" and token in {MEMBER_TOKEN, APPLE_TOKEN}:
             user_id = MEMBER_ID if token == MEMBER_TOKEN else OTHER_ID
-            self.send_json(HTTPStatus.OK, {"user_id": user_id, "account_status": "active", "roles": ["user"], "aal": "aal1"})
+            self.send_json(HTTPStatus.OK, {"user_id": user_id, "account_status": "active", "roles": ["admin"], "aal": "aal2"})
             return
         if parsed.path == "/auth/v1/token" and parse_qs(parsed.query).get("grant_type") == ["password"]:
             self.send_json(HTTPStatus.OK, {

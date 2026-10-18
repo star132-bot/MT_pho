@@ -40,8 +40,8 @@ AVATAR_JPEG = b"\xff\xd8mt-avatar-boundary\xff\xd9"
 def fake_access_token() -> str:
     now = int(time.time())
     claims = {
-        "aal": "aal1",
-        "amr": [{"method": "password"}],
+        "aal": "aal2",
+        "amr": [{"method": "password"}, {"method": "totp"}],
         "session_id": "85000000-0000-4000-8000-000000000001",
         "iat": now - 10,
         "exp": now + 3600,
@@ -223,6 +223,7 @@ def profile_cover_payload() -> dict:
 
 class FakeSupabaseHandler(BaseHTTPRequestHandler):
     dashboard = dashboard_payload()
+    roles = ("admin",)
     profile = profile_payload()
     profile_cover = profile_cover_payload()
     rpc_calls: list[str] = []
@@ -378,8 +379,8 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
             self.send_json(HTTPStatus.OK, {
                 "user_id": USER_ID,
                 "account_status": "active",
-                "roles": ["user"],
-                "aal": "aal1",
+                "roles": list(type(self).roles),
+                "aal": "aal2",
             })
             return
         if self.path == "/rest/v1/rpc/get_my_dashboard":
@@ -755,15 +756,14 @@ def main() -> None:
             "height": 512,
         }
         anonymous = CookieOpener()
-        status, _, headers = request(anonymous, base_url, "/dashboard")
-        if status != HTTPStatus.SEE_OTHER or headers.get("Location") != "/auth/sign-in?next=%2Fdashboard":
-            raise RuntimeError("Anonymous Dashboard route did not preserve the canonical return path")
-        status, _, headers = request(anonymous, base_url, "/dashboard.html")
-        if status != HTTPStatus.SEE_OTHER or headers.get("Location") != "/dashboard":
-            raise RuntimeError("Direct Dashboard HTML route did not canonicalize")
+        # The personal Dashboard was retired with public accounts.
+        for retired in ("/dashboard", "/dashboard.html"):
+            status, _, headers = request(anonymous, base_url, retired)
+            if status != HTTPStatus.MOVED_PERMANENTLY or headers.get("Location") != "/admin":
+                raise RuntimeError(f"Retired Dashboard route {retired} did not redirect to the staff admin")
         status, result, _ = request(anonymous, base_url, "/api/dashboard")
-        if status != HTTPStatus.UNAUTHORIZED or result.get("error", {}).get("code") != "AUTH_REQUIRED":
-            raise RuntimeError("Anonymous Dashboard API request was not rejected")
+        if status != HTTPStatus.NOT_FOUND:
+            raise RuntimeError("Retired Dashboard API is still served")
         status, result, _ = request(anonymous, base_url, "/api/me/profile/cover")
         if status != HTTPStatus.UNAUTHORIZED or result.get("error", {}).get("code") != "AUTH_REQUIRED":
             raise RuntimeError("Anonymous profile cover request was not rejected")
@@ -787,17 +787,8 @@ def main() -> None:
         member = CookieOpener()
         sign_in(member, base_url)
         status, _, headers = request(member, base_url, "/workspace")
-        if status != HTTPStatus.SEE_OTHER or headers.get("Location") != "/dashboard":
-            raise RuntimeError("Legacy Workspace root did not canonicalize to Dashboard")
-        status, page, _ = request(member, base_url, "/dashboard")
-        if (
-            status != HTTPStatus.OK
-            or 'data-dashboard-status-grid' not in page
-            or 'src="/account-menu.js' not in page
-            or 'data-dashboard-cover-open' not in page
-            or 'href="/settings/account#profile">Edit profile</a>' not in page
-        ):
-            raise RuntimeError("Protected Dashboard page did not serve its complete UI shell")
+        if status != HTTPStatus.SEE_OTHER or headers.get("Location") != "/workspace/images":
+            raise RuntimeError("Legacy Workspace root did not canonicalize to the staff upload workspace")
 
         status, profile, _ = request(member, base_url, "/api/me/profile")
         creator = profile.get("profile", {})
@@ -998,7 +989,7 @@ def main() -> None:
         if status != HTTPStatus.OK or fallback_profile_payload.get("profile", {}).get("avatar_url") is not None:
             raise RuntimeError("Removed profile avatar remained visible through the profile endpoint")
         assert_private_fields_absent(fallback_profile_payload)
-        status, fallback_page, _ = request(member, base_url, "/dashboard")
+        status, fallback_page, _ = request(member, base_url, "/settings/account")
         if (
             status != HTTPStatus.OK
             or '"initials":"DM"' not in fallback_page
@@ -1140,43 +1131,17 @@ def main() -> None:
         if status != HTTPStatus.OK or result != {"cover": None, "saved": True}:
             raise RuntimeError("Profile cover could not be cleared")
 
-        FakeSupabaseHandler.rpc_calls = []
-        FakeSupabaseHandler.storage_calls = []
-        status, payload, _ = request(member, base_url, "/api/dashboard")
-        if status != HTTPStatus.OK:
-            raise RuntimeError(f"Dashboard aggregate endpoint failed with {status}")
-        expected_keys = {
-            "status_counts", "needs_attention", "recent_images", "drafts",
-            "review_activity", "storage_usage", "capabilities", "generated_at",
-        }
-        if set(payload) != expected_keys or payload["status_counts"]["drafts"] != 1:
-            raise RuntimeError("Dashboard endpoint did not project the stable aggregate DTO")
-        if payload["review_activity"][0].get("decision") != "quarantine":
-            raise RuntimeError("Dashboard rejected a valid review activity decision")
-        recent = payload["recent_images"][0]
-        if set(recent) != {
-            "id", "title", "original_filename", "processing_status", "workflow_status",
-            "publication_status", "updated_at", "thumbnail",
-        } or not recent.get("thumbnail", {}).get("signed_url"):
-            raise RuntimeError("Dashboard image preview was not projected and signed")
-        if len(FakeSupabaseHandler.rpc_calls) != 1 or len(FakeSupabaseHandler.storage_calls) != 1:
-            raise RuntimeError("Dashboard did not use one aggregate RPC and one cached thumbnail signature")
-        assert_private_fields_absent(payload)
-
-        invalid = dashboard_payload()
-        invalid["status_counts"]["drafts"] = -1
-        FakeSupabaseHandler.dashboard = invalid
-        status, result, _ = request(member, base_url, "/api/dashboard")
-        if status != HTTPStatus.BAD_GATEWAY or result.get("error", {}).get("code") != "DASHBOARD_PROVIDER_FAILED":
-            raise RuntimeError("Dashboard accepted an invalid provider aggregate")
-
-        wrong_owner = dashboard_payload()
-        for section in ("recent_images", "drafts"):
-            wrong_owner[section][0]["thumbnail_asset"]["storage_key"] = f"00000000-0000-4000-8000-000000000099/{IMAGE_ID}/thumbnail.jpg"
-        FakeSupabaseHandler.dashboard = wrong_owner
-        status, result, _ = request(member, base_url, "/api/dashboard")
-        if status != HTTPStatus.BAD_GATEWAY or result.get("error", {}).get("code") != "DASHBOARD_ASSET_UNAVAILABLE":
-            raise RuntimeError("Dashboard attempted to sign a provider asset outside the account prefix")
+        # A session left over from a retired public (non-staff) account is
+        # refused and its cookies are cleared.
+        FakeSupabaseHandler.roles = ("user",)
+        status, result, headers = request(member, base_url, "/api/me/profile")
+        if status != HTTPStatus.FORBIDDEN or result.get("error", {}).get("code") != "STAFF_ONLY":
+            raise RuntimeError(f"A non-staff session still reached the account profile: {status} {result}")
+        status, result, _ = request(member, base_url, "/api/me/profile")
+        if status != HTTPStatus.UNAUTHORIZED or result.get("error", {}).get("code") != "AUTH_REQUIRED":
+            raise RuntimeError("The refused non-staff session cookies were not cleared")
+        FakeSupabaseHandler.roles = ("admin",)
+        sign_in(member, base_url)
 
         status, result, _ = request(
             member,
@@ -1199,11 +1164,11 @@ def main() -> None:
         )
         if status != HTTPStatus.OK or result.get("signed_out") is not True or FakeSupabaseHandler.logout_calls != 1:
             raise RuntimeError("CSRF-protected account sign out did not revoke the provider session")
-        status, result, _ = request(member, base_url, "/api/dashboard")
+        status, result, _ = request(member, base_url, "/api/me/profile")
         if status != HTTPStatus.UNAUTHORIZED or result.get("error", {}).get("code") != "AUTH_REQUIRED":
-            raise RuntimeError("Account sign out did not clear the Dashboard session cookies")
+            raise RuntimeError("Account sign out did not clear the session cookies")
 
-        print("User Dashboard HTTP boundary checks passed.")
+        print("Staff account profile HTTP boundary checks passed.")
     finally:
         app_server.shutdown()
         app_server.server_close()

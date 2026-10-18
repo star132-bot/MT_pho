@@ -35,10 +35,8 @@ static_validators=(
   scripts/validate_workspace_asset_scanner.py
   scripts/validate_review_queue_phase3.py
   scripts/validate_public_delivery.py
-  scripts/validate_user_dashboard.py
   scripts/validate_profile_avatar.py
   scripts/validate_admin_works.py
-  scripts/validate_admin_users.py
   scripts/validate_communications_audit.py
   scripts/validate_interaction_integrity.py
   scripts/validate_production_deployment.py
@@ -46,29 +44,23 @@ static_validators=(
 )
 
 browser_scripts=(
+  i18n.js
   global-header.js
   auth.js
   mfa.js
   account-settings.js
   upload-studio.js
-  admin-reviews.js
   admin-works.js
-  admin-users.js
   admin-audit.js
-  dashboard.js
   account-menu.js
   site-footer.js
   public-navigation.js
   archive.js
   public-archive.js
-  lightbox.js
   about.js
   work-detail.js
   contact.js
-  notifications.js
   inbox.js
-  creator.js
-  manage.js
   script.js
 )
 
@@ -79,11 +71,9 @@ boundary_tests=(
   scripts/test_workspace_phase2_boundary.py
   scripts/test_configure_development_scanner.py
   scripts/test_workspace_asset_scanner.py
-  scripts/test_review_queue_boundary.py
   scripts/test_public_delivery_boundary.py
   scripts/test_user_dashboard_boundary.py
   scripts/test_admin_works_boundary.py
-  scripts/test_admin_users_boundary.py
   scripts/test_communications_audit_boundary.py
   scripts/test_inquiry_notification.py
   scripts/test_public_works_cache.py
@@ -98,8 +88,8 @@ production_tests=(
 )
 
 credentialed_browser_tests=(
+  scripts/credentialed_browser_support.py
   scripts/test_profile_avatar_browser.py
-  scripts/test_review_queue_browser.py
 )
 
 run_group "Python syntax" python3 -m py_compile \
@@ -118,7 +108,6 @@ run_group "Python syntax" python3 -m py_compile \
   scripts/test_health_monitor.py \
   scripts/verify_production.py \
   scripts/test_workspace_trash_browser.py \
-  scripts/test_review_batch_browser.py \
   scripts/test_public_browser.py \
   "${static_validators[@]}" \
   "${boundary_tests[@]}" \
@@ -148,6 +137,7 @@ for script in "${browser_scripts[@]}"; do
 done
 run_group "Public interaction state" node scripts/test_public_interaction_state.js
 run_group "Authentication destination boundary" node scripts/test_auth_destination.js
+run_group "Visitor language switch" node scripts/test_i18n.js
 
 for test_file in "${boundary_tests[@]}"; do
   if [[ "$test_file" == "scripts/test_workspace_asset_scanner.py" ]]; then

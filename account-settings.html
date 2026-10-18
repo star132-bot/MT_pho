@@ -6,7 +6,7 @@
     <title>Account Settings | MT Presence</title>
     <meta name="description" content="Manage your MT Presence profile, authorship preferences, and secure sessions." />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css?v=20261002-public-recovery" />
+    <link rel="stylesheet" href="/styles.css?v=20261018-i18n" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
     <template id="mt-enabled-oauth-providers" data-enabled-oauth-providers>google,apple</template>
   </head>
@@ -36,16 +36,16 @@
     </svg>
 
     <header class="site-header account-settings-header" aria-label="Workspace navigation">
-      <a class="brand-mark" href="/dashboard" aria-label="Open Dashboard">
+      <a class="brand-mark" href="/admin" aria-label="Open the staff admin">
         <span>MT</span>
         <span>Artist Workspace</span>
       </a>
-      <nav class="site-nav" aria-label="Workspace navigation">
-        <a href="/dashboard">Dashboard</a>
+      <nav class="site-nav" aria-label="Staff navigation">
+        <a href="/admin">Admin</a>
         <a href="/workspace/images">Upload</a>
-        <a href="/admin/reviews" data-review-nav hidden>Review</a>
-        <a href="/admin/works" data-governance-nav hidden>Governance</a>
-        <a href="/admin/users" data-users-nav hidden>Users</a>
+        <a href="/admin/works">Works</a>
+        <a href="/inbox">Inquiries</a>
+        <a href="/">Website</a>
       </nav>
       <div class="header-identity-slot" data-header-identity-slot></div>
     </header>
@@ -56,13 +56,13 @@
           <p class="section-kicker">Personal Account</p>
           <h1>Edit profile</h1>
           <p>Update your creator identity, professional details, and account access.</p>
-          <a class="account-return-profile" href="/dashboard">
+          <a class="account-return-profile" href="/admin">
             <svg class="ui-icon" aria-hidden="true"><use href="#icon-arrow-left"></use></svg>
-            Return to profile
+            Return to admin
           </a>
         </div>
         <div class="account-identity-summary" data-account-summary hidden>
-          <a class="account-avatar" href="/dashboard" aria-label="Return to personal profile" data-account-avatar-visual>
+          <a class="account-avatar" href="/admin" aria-label="Return to the staff admin" data-account-avatar-visual>
             <span data-account-initials>MT</span>
             <img alt="" decoding="async" data-account-avatar-image hidden />
           </a>
@@ -464,8 +464,8 @@
       </form>
     </dialog>
 
-    <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
-    <script src="/account-menu.js?v=20260730-auth-gate"></script>
+    <script src="/site-footer.js?v=20261018-staff-only"></script>
+    <script src="/account-menu.js?v=20261018-staff-admin"></script>
     <script src="/account-settings.js?v=20260810-optional-mfa"></script>
   </body>
 </html>

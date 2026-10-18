@@ -9,7 +9,7 @@
       content="A secure workspace for importing images, organizing folders, and editing private MT Presence Drafts."
     />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css?v=20261002-public-recovery" />
+    <link rel="stylesheet" href="/styles.css?v=20261018-i18n" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="upload-studio-page">
@@ -101,9 +101,9 @@
     <aside class="archive-rail upload-studio-rail" aria-label="Artist workspace navigation">
       <a class="archive-rail-brand" href="/" aria-label="Back to MT Presence home">MT</a>
       <nav class="archive-rail-nav" aria-label="Publishing workflow navigation">
-        <a class="archive-rail-button" href="/dashboard" aria-label="Dashboard">
+        <a class="archive-rail-button" href="/admin" aria-label="Admin">
           <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-home"></use></svg>
-          <span class="archive-rail-copy">Dashboard</span>
+          <span class="archive-rail-copy">Admin</span>
         </a>
         <a class="archive-rail-button" href="/works.html" aria-label="Works Archive">
           <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-photo"></use></svg>
@@ -127,16 +127,16 @@
     </aside>
 
     <header class="site-header upload-studio-header" aria-label="Artist workspace navigation">
-      <a class="brand-mark" href="/dashboard" aria-label="Open Dashboard">
+      <a class="brand-mark" href="/admin" aria-label="Open the staff admin">
         <span>MT</span>
         <span>Artist Workspace</span>
       </a>
-      <nav class="site-nav" aria-label="Workflow navigation">
-        <a href="/dashboard">Dashboard</a>
-        <a href="/works.html">Works</a>
-        <a href="/admin/reviews" data-review-nav hidden>Review</a>
-        <a href="/admin/works" data-governance-nav hidden>Governance</a>
-        <a href="/admin/users" data-users-nav hidden>Users</a>
+      <nav class="site-nav" aria-label="Staff navigation">
+        <a href="/admin">Admin</a>
+        <a href="/workspace/images" aria-current="page">Upload</a>
+        <a href="/admin/works">Works</a>
+        <a href="/inbox">Inquiries</a>
+        <a href="/">Website</a>
       </nav>
       <div class="header-identity-slot" data-header-identity-slot></div>
     </header>
@@ -232,7 +232,7 @@
               <strong>Batch submission</strong>
               <span>Checks every Draft in this folder and submits only the ones whose metadata and security scan are ready.</span>
             </div>
-            <button type="button" data-studio-submit-ready disabled>Check &amp; submit ready</button>
+            <button type="button" data-studio-submit-ready disabled>Check &amp; publish ready</button>
           </div>
 
           <div class="upload-studio-queue" data-studio-queue aria-live="polite">
@@ -273,47 +273,43 @@
                   <input id="studio-title" name="title" type="text" maxlength="180" />
                 </label>
 
+                <label class="form-field" for="studio-type">
+                  <span>Series</span>
+                  <select id="studio-type" name="content_type">
+                    <option value="concrete">此间留彩 · Colour</option>
+                    <option value="abstract">此间留灰 · Grey</option>
+                  </select>
+                </label>
+
                 <label class="form-field" for="studio-folder">
                   <span>Folder</span>
                   <select id="studio-folder" name="folder_id" data-folder-select></select>
                 </label>
 
-                <label class="form-field" for="studio-captured">
-                  <span>Captured</span>
-                  <input id="studio-captured" name="captured_at" type="date" />
-                </label>
-
-                <label class="form-field" for="studio-location">
-                  <span>Location Name</span>
-                  <input id="studio-location" name="location_name" type="text" maxlength="500" />
-                </label>
-
-                <label class="form-field" for="studio-type">
-                  <span>Content Category</span>
-                  <select id="studio-type" name="content_type">
-                    <option value="concrete">Concrete</option>
-                    <option value="abstract">Abstract</option>
-                  </select>
-                </label>
-
                 <label class="form-field upload-studio-span" for="studio-note">
-                  <span>Caption</span>
+                  <span>Introduction</span>
                   <textarea id="studio-note" name="curatorial_note" rows="3" maxlength="500"></textarea>
-                </label>
-
-                <label class="form-field upload-studio-span" for="studio-description">
-                  <span>Description</span>
-                  <textarea id="studio-description" name="description" rows="4" maxlength="10000"></textarea>
                 </label>
 
                 <label class="form-field upload-studio-span" for="studio-tags">
                   <span>Tags</span>
                   <textarea id="studio-tags" name="tags" rows="3" maxlength="1000"></textarea>
                 </label>
+
+                <p class="upload-studio-rights-note upload-studio-span">Uploading confirms that you own the rights to this photograph. 上传即表示你拥有该作品的版权。</p>
               </div>
             </section>
 
-            <section class="upload-studio-field-group" aria-labelledby="studio-rights-heading">
+            <!-- Readiness fields that describe the owner's own photography. They
+                 are filled automatically (see staffUploadDefaults in
+                 upload-studio.js) and kept out of view. -->
+            <div hidden data-studio-hidden-fields>
+              <input name="captured_at" type="hidden" />
+              <input name="location_name" type="hidden" />
+              <textarea name="description" hidden></textarea>
+            </div>
+
+            <section class="upload-studio-field-group" aria-labelledby="studio-rights-heading" hidden>
               <h3 id="studio-rights-heading">Accessibility, rights & disclosures</h3>
               <div class="upload-studio-fields">
                 <label class="form-field upload-studio-span" for="studio-alt-text">
@@ -440,7 +436,7 @@
                   <svg class="ui-icon" aria-hidden="true" focusable="false">
                     <use href="#icon-arrow-right"></use>
                   </svg>
-                  <span data-studio-submit-label>Submit for Review</span>
+                  <span data-studio-submit-label>Publish</span>
                 </button>
               </div>
             </div>
@@ -460,16 +456,16 @@
             <svg class="ui-icon"><use href="#icon-check"></use></svg>
           </span>
           <div>
-            <p>Ready for review</p>
-            <h2 id="studio-submit-dialog-title" data-studio-submit-dialog-title>Submit this Draft?</h2>
+            <p>Ready to publish</p>
+            <h2 id="studio-submit-dialog-title" data-studio-submit-dialog-title>Publish this Draft?</h2>
           </div>
         </header>
-        <p id="studio-submit-dialog-description" data-studio-submit-dialog-description>The saved version will be locked and added to the review queue.</p>
+        <p id="studio-submit-dialog-description" data-studio-submit-dialog-description>The saved version is published to the website straight away.</p>
         <div class="upload-studio-confirm-actions">
           <button class="upload-studio-secondary" type="submit" value="cancel">Cancel</button>
           <button class="upload-studio-submit" type="submit" value="confirm" data-studio-submit-dialog-confirm>
             <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-arrow-right"></use></svg>
-            <span data-studio-submit-dialog-label>Submit for Review</span>
+            <span data-studio-submit-dialog-label>Publish</span>
           </button>
         </div>
       </form>
@@ -487,82 +483,49 @@
             <h2 id="quick-upload-title">Quick Upload</h2>
           </div>
           </header>
-          <p id="quick-upload-description">These declarations are applied to every selected image. Titles come from filenames and alt text uses the title template; each Draft remains editable.</p>
+          <p id="quick-upload-description">Choose the series for every selected image. Titles come from filenames; each Draft remains editable.</p>
           <div class="upload-studio-quick-fields">
-          <label class="form-field">
-            <span>Copyright Holder</span>
-            <input name="copyright_holder" type="text" maxlength="160" autocomplete="name" required />
-          </label>
-          <label class="form-field">
-            <span>Copyright Year</span>
-            <input name="copyright_year" type="number" min="1000" inputmode="numeric" required />
-          </label>
           <label class="form-field upload-studio-span">
-            <span>Content Category</span>
+            <span>Series</span>
             <select name="content_category" required>
-              <option value="auto">Auto from filename</option>
-              <option value="concrete">Concrete</option>
-              <option value="abstract">Abstract</option>
+              <option value="concrete">此间留彩 · Colour</option>
+              <option value="abstract">此间留灰 · Grey</option>
             </select>
           </label>
           <label class="form-field upload-studio-span">
-            <span>Alt Text Template</span>
-            <input name="alt_text_template" type="text" maxlength="500" value="Photograph titled “{title}”." required />
-            <small>Use {title} to insert each filename-based title.</small>
-          </label>
-          <label class="form-field upload-studio-span">
             <span>Shared Tags <small>Optional</small></span>
-            <input name="tags" type="text" maxlength="1000" placeholder="landscape, archive, 2026" />
+            <input name="tags" type="text" maxlength="1000" placeholder="landscape, birds, 2026" />
           </label>
-          <label class="form-field upload-studio-span">
-            <span>Shared Location <small>Optional</small></span>
+          <label class="upload-studio-check upload-studio-span">
+            <input name="rights_declared" type="checkbox" required />
+            <span>I confirm that I own the rights to every selected photograph. 我确认拥有所有选中作品的版权。</span>
+          </label>
+          <!-- Declarations about the owner's own photography; prefilled when the
+               dialog opens and kept out of view. -->
+          <div hidden data-quick-hidden-fields>
+            <input name="copyright_holder" type="text" maxlength="160" required />
+            <input name="copyright_year" type="number" min="1000" required />
+            <input name="alt_text_template" type="text" maxlength="500" value="Photograph titled “{title}”." required />
             <input name="location_name" type="text" maxlength="500" />
-          </label>
-          <label class="form-field">
-            <span>Recognizable People</span>
             <select name="contains_recognizable_people" data-quick-recognizable-people required>
               <option value="false">No</option>
               <option value="true">Yes</option>
             </select>
-          </label>
-          <label class="form-field" data-quick-model-release hidden>
-            <span>Model Release</span>
             <select name="model_release_status">
               <option value="available">Available</option>
-              <option value="pending">Pending</option>
-              <option value="not_available">Not Available</option>
             </select>
-          </label>
-          <label class="form-field">
-            <span>Property Release</span>
             <select name="property_release_status" required>
               <option value="not_applicable">Not Applicable</option>
-              <option value="available">Available</option>
-              <option value="pending">Pending</option>
-              <option value="not_available">Not Available</option>
             </select>
-          </label>
-          <label class="form-field">
-            <span>AI Disclosure</span>
             <select name="ai_disclosure" required>
               <option value="none">No AI Generation or Editing</option>
-              <option value="ai_edited">AI Edited</option>
-              <option value="ai_generated">AI Generated</option>
             </select>
-          </label>
-          <label class="form-field">
-            <span>Sensitive Content</span>
             <select name="sensitive_content_disclosure" required>
               <option value="none">None</option>
-              <option value="contains_sensitive_content">Contains Sensitive Content</option>
             </select>
-          </label>
-          <label class="upload-studio-check upload-studio-span">
-            <input name="rights_declared" type="checkbox" required />
-            <span>I confirm that I own or control the required rights for every selected image.</span>
-          </label>
           </div>
-          <p class="upload-studio-quick-note">Quick Upload does not bypass private storage, malware scanning, submission readiness, review, or publication audit.</p>
+          </div>
+          <p class="upload-studio-quick-note">Uploads still go through private storage and malware scanning before they can be published.</p>
         </div>
         <div class="upload-studio-confirm-actions">
           <button class="upload-studio-secondary" type="button" data-quick-upload-cancel>Cancel</button>
@@ -576,8 +539,8 @@
 
     <script src="/archive-data.js?v=20260610-works-viewer-editor"></script>
     <script src="/archive-upload.js?v=20260610-works-viewer-editor"></script>
-    <script src="/site-footer.js?v=20260723-interaction-integrity-2"></script>
-    <script src="/account-menu.js?v=20260730-auth-gate"></script>
-    <script src="/upload-studio.js?v=20260729-quick-upload"></script>
+    <script src="/site-footer.js?v=20261018-staff-only"></script>
+    <script src="/account-menu.js?v=20261018-staff-admin"></script>
+    <script src="/upload-studio.js?v=20261018-staff-admin"></script>
   </body>
 </html>

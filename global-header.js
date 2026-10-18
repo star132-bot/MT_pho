@@ -2,14 +2,20 @@
   const header = document.querySelector("[data-global-header]");
   if (!header || header.dataset.globalHeaderReady === "true") return;
 
-  const identitySlot = header.querySelector("[data-header-identity-slot]");
-  if (!identitySlot) return;
-
   const SEARCH_DELAY_MS = 260;
   const SEARCH_LIMIT = 6;
-  const LIGHTBOX_STORAGE_KEY = "mt-presence-lightbox-v1";
   const path = window.location.pathname.replace(/\/$/, "") || "/";
   const worksPage = path === "/works.html";
+  // Visitors never sign in, so public pages carry no account controls and the
+  // server renders them without an identity slot. Staff pages (/admin,
+  // settings) keep the slot for the account menu and sign-out.
+  const VISITOR_PATHS = new Set([
+    "/", "/index.html", "/works.html", "/work.html", "/about.html",
+    "/contact.html", "/privacy.html", "/terms.html",
+  ]);
+  const visitorPage = VISITOR_PATHS.has(path);
+  const identitySlot = header.querySelector("[data-header-identity-slot]");
+  if (!identitySlot && !visitorPage) return;
   let searchTimer = null;
   let searchRequest = null;
   let searchItems = null;
@@ -19,22 +25,11 @@
     return value === null || value === undefined ? "" : String(value).trim();
   }
 
-  function bootstrapIdentity() {
-    const element = document.querySelector("#mt-header-identity");
-    try {
-      return JSON.parse(element?.content?.textContent || element?.textContent || "{}");
-    } catch (_error) {
-      return {};
-    }
-  }
-
   function routeIsCurrent(route) {
     if (route === "home") return path === "/" || path === "/index.html";
-    if (route === "works") return worksPage || path === "/work.html" || path === "/collections.html" || path.startsWith("/creators/");
+    if (route === "works") return worksPage || path === "/work.html";
     if (route === "about") return path === "/about.html";
-    if (route === "lightbox") return path === "/lightbox.html";
     if (route === "contact") return path === "/contact.html";
-    if (route === "review") return path === "/admin/reviews" || path.startsWith("/admin/reviews/");
     return false;
   }
 
@@ -121,33 +116,39 @@
       ["home", "Home", "/"],
       ["works", "Works", "/works.html"],
       ["about", "About", "/about.html"],
-      ["lightbox", "Lightbox", "/lightbox.html"],
       ["contact", "Contact", "/contact.html"],
-      ["review", "Review", "/admin/reviews"],
     ];
-    const identity = bootstrapIdentity();
     routes.forEach(([route, label, href]) => {
       const link = document.createElement("a");
       link.href = href;
       link.dataset.globalRoute = route;
       if (routeIsCurrent(route)) link.setAttribute("aria-current", "page");
-      if (route === "review") {
-        link.dataset.reviewNav = "";
-        link.hidden = identity.can_review !== true;
-      }
-      if (route === "lightbox") {
-        link.append(document.createTextNode(label));
-        const count = document.createElement("span");
-        count.dataset.lightboxCount = "";
-        count.setAttribute("aria-label", "saved works");
-        count.textContent = "0";
-        link.append(document.createTextNode(" "), count);
-      } else {
-        link.textContent = label;
-      }
+      link.textContent = label;
       nav.append(link);
     });
+    const languageSwitch = createLanguageSwitch();
+    if (languageSwitch) nav.append(languageSwitch);
     return nav;
+  }
+
+  // English / 中文 switch for visitors. The choice is remembered and applied
+  // by i18n.js, which translates the page on load.
+  function createLanguageSwitch() {
+    const i18n = window.MTPresenceI18n;
+    if (!visitorPage || !i18n) return null;
+    const select = document.createElement("select");
+    select.className = "global-header-language";
+    select.dataset.languageSwitch = "";
+    select.setAttribute("aria-label", "Language");
+    [["en", "English"], ["zh", "中文"]].forEach(([value, label]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      option.selected = value === i18n.language;
+      select.append(option);
+    });
+    select.addEventListener("change", () => i18n.setLanguage(select.value));
+    return select;
   }
 
   function createNavigationToggle() {
@@ -174,25 +175,15 @@
   divider.className = "global-header-account-divider";
   divider.setAttribute("aria-hidden", "true");
   const navigationToggle = createNavigationToggle();
-  header.replaceChildren(brand, search, navigation, divider, identitySlot, navigationToggle);
+  if (visitorPage) {
+    header.replaceChildren(brand, search, navigation, navigationToggle);
+  } else {
+    header.replaceChildren(brand, search, navigation, divider, identitySlot, navigationToggle);
+  }
   header.dataset.globalHeaderReady = "true";
 
   const input = search.querySelector("[data-global-search-input]");
   const results = search.querySelector("[data-global-search-results]");
-
-  function lightboxIds() {
-    try {
-      const parsed = JSON.parse(window.localStorage.getItem(LIGHTBOX_STORAGE_KEY) || "[]");
-      return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string" && id) : [];
-    } catch (_error) {
-      return [];
-    }
-  }
-
-  function updateLightboxCount(ids = lightboxIds()) {
-    const count = header.querySelector("[data-lightbox-count]");
-    if (count) count.textContent = String(ids.length);
-  }
 
   function closeSearchResults() {
     activeSuggestion = -1;
@@ -280,6 +271,7 @@
       const link = document.createElement("a");
       link.id = `global-search-option-${index}`;
       link.className = "global-header-search-result";
+      link.dataset.i18nSkip = "";
       link.href = suggestionHref(item, query);
       link.setAttribute("role", "option");
       const title = document.createElement("strong");
@@ -378,14 +370,8 @@
   document.addEventListener("pointerdown", (event) => {
     if (!search.contains(event.target)) closeSearchResults();
   });
-  window.addEventListener("mt:lightbox-change", (event) => updateLightboxCount(event.detail?.ids || lightboxIds()));
-  window.addEventListener("storage", (event) => {
-    if (event.key === LIGHTBOX_STORAGE_KEY) updateLightboxCount();
-  });
   window.addEventListener("popstate", () => {
     if (!worksPage) return;
     input.value = cleanText(new URLSearchParams(window.location.search).get("q"));
   });
-
-  updateLightboxCount();
 })();

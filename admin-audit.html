@@ -6,7 +6,7 @@
     <title>Audit Ledger | MT Presence</title>
     <meta name="description" content="Protected MT Presence audit ledger for authorized administrators." />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css?v=20261002-public-recovery" />
+    <link rel="stylesheet" href="/styles.css?v=20261018-i18n" />
     <link rel="stylesheet" href="/admin-audit.css?v=20260723-admin-audit-v1" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
@@ -31,24 +31,22 @@
     <aside class="archive-rail admin-audit-rail" aria-label="Admin platform navigation">
       <a class="archive-rail-brand" href="/" aria-label="Back to MT Presence home">MT</a>
       <nav class="archive-rail-nav" aria-label="Admin workflow navigation">
-        <a class="archive-rail-button" href="/dashboard" aria-label="Dashboard" title="Dashboard"><svg class="ui-icon" aria-hidden="true"><use href="#icon-home"></use></svg><span class="archive-rail-copy">Dashboard</span></a>
+        <a class="archive-rail-button" href="/admin" aria-label="Admin" title="Admin"><svg class="ui-icon" aria-hidden="true"><use href="#icon-home"></use></svg><span class="archive-rail-copy">Admin</span></a>
         <a class="archive-rail-button" href="/workspace/images" aria-label="Upload Studio" title="Upload Studio"><svg class="ui-icon" aria-hidden="true"><use href="#icon-folder"></use></svg><span class="archive-rail-copy">Upload</span></a>
-        <a class="archive-rail-button" href="/admin/reviews" aria-label="Review Queue" title="Review Queue"><svg class="ui-icon" aria-hidden="true"><use href="#icon-pen"></use></svg><span class="archive-rail-copy">Review</span></a>
         <a class="archive-rail-button" href="/admin/works" aria-label="Works Governance" title="Works Governance"><svg class="ui-icon" aria-hidden="true"><use href="#icon-shield"></use></svg><span class="archive-rail-copy">Works</span></a>
-        <a class="archive-rail-button" href="/admin/users" aria-label="User Administration" title="User Administration"><svg class="ui-icon" aria-hidden="true"><use href="#icon-users"></use></svg><span class="archive-rail-copy">Users</span></a>
         <a class="archive-rail-button is-active" href="/admin/audit" aria-label="Audit Ledger" aria-current="page" title="Audit Ledger"><svg class="ui-icon" aria-hidden="true"><use href="#icon-audit"></use></svg><span class="archive-rail-copy">Audit</span></a>
       </nav>
       <div class="archive-rail-footer"><a class="archive-rail-button" href="/settings/account" aria-label="Account settings" title="Account settings"><svg class="ui-icon" aria-hidden="true"><use href="#icon-user"></use></svg><span class="archive-rail-copy">Account</span></a></div>
     </aside>
 
     <header class="site-header admin-audit-header" aria-label="Admin workspace navigation">
-      <a class="brand-mark" href="/dashboard" aria-label="Open Dashboard"><span>MT</span><span>Admin Platform</span></a>
-      <nav class="site-nav" aria-label="Workflow navigation">
-        <a href="/dashboard">Dashboard</a>
-        <a href="/admin/reviews" data-review-nav hidden>Review</a>
-        <a href="/admin/works" data-governance-nav hidden>Works</a>
-        <a href="/admin/users" data-users-nav hidden>Users</a>
-        <a href="/admin/audit" aria-current="page">Audit</a>
+      <a class="brand-mark" href="/admin" aria-label="Open the staff admin"><span>MT</span><span>Admin Platform</span></a>
+      <nav class="site-nav" aria-label="Staff navigation">
+        <a href="/admin">Admin</a>
+        <a href="/workspace/images">Upload</a>
+        <a href="/admin/works">Works</a>
+        <a href="/inbox">Inquiries</a>
+        <a href="/">Website</a>
       </nav>
       <div class="header-identity-slot" data-header-identity-slot></div>
     </header>
@@ -134,8 +132,8 @@
 
     <footer class="site-footer workspace-footer" aria-label="Workspace footer" data-site-footer data-footer-variant="workspace"></footer>
     <div class="contact-toast" role="status" aria-live="polite" aria-atomic="true" data-audit-live></div>
-    <script src="/site-footer.js?v=20260723-production-readiness"></script>
-    <script src="/account-menu.js?v=20260730-auth-gate"></script>
+    <script src="/site-footer.js?v=20261018-staff-only"></script>
+    <script src="/account-menu.js?v=20261018-staff-admin"></script>
     <script src="/admin-audit.js?v=20260723-admin-audit-v1"></script>
   </body>
 </html>

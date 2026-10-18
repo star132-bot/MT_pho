@@ -55,7 +55,9 @@ def access_token(user_id: str, aal: str = "aal1") -> str:
     return f"e30.{payload}.signature"
 
 
-MEMBER_TOKEN = access_token(MEMBER_ID)
+# Uploading is staff-only now that the site has no public accounts, so the
+# uploader in these tests is an MFA-verified staff account.
+MEMBER_TOKEN = access_token(MEMBER_ID, "aal2")
 ADMIN_TOKEN = access_token(ADMIN_ID)
 
 
@@ -352,7 +354,7 @@ class FakeSupabaseHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/rest/v1/rpc/current_authorization":
             if authorization == f"Bearer {MEMBER_TOKEN}":
-                self.send_json(HTTPStatus.OK, {"user_id": MEMBER_ID, "account_status": "active", "roles": ["user"], "aal": "aal1"})
+                self.send_json(HTTPStatus.OK, {"user_id": MEMBER_ID, "account_status": "active", "roles": ["admin"], "aal": "aal2"})
                 return
             if authorization == f"Bearer {ADMIN_TOKEN}":
                 self.send_json(HTTPStatus.OK, {"user_id": ADMIN_ID, "account_status": "active", "roles": ["admin"], "aal": "aal1"})

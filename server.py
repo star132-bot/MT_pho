@@ -193,6 +193,29 @@ HEADER_IDENTITY_BOOTSTRAP_FALLBACK_MARKER = (
 )
 HEADER_IDENTITY_SLOT_MARKER = '<div class="header-identity-slot" data-header-identity-slot></div>'
 HEADER_AVATAR_SIGNED_URL_TTL = PROFILE_AVATAR_SIGNED_URL_TTL
+# Pages retired with the public account system. Old links land somewhere
+# useful instead of a 404.
+RETIRED_PAGE_REDIRECTS = {
+    "/lightbox.html": "/works.html",
+    "/collections.html": "/works.html",
+    "/creator.html": "/",
+    "/dashboard": "/admin",
+    "/dashboard/": "/admin",
+    "/dashboard.html": "/admin",
+    # Staff tools folded into the single /admin with the review queue,
+    # user administration, notifications and the browser editor retired.
+    "/admin-reviews.html": "/admin",
+    "/admin-users.html": "/admin",
+    "/notifications": "/admin",
+    "/notifications/": "/admin",
+    "/notifications.html": "/admin",
+    "/workspace/notifications": "/admin",
+    "/workspace/notifications/": "/admin",
+    "/manage": "/admin",
+    "/manage/": "/admin",
+    "/manage.html": "/admin",
+}
+RETIRED_PAGE_PREFIXES = ("/admin/reviews", "/admin/users")
 HEADER_IDENTITY_PUBLIC_PAGES = {
     "/": "index.html",
     "/index.html": "index.html",
@@ -200,8 +223,6 @@ HEADER_IDENTITY_PUBLIC_PAGES = {
     "/work.html": "work.html",
     "/about.html": "about.html",
     "/contact.html": "contact.html",
-    "/lightbox.html": "lightbox.html",
-    "/collections.html": "collections.html",
     "/privacy.html": "privacy.html",
     "/terms.html": "terms.html",
 }
@@ -604,18 +625,15 @@ AUTH_OTP_RATE_BUCKETS: dict[str, list[float]] = {}
 AUTH_OTP_RATE_LOCK = threading.Lock()
 
 PUBLIC_ROOT_STATIC_FILES = {
-    "index.html", "works.html", "work.html", "about.html", "contact.html", "lightbox.html", "privacy.html", "terms.html",
-    "creator.html", "collections.html", "auth.html", "mfa.html", "account-settings.html",
-    "dashboard.html", "upload-studio.html", "notifications.html", "inbox.html", "admin-reviews.html",
-    "admin-works.html", "admin-users.html", "admin-audit.html", "manage.html",
-    "styles.css", "privacy.css", "admin-audit.css", "robots.txt", "sitemap.xml", "favicon.svg",
+    "index.html", "works.html", "work.html", "about.html", "contact.html", "privacy.html", "terms.html",
+    "auth.html", "mfa.html", "account-settings.html", "admin.html",
+    "upload-studio.html", "inbox.html",     "admin-works.html", "admin-audit.html",     "styles.css", "privacy.css", "admin-audit.css", "robots.txt", "sitemap.xml", "favicon.svg",
     "script.js", "global-header.js", "archive.js", "archive-data.js", "archive-upload.js", "public-archive.js",
     "work-detail.js", "about.js",
-    "public-navigation.js", "series-data.js", "lightbox.js", "contact.js", "creator.js",
-    "collections.js", "auth.js", "mfa.js", "account-menu.js", "account-settings.js",
-    "dashboard.js", "upload-studio.js", "notifications.js", "inbox.js", "site-footer.js",
-    "admin-reviews.js", "admin-works.js", "admin-users.js", "admin-audit.js", "manage.js",
-}
+    "public-navigation.js", "series-data.js", "contact.js", "i18n.js",
+    "auth.js", "mfa.js", "account-menu.js", "account-settings.js",
+    "upload-studio.js", "inbox.js", "site-footer.js",
+    "admin-works.js", "admin-audit.js", }
 PUBLIC_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"}
 
 
@@ -629,6 +647,26 @@ def canonical_url_path(value: str) -> str:
 
 def auth_configured() -> bool:
     return bool(SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY)
+
+
+STAFF_ROLES = frozenset({"admin", "super_admin"})
+# Visitors no longer register; staff accounts are provisioned by an operator.
+RETIRED_REGISTRATION_PAGES = frozenset({"/auth/register", "/auth/resend-verification", "/auth/verify-email"})
+RETIRED_REGISTRATION_ENDPOINTS = frozenset({
+    "/api/auth/register",
+    "/api/auth/resend-verification",
+    "/api/auth/verify-email",
+    "/api/auth/verify-email-code",
+})
+STAFF_ONLY_MESSAGE = "This site has no public accounts. Only site staff can sign in."
+
+
+def is_staff_authorization(authorization) -> bool:
+    """Visitors browse anonymously; only staff accounts may hold a session."""
+    if not isinstance(authorization, dict):
+        return False
+    roles = authorization.get("roles")
+    return isinstance(roles, list) and bool(STAFF_ROLES.intersection(roles))
 
 
 def enabled_oauth_providers_markup() -> str:
@@ -991,13 +1029,6 @@ def clean_text(value, max_length: int | None = None) -> str:
 def slugify(value: str, fallback: str = "item") -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", clean_text(value).lower()).strip("-")
     return slug or fallback
-
-
-def clean_identifier(value, field_name: str = "id") -> str:
-    text = clean_text(value, 128)
-    if not text or not ARCHIVE_UPLOAD_ID_PATTERN.match(text):
-        raise ValueError(f"Invalid {field_name}.")
-    return text
 
 
 def clean_uuid(value, field_name: str) -> str:
@@ -1425,52 +1456,6 @@ def clean_cursor_pagination(value, expected_limit: int, cursor_time_key: str) ->
     }
 
 
-def clean_notification_payload(value) -> dict | None:
-    if not isinstance(value, dict) or set(value) - COMMUNICATIONS_NOTIFICATION_PAYLOAD_FIELDS:
-        return None
-    cleaned = {}
-    uuid_fields = {
-        "image_id", "asset_id", "submission_id", "decision_id", "governance_action_id",
-        "takedown_case_id", "user_governance_action_id", "conversation_id", "message_id",
-    }
-    text_fields = {
-        "action", "decision", "reason_code", "status", "workflow_status", "publication_status",
-        "account_status", "scan_status", "result_code", "target_role", "inquiry_type",
-    }
-    for key, raw_value in value.items():
-        if key in uuid_fields:
-            try:
-                cleaned[key] = clean_uuid(raw_value, f"notification {key}")
-            except ValueError:
-                return None
-        elif key in text_fields:
-            if not isinstance(raw_value, str) or not raw_value or len(raw_value) > 120:
-                return None
-            cleaned[key] = raw_value
-        elif key == "reason_codes":
-            if not isinstance(raw_value, list) or len(raw_value) > 20:
-                return None
-            reason_codes = []
-            for reason in raw_value:
-                if not isinstance(reason, str) or not reason or len(reason) > 80:
-                    return None
-                reason_codes.append(reason)
-            cleaned[key] = reason_codes
-        elif key == "provider_action_required":
-            if not isinstance(raw_value, bool):
-                return None
-            cleaned[key] = raw_value
-        elif key == "work_count":
-            if isinstance(raw_value, bool) or not isinstance(raw_value, int) or raw_value < 0:
-                return None
-            cleaned[key] = raw_value
-        elif key == "message":
-            if not isinstance(raw_value, str) or len(raw_value) > 1000:
-                return None
-            cleaned[key] = raw_value
-    return cleaned
-
-
 def clean_notification_message(value: str) -> str:
     without_controls = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", value)
     return without_controls.strip()[:1000]
@@ -1623,44 +1608,6 @@ def clean_notification_list_result(value, expected_recipient_id: str, expected_l
         seen.add(item["id"])
         items.append(item)
     return {"items": items, "unread_count": unread_count, "pagination": pagination}
-
-
-def clean_notification_count_result(value, expected_recipient_id: str) -> dict | None:
-    if not isinstance(value, dict) or set(value) != {"unread_count"}:
-        return None
-    unread_count = value.get("unread_count")
-    if isinstance(unread_count, bool) or not isinstance(unread_count, int) or unread_count < 0:
-        return None
-    return {"unread_count": unread_count}
-
-
-def clean_notification_read_result(value, expected_recipient_id: str, expected_notification_id: str | None) -> dict | None:
-    if not isinstance(value, dict):
-        return None
-    if expected_notification_id is None:
-        expected_keys = {"marked_count", "unread_count", "marked_at"}
-        if set(value) != expected_keys:
-            return None
-    else:
-        expected_keys = {"notification", "unread_count"}
-        if set(value) != expected_keys:
-            return None
-    count_result = clean_notification_count_result(
-        {"unread_count": value.get("unread_count")},
-        expected_recipient_id,
-    )
-    if count_result is None:
-        return None
-    if expected_notification_id is not None:
-        notification = clean_notification_item(value.get("notification"), expected_recipient_id)
-        if notification is None or notification["id"] != expected_notification_id or notification["read_at"] is None:
-            return None
-        return {"notification": notification, **count_result}
-    marked_count = value.get("marked_count")
-    marked_at = clean_iso_timestamp(value.get("marked_at"))
-    if isinstance(marked_count, bool) or not isinstance(marked_count, int) or marked_count < 0 or marked_at is None:
-        return None
-    return {"marked_count": marked_count, **count_result, "marked_at": marked_at}
 
 
 def clean_conversation_message(
@@ -2411,169 +2358,6 @@ def clean_workspace_submission_result(value, expected_image_id: str) -> dict | N
     }
 
 
-def clean_dashboard_image(value) -> dict | None:
-    if not isinstance(value, dict):
-        return None
-    try:
-        image_id = clean_uuid(value.get("id"), "dashboard image id")
-    except ValueError:
-        return None
-    processing_status = clean_text(value.get("processing_status"), 40)
-    workflow_status = clean_text(value.get("workflow_status"), 40)
-    publication_status = clean_text(value.get("publication_status"), 40)
-    updated_at = clean_text(value.get("updated_at"), 80)
-    if (
-        processing_status not in DASHBOARD_PROCESSING_STATUSES
-        or workflow_status not in DASHBOARD_WORKFLOW_STATUSES
-        or publication_status not in DASHBOARD_PUBLICATION_STATUSES
-        or not updated_at
-    ):
-        return None
-    thumbnail = None
-    if value.get("thumbnail_asset") is not None:
-        thumbnail = clean_review_asset(value.get("thumbnail_asset"))
-        if thumbnail is None or thumbnail.get("kind") != "thumbnail":
-            return None
-    return {
-        "id": image_id,
-        "title": clean_text(value.get("title"), 180) or "Untitled Work",
-        "original_filename": clean_text(value.get("original_filename"), 512),
-        "processing_status": processing_status,
-        "workflow_status": workflow_status,
-        "publication_status": publication_status,
-        "updated_at": updated_at,
-        "thumbnail_asset": thumbnail,
-    }
-
-
-def clean_dashboard_result(value) -> dict | None:
-    if not isinstance(value, dict):
-        return None
-    raw_counts = value.get("status_counts")
-    if not isinstance(raw_counts, dict):
-        return None
-    counts = {}
-    for key in DASHBOARD_COUNT_KEYS:
-        count = raw_counts.get(key)
-        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
-            return None
-        counts[key] = count
-
-    images_by_section = {}
-    for key, maximum in (("recent_images", 8), ("drafts", 12)):
-        raw_images = value.get(key)
-        if not isinstance(raw_images, list) or len(raw_images) > maximum:
-            return None
-        images = []
-        for raw_image in raw_images:
-            image = clean_dashboard_image(raw_image)
-            if image is None:
-                return None
-            images.append(image)
-        images_by_section[key] = images
-
-    raw_attention = value.get("needs_attention")
-    if not isinstance(raw_attention, list) or len(raw_attention) > 8:
-        return None
-    attention = []
-    for raw_item in raw_attention:
-        if not isinstance(raw_item, dict):
-            return None
-        try:
-            image_id = clean_uuid(raw_item.get("image_id"), "attention image id")
-        except ValueError:
-            return None
-        attention_type = clean_text(raw_item.get("type"), 40)
-        message = clean_text(raw_item.get("message"), 300)
-        updated_at = clean_text(raw_item.get("updated_at"), 80)
-        if (
-            attention_type not in DASHBOARD_ATTENTION_TYPES
-            or not message
-            or not updated_at
-            or raw_item.get("workspace_path") != "/workspace/images"
-        ):
-            return None
-        attention.append({
-            "type": attention_type,
-            "image_id": image_id,
-            "title": clean_text(raw_item.get("title"), 180) or "Untitled Work",
-            "message": message,
-            "updated_at": updated_at,
-            "workspace_path": "/workspace/images",
-        })
-
-    raw_activity = value.get("review_activity")
-    if not isinstance(raw_activity, list) or len(raw_activity) > 10:
-        return None
-    activity = []
-    for raw_item in raw_activity:
-        if not isinstance(raw_item, dict):
-            return None
-        try:
-            submission_id = clean_uuid(raw_item.get("submission_id"), "dashboard submission id")
-            image_id = clean_uuid(raw_item.get("image_id"), "dashboard activity image id")
-        except ValueError:
-            return None
-        status = clean_text(raw_item.get("status"), 40)
-        decision = clean_text(raw_item.get("decision"), 40) or None
-        occurred_at = clean_text(raw_item.get("occurred_at"), 80)
-        if (
-            status not in REVIEW_STATUSES
-            or (decision is not None and decision not in DASHBOARD_REVIEW_DECISIONS)
-            or not occurred_at
-        ):
-            return None
-        activity.append({
-            "submission_id": submission_id,
-            "image_id": image_id,
-            "title": clean_text(raw_item.get("title"), 180) or "Untitled Work",
-            "status": status,
-            "decision": decision,
-            "submitted_at": clean_text(raw_item.get("submitted_at"), 80) or None,
-            "review_started_at": clean_text(raw_item.get("review_started_at"), 80) or None,
-            "completed_at": clean_text(raw_item.get("completed_at"), 80) or None,
-            "occurred_at": occurred_at,
-        })
-
-    raw_storage = value.get("storage_usage")
-    if not isinstance(raw_storage, dict) or raw_storage.get("quota_bytes") is not None:
-        return None
-    storage = {"quota_bytes": None}
-    for key in ("used_bytes", "asset_count", "image_count"):
-        number = raw_storage.get(key)
-        if isinstance(number, bool) or not isinstance(number, int) or number < 0:
-            return None
-        storage[key] = number
-
-    raw_capabilities = value.get("capabilities")
-    if not isinstance(raw_capabilities, dict):
-        return None
-    capabilities = {}
-    expected_capabilities = {
-        "storage_quota": "not_configured",
-        "public_portfolio": "public_delivery_not_connected",
-    }
-    for key, reason in expected_capabilities.items():
-        capability = raw_capabilities.get(key)
-        if not isinstance(capability, dict) or capability.get("available") is not False or capability.get("reason") != reason:
-            return None
-        capabilities[key] = {"available": False, "reason": reason}
-
-    generated_at = clean_text(value.get("generated_at"), 80)
-    if not generated_at:
-        return None
-    return {
-        "status_counts": counts,
-        "needs_attention": attention,
-        "recent_images": images_by_section["recent_images"],
-        "drafts": images_by_section["drafts"],
-        "review_activity": activity,
-        "storage_usage": storage,
-        "capabilities": capabilities,
-        "generated_at": generated_at,
-    }
-
-
 def clean_public_delivery_asset(
     value,
     *,
@@ -2840,35 +2624,6 @@ def clean_public_creator(value, expected_slug: str) -> dict | None:
     return creator
 
 
-def clean_public_delivery_status(value) -> dict | None:
-    if not isinstance(value, dict) or not isinstance(value.get("available"), bool):
-        return None
-    available = value["available"]
-    slug = clean_text(value.get("slug"), 96).lower()
-    path = clean_text(value.get("path"), 180)
-    count = value.get("published_count")
-    reason = clean_text(value.get("reason"), 80) or None
-    if (
-        not PUBLIC_CREATOR_SLUG_PATTERN.fullmatch(slug)
-        or isinstance(count, bool)
-        or not isinstance(count, int)
-        or count < 0
-        or available != (count > 0)
-        or (available and path != f"/creators/{slug}")
-        or (available and reason is not None)
-        or (not available and path)
-        or (not available and reason != "no_published_works")
-    ):
-        return None
-    return {
-        "available": available,
-        "public_slug": slug,
-        "public_path": path or None,
-        "published_count": count,
-        "reason": reason,
-    }
-
-
 def clean_profile_cover_asset(value) -> dict | None:
     """Validate the private provider descriptor before any Storage signing."""
     if not isinstance(value, dict):
@@ -3068,143 +2823,6 @@ def clean_review_asset(value) -> dict | None:
     ):
         return None
     return result
-
-
-def clean_review_submission_summary(value) -> dict | None:
-    if not isinstance(value, dict):
-        return None
-    try:
-        submission_id = clean_uuid(value.get("id"), "review submission id")
-    except ValueError:
-        return None
-    status = clean_text(value.get("status"), 40)
-    lock_version = value.get("lock_version")
-    owner = clean_review_person(value.get("owner"))
-    assigned = clean_review_person(value.get("assigned_reviewer"), required=False)
-    image = value.get("image")
-    if (
-        status not in REVIEW_STATUSES
-        or isinstance(lock_version, bool)
-        or not isinstance(lock_version, int)
-        or lock_version < 1
-        or owner is None
-        or not isinstance(image, dict)
-    ):
-        return None
-    try:
-        image_id = clean_uuid(image.get("id"), "review image id")
-    except ValueError:
-        return None
-    rights = image.get("rights") if isinstance(image.get("rights"), dict) else {}
-    thumbnail = None
-    if image.get("thumbnail_asset") is not None:
-        thumbnail = clean_review_asset(image.get("thumbnail_asset"))
-        if thumbnail is None or thumbnail["kind"] != "thumbnail":
-            return None
-    publication_status = clean_text(image.get("publication_status"), 40)
-    if publication_status not in {"never_published", "published", "unpublished", "quarantined", "archived", "deleted"}:
-        return None
-    return {
-        "id": submission_id,
-        "status": status,
-        "lock_version": lock_version,
-        "submitted_at": clean_text(value.get("submitted_at"), 80),
-        "review_started_at": clean_text(value.get("review_started_at"), 80) or None,
-        "completed_at": clean_text(value.get("completed_at"), 80) or None,
-        "policy_version": clean_text(value.get("policy_version"), 120),
-        "assigned_reviewer": assigned,
-        "owner": owner,
-        "image": {
-            "id": image_id,
-            "title": clean_text(image.get("title"), 180),
-            "original_filename": clean_text(image.get("original_filename"), 512),
-            "content_category": clean_text(image.get("content_category"), 80) or None,
-            "publication_status": publication_status,
-            "rights": {
-                "declared": rights.get("declared") is True,
-                "recognizable_people": rights.get("recognizable_people") if isinstance(rights.get("recognizable_people"), bool) else None,
-                "model_release_status": clean_text(rights.get("model_release_status"), 40) or None,
-                "property_release_status": clean_text(rights.get("property_release_status"), 40) or None,
-            },
-            "thumbnail_asset": thumbnail,
-        },
-    }
-
-
-def clean_review_list_result(
-    value,
-    *,
-    expected_actor_id: str = "",
-    expected_roles: set[str] | None = None,
-) -> dict | None:
-    if not isinstance(value, dict):
-        return None
-    actor = clean_review_actor(
-        value.get("actor"),
-        expected_actor_id=expected_actor_id,
-        expected_roles=expected_roles,
-    )
-    raw_items = value.get("items")
-    raw_counts = value.get("counts")
-    raw_pagination = value.get("pagination")
-    if actor is None or not isinstance(raw_items, list) or len(raw_items) > 50:
-        return None
-    items = []
-    for raw_item in raw_items:
-        item = clean_review_submission_summary(raw_item)
-        if item is None:
-            return None
-        items.append(item)
-    privileged = bool(set(actor["roles"]).intersection({"admin", "super_admin"}))
-    if not privileged:
-        for item in items:
-            if item["owner"]["id"] == actor["id"]:
-                return None
-            assigned = item.get("assigned_reviewer")
-            is_public_waiting = item["status"] == "submitted" and assigned is None
-            is_owned_open = (
-                isinstance(assigned, dict)
-                and assigned.get("id") == actor["id"]
-                and item["status"] in REVIEW_OPEN_STATUSES
-            )
-            if not (is_public_waiting or is_owned_open):
-                return None
-    if not isinstance(raw_counts, dict) or not isinstance(raw_pagination, dict):
-        return None
-    counts = {}
-    for key in ("open", "submitted", "in_review", "completed"):
-        count = raw_counts.get(key)
-        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
-            return None
-        counts[key] = count
-    pagination = {}
-    for key in ("offset", "limit", "total"):
-        number = raw_pagination.get(key)
-        if isinstance(number, bool) or not isinstance(number, int) or number < 0:
-            return None
-        pagination[key] = number
-    pagination["has_more"] = raw_pagination.get("has_more") is True
-    return {"actor": actor, "items": items, "counts": counts, "pagination": pagination}
-
-
-def review_item_matches_filters(item: dict, status_filter: str, assignment_filter: str, actor_id: str) -> bool:
-    status = item.get("status")
-    assigned_id = (item.get("assigned_reviewer") or {}).get("id")
-    status_matches = (
-        status_filter == "all"
-        or status_filter == status
-        or (status_filter == "open" and status in REVIEW_OPEN_STATUSES)
-        or (
-            status_filter == "completed"
-            and status in {"changes_requested", "rejected", "approved", "withdrawn"}
-        )
-    )
-    assignment_matches = (
-        assignment_filter == "all"
-        or (assignment_filter == "unassigned" and assigned_id is None)
-        or (assignment_filter == "mine" and assigned_id == actor_id)
-    )
-    return status_matches and assignment_matches
 
 
 def clean_review_detail_result(
@@ -4207,41 +3825,6 @@ def clean_admin_work_mutation_result(
     }
 
 
-def clean_admin_user_actor(
-    value,
-    *,
-    expected_actor_id: str = "",
-    expected_roles: set[str] | None = None,
-) -> dict | None:
-    if not isinstance(value, dict) or value.get("can_manage_users") is not True:
-        return None
-    try:
-        actor_id = clean_uuid(value.get("id"), "admin users actor id")
-    except ValueError:
-        return None
-    raw_roles = value.get("roles")
-    if not isinstance(raw_roles, list):
-        return None
-    roles = sorted({clean_text(role, 40) for role in raw_roles}.intersection({"admin", "super_admin"}))
-    can_manage_roles = value.get("can_manage_roles")
-    if (
-        not roles
-        or (expected_actor_id and actor_id != expected_actor_id)
-        or (expected_roles is not None and set(roles) != expected_roles)
-        or not isinstance(can_manage_roles, bool)
-        or can_manage_roles != ("super_admin" in roles)
-    ):
-        return None
-    return {
-        "id": actor_id,
-        "roles": roles,
-        "permissions": {
-            "can_manage_users": True,
-            "can_manage_roles": can_manage_roles,
-        },
-    }
-
-
 def clean_admin_user_principal(user: dict, authorization: dict) -> tuple[str, set[str]] | None:
     try:
         user_id = clean_uuid(user.get("id"), "admin users principal id")
@@ -4253,443 +3836,6 @@ def clean_admin_user_principal(user: dict, authorization: dict) -> tuple[str, se
         return None
     roles = {clean_text(role, 40) for role in raw_roles}.intersection({"admin", "super_admin"})
     return (user_id, roles) if roles else None
-
-
-def clean_admin_user_profile(value, expected_user_id: str) -> dict | None:
-    if not isinstance(value, dict):
-        return None
-    try:
-        profile_user_id = clean_uuid(value.get("user_id"), "admin user profile owner id")
-    except ValueError:
-        return None
-    display_name = value.get("display_name")
-    if (
-        profile_user_id != expected_user_id
-        or not isinstance(display_name, str)
-        or not display_name.strip()
-        or len(display_name.strip()) > 120
-    ):
-        return None
-    profile = {"display_name": display_name.strip()}
-    for field, maximum in (
-        ("professional_headline", 160),
-        ("company", 160),
-        ("city", 120),
-    ):
-        raw_value = value.get(field)
-        if raw_value is not None and (not isinstance(raw_value, str) or len(raw_value.strip()) > maximum):
-            return None
-        profile[field] = raw_value.strip() if isinstance(raw_value, str) and raw_value.strip() else None
-    country_code = value.get("country_code")
-    if country_code is not None and (
-        not isinstance(country_code, str)
-        or not re.fullmatch(r"[A-Za-z]{2}", country_code.strip())
-    ):
-        return None
-    profile["country_code"] = country_code.strip().upper() if isinstance(country_code, str) else None
-    availability = clean_text(value.get("availability_status"), 32)
-    if availability not in PROFILE_AVAILABILITY_STATUSES:
-        return None
-    profile["availability_status"] = availability
-    return profile
-
-
-def admin_user_permissions(actor: dict, user: dict) -> dict:
-    actor_id = actor["id"]
-    actor_roles = set(actor["roles"])
-    target_roles = set(user["roles"])
-    is_self = actor_id == user["id"]
-    is_system = user["is_system_identity"]
-    target_is_privileged = bool(target_roles.intersection({"admin", "super_admin"}))
-    can_manage_target = (
-        not is_self
-        and not is_system
-        and ("super_admin" in actor_roles or not target_is_privileged)
-    )
-    return {
-        "can_manage_status": can_manage_target and user["account_status"] in {"active", "suspended"},
-        "can_manage_roles": can_manage_target and actor["permissions"]["can_manage_roles"],
-        "can_revoke_sessions": can_manage_target and user["account_status"] != "deleted",
-    }
-
-
-def clean_admin_user_summary(value, *, actor: dict) -> dict | None:
-    if not isinstance(value, dict):
-        return None
-    try:
-        user_id = clean_uuid(value.get("id"), "admin user id")
-    except ValueError:
-        return None
-    email = value.get("email")
-    account_status = clean_text(value.get("account_status"), 40)
-    version = value.get("version")
-    is_system_identity = value.get("is_system_identity")
-    created_at = value.get("created_at")
-    updated_at = value.get("updated_at")
-    last_active_at = value.get("last_active_at")
-    email_verified_at = value.get("email_verified_at")
-    if (
-        not isinstance(email, str)
-        or not 3 <= len(email.strip()) <= 320
-        or "@" not in email
-        or account_status not in ADMIN_USERS_ACCOUNT_STATUSES
-        or isinstance(version, bool)
-        or not isinstance(version, int)
-        or version < 1
-        or not isinstance(is_system_identity, bool)
-        or not isinstance(created_at, str)
-        or not created_at
-        or not isinstance(updated_at, str)
-        or not updated_at
-        or (last_active_at is not None and (not isinstance(last_active_at, str) or not last_active_at))
-        or (email_verified_at is not None and (not isinstance(email_verified_at, str) or not email_verified_at))
-    ):
-        return None
-    raw_roles = value.get("roles")
-    if not isinstance(raw_roles, list) or any(not isinstance(role, str) for role in raw_roles):
-        return None
-    roles = sorted({clean_text(role, 40) for role in raw_roles})
-    if not roles or len(roles) != len(raw_roles) or not set(roles).issubset(ADMIN_USERS_ROLE_CODES) or "user" not in roles:
-        return None
-    profile = clean_admin_user_profile(value.get("profile"), user_id)
-    sessions = value.get("sessions")
-    storage = value.get("storage")
-    image_counts = value.get("image_counts")
-    if (
-        profile is None
-        or value.get("mfa_status") != "unavailable"
-        or not isinstance(sessions, dict)
-        or sessions.get("status") != "provider_managed"
-        or sessions.get("active_count") is not None
-        or sessions.get("provider_action_required") is not True
-        or not isinstance(storage, dict)
-        or storage.get("quota_bytes") is not None
-        or storage.get("quota_status") != "unavailable"
-        or not isinstance(image_counts, dict)
-    ):
-        return None
-    used_bytes = storage.get("used_bytes")
-    if isinstance(used_bytes, bool) or not isinstance(used_bytes, int) or used_bytes < 0:
-        return None
-    counts = {}
-    for key in (
-        "total",
-        "draft",
-        "submitted",
-        "in_review",
-        "changes_requested",
-        "rejected",
-        "approved",
-        "published",
-        "unpublished",
-        "quarantined",
-        "processing_failed",
-    ):
-        count = image_counts.get(key)
-        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
-            return None
-        counts[key] = count
-    if any(counts[key] > counts["total"] for key in counts if key != "total"):
-        return None
-    takedown_case_count = value.get("takedown_case_count")
-    if isinstance(takedown_case_count, bool) or not isinstance(takedown_case_count, int) or takedown_case_count < 0:
-        return None
-    user = {
-        "id": user_id,
-        "email": email.strip().lower(),
-        "email_verified": email_verified_at is not None,
-        "email_verified_at": email_verified_at,
-        "account_status": account_status,
-        "version": version,
-        "is_system_identity": is_system_identity,
-        "roles": roles,
-        "profile": profile,
-        "mfa_status": "unavailable",
-        "sessions": {
-            "status": "provider_managed",
-            "active_count": None,
-            "provider_action_required": True,
-        },
-        "image_counts": counts,
-        "storage": {
-            "used_bytes": used_bytes,
-            "quota_bytes": None,
-            "quota_status": "unavailable",
-        },
-        "takedown_case_count": takedown_case_count,
-        "created_at": created_at,
-        "updated_at": updated_at,
-        "last_active_at": last_active_at,
-    }
-    user["is_self"] = actor["id"] == user_id
-    user["permissions"] = admin_user_permissions(actor, user)
-    return user
-
-
-def clean_admin_user_action(value, expected_user_id: str) -> dict | None:
-    if not isinstance(value, dict):
-        return None
-    try:
-        action_id = clean_uuid(value.get("id"), "admin user action id")
-        target_user_id = clean_uuid(value.get("target_user_id"), "admin user action target id")
-        actor_user_id = clean_uuid(value.get("actor_user_id"), "admin user action actor id")
-    except ValueError:
-        return None
-    action = clean_text(value.get("action"), 40)
-    target_role = clean_text(value.get("target_role"), 40) or None
-    reason_code = clean_text(value.get("reason_code"), 80)
-    actor_role = clean_text(value.get("actor_role"), 40)
-    expected_version = value.get("expected_user_version")
-    provider_action_required = value.get("provider_action_required")
-    created_at = value.get("created_at")
-    if (
-        target_user_id != expected_user_id
-        or action not in ADMIN_USERS_ACTIONS
-        or reason_code not in ADMIN_USERS_REASON_CODES[action]
-        or actor_role not in {"admin", "super_admin"}
-        or isinstance(expected_version, bool)
-        or not isinstance(expected_version, int)
-        or expected_version < 1
-        or not isinstance(provider_action_required, bool)
-        or provider_action_required != (action == "revoke_sessions")
-        or value.get("policy_version") != ADMIN_USERS_POLICY_VERSION
-        or not isinstance(created_at, str)
-        or not created_at
-    ):
-        return None
-    if action in {"grant_role", "revoke_role"}:
-        if target_role not in ADMIN_USERS_ROLE_CODES:
-            return None
-    elif target_role is not None:
-        return None
-    return {
-        "id": action_id,
-        "action": action,
-        "target_role": target_role,
-        "reason_code": reason_code,
-        "actor_role": actor_role,
-        "expected_user_version": expected_version,
-        "provider_action_required": provider_action_required,
-        "policy_version": ADMIN_USERS_POLICY_VERSION,
-        "created_at": created_at,
-        "_actor_user_id": actor_user_id,
-        "_target_user_id": target_user_id,
-    }
-
-
-def clean_admin_user_audit(value, expected_user_id: str) -> dict | None:
-    if not isinstance(value, dict):
-        return None
-    try:
-        audit_id = clean_uuid(value.get("id"), "admin user audit id")
-        target_id = clean_uuid(value.get("target_id"), "admin user audit target id")
-        target_user_id = clean_uuid(value.get("target_user_id"), "admin user audit relationship id")
-        clean_uuid(value.get("actor_user_id"), "admin user audit actor id")
-    except ValueError:
-        return None
-    actor_role = clean_text(value.get("actor_role"), 40)
-    action = clean_text(value.get("action"), 120)
-    result = clean_text(value.get("result"), 20)
-    created_at = value.get("created_at")
-    if (
-        value.get("target_type") != "user"
-        or target_id != expected_user_id
-        or target_user_id != expected_user_id
-        or actor_role not in {"admin", "super_admin"}
-        or action not in ADMIN_USERS_AUDIT_ACTIONS
-        or result not in {"success", "failure"}
-        or not isinstance(created_at, str)
-        or not created_at
-    ):
-        return None
-    reason_code = value.get("reason_code")
-    policy_version = value.get("policy_version")
-    if reason_code is not None and (not isinstance(reason_code, str) or len(reason_code.strip()) > 80):
-        return None
-    if reason_code and reason_code.strip() not in ADMIN_USERS_ALL_REASON_CODES:
-        return None
-    if policy_version != ADMIN_USERS_POLICY_VERSION:
-        return None
-    return {
-        "id": audit_id,
-        "action": action,
-        "reason_code": reason_code.strip() if isinstance(reason_code, str) and reason_code.strip() else None,
-        "actor_role": actor_role,
-        "policy_version": policy_version.strip() if isinstance(policy_version, str) and policy_version.strip() else None,
-        "result": result,
-        "created_at": created_at,
-    }
-
-
-def clean_admin_user_list_result(
-    value,
-    *,
-    expected_actor_id: str = "",
-    expected_roles: set[str] | None = None,
-) -> dict | None:
-    if not isinstance(value, dict):
-        return None
-    actor = clean_admin_user_actor(
-        value.get("actor"),
-        expected_actor_id=expected_actor_id,
-        expected_roles=expected_roles,
-    )
-    raw_items = value.get("items")
-    raw_counts = value.get("counts")
-    raw_pagination = value.get("pagination")
-    if actor is None or not isinstance(raw_items, list) or len(raw_items) > ADMIN_USERS_MAX_PAGE_SIZE:
-        return None
-    items = []
-    seen_ids = set()
-    for raw_item in raw_items:
-        item = clean_admin_user_summary(raw_item, actor=actor)
-        if item is None or item["id"] in seen_ids:
-            return None
-        seen_ids.add(item["id"])
-        items.append(item)
-    if not isinstance(raw_counts, dict) or not isinstance(raw_pagination, dict):
-        return None
-    raw_status_counts = raw_counts.get("statuses")
-    raw_role_counts = raw_counts.get("roles")
-    if not isinstance(raw_status_counts, dict) or not isinstance(raw_role_counts, dict):
-        return None
-    status_counts = {}
-    for key in ("all", *sorted(ADMIN_USERS_ACCOUNT_STATUSES)):
-        count = raw_status_counts.get(key)
-        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
-            return None
-        status_counts[key] = count
-    if sum(status_counts[key] for key in ADMIN_USERS_ACCOUNT_STATUSES) != status_counts["all"]:
-        return None
-    role_counts = {}
-    for key in sorted(ADMIN_USERS_ROLE_CODES):
-        count = raw_role_counts.get(key)
-        if isinstance(count, bool) or not isinstance(count, int) or count < 0 or count > status_counts["all"]:
-            return None
-        role_counts[key] = count
-    pagination = {}
-    for key in ("offset", "limit", "total"):
-        number = raw_pagination.get(key)
-        if isinstance(number, bool) or not isinstance(number, int) or number < 0:
-            return None
-        pagination[key] = number
-    if (
-        not 1 <= pagination["limit"] <= ADMIN_USERS_MAX_PAGE_SIZE
-        or pagination["total"] < len(items)
-        or pagination["total"] > status_counts["all"]
-        or (items and pagination["offset"] + len(items) > pagination["total"])
-    ):
-        return None
-    pagination["has_more"] = raw_pagination.get("has_more") is True
-    if pagination["has_more"] != (pagination["offset"] + len(items) < pagination["total"]):
-        return None
-    return {
-        "actor": actor,
-        "items": items,
-        "counts": {"statuses": status_counts, "roles": role_counts},
-        "pagination": pagination,
-    }
-
-
-def clean_admin_user_detail_result(
-    value,
-    expected_user_id: str,
-    *,
-    expected_actor_id: str = "",
-    expected_roles: set[str] | None = None,
-) -> dict | None:
-    if not isinstance(value, dict):
-        return None
-    actor = clean_admin_user_actor(
-        value.get("actor"),
-        expected_actor_id=expected_actor_id,
-        expected_roles=expected_roles,
-    )
-    raw_user = value.get("user")
-    if actor is None or not isinstance(raw_user, dict):
-        return None
-    user = clean_admin_user_summary(raw_user, actor=actor)
-    if user is None or user["id"] != expected_user_id:
-        return None
-    raw_images = raw_user.get("recent_images")
-    raw_actions = raw_user.get("governance_actions")
-    raw_audit = raw_user.get("audit_timeline")
-    if (
-        not isinstance(raw_images, list)
-        or len(raw_images) > 50
-        or not isinstance(raw_actions, list)
-        or len(raw_actions) > 100
-        or not isinstance(raw_audit, list)
-        or len(raw_audit) > 200
-    ):
-        return None
-    for raw_image in raw_images:
-        if not isinstance(raw_image, dict):
-            return None
-        try:
-            clean_uuid(raw_image.get("id"), "admin user recent image id")
-            owner_user_id = clean_uuid(raw_image.get("owner_user_id"), "admin user recent image owner id")
-        except ValueError:
-            return None
-        if owner_user_id != expected_user_id:
-            return None
-    actions = []
-    for raw_action in raw_actions:
-        action = clean_admin_user_action(raw_action, expected_user_id)
-        if action is None:
-            return None
-        action.pop("_actor_user_id", None)
-        action.pop("_target_user_id", None)
-        actions.append(action)
-    audit = []
-    for raw_entry in raw_audit:
-        entry = clean_admin_user_audit(raw_entry, expected_user_id)
-        if entry is None:
-            return None
-        audit.append(entry)
-    user["governance_actions"] = actions
-    user["audit_timeline"] = audit
-    return {"actor": actor, "user": user}
-
-
-def clean_admin_user_mutation_result(
-    value,
-    expected_user_id: str,
-    expected_action: str,
-    expected_role: str | None,
-    expected_reason_code: str,
-    expected_user_version: int,
-    *,
-    expected_actor_id: str = "",
-    expected_roles: set[str] | None = None,
-) -> dict | None:
-    if not isinstance(value, dict) or not isinstance(value.get("replayed"), bool):
-        return None
-    actor = clean_admin_user_actor(
-        value.get("actor"),
-        expected_actor_id=expected_actor_id,
-        expected_roles=expected_roles,
-    )
-    if actor is None:
-        return None
-    user = clean_admin_user_summary(value.get("user"), actor=actor)
-    action = clean_admin_user_action(value.get("action"), expected_user_id)
-    if (
-        user is None
-        or action is None
-        or user["id"] != expected_user_id
-        or user["version"] != expected_user_version + 1
-        or action["action"] != expected_action
-        or action["target_role"] != expected_role
-        or action["reason_code"] != expected_reason_code
-        or action["expected_user_version"] != expected_user_version
-        or action["_actor_user_id"] != actor["id"]
-        or action["actor_role"] not in actor["roles"]
-    ):
-        return None
-    action.pop("_actor_user_id", None)
-    action.pop("_target_user_id", None)
-    return {"actor": actor, "action": action, "user": user, "replayed": value["replayed"]}
 
 
 def valid_profile_https_url(value: str, *, allowed_hosts: set[str] | None = None) -> bool:
@@ -5405,128 +4551,6 @@ def positive_int(value, field_name: str) -> int:
     return number
 
 
-def non_negative_int(value, field_name: str, fallback: int = 0) -> int:
-    if value is None or value == "":
-        return fallback
-    try:
-        number = int(value)
-    except (TypeError, ValueError) as error:
-        raise ValueError(f"Invalid {field_name}.") from error
-    if number < 0:
-        raise ValueError(f"Invalid {field_name}.")
-    return number
-
-
-def optional_json_object(value, fallback):
-    if value is None:
-        return fallback
-    if isinstance(value, (dict, list)):
-        return value
-    text = clean_text(value)
-    if not text:
-        return fallback
-    try:
-        parsed = json.loads(text)
-    except (TypeError, json.JSONDecodeError):
-        return fallback
-    return parsed if parsed is not None else fallback
-
-
-def optional_json_list(value, fallback=None):
-    if fallback is None:
-        fallback = []
-    parsed = optional_json_object(value, fallback)
-    return parsed if isinstance(parsed, list) else fallback
-
-
-def mime_extension(mime_type: str, fallback: str = "jpg") -> str:
-    return MIME_EXTENSIONS.get(clean_text(mime_type).lower(), fallback)
-
-
-def safe_upload_filename(asset: dict, file_part: dict, index: int) -> str:
-    kind = clean_text(asset.get("kind")) or "asset"
-    raw_name = clean_text(asset.get("storage_path") or file_part.get("filename") or asset.get("id") or kind)
-    raw_name = raw_name.replace("\\", "/").split("/")[-1]
-    raw_stem = re.sub(r"\.[A-Za-z0-9]{1,8}$", "", raw_name)
-    stem = re.sub(r"[^a-zA-Z0-9_-]+", "-", raw_stem).strip("-_").lower()
-    if not stem:
-        stem = f"{kind}-{index}"
-    if not stem.startswith(kind):
-        stem = f"{kind}-{stem}"
-    extension = mime_extension(file_part.get("content_type") or asset.get("mime_type"))
-    return f"{stem[:96]}.{extension}"
-
-
-def normalize_archive_assets(value, image_id: str) -> list[dict]:
-    if not isinstance(value, list):
-        return []
-    assets: list[dict] = []
-    seen_ids: set[str] = set()
-    for index, asset in enumerate(value):
-        if not isinstance(asset, dict):
-            continue
-        kind = clean_text(asset.get("kind")).lower()
-        if kind not in ARCHIVE_ASSET_KINDS:
-            raise ValueError("Invalid asset kind.")
-        asset_id = clean_identifier(asset.get("id") or f"{image_id}-{kind}-{index}", "asset id")
-        if asset_id in seen_ids:
-            raise ValueError("Duplicate asset id.")
-        seen_ids.add(asset_id)
-        assets.append(
-            {
-                "id": asset_id,
-                "image_id": image_id,
-                "kind": kind,
-                "storage_bucket": clean_text(asset.get("storage_bucket"), 120) or "local-upload-assets",
-                "storage_path": clean_text(asset.get("storage_path"), 512),
-                "public_url": clean_text(asset.get("public_url"), 512) or None,
-                "url_expires_at": clean_text(asset.get("url_expires_at"), 80) or None,
-                "mime_type": clean_text(asset.get("mime_type"), 120) or "image/jpeg",
-                "byte_size": non_negative_int(asset.get("byte_size"), "asset byte_size", 0) or None,
-                "width": positive_int(asset.get("width"), "asset width"),
-                "height": positive_int(asset.get("height"), "asset height"),
-                "checksum_sha256": clean_text(asset.get("checksum_sha256"), 64) or None,
-                "source_asset_id": clean_text(asset.get("source_asset_id"), 128) or None,
-            }
-        )
-    return sorted(assets, key=lambda asset: ARCHIVE_ASSET_KIND_ORDER.get(asset["kind"], 99))
-
-
-def normalize_archive_square_slices(value, image_id: str, asset_ids: set[str]) -> list[dict]:
-    if not isinstance(value, list):
-        return []
-    slices: list[dict] = []
-    seen_ids: set[str] = set()
-    for index, slice_row in enumerate(value):
-        if not isinstance(slice_row, dict):
-            continue
-        slice_id = clean_identifier(slice_row.get("id") or f"{image_id}-slice-{index}", "slice id")
-        if slice_id in seen_ids:
-            raise ValueError("Duplicate square slice id.")
-        seen_ids.add(slice_id)
-        asset_id = clean_identifier(slice_row.get("asset_id"), "square slice asset id")
-        if asset_id not in asset_ids:
-            raise ValueError("Square slice asset does not exist.")
-        width = positive_int(slice_row.get("width"), "square slice width")
-        height = positive_int(slice_row.get("height"), "square slice height")
-        if width != height:
-            raise ValueError("Square slice width and height must match.")
-        slices.append(
-            {
-                "id": slice_id,
-                "image_id": image_id,
-                "asset_id": asset_id,
-                "slice_index": non_negative_int(slice_row.get("slice_index"), "square slice index", index),
-                "source_x": non_negative_int(slice_row.get("source_x"), "square slice source_x", 0),
-                "source_y": non_negative_int(slice_row.get("source_y"), "square slice source_y", 0),
-                "source_size": positive_int(slice_row.get("source_size"), "square slice source_size"),
-                "width": width,
-                "height": height,
-            }
-        )
-    return slices
-
-
 def archive_image_payload(row: sqlite3.Row) -> dict:
     payload = dict(row)
     payload["tags"] = parse_archive_json(payload.get("tags"), [])
@@ -5582,197 +4606,6 @@ def archive_query_filters(query: dict[str, list[str]]) -> tuple[list[str], list,
     limit = max(1, min(limit, 1000))
 
     return filters, params, limit
-
-
-def normalize_archive_update_payload(payload: dict) -> dict:
-    content_type = clean_text(payload.get("content_type")).lower()
-    if content_type not in ARCHIVE_CONTENT_TYPES:
-        raise ValueError("Invalid content_type.")
-
-    display_mode = clean_text(payload.get("display_mode")).lower()
-    if display_mode not in ARCHIVE_DISPLAY_MODES:
-        raise ValueError("Invalid display_mode.")
-
-    if (content_type == "abstract" and display_mode != "black_white") or (content_type == "concrete" and display_mode != "color"):
-        raise ValueError("content_type and display_mode do not match the archive schema rules.")
-
-    visibility = clean_text(payload.get("visibility")).lower() or "draft"
-    if visibility not in ARCHIVE_VISIBILITIES:
-        raise ValueError("Invalid visibility.")
-
-    title = clean_text(payload.get("title"), 180)
-    if not title:
-        raise ValueError("Title is required.")
-
-    try:
-        sort_order = int(payload.get("sort_order") or 0)
-    except (TypeError, ValueError) as error:
-        raise ValueError("Invalid sort_order.") from error
-
-    return {
-        "title": title,
-        "description": clean_text(payload.get("description"), 4000),
-        "curatorial_note": clean_text(payload.get("curatorial_note"), 2400),
-        "artist_statement": clean_text(payload.get("artist_statement"), 6000),
-        "series": clean_text(payload.get("series"), 240),
-        "captured_at": clean_text(payload.get("captured_at"), 64) or None,
-        "content_type": content_type,
-        "display_mode": display_mode,
-        "visibility": visibility,
-        "sort_order": sort_order,
-        "tag_groups": normalize_tag_groups(payload.get("tag_groups")),
-        "updated_at": now_iso(),
-    }
-
-
-def normalize_tag_groups(value) -> list[dict]:
-    if not isinstance(value, list):
-        return []
-
-    groups: list[dict] = []
-    seen_groups: set[str] = set()
-    for group in value:
-        if not isinstance(group, dict):
-            continue
-        label = clean_text(group.get("label") or group.get("group_name") or group.get("groupName"), 80)
-        if not label:
-            continue
-        key = label.lower()
-        if key in seen_groups:
-            continue
-        tags = []
-        seen_tags: set[str] = set()
-        raw_tags = group.get("tags") or []
-        if not isinstance(raw_tags, list):
-            continue
-        for tag in raw_tags:
-            text = clean_text(tag, 120)
-            tag_key = text.lower()
-            if text and tag_key not in seen_tags:
-                tags.append(text)
-                seen_tags.add(tag_key)
-        if tags:
-            groups.append({"label": label, "tags": tags})
-            seen_groups.add(key)
-    return groups
-
-
-def replace_image_tags(connection: sqlite3.Connection, image_id: str, tag_groups: list[dict], timestamp: str) -> None:
-    connection.execute("DELETE FROM image_taggings WHERE image_id = ?", (image_id,))
-
-    tag_order = 0
-    for group_index, group in enumerate(tag_groups):
-        group_name = group["label"]
-        group_sort = TAG_GROUP_SORT_ORDER.get(group_name, (group_index + 1) * 100)
-        for tag_name in group["tags"]:
-            tag_slug = slugify(tag_name, "tag")
-            tag_id = f"tag-{slugify(group_name, 'group')}-{tag_slug}"
-            connection.execute(
-                """
-                INSERT INTO image_tags (id, name, slug, group_name, sort_order, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(group_name, slug) DO UPDATE SET
-                  name = excluded.name,
-                  sort_order = excluded.sort_order
-                """,
-                (tag_id, tag_name, tag_slug, group_name, group_sort, timestamp),
-            )
-            connection.execute(
-                """
-                INSERT INTO image_taggings (image_id, tag_id, sort_order, created_at)
-                VALUES (?, ?, ?, ?)
-                """,
-                (image_id, tag_id, tag_order, timestamp),
-            )
-            tag_order += 1
-
-
-def write_upload_assets(
-    connection: sqlite3.Connection,
-    image_id: str,
-    assets: list[dict],
-    square_slices: list[dict],
-    file_parts: dict[str, dict],
-    timestamp: str,
-) -> None:
-    if not assets:
-        raise ValueError("At least one upload asset is required.")
-
-    upload_dir = UPLOAD_ASSET_ROOT / image_id
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    asset_ids = {asset["id"] for asset in assets}
-    if not any(asset["kind"] == "original" for asset in assets):
-        raise ValueError("An original upload asset is required.")
-
-    for index, asset in enumerate(assets):
-        file_part = file_parts.get(asset["id"])
-        if file_part:
-            file_body = file_part["body"]
-            if not file_body:
-                raise ValueError("Upload asset file is empty.")
-            filename = safe_upload_filename(asset, file_part, index)
-            asset_path = upload_dir / filename
-            asset_path.write_bytes(file_body)
-            checksum = hashlib.sha256(file_body).hexdigest()
-            if asset["checksum_sha256"] and asset["checksum_sha256"] != checksum:
-                raise ValueError("Upload asset checksum does not match.")
-            asset["checksum_sha256"] = checksum
-            asset["byte_size"] = len(file_body)
-            asset["mime_type"] = file_part.get("content_type") or asset["mime_type"]
-            asset["storage_bucket"] = "local-upload-assets"
-            asset["storage_path"] = f"{image_id}/{filename}"
-            asset["public_url"] = f"{UPLOAD_ASSET_URL_PREFIX}/{image_id}/{filename}"
-        elif not asset["public_url"]:
-            raise ValueError("Upload asset file is missing.")
-
-        if asset["source_asset_id"] and asset["source_asset_id"] not in asset_ids:
-            raise ValueError("Upload asset source_asset_id does not exist.")
-
-        connection.execute(
-            """
-            INSERT INTO image_assets (
-              id, image_id, kind, storage_bucket, storage_path, public_url, url_expires_at,
-              mime_type, byte_size, width, height, checksum_sha256, source_asset_id, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                asset["id"],
-                image_id,
-                asset["kind"],
-                asset["storage_bucket"],
-                asset["storage_path"],
-                asset["public_url"],
-                asset["url_expires_at"],
-                asset["mime_type"],
-                asset["byte_size"],
-                asset["width"],
-                asset["height"],
-                asset["checksum_sha256"],
-                asset["source_asset_id"],
-                timestamp,
-            ),
-        )
-
-    for slice_row in square_slices:
-        connection.execute(
-            """
-            INSERT INTO image_square_slices (
-              id, image_id, asset_id, slice_index, source_x, source_y, source_size, width, height, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                slice_row["id"],
-                image_id,
-                slice_row["asset_id"],
-                slice_row["slice_index"],
-                slice_row["source_x"],
-                slice_row["source_y"],
-                slice_row["source_size"],
-                slice_row["width"],
-                slice_row["height"],
-                timestamp,
-            ),
-        )
 
 
 def public_works_cache_generation() -> int:
@@ -5990,16 +4823,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         refreshed["avatar_url"] = signed_url
         return refreshed
 
-    @staticmethod
-    def header_role_label(roles: list[str]) -> str:
-        if "super_admin" in roles:
-            return "Super Admin"
-        if "admin" in roles:
-            return "Administrator"
-        if "reviewer" in roles:
-            return "Reviewer"
-        return "Member"
-
     def render_header_identity(self, identity: dict) -> str:
         if identity.get("status") == "anonymous":
             return (
@@ -6038,7 +4861,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
     </button>
     <div class="account-menu-popover" data-account-menu-popover hidden>
       <div class="account-menu-identity">
-        <a class="account-menu-avatar" href="/dashboard" aria-label="Open personal profile" data-account-menu-avatar>
+        <a class="account-menu-avatar" href="/admin" aria-label="Open the staff admin" data-account-menu-avatar>
           <span data-account-menu-avatar-initials aria-hidden="true">{initials}</span>
           {avatar_markup}
         </a>
@@ -6050,8 +4873,8 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
       </div>
       <div class="account-menu-actions" id="account-menu-actions" role="menu" aria-label="Account">
         <nav class="account-menu-links" role="none">
-          <a href="/dashboard" role="menuitem">Dashboard</a>
-          <a href="/workspace/images" role="menuitem">Workspace</a>
+          <a href="/admin" role="menuitem">Admin</a>
+          <a href="/workspace/images" role="menuitem">Upload</a>
           <a href="/settings/account" role="menuitem">Account Settings</a>
         </nav>
         <button class="account-menu-signout" type="button" role="menuitem" data-account-menu-signout>Sign out</button>
@@ -6067,6 +4890,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         *,
         user: dict | None = None,
         authorization: dict | None = None,
+        visitor: bool = False,
     ) -> None:
         try:
             source = (ROOT / filename).read_text(encoding="utf-8")
@@ -6086,12 +4910,22 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "Header identity shell is unavailable."})
             return
 
-        identity = self.current_header_identity(user=user, authorization=authorization)
+        # Visitor pages never show account controls, so they skip the session
+        # lookup entirely and render an empty identity slot.
+        identity = (
+            {"authenticated": False, "status": "anonymous"}
+            if visitor
+            else self.current_header_identity(user=user, authorization=authorization)
+        )
         bootstrap = json.dumps(identity, ensure_ascii=False, separators=(",", ":"))
         bootstrap = bootstrap.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
         rendered_bootstrap = f'<template id="mt-header-identity" data-header-identity>{bootstrap}</template>'
         source = source.replace(bootstrap_marker, rendered_bootstrap, 1)
-        source = source.replace(HEADER_IDENTITY_SLOT_MARKER, self.render_header_identity(identity), 1)
+        source = source.replace(
+            HEADER_IDENTITY_SLOT_MARKER,
+            "" if visitor else self.render_header_identity(identity),
+            1,
+        )
         source = source.replace(
             '<template id="mt-enabled-oauth-providers" data-enabled-oauth-providers>google,apple</template>',
             f'<template id="mt-enabled-oauth-providers" data-enabled-oauth-providers>{enabled_oauth_providers_markup()}</template>',
@@ -6159,27 +4993,17 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             or canonical_path == "/assets/uploads"
             or canonical_path.startswith("/assets/uploads/")
             or canonical_path in {
-                "/admin-reviews.html",
-                "/admin-reviews.js",
                 "/admin-works.html",
                 "/admin-works.js",
-                "/admin-users.html",
-                "/admin-users.js",
                 "/admin-audit.html",
                 "/admin-audit.js",
-                "/notifications.html",
-                "/notifications.js",
                 "/inbox.html",
                 "/inbox.js",
-                "/manage",
-                "/manage.html",
-                "/dashboard",
-                "/dashboard.html",
-                "/dashboard.js",
                 "/upload-studio.html",
                 "/upload-studio.js",
                 "/account-settings.js",
-                "/manage.js",
+                "/admin",
+                "/admin.html",
                 "/settings/account",
                 "/workspace",
                 "/workspace/images",
@@ -6191,15 +5015,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
             self.send_header("Content-Length", "0")
             self.end_headers()
-            return
-        creator_parts = [part for part in canonical_path.split("/") if part]
-        if (
-            len(creator_parts) == 2
-            and creator_parts[0] == "creators"
-            and PUBLIC_CREATOR_SLUG_PATTERN.fullmatch(creator_parts[1].lower())
-        ):
-            self.path = "/creator.html"
-            super().do_HEAD()
             return
         if canonical_path == "/":
             self.path = "/index.html"
@@ -6224,24 +5039,16 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             "/mfa.html",
             "/mfa.js",
             "/account-settings.html",
+            "/admin.html",
             "/account-settings.js",
-            "/admin-reviews.html",
-            "/admin-reviews.js",
             "/admin-works.html",
             "/admin-works.js",
-            "/admin-users.html",
-            "/admin-users.js",
             "/admin-audit.html",
             "/admin-audit.js",
-            "/notifications.html",
-            "/notifications.js",
             "/inbox.html",
             "/inbox.js",
-            "/dashboard.html",
-            "/dashboard.js",
             "/upload-studio.html",
             "/upload-studio.js",
-            "/manage.js",
             "/account-menu.js",
             "/global-header.js",
         }:
@@ -6443,180 +5250,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             user["_refreshed_session"] = session
         return status, user
 
-    def handle_auth_register(self) -> None:
-        body = self.read_json_body()
-        if body is None:
-            return
-        email = normalize_auth_email(body.get("email"))
-        password = str(body.get("password") or "")
-        password_confirmation = str(body.get("password_confirmation") or "")
-        display_name = clean_optional_text(body.get("display_name"), 120) or ""
-        terms_accepted = body.get("terms_accepted") is True
-        field_errors = {}
-        if not email:
-            field_errors["email"] = "Enter a valid email address."
-        if len(password) < AUTH_PASSWORD_MIN_LENGTH:
-            field_errors["password"] = f"Use at least {AUTH_PASSWORD_MIN_LENGTH} characters."
-        elif len(password) > AUTH_PASSWORD_MAX_LENGTH:
-            field_errors["password"] = "Password is too long."
-        if password != password_confirmation:
-            field_errors["password_confirmation"] = "Passwords do not match."
-        if not display_name:
-            field_errors["display_name"] = "Display name is required."
-        if not terms_accepted:
-            field_errors["terms_accepted"] = "Accept the Terms to continue."
-        if field_errors:
-            self.send_json(HTTPStatus.UNPROCESSABLE_ENTITY, auth_error("AUTH_VALIDATION_FAILED", "Check the highlighted fields.", field_errors))
-            return
-        public_base_url = self.public_base_url()
-        if not public_base_url:
-            self.send_json(
-                HTTPStatus.SERVICE_UNAVAILABLE,
-                auth_error("AUTH_REDIRECT_NOT_CONFIGURED", "Email verification is not configured for this environment."),
-            )
-            return
-        if not consume_auth_email_rate_limit(self.request_rate_limit_ip(), email):
-            self.send_json(
-                HTTPStatus.TOO_MANY_REQUESTS,
-                auth_error("REGISTRATION_RATE_LIMITED", "Please wait before creating or verifying another account."),
-            )
-            return
-        redirect_to = f"{public_base_url}/auth/verify-email"
-        status, result = supabase_auth_request(f"signup?{urlencode({'redirect_to': redirect_to})}", {
-            "email": email,
-            "password": password,
-            "data": {
-                "display_name": display_name,
-                "terms_policy_version": TERMS_POLICY_VERSION,
-                "terms_accepted_at": now_iso(),
-            },
-        })
-        email_failure = auth_email_provider_failure(status)
-        if email_failure:
-            self.send_json(*email_failure)
-            return
-        if status == HTTPStatus.TOO_MANY_REQUESTS:
-            self.send_json(
-                HTTPStatus.TOO_MANY_REQUESTS,
-                auth_error("REGISTRATION_RATE_LIMITED", "Please wait before creating or verifying another account."),
-            )
-            return
-        if status not in {HTTPStatus.OK, HTTPStatus.CREATED}:
-            self.send_json(HTTPStatus.BAD_REQUEST, auth_error("REGISTRATION_FAILED", "Unable to create this account. Check your details or try again later."))
-            return
-        user = result.get("user") or {}
-        if result.get("access_token") and (user.get("email_confirmed_at") or user.get("confirmed_at")):
-            self.send_json(HTTPStatus.CREATED, {"status": "account_ready", "message": "Account created. Sign in to continue."})
-            return
-        self.send_json(HTTPStatus.CREATED, {"status": "verification_required", "message": "Enter the 8-digit code sent to your email."})
-
-    def handle_auth_resend_verification(self) -> None:
-        body = self.read_json_body()
-        if body is None:
-            return
-        email = normalize_auth_email(body.get("email"))
-        if not email:
-            self.send_json(
-                HTTPStatus.UNPROCESSABLE_ENTITY,
-                auth_error("AUTH_VALIDATION_FAILED", "Enter a valid email address.", {"email": "Enter a valid email address."}),
-            )
-            return
-        public_base_url = self.public_base_url()
-        if not public_base_url:
-            self.send_json(
-                HTTPStatus.SERVICE_UNAVAILABLE,
-                auth_error("AUTH_REDIRECT_NOT_CONFIGURED", "Email verification is not configured for this environment."),
-            )
-            return
-        if not consume_auth_email_rate_limit(self.request_rate_limit_ip(), email):
-            self.send_json(
-                HTTPStatus.TOO_MANY_REQUESTS,
-                auth_error("VERIFICATION_RATE_LIMITED", "Please wait before requesting another verification email."),
-            )
-            return
-        redirect_to = f"{public_base_url}/auth/verify-email"
-        status, result = supabase_auth_request(
-            f"resend?{urlencode({'redirect_to': redirect_to})}",
-            {"type": "signup", "email": email},
-        )
-        email_failure = auth_email_provider_failure(status)
-        if email_failure:
-            self.send_json(*email_failure)
-            return
-        if status == HTTPStatus.TOO_MANY_REQUESTS:
-            self.send_json(
-                HTTPStatus.TOO_MANY_REQUESTS,
-                auth_error("VERIFICATION_RATE_LIMITED", "Wait at least a minute before requesting another verification email. Use the latest code already sent to you."),
-            )
-            return
-        # A missing, already verified, or provider-rejected identity receives the
-        # same response so this endpoint cannot be used to enumerate accounts.
-        self.send_json(
-            HTTPStatus.ACCEPTED,
-            {
-                "status": "verification_email_requested",
-                "message": "If this address has an unverified account, a new verification code has been sent.",
-            },
-        )
-
-    def handle_auth_verify_email_code(self) -> None:
-        body = self.read_json_body()
-        if body is None:
-            return
-        email = normalize_auth_email(body.get("email"))
-        verification_code = clean_text(body.get("verification_code"), 16)
-        field_errors = {}
-        if not email:
-            field_errors["email"] = "Enter a valid email address."
-        if not AUTH_EMAIL_OTP_PATTERN.fullmatch(verification_code):
-            field_errors["verification_code"] = "Enter the 8-digit code from your email."
-        if field_errors:
-            self.send_json(
-                HTTPStatus.UNPROCESSABLE_ENTITY,
-                auth_error("AUTH_VALIDATION_FAILED", "Check the highlighted fields.", field_errors),
-            )
-            return
-        if not consume_auth_otp_rate_limit(self.request_rate_limit_ip(), email):
-            self.send_json(
-                HTTPStatus.TOO_MANY_REQUESTS,
-                auth_error("VERIFICATION_RATE_LIMITED", "Too many verification attempts. Wait before trying again."),
-            )
-            return
-
-        status, session = supabase_auth_request(
-            "verify",
-            {"type": "email", "email": email, "token": verification_code},
-        )
-        if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
-            self.send_json(status, session)
-            return
-        user = session.get("user") or {}
-        if (
-            status != HTTPStatus.OK
-            or not session.get("access_token")
-            or not session.get("refresh_token")
-            or not user.get("id")
-            or not (user.get("email_confirmed_at") or user.get("confirmed_at"))
-        ):
-            self.send_json(
-                HTTPStatus.BAD_REQUEST,
-                auth_error("EMAIL_CODE_INVALID", "The verification code is invalid or has expired."),
-            )
-            return
-
-        cookies = self.session_cookie_headers(session)
-        consume_recovery_grant(self.cookie_value(RECOVERY_COOKIE))
-        cookies.append(self.clear_recovery_cookie_header())
-        self.send_auth_json(
-            HTTPStatus.OK,
-            {
-                "verified": True,
-                "type": "email",
-                "user": {"id": user.get("id"), "email": user.get("email")},
-            },
-            cookies,
-        )
-
     def handle_auth_forgot_password(self) -> None:
         body = self.read_json_body()
         if body is None:
@@ -6802,17 +5435,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
         self.send_auth_json(HTTPStatus.OK, {"recovery_ready": True})
 
-    def handle_auth_verification_status(self) -> None:
-        status, user = self.current_auth_user()
-        if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
-            self.send_current_user_error(status, user)
-            return
-        if status != HTTPStatus.OK:
-            self.send_json(HTTPStatus.OK, {"email_verified": False})
-            return
-        verified = bool(user.get("email_confirmed_at") or user.get("confirmed_at"))
-        self.send_auth_json(HTTPStatus.OK, {"email_verified": verified})
-
     def handle_auth_reset_password(self) -> None:
         body = self.read_json_body()
         if body is None:
@@ -6925,6 +5547,10 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 auth_error("ACCOUNT_RESTRICTED", "This account cannot access the Workspace."),
             )
             return
+        if not is_staff_authorization(authorization):
+            supabase_auth_request("logout?scope=local", {}, session.get("access_token", ""), method="POST")
+            self.send_json(HTTPStatus.FORBIDDEN, auth_error("STAFF_ONLY", STAFF_ONLY_MESSAGE))
+            return
         next_action = "mfa" if self.mfa_required_for_session(user, authorization) else "workspace"
         consume_recovery_grant(self.cookie_value(RECOVERY_COOKIE))
         self.send_auth_json(
@@ -6966,9 +5592,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         })
         authorize_url = f"{SUPABASE_URL}/auth/v1/authorize?{authorize_query}"
         self.send_auth_redirect(authorize_url, [self.oauth_state_cookie_header(state)])
-
-    def handle_google_oauth_start(self, parsed) -> None:
-        self.handle_oauth_start("google", parsed)
 
     def handle_identity_link_start(self) -> None:
         body = self.read_json_body()
@@ -7097,6 +5720,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 authz_status != HTTPStatus.OK
                 or not isinstance(authorization, dict)
                 or authorization.get("account_status") != "active"
+                or not is_staff_authorization(authorization)
             ):
                 supabase_auth_request("logout?scope=local", {}, session.get("access_token", ""), method="POST")
                 self.oauth_error_redirect(
@@ -7124,6 +5748,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             authz_status != HTTPStatus.OK
             or not isinstance(authorization, dict)
             or authorization.get("account_status") != "active"
+            or not is_staff_authorization(authorization)
         ):
             supabase_auth_request("logout?scope=local", {}, session.get("access_token", ""), method="POST")
             self.oauth_error_redirect(
@@ -7146,9 +5771,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 clear_flow_cookie,
             ],
         )
-
-    def handle_google_oauth_callback(self, parsed) -> None:
-        self.handle_oauth_callback(parsed)
 
     def handle_identity_list_get(self) -> None:
         user, authorization = self.require_account_session()
@@ -7253,8 +5875,35 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             HTTPStatus.SERVICE_UNAVAILABLE,
             HTTPStatus.GATEWAY_TIMEOUT,
         }:
-            return supabase_rest_request("rpc/current_authorization", access_token)
+            status, authorization = supabase_rest_request("rpc/current_authorization", access_token)
+        # Sessions left over from the retired public accounts get no access,
+        # and their cookies are dropped so the browser returns to anonymous.
+        if status == HTTPStatus.OK and not is_staff_authorization(authorization):
+            self._pending_response_cookies = self.clear_session_cookie_headers()
+            return HTTPStatus.FORBIDDEN, auth_error("STAFF_ONLY", STAFF_ONLY_MESSAGE)
         return status, authorization
+
+    def send_authorization_failure(
+        self,
+        status: int,
+        authorization,
+        message: str,
+        *,
+        page_next: str | None = None,
+    ) -> None:
+        """Refuse a retired non-staff session plainly; anything else is a provider failure."""
+        error = authorization.get("error") if isinstance(authorization, dict) else None
+        if status == HTTPStatus.FORBIDDEN and isinstance(error, dict) and error.get("code") == "STAFF_ONLY":
+            if page_next:
+                self.send_response(HTTPStatus.SEE_OTHER)
+                self.send_header("Location", f"/auth/sign-in?{urlencode({'next': page_next})}")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            self.send_json(HTTPStatus.FORBIDDEN, authorization)
+            return
+        self.send_json(HTTPStatus.BAD_GATEWAY, auth_error("AUTHORIZATION_FAILED", message))
 
     def current_access_token(self, user: dict) -> str:
         refreshed = user.get("_refreshed_session") or {}
@@ -7302,10 +5951,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return None, None
         authz_status, authorization = self.current_authorization(user)
         if authz_status != HTTPStatus.OK or not isinstance(authorization, dict):
-            self.send_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("AUTHORIZATION_FAILED", "Unable to verify account access. Try again."),
-            )
+            self.send_authorization_failure(authz_status, authorization, "Unable to verify account access. Try again.")
             return None, None
         if authorization.get("account_status") != "active":
             self.send_json(
@@ -8091,33 +6737,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return None, None, None
         return user, authorization, result
 
-    def send_admin_users_error(self, error: dict) -> None:
-        code = clean_text(error.get("code"), 80) or "ADMIN_USERS_PROVIDER_FAILED"
-        status = ADMIN_USERS_ERROR_STATUS.get(code)
-        if status is None:
-            self.send_auth_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("ADMIN_USERS_PROVIDER_FAILED", "The user provider returned an unsupported error."),
-            )
-            return
-        messages = {
-            "ADMIN_USER_FILTER_INVALID": "Choose supported user filters.",
-            "ADMIN_USER_SORT_INVALID": "Choose a supported user sort.",
-            "ADMIN_USER_SEARCH_INVALID": "Search is limited to 160 characters.",
-            "ADMIN_USER_PAGE_INVALID": "Choose supported user pagination values.",
-            "ADMIN_USER_NOT_FOUND": "The user is unavailable.",
-            "ADMIN_USER_VERSION_CONFLICT": "This user changed. Reload before applying governance.",
-            "ADMIN_USER_VALIDATION_FAILED": "Choose a supported user action and reason.",
-            "ADMIN_USER_IDEMPOTENCY_CONFLICT": "This request key is already bound to another user action.",
-            "ADMIN_USER_STATE_CONFLICT": "The requested action is not valid for the current user state.",
-            "ADMIN_USER_SELF_ACTION_FORBIDDEN": "Use Account Settings for your own account and sessions.",
-            "ADMIN_USER_SYSTEM_IDENTITY": "System identities cannot be governed here.",
-            "ADMIN_USER_TARGET_FORBIDDEN": "Only a Super Admin can govern an administrator account.",
-            "ADMIN_USER_ROLE_FORBIDDEN": "Only a Super Admin can manage supported roles.",
-            "ADMIN_USER_LAST_SUPER_ADMIN": "At least one active Super Admin must remain.",
-        }
-        self.send_auth_json(status, auth_error(code, messages[code]))
-
     def send_admin_users_provider_error(self, status: int) -> None:
         if status == HTTPStatus.UNAUTHORIZED:
             self.send_auth_json(HTTPStatus.UNAUTHORIZED, auth_error("AUTH_REQUIRED", "Sign in to continue."))
@@ -8148,39 +6767,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             HTTPStatus.BAD_GATEWAY,
             auth_error("ADMIN_USERS_PROVIDER_FAILED", "The user provider could not complete this request."),
         )
-
-    def admin_users_rpc(
-        self,
-        name: str,
-        payload: dict | None = None,
-        *,
-        principal: tuple[dict, dict] | None = None,
-    ) -> tuple[dict | None, dict | None, dict | None]:
-        if principal is None:
-            allowed, authorization = self.require_admin()
-            user = getattr(self, "_admin_principal_user", None)
-            if not allowed or not user or not authorization:
-                return None, None, None
-        else:
-            user, authorization = principal
-        status, result = supabase_rest_request(
-            f"rpc/{name}",
-            self.current_access_token(user),
-            payload or {},
-        )
-        if status != HTTPStatus.OK:
-            self.send_admin_users_provider_error(status)
-            return None, None, None
-        if not isinstance(result, dict):
-            self.send_auth_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("ADMIN_USERS_PROVIDER_FAILED", "The user provider response was invalid."),
-            )
-            return None, None, None
-        if isinstance(result.get("error"), dict):
-            self.send_admin_users_error(result["error"])
-            return None, None, None
-        return user, authorization, result
 
     def send_communications_error(self, error: dict) -> None:
         code = clean_text(error.get("code"), 80) or "COMMUNICATIONS_PROVIDER_FAILED"
@@ -8792,45 +7378,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             },
         )
 
-    def sign_dashboard_asset(self, user: dict, asset: dict) -> dict | None:
-        bucket = asset.get("storage_bucket")
-        storage_key = asset.get("storage_key")
-        try:
-            expected_owner = clean_uuid(user.get("id"), "Dashboard asset owner id")
-        except ValueError:
-            expected_owner = ""
-        if not expected_owner or not storage_key.startswith(f"{expected_owner}/"):
-            self.send_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("DASHBOARD_ASSET_UNAVAILABLE", "A private Dashboard preview could not be loaded. Try again."),
-            )
-            return None
-        endpoint = f"object/sign/{quote(bucket, safe='')}/{quote(storage_key, safe='/')}"
-        status, signed = supabase_storage_request(
-            endpoint,
-            self.current_access_token(user),
-            {"expiresIn": 10 * 60},
-        )
-        signed_value = ""
-        if isinstance(signed, dict):
-            signed_value = signed.get("signedURL") or signed.get("signedUrl") or ""
-        signed_url = self.absolute_storage_url(signed_value)
-        if status != HTTPStatus.OK or not signed_url:
-            self.send_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("DASHBOARD_ASSET_UNAVAILABLE", "A private Dashboard preview could not be loaded. Try again."),
-            )
-            return None
-        return {
-            "id": asset["id"],
-            "kind": "thumbnail",
-            "mime_type": asset["mime_type"],
-            "width": asset["width"],
-            "height": asset["height"],
-            "signed_url": signed_url,
-            "expires_in": 10 * 60,
-        }
-
     def sign_profile_cover_asset(
         self,
         user: dict,
@@ -8964,110 +7511,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         ):
             return None
         return query, page_limit, cursor_time, cursor_id
-
-    def handle_notifications_get(self, parsed) -> None:
-        user, authorization = self.require_account_session()
-        if not user or not authorization:
-            return
-        principal_id = self.communication_principal_id(user)
-        parsed_query = self.parse_communications_cursor_query(
-            parsed,
-            supported_keys={"limit", "before", "before_id"},
-            default_limit=30,
-            maximum_limit=COMMUNICATIONS_MAX_PAGE_SIZE,
-        )
-        if principal_id is None:
-            return
-        if parsed_query is None:
-            self.send_auth_json(
-                HTTPStatus.UNPROCESSABLE_ENTITY,
-                auth_error("NOTIFICATION_CURSOR_INVALID", "Choose supported notification pagination values."),
-            )
-            return
-        _, page_limit, cursor_time, cursor_id = parsed_query
-        _, _, result = self.communications_rpc(
-            "list_my_notifications",
-            {"page_limit": page_limit, "cursor_created_at": cursor_time, "cursor_id": cursor_id},
-            principal=(user, authorization),
-        )
-        if result is None:
-            return
-        response = clean_notification_list_result(result, principal_id, page_limit)
-        if response is None:
-            self.send_auth_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("COMMUNICATIONS_PROVIDER_FAILED", "The notification response was inconsistent."),
-            )
-            return
-        self.send_auth_json(HTTPStatus.OK, response)
-
-    def handle_notification_unread_count_get(self) -> None:
-        user, authorization = self.require_account_session()
-        if not user or not authorization:
-            return
-        principal_id = self.communication_principal_id(user)
-        if principal_id is None:
-            return
-        _, _, result = self.communications_rpc(
-            "get_my_notification_unread_count",
-            {},
-            principal=(user, authorization),
-        )
-        if result is None:
-            return
-        response = clean_notification_count_result(result, principal_id)
-        if response is None:
-            self.send_auth_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("COMMUNICATIONS_PROVIDER_FAILED", "The unread notification count was inconsistent."),
-            )
-            return
-        self.send_auth_json(HTTPStatus.OK, response)
-
-    def handle_notifications_read(self) -> None:
-        user, authorization = self.require_account_session()
-        if not user or not authorization:
-            return
-        principal_id = self.communication_principal_id(user)
-        if principal_id is None:
-            return
-        body = self.read_json_body()
-        if body is None:
-            return
-        notification_id = None
-        if set(body) == {"notification_id"}:
-            try:
-                notification_id = clean_uuid(body.get("notification_id"), "notification id")
-            except ValueError:
-                notification_id = None
-            if not notification_id:
-                self.send_auth_json(
-                    HTTPStatus.UNPROCESSABLE_ENTITY,
-                    auth_error("NOTIFICATION_READ_INVALID", "Choose a valid notification."),
-                )
-                return
-            rpc_name = "mark_my_notification_read"
-            rpc_payload = {"target_notification_id": notification_id}
-        elif set(body) == {"all"} and body.get("all") is True:
-            rpc_name = "mark_all_my_notifications_read"
-            rpc_payload = {}
-        else:
-            self.send_auth_json(
-                HTTPStatus.UNPROCESSABLE_ENTITY,
-                auth_error("NOTIFICATION_READ_INVALID", "Choose one notification or mark all as read."),
-            )
-            return
-        _, _, result = self.communications_rpc(rpc_name, rpc_payload, principal=(user, authorization))
-        if result is None:
-            return
-        response = clean_notification_read_result(result, principal_id, notification_id)
-        if response is None:
-            self.send_auth_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("COMMUNICATIONS_PROVIDER_FAILED", "The notification update response was inconsistent."),
-            )
-            return
-        self.send_auth_json(HTTPStatus.OK, response)
 
     def handle_inbox_list_get(self, parsed) -> None:
         user, authorization = self.require_account_session()
@@ -9380,49 +7823,8 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             )
             return
 
-        user = None
-        authorization = None
-        initiator_id = None
+        # Visitors have no accounts; every inquiry is an anonymous guest inquiry.
         access_token = SUPABASE_PUBLISHABLE_KEY
-        has_session = bool(self.cookie_value(ACCESS_COOKIE) or self.cookie_value(REFRESH_COOKIE))
-        if has_session:
-            status, user = self.current_auth_user()
-            if status != HTTPStatus.OK:
-                self.send_current_user_error(status, user)
-                return
-            if self.is_recovery_session(user):
-                self.send_json(
-                    HTTPStatus.FORBIDDEN,
-                    auth_error("RECOVERY_SESSION_RESTRICTED", "Finish resetting your password before sending an inquiry."),
-                )
-                return
-            authz_status, authorization = self.current_authorization(user)
-            if authz_status != HTTPStatus.OK or not isinstance(authorization, dict):
-                self.send_json(
-                    HTTPStatus.BAD_GATEWAY,
-                    auth_error("AUTHORIZATION_FAILED", "Unable to verify inquiry access. Try again."),
-                )
-                return
-            if authorization.get("account_status") != "active":
-                self.send_json(HTTPStatus.FORBIDDEN, auth_error("ACCOUNT_RESTRICTED", "This account cannot send inquiries."))
-                return
-            if self.mfa_required_for_session(user, authorization):
-                self.send_json(
-                    HTTPStatus.FORBIDDEN,
-                    auth_error("MFA_REQUIRED", "Enter the current code from your authenticator to continue."),
-                )
-                return
-            initiator_id = self.communication_principal_id(user)
-            if initiator_id is None:
-                return
-            account_email = clean_text(user.get("email"), 180).lower()
-            if not valid_email_address(account_email) or normalized_email != account_email:
-                self.send_json(
-                    HTTPStatus.UNPROCESSABLE_ENTITY,
-                    auth_error("INQUIRY_VALIDATION_FAILED", "Use the email address for the signed-in account."),
-                )
-                return
-            access_token = self.current_access_token(user)
 
         if not consume_inquiry_rate_limit(self.request_rate_limit_ip(), normalized_email):
             self.send_json(
@@ -9453,7 +7855,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if isinstance(result.get("error"), dict):
             self.send_communications_error(result["error"])
             return
-        response = clean_project_inquiry_result(result, initiator_id)
+        response = clean_project_inquiry_result(result, None)
         if response is None:
             self.send_json(
                 HTTPStatus.BAD_GATEWAY,
@@ -9473,10 +7875,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                     **optional_values,
                 }
             )
-        if initiator_id is None:
-            self.send_json(HTTPStatus.ACCEPTED, {"reference": response["reference"], "status": response["status"]})
-            return
-        self.send_auth_json(HTTPStatus.ACCEPTED, response)
+        self.send_json(HTTPStatus.ACCEPTED, {"reference": response["reference"], "status": response["status"]})
 
     def handle_admin_audit_list_get(self, parsed) -> None:
         allowed, authorization = self.require_admin()
@@ -9860,326 +8259,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
         self.send_auth_json(HTTPStatus.OK, response)
 
-    def handle_admin_users_list_get(self, parsed) -> None:
-        allowed, authorization = self.require_admin()
-        user = getattr(self, "_admin_principal_user", None)
-        if not allowed or not user or not authorization:
-            return
-        query = parse_qs(parsed.query, keep_blank_values=True)
-        supported_keys = {"q", "status", "role", "sort", "limit", "offset"}
-        status_filter = single_query_value(query, "status", "all").lower() or "all"
-        role_filter = single_query_value(query, "role", "all").lower() or "all"
-        sort_code = single_query_value(query, "sort", "updated_desc").lower() or "updated_desc"
-        search_query = single_query_value(query, "q")
-        try:
-            page_size = int(single_query_value(query, "limit", "30") or "30")
-            page_offset = int(single_query_value(query, "offset", "0") or "0")
-        except ValueError:
-            page_size = 0
-            page_offset = -1
-        if (
-            set(query) - supported_keys
-            or any(len(values) != 1 for values in query.values())
-            or status_filter not in ADMIN_USERS_FILTER_STATUSES
-            or role_filter not in ADMIN_USERS_FILTER_ROLES
-            or sort_code not in ADMIN_USERS_SORT_CODES
-            or len(search_query) > 160
-            or not 1 <= page_size <= ADMIN_USERS_MAX_PAGE_SIZE
-            or not 0 <= page_offset <= 10_000
-        ):
-            self.send_auth_json(
-                HTTPStatus.UNPROCESSABLE_ENTITY,
-                auth_error("ADMIN_USER_FILTER_INVALID", "Choose supported user filters, sorting, and pagination values."),
-            )
-            return
-        _, _, result = self.admin_users_rpc(
-            "admin_list_users",
-            {
-                "status_filter": status_filter,
-                "role_filter": role_filter,
-                "search_query": search_query,
-                "sort_code": sort_code,
-                "page_size": page_size,
-                "page_offset": page_offset,
-            },
-            principal=(user, authorization),
-        )
-        if result is None:
-            return
-        principal = clean_admin_user_principal(user, authorization)
-        response = clean_admin_user_list_result(
-            result,
-            expected_actor_id=principal[0] if principal else "",
-            expected_roles=principal[1] if principal else set(),
-        ) if principal else None
-        if (
-            response is None
-            or response["pagination"]["limit"] != page_size
-            or response["pagination"]["offset"] != page_offset
-            or (status_filter != "all" and any(item["account_status"] != status_filter for item in response["items"]))
-            or (role_filter != "all" and any(role_filter not in item["roles"] for item in response["items"]))
-        ):
-            self.send_auth_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("ADMIN_USERS_PROVIDER_FAILED", "The user directory response was inconsistent."),
-            )
-            return
-        self.send_auth_json(HTTPStatus.OK, response)
-
-    def handle_admin_user_detail_get(self, target_user_id: str) -> None:
-        allowed, authorization = self.require_admin()
-        user = getattr(self, "_admin_principal_user", None)
-        if not allowed or not user or not authorization:
-            return
-        try:
-            target_user_id = clean_uuid(target_user_id, "admin user id")
-        except ValueError:
-            self.send_auth_json(
-                HTTPStatus.NOT_FOUND,
-                auth_error("ADMIN_USER_NOT_FOUND", "The user is unavailable."),
-            )
-            return
-        _, _, result = self.admin_users_rpc(
-            "admin_get_user",
-            {"target_user_id": target_user_id},
-            principal=(user, authorization),
-        )
-        if result is None:
-            return
-        principal = clean_admin_user_principal(user, authorization)
-        response = clean_admin_user_detail_result(
-            result,
-            target_user_id,
-            expected_actor_id=principal[0] if principal else "",
-            expected_roles=principal[1] if principal else set(),
-        ) if principal else None
-        if response is None:
-            self.send_auth_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("ADMIN_USERS_PROVIDER_FAILED", "The user detail response was invalid."),
-            )
-            return
-        self.send_auth_json(HTTPStatus.OK, response)
-
-    def handle_admin_user_mutation(self, target_user_id: str, endpoint: str) -> None:
-        allowed, authorization = self.require_admin()
-        user = getattr(self, "_admin_principal_user", None)
-        if not allowed or not user or not authorization:
-            return
-        try:
-            target_user_id = clean_uuid(target_user_id, "admin user id")
-        except ValueError:
-            self.send_auth_json(
-                HTTPStatus.NOT_FOUND,
-                auth_error("ADMIN_USER_NOT_FOUND", "The user is unavailable."),
-            )
-            return
-        body = self.read_json_body()
-        if body is None:
-            return
-        base_keys = {"action", "reason_code", "expected_version", "idempotency_key"}
-        required_keys = base_keys.union({"target_role"}) if endpoint == "roles" else base_keys
-        action = clean_text(body.get("action"), 40).lower()
-        reason_code = clean_text(body.get("reason_code"), 80).lower()
-        expected_version = body.get("expected_version")
-        target_role = clean_text(body.get("target_role"), 40).lower() or None
-        try:
-            idempotency_key = clean_uuid(body.get("idempotency_key"), "user governance idempotency key")
-        except ValueError:
-            idempotency_key = ""
-        endpoint_actions = {
-            "status": {"suspend", "reactivate"},
-            "roles": {"grant_role", "revoke_role"},
-            "revoke-sessions": {"revoke_sessions"},
-        }
-        if (
-            endpoint not in endpoint_actions
-            or set(body) != required_keys
-            or not isinstance(body.get("action"), str)
-            or not isinstance(body.get("reason_code"), str)
-            or (endpoint == "roles" and not isinstance(body.get("target_role"), str))
-            or action not in endpoint_actions[endpoint]
-            or reason_code not in ADMIN_USERS_REASON_CODES.get(action, set())
-            or isinstance(expected_version, bool)
-            or not isinstance(expected_version, int)
-            or expected_version < 1
-            or not idempotency_key
-            or (endpoint == "roles" and target_role not in ADMIN_USERS_MUTABLE_ROLES)
-            or (endpoint != "roles" and target_role is not None)
-        ):
-            self.send_auth_json(
-                HTTPStatus.UNPROCESSABLE_ENTITY,
-                auth_error(
-                    "ADMIN_USER_VALIDATION_FAILED",
-                    "Provide the current user version, a UUID request key, and a supported action and reason.",
-                ),
-            )
-            return
-        principal = clean_admin_user_principal(user, authorization)
-        if principal is None:
-            self.send_auth_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("ADMIN_USERS_PROVIDER_FAILED", "The administrator identity could not be verified."),
-            )
-            return
-        if target_user_id == principal[0]:
-            self.send_auth_json(
-                HTTPStatus.FORBIDDEN,
-                auth_error("ADMIN_USER_SELF_ACTION_FORBIDDEN", "Use Account Settings for your own account and sessions."),
-            )
-            return
-        if endpoint == "roles" and "super_admin" not in principal[1]:
-            self.send_auth_json(
-                HTTPStatus.FORBIDDEN,
-                auth_error("ADMIN_USER_ROLE_FORBIDDEN", "Only a Super Admin can manage supported roles."),
-            )
-            return
-        _, _, result = self.admin_users_rpc(
-            "admin_govern_user",
-            {
-                "target_user_id": target_user_id,
-                "expected_version": expected_version,
-                "action": action,
-                "target_role": target_role,
-                "reason_code": reason_code,
-                "idempotency_key": idempotency_key,
-            },
-            principal=(user, authorization),
-        )
-        if result is None:
-            return
-        response = clean_admin_user_mutation_result(
-            result,
-            target_user_id,
-            action,
-            target_role,
-            reason_code,
-            expected_version,
-            expected_actor_id=principal[0],
-            expected_roles=principal[1],
-        )
-        if response is None:
-            self.send_auth_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("ADMIN_USERS_PROVIDER_FAILED", "The user governance response was invalid."),
-            )
-            return
-        governed_user = response["user"]
-        state_valid = (
-            (action == "suspend" and governed_user["account_status"] == "suspended")
-            or (action == "reactivate" and governed_user["account_status"] == "active")
-            or (action == "grant_role" and target_role in governed_user["roles"])
-            or (action == "revoke_role" and target_role not in governed_user["roles"])
-            or (action == "revoke_sessions" and response["action"]["provider_action_required"] is True)
-        )
-        if not state_valid:
-            self.send_auth_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("ADMIN_USERS_PROVIDER_FAILED", "The user governance state was inconsistent."),
-            )
-            return
-        self.send_auth_json(
-            HTTPStatus.ACCEPTED if action == "revoke_sessions" else HTTPStatus.OK,
-            response,
-        )
-
-    def handle_review_submissions_get(self, parsed) -> None:
-        query = parse_qs(parsed.query)
-        status_filter = single_query_value(query, "status") or "open"
-        assignment_filter = single_query_value(query, "assignment") or "all"
-        try:
-            page_size = int(single_query_value(query, "limit") or "30")
-            page_offset = int(single_query_value(query, "offset") or "0")
-        except ValueError:
-            self.send_json(
-                HTTPStatus.UNPROCESSABLE_ENTITY,
-                auth_error("REVIEW_FILTER_INVALID", "Review pagination values must be integers."),
-            )
-            return
-        if (
-            status_filter not in REVIEW_FILTER_STATUSES
-            or assignment_filter not in {"all", "unassigned", "mine"}
-            or page_size < 1
-            or page_size > 50
-            or page_offset < 0
-        ):
-            self.send_json(
-                HTTPStatus.UNPROCESSABLE_ENTITY,
-                auth_error("REVIEW_FILTER_INVALID", "Choose supported review filters."),
-            )
-            return
-        user, authorization, result = self.review_rpc(
-            "review_list_submissions",
-            {
-                "status_filter": status_filter,
-                "assignment_filter": assignment_filter,
-                "page_size": page_size,
-                "page_offset": page_offset,
-            },
-        )
-        if not user or authorization is None or result is None:
-            return
-        principal = clean_review_principal(user, authorization)
-        response = clean_review_list_result(
-            result,
-            expected_actor_id=principal[0] if principal else "",
-            expected_roles=principal[1] if principal else set(),
-        ) if principal else None
-        if response is None:
-            self.send_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("REVIEW_PROVIDER_FAILED", "The review queue response was invalid."),
-            )
-            return
-        if any(
-            not review_item_matches_filters(item, status_filter, assignment_filter, response["actor"]["id"])
-            for item in response["items"]
-        ):
-            self.send_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("REVIEW_PROVIDER_FAILED", "The review queue filters were inconsistent."),
-            )
-            return
-        expected_has_more = (
-            response["pagination"]["offset"] + len(response["items"])
-            < response["pagination"]["total"]
-        )
-        if response["pagination"]["has_more"] != expected_has_more:
-            self.send_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("REVIEW_PROVIDER_FAILED", "The review queue pagination was inconsistent."),
-            )
-            return
-        if assignment_filter == "all":
-            expected_total = {
-                "open": response["counts"]["open"],
-                "submitted": response["counts"]["submitted"],
-                "in_review": response["counts"]["in_review"],
-                "completed": response["counts"]["completed"],
-                "all": response["counts"]["open"] + response["counts"]["completed"],
-            }.get(status_filter)
-            if expected_total is not None and response["pagination"]["total"] != expected_total:
-                self.send_json(
-                    HTTPStatus.BAD_GATEWAY,
-                    auth_error("REVIEW_PROVIDER_FAILED", "The review queue counts were inconsistent."),
-                )
-                return
-        for item in response["items"]:
-            thumbnail = item["image"].pop("thumbnail_asset")
-            if thumbnail and (
-                thumbnail.get("scan_status") != "clean"
-                or thumbnail.get("scan_policy_version") != REVIEW_ASSET_SCAN_POLICY_VERSION
-            ):
-                self.send_json(
-                    HTTPStatus.BAD_GATEWAY,
-                    auth_error("REVIEW_PROVIDER_FAILED", "The review queue returned an unsafe preview asset."),
-                )
-                return
-            item["image"]["thumbnail"] = self.sign_review_asset(user, thumbnail) if thumbnail else None
-            if thumbnail and item["image"]["thumbnail"] is None:
-                return
-        self.send_auth_json(HTTPStatus.OK, response)
-
     def handle_review_submission_get(self, submission_id: str) -> None:
         try:
             submission_id = clean_uuid(submission_id, "review submission id")
@@ -10236,86 +8315,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 return
             signed_assets.append(signed)
         response["assets"] = signed_assets
-        self.send_auth_json(HTTPStatus.OK, response)
-
-    def handle_review_assignment(self, submission_id: str) -> None:
-        body = self.read_json_body()
-        if body is None:
-            return
-        try:
-            submission_id = clean_uuid(submission_id, "review submission id")
-        except ValueError:
-            self.send_json(HTTPStatus.NOT_FOUND, auth_error("REVIEW_SUBMISSION_NOT_FOUND", "The review submission is unavailable."))
-            return
-        expected_version = body.get("expected_version")
-        if (
-            set(body) != {"confirmation", "expected_version"}
-            or body.get("confirmation") != "assign-to-me"
-            or isinstance(expected_version, bool)
-            or not isinstance(expected_version, int)
-            or expected_version < 1
-        ):
-            self.send_json(
-                HTTPStatus.UNPROCESSABLE_ENTITY,
-                auth_error("REVIEW_VERSION_REQUIRED", "Confirm the current submission version before assigning it."),
-            )
-            return
-        user, authorization, result = self.review_rpc(
-            "review_assign_submission",
-            {"submission_id": submission_id, "expected_lock_version": expected_version},
-        )
-        if not user or authorization is None or result is None:
-            return
-        response = clean_review_mutation_result(result, submission_id)
-        principal = clean_review_principal(user, authorization)
-        if (
-            response is None
-            or principal is None
-            or response["submission"].get("assigned_reviewer_id") != principal[0]
-            or response["submission"].get("status") != "submitted"
-        ):
-            self.send_json(HTTPStatus.BAD_GATEWAY, auth_error("REVIEW_PROVIDER_FAILED", "The assignment result was invalid."))
-            return
-        self.send_auth_json(HTTPStatus.OK, response)
-
-    def handle_review_start(self, submission_id: str) -> None:
-        body = self.read_json_body()
-        if body is None:
-            return
-        try:
-            submission_id = clean_uuid(submission_id, "review submission id")
-        except ValueError:
-            self.send_json(HTTPStatus.NOT_FOUND, auth_error("REVIEW_SUBMISSION_NOT_FOUND", "The review submission is unavailable."))
-            return
-        expected_version = body.get("expected_version")
-        if (
-            set(body) != {"confirmation", "expected_version"}
-            or body.get("confirmation") != "start-review"
-            or isinstance(expected_version, bool)
-            or not isinstance(expected_version, int)
-            or expected_version < 1
-        ):
-            self.send_json(
-                HTTPStatus.UNPROCESSABLE_ENTITY,
-                auth_error("REVIEW_VERSION_REQUIRED", "Confirm the current submission version before starting review."),
-            )
-            return
-        user, authorization, result = self.review_rpc(
-            "review_start_submission",
-            {"submission_id": submission_id, "expected_lock_version": expected_version},
-        )
-        if not user or authorization is None or result is None:
-            return
-        response = clean_review_mutation_result(result, submission_id)
-        principal = clean_review_principal(user, authorization)
-        if (
-            response is None
-            or principal is None
-            or response["submission"].get("assigned_reviewer_id") != principal[0]
-            or response["submission"].get("status") != "in_review"
-        ):
-            self.send_json(HTTPStatus.BAD_GATEWAY, auth_error("REVIEW_PROVIDER_FAILED", "The start-review result was invalid."))
-            return
         self.send_auth_json(HTTPStatus.OK, response)
 
     def handle_review_decision(self, submission_id: str, action: str) -> None:
@@ -10510,66 +8509,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             if status != HTTPStatus.OK:
                 cleanup_succeeded = False
         return cleanup_succeeded
-
-    def handle_dashboard_get(self) -> None:
-        user, authorization = self.require_account_session()
-        if not user or not authorization:
-            return
-        status, result = supabase_rest_request(
-            "rpc/get_my_dashboard",
-            self.current_access_token(user),
-            {},
-        )
-        if status != HTTPStatus.OK or not isinstance(result, dict):
-            self.send_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("DASHBOARD_PROVIDER_FAILED", "Dashboard data could not be loaded. Try again."),
-            )
-            return
-        response = clean_dashboard_result(result)
-        if response is None:
-            self.send_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("DASHBOARD_PROVIDER_FAILED", "Dashboard data could not be verified. Try again."),
-            )
-            return
-
-        public_status_code, public_status_result = supabase_rest_request(
-            "rpc/get_my_public_delivery_status",
-            self.current_access_token(user),
-            {},
-        )
-        if public_status_code == HTTPStatus.OK:
-            public_capability = clean_public_delivery_status(public_status_result)
-            if public_capability is None:
-                self.send_json(
-                    HTTPStatus.BAD_GATEWAY,
-                    auth_error("DASHBOARD_PROVIDER_FAILED", "Public profile status could not be verified. Try again."),
-                )
-                return
-            response["capabilities"]["public_portfolio"] = public_capability
-        elif public_status_code != HTTPStatus.NOT_FOUND:
-            self.send_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("DASHBOARD_PROVIDER_FAILED", "Public profile status could not be loaded. Try again."),
-            )
-            return
-
-        signed_assets = {}
-        for section in ("recent_images", "drafts"):
-            for image in response[section]:
-                asset = image.pop("thumbnail_asset")
-                if asset is None:
-                    image["thumbnail"] = None
-                    continue
-                asset_id = asset["id"]
-                if asset_id not in signed_assets:
-                    signed_asset = self.sign_dashboard_asset(user, asset)
-                    if signed_asset is None:
-                        return
-                    signed_assets[asset_id] = signed_asset
-                image["thumbnail"] = dict(signed_assets[asset_id])
-        self.send_auth_json(HTTPStatus.OK, response)
 
     def sign_workspace_draft(self, user: dict, draft: dict) -> dict | None:
         signed_assets = []
@@ -11260,45 +9199,10 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         return True, authorization
 
     def serve_admin_works_page(self, next_path: str = "/admin/works") -> None:
-        status, user = self.current_auth_user()
-        if status != HTTPStatus.OK:
-            if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
-                self.send_current_user_error(status, user)
-                return
-            self.send_response(HTTPStatus.SEE_OTHER)
-            self.send_header("Location", f"/auth/sign-in?{urlencode({'next': next_path})}")
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            return
-        if self.is_recovery_session(user):
-            self.send_response(HTTPStatus.SEE_OTHER)
-            self.send_header("Location", "/auth/reset-password")
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            return
-        authz_status, authorization = self.current_authorization(user)
-        if authz_status != HTTPStatus.OK or not isinstance(authorization, dict):
-            self.send_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("AUTHORIZATION_FAILED", "Unable to verify administrator access. Try again."),
-            )
-            return
-        roles = set(authorization.get("roles") or [])
-        if authorization.get("account_status") != "active" or not roles.intersection({"admin", "super_admin"}):
-            self.send_json(
-                HTTPStatus.FORBIDDEN,
-                auth_error("ADMIN_REQUIRED", "You do not have access to Works governance."),
-            )
-            return
-        if authorization.get("aal") != "aal2":
-            self.send_response(HTTPStatus.SEE_OTHER)
-            self.send_header("Location", f"/auth/mfa?{urlencode({'next': next_path})}")
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            return
-        self.serve_header_html("admin-works.html", user=user, authorization=authorization)
+        self.serve_staff_page("admin-works.html", next_path, "You do not have access to Works governance.")
 
-    def serve_admin_users_page(self, next_path: str = "/admin/users") -> None:
+    def serve_staff_page(self, filename: str, next_path: str, denied_message: str) -> None:
+        """Serve a staff page to an active, MFA-verified admin or super admin."""
         status, user = self.current_auth_user()
         if status != HTTPStatus.OK:
             if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
@@ -11317,17 +9221,11 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
         authz_status, authorization = self.current_authorization(user)
         if authz_status != HTTPStatus.OK or not isinstance(authorization, dict):
-            self.send_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("AUTHORIZATION_FAILED", "Unable to verify administrator access. Try again."),
-            )
+            self.send_authorization_failure(authz_status, authorization, "Unable to verify administrator access. Try again.")
             return
         roles = set(authorization.get("roles") or [])
         if authorization.get("account_status") != "active" or not roles.intersection({"admin", "super_admin"}):
-            self.send_json(
-                HTTPStatus.FORBIDDEN,
-                auth_error("ADMIN_REQUIRED", "You do not have access to user administration."),
-            )
+            self.send_json(HTTPStatus.FORBIDDEN, auth_error("ADMIN_REQUIRED", denied_message))
             return
         if authorization.get("aal") != "aal2":
             self.send_response(HTTPStatus.SEE_OTHER)
@@ -11335,7 +9233,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             return
-        self.serve_header_html("admin-users.html", user=user, authorization=authorization)
+        self.serve_header_html(filename, user=user, authorization=authorization)
 
     def serve_account_communications_page(self, filename: str, next_path: str) -> None:
         status, user = self.current_auth_user()
@@ -11356,10 +9254,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
         authz_status, authorization = self.current_authorization(user)
         if authz_status != HTTPStatus.OK or not isinstance(authorization, dict):
-            self.send_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("AUTHORIZATION_FAILED", "Unable to verify communications access. Try again."),
-            )
+            self.send_authorization_failure(authz_status, authorization, "Unable to verify communications access. Try again.")
             return
         if authorization.get("account_status") != "active":
             self.send_json(
@@ -11390,10 +9285,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
         authz_status, authorization = self.current_authorization(user)
         if authz_status != HTTPStatus.OK or not isinstance(authorization, dict):
-            self.send_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("AUTHORIZATION_FAILED", "Unable to verify administrator access. Try again."),
-            )
+            self.send_authorization_failure(authz_status, authorization, "Unable to verify administrator access. Try again.")
             return
         roles = set(authorization.get("roles") or [])
         if authorization.get("account_status") != "active" or not roles.intersection({"admin", "super_admin"}):
@@ -11424,10 +9316,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return False, user, None
         status, authorization = self.current_authorization(user)
         if status != HTTPStatus.OK or not isinstance(authorization, dict):
-            self.send_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("AUTHORIZATION_FAILED", "Unable to verify review access. Try again."),
-            )
+            self.send_authorization_failure(status, authorization, "Unable to verify review access. Try again.")
             return False, user, None
         if authorization.get("account_status") != "active":
             self.send_json(
@@ -11455,41 +9344,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             )
             return False, user, authorization
         return True, user, authorization
-
-    def serve_review_page(self, next_path: str = "/admin/reviews") -> None:
-        status, user = self.current_auth_user()
-        if status != HTTPStatus.OK:
-            if status in {HTTPStatus.SERVICE_UNAVAILABLE, HTTPStatus.BAD_GATEWAY}:
-                self.send_current_user_error(status, user)
-                return
-            self.send_response(HTTPStatus.SEE_OTHER)
-            self.send_header("Location", f"/auth/sign-in?{urlencode({'next': next_path})}")
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            return
-        if self.is_recovery_session(user):
-            self.send_response(HTTPStatus.SEE_OTHER)
-            self.send_header("Location", "/auth/reset-password")
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            return
-        authz_status, authorization = self.current_authorization(user)
-        if authz_status != HTTPStatus.OK or not isinstance(authorization, dict):
-            self.send_json(
-                HTTPStatus.BAD_GATEWAY,
-                auth_error("AUTHORIZATION_FAILED", "Unable to verify review access. Try again."),
-            )
-            return
-        roles = set(authorization.get("roles") or [])
-        if authorization.get("account_status") != "active" or not roles.intersection({"reviewer", "admin", "super_admin"}):
-            self.send_json(
-                HTTPStatus.FORBIDDEN,
-                auth_error("REVIEWER_REQUIRED", "You do not have access to the Review Queue."),
-            )
-            return
-        if self.redirect_to_mfa_if_required(user, authorization, next_path):
-            return
-        self.serve_header_html("admin-reviews.html", user=user, authorization=authorization)
 
     def has_admin_access_silently(self) -> bool:
         status, user = self.current_auth_user()
@@ -11522,57 +9376,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_json(HTTPStatus.BAD_REQUEST, auth_error("JSON_OBJECT_REQUIRED", "Request body must be a JSON object."))
             return None
         return body
-
-    def read_archive_create_body(self) -> tuple[dict, dict[str, dict]] | None:
-        content_type = self.headers.get("Content-Type", "")
-        if content_type.startswith("multipart/form-data"):
-            try:
-                length = int(self.headers.get("Content-Length") or "0")
-            except ValueError:
-                self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Invalid Content-Length."})
-                return None
-            if length <= 0:
-                self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Request body is required."})
-                return None
-            if length > MAX_UPLOAD_BYTES:
-                self.send_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "Upload request is too large."})
-                return None
-
-            raw_body = self.rfile.read(length)
-            message = BytesParser(policy=policy.default).parsebytes(
-                f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("utf-8") + raw_body
-            )
-            metadata = None
-            files: dict[str, dict] = {}
-            for part in message.iter_parts():
-                name = part.get_param("name", header="content-disposition")
-                if not name:
-                    continue
-                filename = part.get_filename()
-                payload = part.get_payload(decode=True) or b""
-                if name == "metadata":
-                    try:
-                        metadata = json.loads(payload.decode(part.get_content_charset() or "utf-8"))
-                    except (UnicodeDecodeError, json.JSONDecodeError):
-                        self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Upload metadata must be valid JSON."})
-                        return None
-                    continue
-                if name.startswith("asset:"):
-                    asset_id = name.removeprefix("asset:")
-                    files[asset_id] = {
-                        "filename": filename or asset_id,
-                        "content_type": part.get_content_type(),
-                        "body": payload,
-                    }
-            if not isinstance(metadata, dict):
-                self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Upload metadata is required."})
-                return None
-            return metadata, files
-
-        body = self.read_json_body()
-        if body is None:
-            return None
-        return body, {}
 
     def handle_archive_images(self, parsed) -> None:
         query = parse_qs(parsed.query)
@@ -11671,125 +9474,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         store_public_response(cache_key, response, generation)
         self.send_json(HTTPStatus.OK, response)
 
-    def handle_archive_image_update(self, image_id: str) -> None:
-        if not ARCHIVE_DB_PATH.exists():
-            self.send_json(
-                HTTPStatus.SERVICE_UNAVAILABLE,
-                {
-                    "error": "Local archive database is not available.",
-                    "hint": "Run python3 scripts/seed_local_archive_db.py first.",
-                },
-            )
-            return
-
-        body = self.read_json_body()
-        if body is None:
-            return
-        try:
-            payload = normalize_archive_update_payload(body)
-        except ValueError as error:
-            self.send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
-            return
-
-        try:
-            with sqlite3.connect(ARCHIVE_DB_PATH) as connection:
-                connection.row_factory = sqlite3.Row
-                connection.execute("PRAGMA foreign_keys = ON")
-                existing = connection.execute("SELECT id FROM images WHERE id = ?", (image_id,)).fetchone()
-                if not existing:
-                    self.send_json(HTTPStatus.NOT_FOUND, {"error": "Archive image not found."})
-                    return
-
-                with connection:
-                    connection.execute(
-                        """
-                        UPDATE images
-                        SET
-                          title = ?,
-                          description = ?,
-                          curatorial_note = ?,
-                          artist_statement = ?,
-                          series = ?,
-                          captured_at = ?,
-                          content_type = ?,
-                          display_mode = ?,
-                          visibility = ?,
-                          sort_order = ?,
-                          updated_at = ?
-                        WHERE id = ?
-                        """,
-                        (
-                            payload["title"],
-                            payload["description"],
-                            payload["curatorial_note"],
-                            payload["artist_statement"],
-                            payload["series"],
-                            payload["captured_at"],
-                            payload["content_type"],
-                            payload["display_mode"],
-                            payload["visibility"],
-                            payload["sort_order"],
-                            payload["updated_at"],
-                            image_id,
-                        ),
-                    )
-                    replace_image_tags(connection, image_id, payload["tag_groups"], payload["updated_at"])
-
-                row = connection.execute("SELECT * FROM archive_image_view WHERE id = ?", (image_id,)).fetchone()
-        except sqlite3.Error as error:
-            self.send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "Unable to update local archive database."})
-            return
-
-        self.send_json(HTTPStatus.OK, {"item": archive_image_payload(row), "source": "local-sqlite"})
-
-    def handle_archive_image_delete(self, image_id: str) -> None:
-        if not ARCHIVE_DB_PATH.exists():
-            self.send_json(
-                HTTPStatus.SERVICE_UNAVAILABLE,
-                {
-                    "error": "Local archive database is not available.",
-                    "hint": "Run python3 scripts/seed_local_archive_db.py first.",
-                },
-            )
-            return
-
-        try:
-            image_id = clean_identifier(image_id, "image id")
-        except ValueError as error:
-            self.send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
-            return
-
-        upload_dir = UPLOAD_ASSET_ROOT / image_id
-        try:
-            with sqlite3.connect(ARCHIVE_DB_PATH) as connection:
-                connection.row_factory = sqlite3.Row
-                connection.execute("PRAGMA foreign_keys = ON")
-                existing = connection.execute("SELECT id, source_type FROM images WHERE id = ?", (image_id,)).fetchone()
-                if not existing:
-                    self.send_json(HTTPStatus.NOT_FOUND, {"error": "Archive image not found."})
-                    return
-                if existing["source_type"] != "upload":
-                    self.send_json(HTTPStatus.FORBIDDEN, {"error": "Only uploaded image records can be deleted from Upload Studio."})
-                    return
-
-                with connection:
-                    connection.execute("DELETE FROM images WHERE id = ?", (image_id,))
-        except sqlite3.Error:
-            self.send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "Unable to delete local archive database record."})
-            return
-
-        warning = ""
-        try:
-            if upload_dir.exists():
-                shutil.rmtree(upload_dir)
-        except OSError:
-            warning = "Database record deleted, but local upload files could not be removed."
-
-        payload = {"id": image_id, "deleted": True, "source": "local-sqlite"}
-        if warning:
-            payload["warning"] = warning
-        self.send_json(HTTPStatus.OK, payload)
-
     def is_loopback_request(self) -> bool:
         client_ip = self.request_rate_limit_ip() if TRUST_REVERSE_PROXY else clean_text(self.client_address[0], 128)
         try:
@@ -11831,7 +9515,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.handle_readiness_get()
             return
         communication_static_routes = {
-            "/notifications.html": "/workspace/notifications",
             "/inbox.html": "/inbox",
             "/admin-audit.html": "/admin/audit",
         }
@@ -11841,21 +9524,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             return
-        if canonical_path == "/admin-users.html" and parsed.path != canonical_path:
-            self.send_response(HTTPStatus.SEE_OTHER)
-            self.send_header("Location", "/admin/users")
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            return
         if canonical_path == "/admin-works.html" and parsed.path != canonical_path:
             self.send_response(HTTPStatus.SEE_OTHER)
             self.send_header("Location", "/admin/works")
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            return
-        if canonical_path == "/admin-reviews.html" and parsed.path != canonical_path:
-            self.send_response(HTTPStatus.SEE_OTHER)
-            self.send_header("Location", "/admin/reviews")
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             return
@@ -11864,37 +9535,33 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         # encoded legacy upload paths must never fall through as public files.
         parsed = parsed._replace(path=canonical_path, netloc="")
         parts = [part for part in parsed.path.split("/") if part]
-        if parsed.path in {
-            "/notifications.js", "/inbox.js", "/dashboard.js", "/upload-studio.js", "/account-settings.js",
-        }:
+        retired_destination = RETIRED_PAGE_REDIRECTS.get(parsed.path)
+        if retired_destination is None and any(
+            parsed.path == prefix or parsed.path.startswith(prefix + "/") for prefix in RETIRED_PAGE_PREFIXES
+        ):
+            retired_destination = "/admin"
+        if retired_destination is None and len(parts) == 2 and parts[0] == "creators":
+            retired_destination = "/"
+        if retired_destination is not None:
+            self.send_response(HTTPStatus.MOVED_PERMANENTLY)
+            self.send_header("Location", retired_destination)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if parsed.path in {"/inbox.js", "/upload-studio.js", "/account-settings.js"}:
             user, authorization = self.require_account_session()
             if not user or not authorization:
                 return
             self.path = parsed.path
             super().do_GET()
             return
-        if parsed.path in {"/admin-works.js", "/admin-users.js", "/admin-audit.js"}:
+        if parsed.path in {"/admin-works.js", "/admin-audit.js"}:
             allowed, _ = self.require_admin()
             if not allowed:
                 return
             self.path = parsed.path
             super().do_GET()
-            return
-        if parsed.path in {"/admin-reviews.js", "/manage.js"}:
-            allowed, _, _ = self.require_reviewer()
-            if not allowed:
-                return
-            self.path = parsed.path
-            super().do_GET()
-            return
-        if parsed.path in {"/notifications", "/notifications/"}:
-            self.send_response(HTTPStatus.SEE_OTHER)
-            self.send_header("Location", "/workspace/notifications")
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            return
-        if parsed.path in {"/workspace/notifications", "/workspace/notifications/"}:
-            self.serve_account_communications_page("notifications.html", "/workspace/notifications")
             return
         if parsed.path in {"/inbox", "/inbox/"}:
             self.serve_account_communications_page("inbox.html", "/inbox")
@@ -11918,32 +9585,8 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 return
             self.serve_admin_audit_page(f"/admin/audit/{audit_id}")
             return
-        if parsed.path in {"/manage", "/manage/", "/manage.html"}:
-            self.send_response(HTTPStatus.SEE_OTHER)
-            self.send_header("Location", "/admin/reviews")
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            return
-        if len(parts) == 2 and parts[0] == "creators":
-            creator_slug = clean_text(parts[1], 96).lower()
-            if not PUBLIC_CREATOR_SLUG_PATTERN.fullmatch(creator_slug):
-                self.send_json(HTTPStatus.NOT_FOUND, {"error": "Creator profile not found."})
-                return
-            self.serve_header_html("creator.html")
-            return
-        if parsed.path in {"/admin/reviews", "/admin/reviews/"}:
-            self.serve_review_page()
-            return
-        if len(parts) == 3 and parts[:2] == ["admin", "reviews"]:
-            try:
-                submission_id = clean_uuid(parts[2], "review submission id")
-            except ValueError:
-                self.send_json(
-                    HTTPStatus.NOT_FOUND,
-                    auth_error("REVIEW_SUBMISSION_NOT_FOUND", "The review submission is unavailable."),
-                )
-                return
-            self.serve_review_page(f"/admin/reviews/{submission_id}")
+        if parsed.path in {"/admin", "/admin/", "/admin.html"}:
+            self.serve_staff_page("admin.html", "/admin", "You do not have access to the staff admin.")
             return
         if parsed.path in {"/admin/works", "/admin/works/"}:
             self.serve_admin_works_page()
@@ -11959,35 +9602,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 return
             self.serve_admin_works_page(f"/admin/works/{image_id}")
             return
-        if parsed.path in {"/admin/users", "/admin/users/"}:
-            self.serve_admin_users_page()
-            return
-        if len(parts) == 3 and parts[:2] == ["admin", "users"]:
-            try:
-                target_user_id = clean_uuid(parts[2], "admin user id")
-            except ValueError:
-                self.send_json(
-                    HTTPStatus.NOT_FOUND,
-                    auth_error("ADMIN_USER_NOT_FOUND", "The user is unavailable."),
-                )
-                return
-            self.serve_admin_users_page(f"/admin/users/{target_user_id}")
-            return
-        if parsed.path == "/admin-users.html":
-            self.send_response(HTTPStatus.SEE_OTHER)
-            self.send_header("Location", "/admin/users")
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            return
         if parsed.path == "/admin-works.html":
             self.send_response(HTTPStatus.SEE_OTHER)
             self.send_header("Location", "/admin/works")
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            return
-        if parsed.path == "/admin-reviews.html":
-            self.send_response(HTTPStatus.SEE_OTHER)
-            self.send_header("Location", "/admin/reviews")
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             return
@@ -12003,13 +9620,17 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/auth/oauth/callback":
             self.handle_oauth_callback(parsed)
             return
+        if parsed.path in RETIRED_REGISTRATION_PAGES:
+            self.send_response(HTTPStatus.SEE_OTHER)
+            self.send_header("Location", "/auth/sign-in")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if parsed.path in {
             "/auth/sign-in",
-            "/auth/register",
-            "/auth/resend-verification",
             "/auth/forgot-password",
             "/auth/reset-password",
-            "/auth/verify-email",
         }:
             self.path = "/auth.html"
             super().do_GET()
@@ -12027,12 +9648,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 return
             self.path = "/mfa.html"
             super().do_GET()
-            return
-        if parsed.path == "/dashboard.html":
-            self.send_response(HTTPStatus.SEE_OTHER)
-            self.send_header("Location", "/dashboard")
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
             return
         if parsed.path == "/upload-studio.html":
             self.send_response(HTTPStatus.SEE_OTHER)
@@ -12065,10 +9680,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 return
             authz_status, authorization = self.current_authorization(user)
             if authz_status != HTTPStatus.OK or not isinstance(authorization, dict):
-                self.send_json(
-                    HTTPStatus.BAD_GATEWAY,
-                    auth_error("AUTHORIZATION_FAILED", "Unable to verify account access. Try again."),
-                )
+                self.send_authorization_failure(authz_status, authorization, "Unable to verify account access. Try again.", page_next="/settings/account")
                 return
             if authorization.get("account_status") != "active":
                 self.send_json(
@@ -12081,8 +9693,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             self.serve_header_html("account-settings.html", user=user, authorization=authorization)
             return
         if parsed.path in {
-            "/dashboard",
-            "/dashboard/",
             "/workspace",
             "/workspace/",
             "/workspace/images",
@@ -12094,8 +9704,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                     self.send_current_user_error(status, user)
                     return
                 self.send_response(HTTPStatus.SEE_OTHER)
-                next_path = "/workspace/images" if parsed.path.startswith("/workspace/images") else "/dashboard"
-                self.send_header("Location", f"/auth/sign-in?{urlencode({'next': next_path})}")
+                self.send_header("Location", f"/auth/sign-in?{urlencode({'next': '/workspace/images'})}")
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
                 return
@@ -12107,40 +9716,30 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 return
             authz_status, authorization = self.current_authorization(user)
             if authz_status != HTTPStatus.OK or not isinstance(authorization, dict):
-                self.send_json(
-                    HTTPStatus.BAD_GATEWAY,
-                    auth_error("AUTHORIZATION_FAILED", "Unable to verify account access. Try again."),
-                )
+                self.send_authorization_failure(authz_status, authorization, "Unable to verify account access. Try again.", page_next="/workspace/images")
                 return
             if authorization.get("account_status") != "active":
                 self.send_json(HTTPStatus.FORBIDDEN, auth_error("ACCOUNT_RESTRICTED", "This account cannot access the Workspace."))
                 return
-            next_path = "/workspace/images" if parsed.path.startswith("/workspace/images") else "/dashboard"
-            if self.redirect_to_mfa_if_required(user, authorization, next_path):
+            if self.redirect_to_mfa_if_required(user, authorization, "/workspace/images"):
                 return
             if parsed.path in {"/workspace", "/workspace/"}:
                 self.send_response(HTTPStatus.SEE_OTHER)
-                self.send_header("Location", "/dashboard")
+                self.send_header("Location", "/workspace/images")
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
-                return
-            if parsed.path in {"/dashboard", "/dashboard/"}:
-                self.serve_header_html("dashboard.html", user=user, authorization=authorization)
                 return
             self.serve_header_html("upload-studio.html", user=user, authorization=authorization)
             return
         public_header_page = HEADER_IDENTITY_PUBLIC_PAGES.get(parsed.path)
         if public_header_page:
-            self.serve_header_html(public_header_page)
+            self.serve_header_html(public_header_page, visitor=True)
             return
         if parsed.path == "/api/auth/csrf":
             self.handle_csrf_token()
             return
         if parsed.path == "/api/auth/recovery-status":
             self.handle_auth_recovery_status()
-            return
-        if parsed.path == "/api/auth/verification-status":
-            self.handle_auth_verification_status()
             return
         if parsed.path == "/api/me":
             self.handle_me(parsed)
@@ -12157,9 +9756,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/me/sessions":
             self.handle_sessions_get()
             return
-        if parsed.path == "/api/dashboard":
-            self.handle_dashboard_get()
-            return
         if parsed.path == "/api/folders":
             self.handle_workspace_folders_get()
             return
@@ -12174,12 +9770,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/auth/mfa/status":
             self.handle_mfa_status()
-            return
-        if parsed.path == "/api/notifications":
-            self.handle_notifications_get(parsed)
-            return
-        if parsed.path == "/api/notifications/unread-count":
-            self.handle_notification_unread_count_get()
             return
         if parsed.path == "/api/inbox":
             self.handle_inbox_list_get(parsed)
@@ -12198,15 +9788,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
         if len(parts) == 4 and parts[:3] == ["api", "admin", "works"]:
             self.handle_admin_work_detail_get(parts[3])
-            return
-        if parsed.path == "/api/admin/users":
-            self.handle_admin_users_list_get(parsed)
-            return
-        if len(parts) == 4 and parts[:3] == ["api", "admin", "users"]:
-            self.handle_admin_user_detail_get(parts[3])
-            return
-        if parsed.path == "/api/admin/review-submissions":
-            self.handle_review_submissions_get(parsed)
             return
         if len(parts) == 4 and parts[:3] == ["api", "admin", "review-submissions"]:
             self.handle_review_submission_get(parts[3])
@@ -12267,121 +9848,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         self.path = canonical_path
         super().do_GET()
 
-    def handle_archive_image_create(self) -> None:
-        if not ARCHIVE_DB_PATH.exists():
-            self.send_json(
-                HTTPStatus.SERVICE_UNAVAILABLE,
-                {
-                    "error": "Local archive database is not available.",
-                    "hint": "Run python3 scripts/seed_local_archive_db.py first.",
-                },
-            )
-            return
-
-        create_body = self.read_archive_create_body()
-        if create_body is None:
-            return
-        body, file_parts = create_body
-
-        try:
-            image_id = clean_identifier(body.get("id"), "image id")
-        except ValueError as error:
-            self.send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
-            return
-
-        try:
-            payload = normalize_archive_update_payload(body)
-        except ValueError as error:
-            self.send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
-            return
-
-        # Validate required upload fields
-        try:
-            original_width = positive_int(body.get("original_width"), "original_width")
-            original_height = positive_int(body.get("original_height"), "original_height")
-        except ValueError as error:
-            self.send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
-            return
-
-        ratio_category_code = clean_text(body.get("ratio_category_code"), 32)
-        if ratio_category_code not in set(ARCHIVE_RATIO_CODES.values()):
-            self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Invalid ratio_category_code."})
-            return
-
-        original_filename = clean_text(body.get("original_filename"), 512) or payload["title"]
-        timestamp = now_iso()
-        try:
-            assets = normalize_archive_assets(body.get("assets"), image_id)
-            square_slices = normalize_archive_square_slices(body.get("square_slices"), image_id, {asset["id"] for asset in assets})
-        except ValueError as error:
-            self.send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
-            return
-
-        try:
-            with sqlite3.connect(ARCHIVE_DB_PATH) as connection:
-                connection.row_factory = sqlite3.Row
-                connection.execute("PRAGMA foreign_keys = ON")
-
-                # Check if image already exists
-                existing = connection.execute("SELECT id FROM images WHERE id = ?", (image_id,)).fetchone()
-                if existing:
-                    self.send_json(HTTPStatus.CONFLICT, {"error": "Image with this id already exists."})
-                    return
-
-                with connection:
-                    connection.execute(
-                        """
-                        INSERT INTO images (
-                          id, artist_id, title, slug, description, curatorial_note, artist_statement,
-                          series, source_type, visibility, original_filename, original_width, original_height,
-                          original_aspect_ratio, ratio_category_code, display_ratio_override,
-                          content_type, display_mode, ai_model, ai_confidence, ai_analysis, exif,
-                          sort_order, captured_at, uploaded_at, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            image_id,
-                            SEED_ARTIST_ID,
-                            payload["title"],
-                            slugify(payload["title"], image_id),
-                            payload["description"],
-                            payload["curatorial_note"],
-                            payload["artist_statement"],
-                            payload["series"],
-                            "upload",
-                            payload["visibility"],
-                            original_filename,
-                            original_width,
-                            original_height,
-                            original_width / original_height,
-                            ratio_category_code,
-                            None,
-                            payload["content_type"],
-                            payload["display_mode"],
-                            None,
-                            None,
-                            "{}",
-                            json.dumps(body.get("exif") or {}),
-                            payload["sort_order"],
-                            payload["captured_at"],
-                            timestamp,
-                            timestamp,
-                            payload["updated_at"],
-                        ),
-                    )
-                    replace_image_tags(connection, image_id, payload["tag_groups"], timestamp)
-                    write_upload_assets(connection, image_id, assets, square_slices, file_parts, timestamp)
-
-                row = connection.execute("SELECT * FROM archive_image_view WHERE id = ?", (image_id,)).fetchone()
-        except ValueError as error:
-            self.send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
-            return
-        except sqlite3.Error:
-            self.send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "Unable to create image in local archive database."})
-            return
-
-        self.send_json(HTTPStatus.CREATED, {"item": archive_image_payload(row), "source": "local-sqlite"})
-
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         parts = [part for part in parsed.path.split("/") if part]
@@ -12389,11 +9855,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             if not self.require_csrf():
                 return
             self.handle_project_inquiry_create()
-            return
-        if parsed.path == "/api/notifications/read":
-            if not self.require_csrf():
-                return
-            self.handle_notifications_read()
             return
         if parsed.path == "/api/admin/audit-logs/export":
             if not self.require_csrf():
@@ -12410,13 +9871,13 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             else:
                 self.handle_inbox_status(parts[2])
             return
+        if parsed.path in RETIRED_REGISTRATION_ENDPOINTS:
+            self.send_json(
+                HTTPStatus.GONE,
+                auth_error("REGISTRATION_CLOSED", "Public registration has closed. Visitors do not need an account."),
+            )
+            return
         if parsed.path.startswith("/api/auth/") and not self.require_csrf():
-            return
-        if parsed.path == "/api/auth/register":
-            self.handle_auth_register()
-            return
-        if parsed.path == "/api/auth/resend-verification":
-            self.handle_auth_resend_verification()
             return
         if parsed.path == "/api/auth/sign-in":
             self.handle_auth_sign_in()
@@ -12432,12 +9893,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/auth/recovery-session":
             self.handle_auth_callback_session("recovery")
-            return
-        if parsed.path == "/api/auth/verify-email":
-            self.handle_auth_callback_session("signup")
-            return
-        if parsed.path == "/api/auth/verify-email-code":
-            self.handle_auth_verify_email_code()
             return
         if parsed.path == "/api/auth/reset-password":
             self.handle_auth_reset_password()
@@ -12503,44 +9958,15 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if len(parts) == 5 and parts[:3] == ["api", "admin", "review-submissions"]:
             if not self.require_csrf():
                 return
-            submission_id = parts[3]
-            action = parts[4]
-            if action == "assign":
-                self.handle_review_assignment(submission_id)
-                return
-            if action == "start":
-                self.handle_review_start(submission_id)
-                return
-            if action in {
-                "request-changes",
-                "reject",
-                "approve",
-                "approve-and-publish",
-                "super-admin-self-publish",
-            }:
-                self.handle_review_decision(submission_id, action)
+            # The review queue was retired; only the owner's audited
+            # self-publish remains, used by the staff upload page.
+            if parts[4] == "super-admin-self-publish":
+                self.handle_review_decision(parts[3], parts[4])
                 return
         if len(parts) == 5 and parts[:3] == ["api", "admin", "works"] and parts[4] in {"takedown", "restore"}:
             if not self.require_csrf():
                 return
             self.handle_admin_work_mutation(parts[3], parts[4])
-            return
-        if len(parts) == 5 and parts[:3] == ["api", "admin", "users"] and parts[4] in {
-            "status",
-            "roles",
-            "revoke-sessions",
-        }:
-            if not self.require_csrf():
-                return
-            self.handle_admin_user_mutation(parts[3], parts[4])
-            return
-        if parsed.path == "/api/archive/images":
-            if not self.require_csrf(require_json=False):
-                return
-            allowed, _ = self.require_admin()
-            if not allowed:
-                return
-            self.handle_archive_image_create()
             return
 
         self.send_json(HTTPStatus.NOT_FOUND, {"error": "API endpoint not found."})
@@ -12567,14 +9993,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             if not self.require_csrf():
                 return
             self.handle_workspace_draft_update(parts[2])
-            return
-        if len(parts) == 4 and parts[:3] == ["api", "archive", "images"]:
-            if not self.require_csrf():
-                return
-            allowed, _ = self.require_admin()
-            if not allowed:
-                return
-            self.handle_archive_image_update(parts[3])
             return
 
         self.send_json(HTTPStatus.NOT_FOUND, {"error": "API endpoint not found."})
@@ -12621,14 +10039,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             if not self.require_csrf():
                 return
             self.handle_workspace_draft_trash(parts[2])
-            return
-        if len(parts) == 4 and parts[:3] == ["api", "archive", "images"]:
-            if not self.require_csrf(require_json=False):
-                return
-            allowed, _ = self.require_admin()
-            if not allowed:
-                return
-            self.handle_archive_image_delete(parts[3])
             return
 
         self.send_json(HTTPStatus.NOT_FOUND, {"error": "API endpoint not found."})

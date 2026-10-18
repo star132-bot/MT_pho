@@ -6,7 +6,7 @@
     <title>Sign In | MT Presence</title>
     <meta name="description" content="Sign in to the private MT Presence image workspace." />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css?v=20261002-public-recovery" />
+    <link rel="stylesheet" href="/styles.css?v=20261018-i18n" />
     <template id="mt-enabled-oauth-providers" data-enabled-oauth-providers>google</template>
   </head>
   <body class="auth-page">
@@ -22,9 +22,9 @@
 
       <section class="auth-panel" aria-labelledby="auth-title">
         <div class="auth-panel-inner">
-          <p class="auth-eyebrow">Private Workspace</p>
+          <p class="auth-eyebrow">Site Staff</p>
           <h1 id="auth-title">Sign in</h1>
-          <p id="auth-intro" class="auth-intro" data-auth-intro>Continue to your images, drafts, and review activity.</p>
+          <p id="auth-intro" class="auth-intro" data-auth-intro>Sign in to manage the MT Presence website. Visitors do not need an account.</p>
 
           <div class="auth-notice" role="status" aria-live="polite" aria-atomic="true" tabindex="-1" data-auth-notice hidden></div>
           <a class="auth-open-browser" href="/auth/sign-in" target="_blank" rel="noopener" data-auth-open-browser hidden>Open secure sign-in in a full browser</a>
@@ -35,23 +35,10 @@
           </div>
 
           <form id="auth-form" class="auth-form" data-auth-form aria-describedby="auth-intro" novalidate>
-            <label class="auth-field" data-auth-field="display_name" hidden>
-              <span>Display name</span>
-              <input id="auth-display-name" name="display_name" type="text" autocomplete="name" maxlength="120" aria-describedby="auth-display-name-error" />
-              <small id="auth-display-name-error" data-field-error="display_name"></small>
-            </label>
-
             <label class="auth-field" data-auth-field="email">
               <span>Email</span>
               <input id="auth-email" name="email" type="email" autocomplete="email" inputmode="email" required maxlength="254" autocapitalize="none" spellcheck="false" aria-describedby="auth-email-error" />
               <small id="auth-email-error" data-field-error="email"></small>
-            </label>
-
-            <label class="auth-field" data-auth-field="verification_code" hidden>
-              <span>Verification code</span>
-              <input id="auth-verification-code" name="verification_code" type="text" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{8}" minlength="8" maxlength="8" aria-describedby="auth-verification-code-hint auth-verification-code-error" />
-              <p id="auth-verification-code-hint" class="auth-field-hint">Enter the 8-digit code from your email.</p>
-              <small id="auth-verification-code-error" data-field-error="verification_code"></small>
             </label>
 
             <label class="auth-field" data-auth-field="recovery_code" hidden>
@@ -72,12 +59,6 @@
               <span data-password-confirmation-label>Confirm password</span>
               <input id="auth-password-confirmation" name="password_confirmation" type="password" autocomplete="new-password" required minlength="12" maxlength="128" aria-describedby="auth-password-confirmation-error" />
               <small id="auth-password-confirmation-error" data-field-error="password_confirmation"></small>
-            </label>
-
-            <label class="auth-consent" data-auth-field="terms_accepted" hidden>
-              <input name="terms_accepted" type="checkbox" />
-              <span>I accept the <a href="/terms.html" target="_blank" rel="noopener">Terms of Use</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Notice</a>.</span>
-              <small data-field-error="terms_accepted"></small>
             </label>
 
             <button class="auth-submit" type="submit" data-auth-submit>Sign in</button>
@@ -105,17 +86,17 @@
           </div>
 
           <a class="auth-secondary-link" href="/auth/forgot-password" data-auth-forgot-link>Forgot password?</a>
-          <a class="auth-secondary-link" href="/auth/resend-verification" data-auth-resend-link hidden>Send a new verification code</a>
+          <a class="auth-secondary-link" href="/auth/forgot-password" data-auth-resend-link hidden>Request a new recovery code</a>
 
-          <p class="auth-switch">
-            <span data-auth-switch-copy>New to MT Presence?</span>
-            <a href="/auth/register" data-auth-switch-link>Create an account</a>
+          <p class="auth-switch" hidden>
+            <span data-auth-switch-copy></span>
+            <a href="/auth/sign-in" data-auth-switch-link></a>
           </p>
           <a class="auth-next-link" href="/auth/sign-in" data-auth-next-link hidden>Return to sign in</a>
-          <a class="auth-public-link" href="/works.html">Return to public Works</a>
+          <a class="auth-public-link" href="/">Return to the website</a>
         </div>
       </section>
     </main>
-    <script src="/auth.js?v=20260807-oauth-providers"></script>
+    <script src="/auth.js?v=20261018-staff-only"></script>
   </body>
 </html>

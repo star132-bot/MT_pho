@@ -5,17 +5,14 @@ from __future__ import annotations
 
 
 PUBLIC_RUNTIME_FILES = frozenset({
-    "index.html", "works.html", "work.html", "about.html", "contact.html", "lightbox.html", "privacy.html", "terms.html",
-    "creator.html", "collections.html", "auth.html", "mfa.html", "account-settings.html",
-    "dashboard.html", "upload-studio.html", "notifications.html", "inbox.html", "admin-reviews.html",
-    "admin-works.html", "admin-users.html", "admin-audit.html", "manage.html",
-    "styles.css", "privacy.css", "admin-audit.css", "robots.txt", "sitemap.xml", "favicon.svg",
+    "index.html", "works.html", "work.html", "about.html", "contact.html", "privacy.html", "terms.html",
+    "auth.html", "mfa.html", "account-settings.html", "admin.html",
+    "upload-studio.html", "inbox.html",     "admin-works.html", "admin-audit.html",     "styles.css", "privacy.css", "admin-audit.css", "robots.txt", "sitemap.xml", "favicon.svg",
     "script.js", "global-header.js", "archive.js", "archive-data.js", "archive-upload.js", "public-archive.js",
-    "public-navigation.js", "series-data.js", "lightbox.js", "contact.js", "creator.js", "work-detail.js", "about.js",
-    "collections.js", "auth.js", "mfa.js", "account-menu.js", "account-settings.js",
-    "dashboard.js", "upload-studio.js", "notifications.js", "inbox.js", "site-footer.js",
-    "admin-reviews.js", "admin-works.js", "admin-users.js", "admin-audit.js", "manage.js",
-})
+    "public-navigation.js", "series-data.js", "contact.js", "i18n.js", "work-detail.js", "about.js",
+    "auth.js", "mfa.js", "account-menu.js", "account-settings.js",
+    "upload-studio.js", "inbox.js", "site-footer.js",
+    "admin-works.js", "admin-audit.js", })
 
 DATABASE_MIGRATION_FILES = frozenset({
     "database/migrations/20260713_admin_mfa_hardening.sql",

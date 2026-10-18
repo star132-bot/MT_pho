@@ -71,10 +71,8 @@ def main() -> None:
         result = run_deploy(fake_bin, incremental_log, "no")
         if result.returncode != 0:
             raise RuntimeError(f"Incremental deployment path failed: {result.stderr.strip()}")
-        if "Phase 3 Review Queue static contracts validated." not in result.stdout:
+        if "Review database contracts validated" not in result.stdout:
             raise RuntimeError("Incremental deployment skipped the Phase 3 Review Queue validator")
-        if "Admin Users static contracts passed" not in result.stdout:
-            raise RuntimeError("Incremental deployment skipped the Admin Users validator")
         incremental_files = logged_files(incremental_log)
         expected_migrations = sorted(path.name for path in (ROOT / "database" / "migrations").glob("*.sql"))
         if incremental_files != expected_migrations:
