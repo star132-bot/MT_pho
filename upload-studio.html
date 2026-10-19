@@ -9,7 +9,7 @@
       content="A secure workspace for importing images, organizing folders, and editing private MT Presence Drafts."
     />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css?v=20261018-i18n" />
+    <link rel="stylesheet" href="/styles.css?v=20261018-upload-prefill" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="upload-studio-page">
@@ -129,7 +129,7 @@
     <header class="site-header upload-studio-header" aria-label="Artist workspace navigation">
       <a class="brand-mark" href="/admin" aria-label="Open the staff admin">
         <span>MT</span>
-        <span>Artist Workspace</span>
+        <span>Admin</span>
       </a>
       <nav class="site-nav" aria-label="Staff navigation">
         <a href="/admin">Admin</a>
@@ -229,8 +229,8 @@
 
           <div class="upload-studio-batch-bar" data-studio-drafts-only>
             <div>
-              <strong>Batch submission</strong>
-              <span>Checks every Draft in this folder and submits only the ones whose metadata and security scan are ready.</span>
+              <strong>Batch publish</strong>
+              <span>Checks every Draft in this folder and publishes only the ones that pass the publishing checks.</span>
             </div>
             <button type="button" data-studio-submit-ready disabled>Check &amp; publish ready</button>
           </div>
@@ -386,7 +386,7 @@
             <section class="upload-studio-readiness" data-studio-readiness data-state="checking" aria-labelledby="studio-readiness-heading">
               <header class="upload-studio-readiness-header">
                 <div>
-                  <h3 id="studio-readiness-heading">Submission readiness</h3>
+                  <h3 id="studio-readiness-heading">Publishing checks</h3>
                   <p data-studio-readiness-summary aria-live="polite">Checking submission requirements...</p>
                 </div>
                 <button
@@ -420,7 +420,7 @@
                 </button>
               </div>
               <div class="upload-studio-footer-actions">
-                <button class="upload-studio-save" type="submit" data-studio-save-record>
+                <button class="upload-studio-save" type="submit" data-studio-save-record title="Save Draft (Ctrl+S / ⌘S)" aria-keyshortcuts="Control+S Meta+S">
                   <svg class="ui-icon" aria-hidden="true" focusable="false">
                     <use href="#icon-save"></use>
                   </svg>
@@ -432,7 +432,7 @@
                   </svg>
                   Reload Server Draft
                 </button>
-                <button class="upload-studio-submit" type="button" data-studio-submit-record disabled>
+                <button class="upload-studio-submit" type="button" data-studio-submit-record disabled title="Publish (Ctrl+Enter / ⌘Enter)" aria-keyshortcuts="Control+Enter Meta+Enter">
                   <svg class="ui-icon" aria-hidden="true" focusable="false">
                     <use href="#icon-arrow-right"></use>
                   </svg>
@@ -483,11 +483,12 @@
             <h2 id="quick-upload-title">Quick Upload</h2>
           </div>
           </header>
-          <p id="quick-upload-description">Choose the series for every selected image. Titles come from filenames; each Draft remains editable.</p>
+          <p id="quick-upload-description">Black-and-white photographs go to Grey and colour photographs to Colour, unless you choose a series. Titles, captions and keywords come from Lightroom/Photoshop metadata or the filename; each Draft remains editable.</p>
           <div class="upload-studio-quick-fields">
           <label class="form-field upload-studio-span">
             <span>Series</span>
             <select name="content_category" required>
+              <option value="auto">Detect automatically · 自动识别黑白</option>
               <option value="concrete">此间留彩 · Colour</option>
               <option value="abstract">此间留灰 · Grey</option>
             </select>
@@ -538,9 +539,9 @@
     </dialog>
 
     <script src="/archive-data.js?v=20260610-works-viewer-editor"></script>
-    <script src="/archive-upload.js?v=20260610-works-viewer-editor"></script>
+    <script src="/archive-upload.js?v=20261018-upload-prefill"></script>
     <script src="/site-footer.js?v=20261018-staff-only"></script>
     <script src="/account-menu.js?v=20261018-staff-admin"></script>
-    <script src="/upload-studio.js?v=20261018-staff-admin"></script>
+    <script src="/upload-studio.js?v=20261018-upload-prefill"></script>
   </body>
 </html>

@@ -6627,6 +6627,24 @@ button.upload-studio-card-main:focus-visible {
   z-index: 120;
 }
 
+.upload-studio-toast:not([hidden]) {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.upload-studio-toast[data-state="error"] {
+  background: #6f1d1b;
+}
+
+.upload-studio-toast-link {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
 .upload-studio-confirm {
   width: min(440px, calc(100% - 32px));
   max-width: none;

@@ -241,6 +241,165 @@ window.MTArchiveUpload = (() => {
     return values;
   }
 
+  // Lightroom and Photoshop embed the photographer's title, caption and
+  // keywords as XMP (any format) and IPTC (JPEG APP13). Read both so uploads
+  // arrive pre-filled; XMP wins when both are present.
+  const MAX_METADATA_TEXT = { title: 180, caption: 500, keyword: 64 };
+
+  function indexOfBytes(bytes, pattern, from = 0) {
+    const first = pattern[0];
+    const last = bytes.length - pattern.length;
+    for (let index = from; index <= last; index += 1) {
+      if (bytes[index] !== first) continue;
+      let matched = true;
+      for (let offset = 1; offset < pattern.length; offset += 1) {
+        if (bytes[index + offset] !== pattern[offset]) {
+          matched = false;
+          break;
+        }
+      }
+      if (matched) return index;
+    }
+    return -1;
+  }
+
+  function asciiBytes(text) {
+    return Uint8Array.from(text, (character) => character.charCodeAt(0));
+  }
+
+  function cleanMetadataText(value, limit) {
+    return String(value || "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, limit);
+  }
+
+  function uniqueKeywords(values) {
+    const seen = new Set();
+    return values
+      .map((value) => cleanMetadataText(value, MAX_METADATA_TEXT.keyword))
+      .filter((value) => {
+        const key = value.toLowerCase();
+        if (!value || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 20);
+  }
+
+  function readXmp(bytes) {
+    const start = indexOfBytes(bytes, asciiBytes("<x:xmpmeta"));
+    if (start < 0) return {};
+    const endTag = asciiBytes("</x:xmpmeta>");
+    const end = indexOfBytes(bytes, endTag, start);
+    if (end < 0 || end - start > 4 * 1024 * 1024) return {};
+    const xml = new TextDecoder("utf-8").decode(bytes.subarray(start, end + endTag.length));
+    let documentNode;
+    try {
+      documentNode = new DOMParser().parseFromString(xml, "application/xml");
+    } catch (_error) {
+      return {};
+    }
+    if (documentNode.getElementsByTagName("parsererror").length) return {};
+    const DC = "http://purl.org/dc/elements/1.1/";
+    const RDF = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+    const items = (localName) => {
+      const element = documentNode.getElementsByTagNameNS(DC, localName)[0];
+      return element ? [...element.getElementsByTagNameNS(RDF, "li")].map((li) => li.textContent) : [];
+    };
+    return {
+      title: cleanMetadataText(items("title")[0], MAX_METADATA_TEXT.title),
+      caption: cleanMetadataText(items("description")[0], MAX_METADATA_TEXT.caption),
+      keywords: uniqueKeywords(items("subject")),
+    };
+  }
+
+  function readIptc(buffer, mimeType) {
+    if (mimeType !== "image/jpeg") return {};
+    const view = new DataView(buffer);
+    let offset = 2;
+    while (offset + 4 < view.byteLength && view.getUint8(offset) === 0xff) {
+      const marker = view.getUint8(offset + 1);
+      const segmentLength = view.getUint16(offset + 2, false);
+      if (marker === 0xda) break;
+      if (marker === 0xed && readAscii(view, offset + 4, 13) === "Photoshop 3.0") {
+        return parsePhotoshopResources(view, offset + 18, offset + 2 + segmentLength);
+      }
+      offset += 2 + segmentLength;
+    }
+    return {};
+  }
+
+  function parsePhotoshopResources(view, start, end) {
+    let offset = start;
+    while (offset + 12 <= end && readAscii(view, offset, 4) === "8BIM") {
+      const resourceId = view.getUint16(offset + 4, false);
+      const nameLength = view.getUint8(offset + 6);
+      let cursor = offset + 7 + nameLength;
+      if ((nameLength + 1) % 2) cursor += 1;
+      const size = view.getUint32(cursor, false);
+      const dataStart = cursor + 4;
+      if (resourceId === 0x0404) return parseIptcRecords(view, dataStart, Math.min(dataStart + size, end));
+      offset = dataStart + size + (size % 2);
+    }
+    return {};
+  }
+
+  function parseIptcRecords(view, start, end) {
+    const values = { title: [], caption: [], keywords: [] };
+    let utf8 = false;
+    let offset = start;
+    while (offset + 5 <= end && view.getUint8(offset) === 0x1c) {
+      const record = view.getUint8(offset + 1);
+      const dataset = view.getUint8(offset + 2);
+      const length = view.getUint16(offset + 3, false);
+      const bytes = new Uint8Array(view.buffer, view.byteOffset + offset + 5, Math.min(length, end - offset - 5));
+      if (record === 1 && dataset === 90) {
+        utf8 = bytes.length >= 3 && bytes[0] === 0x1b && bytes[1] === 0x25 && bytes[2] === 0x47;
+      } else if (record === 2) {
+        const text = new TextDecoder(utf8 ? "utf-8" : "latin1").decode(bytes);
+        if (dataset === 5) values.title.push(text);
+        if (dataset === 120) values.caption.push(text);
+        if (dataset === 25) values.keywords.push(text);
+      }
+      offset += 5 + length;
+    }
+    return {
+      title: cleanMetadataText(values.title[0], MAX_METADATA_TEXT.title),
+      caption: cleanMetadataText(values.caption[0], MAX_METADATA_TEXT.caption),
+      keywords: uniqueKeywords(values.keywords),
+    };
+  }
+
+  function readEmbeddedMetadata(buffer, mimeType) {
+    let xmp = {};
+    let iptc = {};
+    try {
+      xmp = readXmp(new Uint8Array(buffer));
+    } catch (_error) {
+      xmp = {};
+    }
+    try {
+      iptc = readIptc(buffer, mimeType);
+    } catch (_error) {
+      iptc = {};
+    }
+    return {
+      title: xmp.title || iptc.title || "",
+      caption: xmp.caption || iptc.caption || "",
+      keywords: xmp.keywords?.length ? xmp.keywords : iptc.keywords || [],
+    };
+  }
+
+  // "grey-heron_at-dawn.jpg" -> "Grey Heron At Dawn"; camera names such as
+  // "DSC_0042" keep their capitals.
+  function titleFromFilename(fileName) {
+    const words = String(fileName || "")
+      .replace(/\.[^.]+$/, "")
+      .replace(/[_\s]+|-+/g, " ")
+      .trim()
+      .split(" ")
+      .filter(Boolean);
+    return words.map((word) => (word === word.toLowerCase() ? word.charAt(0).toUpperCase() + word.slice(1) : word)).join(" ");
+  }
+
   function extractExif(buffer, mimeType) {
     if (mimeType !== "image/jpeg") {
       return { status: "unsupported_mime" };
@@ -344,6 +503,36 @@ window.MTArchiveUpload = (() => {
         quality,
       );
     });
+  }
+
+  // The two series are Colour (concrete) and Grey (abstract), so a photograph
+  // whose pixels carry almost no colour starts in Grey. Toned black-and-white
+  // prints stay below the chroma threshold. Returns "" when canvas is missing.
+  const MONOCHROME_SAMPLE_EDGE = 64;
+  const MONOCHROME_CHROMA = 24;
+  const MONOCHROME_COLOURFUL_SHARE = 0.02;
+
+  function seriesFromPixels(source, width, height) {
+    try {
+      const scale = MONOCHROME_SAMPLE_EDGE / Math.max(width, height, 1);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(width * Math.min(scale, 1)));
+      canvas.height = Math.max(1, Math.round(height * Math.min(scale, 1)));
+      const context = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
+      if (!context) return "";
+      context.drawImage(source, 0, 0, canvas.width, canvas.height);
+      const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+      let colourful = 0;
+      for (let index = 0; index < data.length; index += 4) {
+        const red = data[index];
+        const green = data[index + 1];
+        const blue = data[index + 2];
+        if (Math.max(red, green, blue) - Math.min(red, green, blue) > MONOCHROME_CHROMA) colourful += 1;
+      }
+      return colourful / (data.length / 4) < MONOCHROME_COLOURFUL_SHARE ? "abstract" : "concrete";
+    } catch (_error) {
+      return "";
+    }
   }
 
   async function drawImageVersion(source, sourceRect, outputSize, type, quality) {
@@ -483,9 +672,10 @@ window.MTArchiveUpload = (() => {
     await yieldToMain();
 
     const ratio = classifyRatio(imageSource.width, imageSource.height);
-    const contentType = classifyContent(file.name);
+    const contentType = seriesFromPixels(imageSource.source, imageSource.width, imageSource.height) || classifyContent(file.name);
     const type = contentTypeLabel(contentType);
-    const title = file.name.replace(/\.[^.]+$/, "") || "Uploaded Image";
+    const embedded = readEmbeddedMetadata(originalBuffer, file.type);
+    const title = embedded.title || titleFromFilename(file.name) || "Uploaded Image";
     const originalAsset = createAsset({
       imageId,
       kind: "original",
@@ -552,7 +742,7 @@ window.MTArchiveUpload = (() => {
       id: imageId,
       title,
       description: "",
-      curatorial_note: "",
+      curatorial_note: embedded.caption,
       artist_statement: "",
       series: "",
       source_type: "upload",
@@ -574,6 +764,8 @@ window.MTArchiveUpload = (() => {
     const item = {
       id: imageId,
       title,
+      curatorial_note: embedded.caption,
+      customTags: embedded.keywords,
       src: assetObjectUrl(preferredDisplayAsset([displayAsset])),
       width: imageSource.width,
       height: imageSource.height,
@@ -623,5 +815,7 @@ window.MTArchiveUpload = (() => {
   return {
     buildUploadedItem,
     prepareStoredItem,
+    readEmbeddedMetadata,
+    titleFromFilename,
   };
 })();

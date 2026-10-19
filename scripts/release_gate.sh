@@ -138,6 +138,7 @@ done
 run_group "Public interaction state" node scripts/test_public_interaction_state.js
 run_group "Authentication destination boundary" node scripts/test_auth_destination.js
 run_group "Visitor language switch" node scripts/test_i18n.js
+run_group "Upload metadata prefill" node scripts/test_upload_metadata.js
 
 for test_file in "${boundary_tests[@]}"; do
   if [[ "$test_file" == "scripts/test_workspace_asset_scanner.py" ]]; then

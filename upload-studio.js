@@ -387,7 +387,7 @@ function hydrateQuickUploadForm() {
   elements.namedItem("copyright_year").value = String(stored.copyright_year || new Date().getFullYear());
   elements.namedItem("content_category").value = ["concrete", "abstract"].includes(stored.content_category)
     ? stored.content_category
-    : "concrete";
+    : "auto";
   elements.namedItem("alt_text_template").value = cleanText(stored.alt_text_template) || "Photograph titled “{title}”.";
   elements.namedItem("tags").value = uniqueTextList(stored.tags || []).join(", ");
   elements.namedItem("location_name").value = cleanText(stored.location_name);
@@ -670,7 +670,12 @@ function normalizeRecord(item, folder = activeFolder()) {
     || folders.find((candidate) => requestedFolderName && candidate.name.toLowerCase() === requestedFolderName.toLowerCase())
     || folder
     || activeFolder();
-  const customTags = uniqueTextList([...(item.customTags || []), ...(Array.isArray(item.tags) ? item.tags : [])]);
+  // `tags` holds the generated display groups (type, ratio, mood...). Only fall
+  // back to it for legacy records without photographer tags; otherwise those
+  // generated labels would be saved and published as the photographer's tags.
+  const customTags = uniqueTextList(
+    Array.isArray(item.customTags) ? item.customTags : (Array.isArray(item.tags) ? item.tags : []),
+  );
   const series = cleanText(item.series || rawRecord.series);
   const tagGroups = buildTagGroups({
     series,
@@ -888,7 +893,7 @@ function workspaceDraftPayload(record, { includeCompliance = true } = {}) {
     title: cleanText(record.title),
     caption: cleanText(record.curatorial_note),
     description: cleanText(record.description),
-    tags: uniqueTextList(record.customTags || []),
+    tags: uniqueTextList(record.customTags || []).slice(0, 30),
     content_category: contentTypeCode(record.imageRecord?.content_type || record.type),
     captured_at: cleanText(record.captured_at) || null,
     location_name: cleanText(record.location_name),
@@ -1086,17 +1091,30 @@ async function deleteWorkspaceFolder(folderId) {
   });
 }
 
-function showToast(message, state = "info") {
+function showToast(message, state = "info", link = null) {
   if (!toastElement) {
     return;
   }
   clearTimeout(toastTimer);
   toastElement.textContent = message;
+  if (link?.href) {
+    const anchor = document.createElement("a");
+    anchor.className = "upload-studio-toast-link";
+    anchor.href = link.href;
+    anchor.target = "_blank";
+    anchor.rel = "noopener";
+    anchor.textContent = link.label;
+    toastElement.append(" ", anchor);
+  }
   toastElement.dataset.state = state;
   toastElement.hidden = false;
   toastTimer = window.setTimeout(() => {
     toastElement.hidden = true;
-  }, 3600);
+  }, link?.href ? 9000 : 3600);
+}
+
+function publicWorkLink(imageId) {
+  return { href: `/work.html?id=${encodeURIComponent(imageId)}`, label: "View on website" };
 }
 
 function setSaveState(message = "", state = "") {
@@ -1168,12 +1186,12 @@ function applyReadinessFieldErrors(readiness) {
 
 function readinessSummaryText(readiness) {
   if (!workspaceOnline) return "Readiness is unavailable while this Workspace is offline.";
-  if (!readiness || readiness.status === "checking") return "Checking submission requirements...";
-  if (readiness.status === "submitting") return "Creating the review submission...";
+  if (!readiness || readiness.status === "checking") return "Checking publishing requirements...";
+  if (readiness.status === "submitting") return "Publishing...";
   if (readiness.status === "stale") return "Save the latest changes to refresh readiness.";
   if (readiness.status === "error") return readiness.message || "Readiness could not be checked. Try again.";
-  if (readiness.status === "submitted") return "This version has been submitted for review.";
-  if (readiness.ready) return "Ready to submit for review.";
+  if (readiness.status === "submitted") return "This version has been submitted.";
+  if (readiness.ready) return "Ready to publish.";
   if (readinessIsPending(readiness)) return "Automated checks are still in progress.";
   const blockers = Number.isInteger(readiness.blocker_count) ? readiness.blocker_count : 0;
   return blockers === 1 ? "1 requirement needs attention." : `${blockers || "Some"} requirements need attention.`;
@@ -2142,7 +2160,7 @@ async function performActiveRecordSubmission() {
     }
     showToast(cacheDeleted
       ? "Published to the website."
-      : "Published to the website; offline cache cleanup is pending.");
+      : "Published to the website; offline cache cleanup is pending.", "info", publicWorkLink(recordId));
     return true;
   } catch (error) {
     if (error?.status && error.status < 500) submissionIdempotencyKeys.delete(recordId);
@@ -2319,6 +2337,7 @@ async function submitReadyRecordsInFolder() {
           ? `${published} published; offline cache cleanup is pending.`
           : `${published} Draft${published === 1 ? "" : "s"} published to the website.`,
       problems.length ? "error" : "info",
+      published ? { href: "/works.html", label: "View Works" } : null,
     );
   } finally {
     bulkSubmissionInFlight = false;
@@ -2590,9 +2609,42 @@ async function processTasksWithLimit(tasks, limit) {
   await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, () => worker()));
 }
 
+function uploadDuplicateKey(name, size) {
+  return `${String(name || "").trim().toLowerCase()}|${Number(size) || 0}`;
+}
+
+// Same filename and byte size as a Draft or an active upload is almost always
+// the same photograph picked twice.
+function duplicateUploadFiles(files) {
+  const known = new Set();
+  records.forEach((record) => {
+    const original = (record.assets || []).find((asset) => asset.kind === "original");
+    const name = record.imageRecord?.original_filename || record.original_filename;
+    if (name && original?.byte_size) known.add(uploadDuplicateKey(name, original.byte_size));
+  });
+  uploadTasks.forEach((task) => {
+    if (task.file && task.stage !== "failed" && task.stage !== "canceled") {
+      known.add(uploadDuplicateKey(task.file.name, task.file.size));
+    }
+  });
+  return files.filter((file) => known.has(uploadDuplicateKey(file.name, file.size)));
+}
+
+function confirmDuplicateUploads(files) {
+  const duplicates = duplicateUploadFiles(files);
+  if (!duplicates.length) return files;
+  const names = duplicates.slice(0, 3).map((file) => file.name).join(", ");
+  const more = duplicates.length > 3 ? ` and ${duplicates.length - 3} more` : "";
+  const uploadAgain = window.confirm(
+    `${names}${more} ${duplicates.length === 1 ? "is" : "are"} already in your Drafts or uploading.\n\n`
+      + "OK uploads again. Cancel skips the duplicates.",
+  );
+  return uploadAgain ? files : files.filter((file) => !duplicates.includes(file));
+}
+
 async function handleFiles(fileList, { quickDefaults = null } = {}) {
-  const files = Array.from(fileList || []).filter(Boolean);
-  if (!files.length) {
+  const chosenFiles = Array.from(fileList || []).filter(Boolean);
+  if (!chosenFiles.length) {
     return;
   }
   if (activeWorkspaceView !== "drafts" || !workspaceOnline || submissionPreparing || submissionInFlight) {
@@ -2601,6 +2653,11 @@ async function handleFiles(fileList, { quickDefaults = null } = {}) {
   }
   if (!window.MTArchiveUpload) {
     showToast("Upload module is not available.", "error");
+    return;
+  }
+  const files = confirmDuplicateUploads(chosenFiles);
+  if (!files.length) {
+    showToast("Skipped photographs that are already in your Drafts.");
     return;
   }
   if (!archiveDb) {
@@ -2907,6 +2964,21 @@ formElement?.addEventListener("submit", async (event) => {
 });
 
 formElement?.addEventListener("input", markDraftDirty);
+
+// Ctrl/⌘+S saves the open Draft; Ctrl/⌘+Enter publishes it. Ignored while a
+// dialog is open so the shortcuts never act behind a confirmation.
+document.addEventListener("keydown", (event) => {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+  if (document.querySelector("dialog[open]")) return;
+  const key = event.key.toLowerCase();
+  if (key === "s") {
+    event.preventDefault();
+    if (saveRecordButton && !saveRecordButton.disabled) formElement?.requestSubmit(saveRecordButton);
+  } else if (key === "enter") {
+    event.preventDefault();
+    if (submitRecordButton && !submitRecordButton.disabled) submitActiveRecord();
+  }
+});
 
 recognizablePeopleSelect?.addEventListener("change", syncComplianceFieldVisibility);
 
