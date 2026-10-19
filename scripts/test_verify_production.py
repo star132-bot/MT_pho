@@ -45,8 +45,10 @@ def fixture_request(calls: list[tuple[str, str]], base_url: str, path: str):
         return HTTPStatus.OK, {}, encoded({"source": "supabase", "items": [{"id": "public-work"}]})
     if path in VERIFIER.PRIVATE_STATIC_PATHS:
         return HTTPStatus.NOT_FOUND, {}, b"Not found"
-    if path in ("/dashboard", "/workspace/notifications", "/inbox", "/admin/audit", "/admin/users"):
+    if path in VERIFIER.PROTECTED_STAFF_PATHS:
         return HTTPStatus.SEE_OTHER, {"Location": "/auth/sign-in?next=protected"}, b""
+    if path in VERIFIER.RETIRED_PATHS:
+        return HTTPStatus.MOVED_PERMANENTLY, {"Location": "/admin"}, b""
     if path == "/api/auth/csrf":
         return HTTPStatus.OK, {
             "Set-Cookie": "__Host-mt_csrf_token=fixture; Secure; HttpOnly; SameSite=Strict",

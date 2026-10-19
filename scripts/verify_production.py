@@ -41,6 +41,10 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 OPENER = urllib.request.build_opener(NoRedirect)
 
 
+PROTECTED_STAFF_PATHS = ("/admin", "/admin/works", "/admin/audit", "/workspace/images", "/inbox", "/settings/account")
+RETIRED_PATHS = ("/dashboard", "/admin/users", "/workspace/notifications", "/lightbox.html")
+
+
 def fail(message: str) -> None:
     print(f"production verification failed: {message}", file=sys.stderr)
     raise SystemExit(1)
@@ -152,11 +156,17 @@ def verify(args: argparse.Namespace) -> None:
             fail(f"private repository path is publicly readable: {path}")
     print("[ok] private repository paths are not publicly served")
 
-    for path in ("/dashboard", "/workspace/notifications", "/inbox", "/admin/audit", "/admin/users"):
+    for path in PROTECTED_STAFF_PATHS:
         status, headers, _ = request(base_url, path)
         location = header(headers, "Location")
         if status != HTTPStatus.SEE_OTHER or not location.startswith("/auth/sign-in"):
             fail(f"anonymous protected route did not redirect safely: {path}")
+    # Pages retired in v1.7.0 must move visitors to a same-origin page, never render.
+    for path in RETIRED_PATHS:
+        status, headers, _ = request(base_url, path)
+        location = header(headers, "Location")
+        if status != HTTPStatus.MOVED_PERMANENTLY or not location.startswith("/") or location.startswith("//"):
+            fail(f"retired route did not redirect to a same-origin page: {path}")
     print("[ok] anonymous protected-route boundary")
 
     status, headers, body = request(base_url, "/api/auth/csrf")
