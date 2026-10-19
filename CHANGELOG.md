@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.7.0 - 2026-10-19
+
+Implements requirements 01-03 (and the download part of 04) from `docs/product/client-feedback-2026-10-15.md`.
+
+- **Visitor-only site.** Visitors never sign in. Registration, email verification, Lightbox, Collections, Dashboard and creator profile pages are retired (old addresses redirect); save and download controls are removed; Contact is always anonymous.
+- **Staff-only admin.** Only admin/super_admin accounts can sign in. New `/admin` hub (upload, works, inquiries, account). Upload asks only for title, series (此间留彩 / 此间留灰), introduction and tags; Publish goes live directly through the audited super-admin self-publish. The review queue, user administration, notifications and the browser-side editor are removed.
+- **Upload prefill.** Title, caption and keywords are read from Lightroom/Photoshop metadata (XMP/IPTC) or the filename, and black-and-white photographs start in 此间留灰, colour ones in 此间留彩. Cmd/Ctrl+S saves, Cmd/Ctrl+Enter publishes.
+- **English / 中文 switch** in the header; follows the browser language and remembers the visitor's choice. Chinese copy is a draft pending the photographer's review; photographer-entered content is not translated.
+- No database schema changes.
+
 ## v1.6.10 - 2026-10-14
 
 - The Contact form now checks the 10-character message minimum before submitting. Previously a short message passed the browser checks, the server rejected it, and the visitor only saw a generic "review the inquiry fields" error with no field highlighted.
