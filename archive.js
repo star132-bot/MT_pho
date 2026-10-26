@@ -2948,7 +2948,10 @@ viewerPrevButton?.addEventListener("click", () => moveViewer(-1));
 viewerNextButton?.addEventListener("click", () => moveViewer(1));
 viewerZoomButton?.addEventListener("click", () => setViewerZoom(!isViewerZoomed));
 viewerInfoButton?.addEventListener("click", () => setViewerInfoOpen(!workViewerDialog?.classList.contains("is-info-open")));
-viewerImage?.addEventListener("click", () => setViewerInfoOpen(false));
+// The image ignores pointer input (requirement 04), so listen on its stage.
+viewerStage?.addEventListener("click", (event) => {
+  if (!isInteractiveTarget(event.target)) setViewerInfoOpen(false);
+});
 
 document.addEventListener("keydown", (event) => {
   if (!workViewer || workViewer.hidden) {

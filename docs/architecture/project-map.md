@@ -695,8 +695,31 @@
 - 开发工作流：从任务大小判断、上下文建立、约束确认、垂直切片、验收标准到实现、验证和自审。
 - 验证：要求检查 lint/typecheck/test/build 或项目等价验证，并检查三份核心文档是否与真实代码一致。
 
+## 14. 访客浏览体验原型与图片保护（需求 04 / 06 / 07）
+
+### 功能说明
+
+- 需求 04：公开页面统一禁止右键另存、拖拽和长按保存图片；后台页面不加载，管理人员不受影响。截屏无法阻止。
+- 需求 06 原型：`/series.html` 左「此间留彩」、右「此间留灰」两张海报，海报图暂用各系列第一件作品，手机上下排列。
+- 需求 07 原型：`/exhibition.html?series=colour|grey&work=<id>` 一次一张大图；鼠标设备进入虚拟展厅（程序生成的展墙、地面、射灯光影、作品投影、视差），触屏设备全屏完整显示；默认观赏模式，点击画面中间切换多功能模式（左上菜单、左右箭头、介绍文字、下一张预览）；键盘、边缘点击、触控板横滑、手机滑动翻页；网址随翻页更新。
+- 两个原型都是 `noindex` 的隐藏页面，不进导航和 sitemap；`?proto=1` 显示「原型方案」面板，供老板比较展墙、灯光、底部预览、文字位置与风格，选择写入网址。未改数据库和接口，数据来自现有 `/api/archive/images`。
+
+### 相关文件
+
+- `image-guard.js`：公开页面图片保护（捕获阶段拦截图片上的 `contextmenu` / `dragstart`，统一 `draggable=false`）。
+- `styles.css` 末尾 `[data-image-guard]` 规则：图片 `pointer-events: none`、`-webkit-touch-callout: none`、禁止选中与拖拽；`archive.js` 的查看器点击改为绑定在舞台容器上。
+- `exhibition.html` / `exhibition.js` / `exhibition.css`：作品浏览原型；`exhibition.css` 也包含海报页样式。
+- `series.html` / `series.js`：系列海报原型。
+- `studio-exhibition.js`：上传页「展厅展示」区块原型（需求 03）：按作品选择展墙、介绍文字九宫格位置和文字风格，右侧用 `exhibition.css` 渲染展厅 / 手机缩影；设置存在浏览器 `mt-presence-exhibition-settings-v1`，不随草稿提交，`exhibition.js` 按作品读取。`upload-studio.js` 在 `renderEditor()` 中派发 `mt:studio-record` 事件。
+- `global-header.js`：把 `/series.html` 视为访客页面，「作品」导航在海报页高亮。
+- `i18n.js`：两个原型的中文文案。
+- `server.py` 的 `PUBLIC_ROOT_STATIC_FILES`、`HEADER_IDENTITY_PUBLIC_PAGES` 与 `scripts/production_release_contract.py` 的 `PUBLIC_RUNTIME_FILES`：登记新文件。
+- `docs/product/implementation-plan-2026-10-21.md`：实施方案、原型默认值与待确认项。
+
 ## 修改记录
 
+- 2026-10-21：完成需求 04 图片保护，并新增需求 06 系列海报与需求 07 作品浏览两个隐藏原型（见第 14 节）；旧 Works 页面与查看器保持不变，待老板确认原型后再替换。
+- 2026-10-26：上传页新增「展厅展示」原型区块（展墙、介绍文字位置、文字风格与展厅缩影），设置暂存浏览器，正式版随新数据库保存。
 - 2026-08-10：把既有 Admin TOTP 扩展为统一的可选账户 2FA。Supabase 已验证 TOTP factor 是唯一启用状态，不新增易漂移的业务布尔值；密码、Google、Apple OAuth 与受保护页面/API 在启用后统一拒绝 AAL1，只允许进入 `/auth/mfa` enrollment/challenge。Account Settings Security 新增 Authenticator app On/Off/Required 状态、可访问 switch 与停用确认；普通用户停用要求当前 AAL2、CSRF，并先撤销其他设备，管理员不能停用。Factor 列表只输出 allowlist，不返回 secret/provider internals；fake-provider 回归覆盖 enrollment、错误/正确验证码、会话轮换、密码/OAuth 绕过拒绝和安全停用。Review 静态契约同步验证统一 MFA 守卫，完整 release gate 通过。
 - 2026-08-07：在既有邮箱密码与 Google 登录基础上新增 Apple OAuth，Google/Apple 共用服务端 PKCE callback、一次性 state、verified email、active account、Admin MFA 与登录成功默认 `/works.html` 边界，provider token 仍不进入 Cookie、HTML 或日志。Account Settings 的 Security 新增 Linked accounts：服务端通过 authenticated identity authorize API 发起手动连接，state 绑定发起用户并在回调核对同一 user id；浏览器仅收到 provider/id/email/timestamp allowlist，移除前确认 owner 且至少保留一种登录方式。Auth 桌面与 390px 移动端视觉检查通过；新增 secret-free Apple/login/link/unlink 集成回归并纳入 release gate。生产启用前仍须在 Apple Developer 与 Supabase Auth Provider 中配置凭据及准确 callback URL。
 - 2026-08-06：按 Google 品牌识别重做 Auth 的 Google 登录按钮：单色字母圆章改为官方四色 G，文案统一为 “Sign in with Google”；入口调整到邮箱密码表单与 `OR` 分隔线之后，浅灰胶囊按钮延长为与 430px 表单容器同宽，并补齐 hover、active 与键盘 focus-visible 状态。OAuth URL、服务端 PKCE、回调和登录成功跳转保持不变，桌面与移动端继续要求无横向溢出。

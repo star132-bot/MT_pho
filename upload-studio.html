@@ -9,7 +9,8 @@
       content="A secure workspace for importing images, organizing folders, and editing private MT Presence Drafts."
     />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css?v=20261018-upload-prefill" />
+    <link rel="stylesheet" href="/styles.css?v=20261021-visitor-experience" />
+    <link rel="stylesheet" href="/exhibition.css?v=20261026-studio-2" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="upload-studio-page">
@@ -300,6 +301,81 @@
               </div>
             </section>
 
+            <!-- Requirement 03 prototype: how this work is shown in the
+                 exhibition (studio-exhibition.js). Saved in this browser only
+                 until the new database exists; never sent with the Draft. -->
+            <section class="upload-studio-field-group studio-exhibit" aria-labelledby="studio-exhibit-heading" data-studio-exhibit>
+              <h3 id="studio-exhibit-heading">Exhibition display · 展厅展示</h3>
+              <p class="studio-exhibit-note">原型：这些设置暂时只保存在本浏览器，正式版会随新数据库一起保存。右侧是作品在展厅里的实际效果。</p>
+              <div class="studio-exhibit-layout">
+                <div class="studio-exhibit-controls">
+                  <fieldset class="studio-exhibit-walls">
+                    <legend>展墙 · Wall</legend>
+                    <label><input type="radio" name="exhibit_wall" value="white" /><span class="studio-exhibit-swatch" data-swatch="white"></span><span>美术馆白墙</span></label>
+                    <label><input type="radio" name="exhibit_wall" value="gray" /><span class="studio-exhibit-swatch" data-swatch="gray"></span><span>深灰博物馆墙</span></label>
+                    <label><input type="radio" name="exhibit_wall" value="concrete" /><span class="studio-exhibit-swatch" data-swatch="concrete"></span><span>清水混凝土</span></label>
+                    <label><input type="radio" name="exhibit_wall" value="wood" /><span class="studio-exhibit-swatch" data-swatch="wood"></span><span>深色木饰面</span></label>
+                    <label><input type="radio" name="exhibit_wall" value="red" /><span class="studio-exhibit-swatch" data-swatch="red"></span><span>深红墙</span></label>
+                    <label><input type="radio" name="exhibit_wall" value="green" /><span class="studio-exhibit-swatch" data-swatch="green"></span><span>墨绿墙</span></label>
+                  </fieldset>
+
+                  <fieldset class="studio-exhibit-positions">
+                    <legend>介绍文字位置 · Text position</legend>
+                    <div class="studio-exhibit-grid">
+                      <label title="左上"><input type="radio" name="exhibit_position" value="top-left" aria-label="左上" /><span></span></label>
+                      <label title="上中"><input type="radio" name="exhibit_position" value="top-center" aria-label="上中" /><span></span></label>
+                      <label title="右上"><input type="radio" name="exhibit_position" value="top-right" aria-label="右上" /><span></span></label>
+                      <label title="左中"><input type="radio" name="exhibit_position" value="middle-left" aria-label="左中" /><span></span></label>
+                      <label title="正中（压在作品上）"><input type="radio" name="exhibit_position" value="middle-center" aria-label="正中" /><span></span></label>
+                      <label title="右中"><input type="radio" name="exhibit_position" value="middle-right" aria-label="右中" /><span></span></label>
+                      <label title="左下"><input type="radio" name="exhibit_position" value="bottom-left" aria-label="左下" /><span></span></label>
+                      <label title="中下"><input type="radio" name="exhibit_position" value="bottom-center" aria-label="中下" /><span></span></label>
+                      <label title="右下"><input type="radio" name="exhibit_position" value="bottom-right" aria-label="右下" /><span></span></label>
+                    </div>
+                    <p class="studio-exhibit-position-label" data-exhibit-position-label></p>
+                  </fieldset>
+
+                  <label class="form-field" for="studio-exhibit-style">
+                    <span>文字风格 · Text style</span>
+                    <select id="studio-exhibit-style" name="exhibit_style">
+                      <option value="serif">衬线淡入</option>
+                      <option value="vertical">竖排</option>
+                      <option value="reveal">逐字浮现</option>
+                    </select>
+                  </label>
+
+                  <button class="button button-secondary studio-exhibit-replay" type="button" data-exhibit-replay>重新播放文字动画</button>
+                </div>
+
+                <div class="studio-exhibit-preview">
+                  <div class="studio-exhibit-tabs" role="group" aria-label="预览设备">
+                    <button type="button" aria-pressed="true" data-exhibit-scene="hall">大屏展厅</button>
+                    <button type="button" aria-pressed="false" data-exhibit-scene="screen">手机全屏</button>
+                  </div>
+                  <div class="studio-exhibit-frame" data-exhibit-frame aria-hidden="true">
+                    <div class="exhibition-page studio-exhibit-miniature" data-exhibit-miniature data-scene="hall" data-mode="info" data-wall="white" data-light="wash" data-caption-position="bottom-center" data-caption-style="serif" data-preview="next">
+                      <div class="exhibition is-miniature" data-exhibit-room>
+                        <div class="exhibition-room">
+                          <div class="room-wall"></div>
+                          <div class="room-floor"></div>
+                          <div class="room-light"></div>
+                        </div>
+                        <div class="exhibition-stage">
+                          <figure class="exhibition-work"><img alt="" decoding="async" data-exhibit-image /></figure>
+                        </div>
+                        <div class="exhibition-overlay">
+                          <div class="exhibition-caption">
+                            <p class="exhibition-caption-title" data-exhibit-title></p>
+                            <p class="exhibition-caption-text" data-exhibit-text></p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
             <!-- Readiness fields that describe the owner's own photography. They
                  are filled automatically (see staffUploadDefaults in
                  upload-studio.js) and kept out of view. -->
@@ -542,6 +618,7 @@
     <script src="/archive-upload.js?v=20261018-upload-prefill"></script>
     <script src="/site-footer.js?v=20261018-staff-only"></script>
     <script src="/account-menu.js?v=20261018-staff-admin"></script>
-    <script src="/upload-studio.js?v=20261018-upload-prefill"></script>
+    <script src="/upload-studio.js?v=20261026-exhibit-settings"></script>
+    <script src="/studio-exhibition.js?v=20261026-prototype"></script>
   </body>
 </html>

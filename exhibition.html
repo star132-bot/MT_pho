@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en" data-image-guard>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
+    <title>Exhibition | MT Presence</title>
+    <meta name="description" content="View MT Presence photographs one at a time." />
+    <!-- Prototype for requirement 07: reachable by direct link only until approved. -->
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/exhibition.css?v=20261026-studio-2" />
+  </head>
+  <body class="exhibition-page" data-scene="screen" data-mode="view" data-wall="white" data-light="wash" data-preview="next" data-caption-position="bottom-center" data-caption-style="serif">
+    <svg class="exhibition-icons" aria-hidden="true" focusable="false">
+      <symbol id="exhibition-icon-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" /></symbol>
+      <symbol id="exhibition-icon-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" /></symbol>
+      <symbol id="exhibition-icon-prev" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7" /></symbol>
+      <symbol id="exhibition-icon-next" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" /></symbol>
+    </svg>
+
+    <main class="exhibition" data-exhibition aria-label="Exhibition">
+      <div class="exhibition-room" aria-hidden="true">
+        <div class="room-wall"></div>
+        <div class="room-floor"></div>
+        <div class="room-light"></div>
+      </div>
+
+      <div class="exhibition-stage" data-exhibition-stage>
+        <figure class="exhibition-work" data-exhibition-work data-protected-media>
+          <img alt="" decoding="async" data-exhibition-image />
+        </figure>
+      </div>
+
+      <button class="exhibition-edge exhibition-edge-prev" type="button" aria-label="Previous work" data-exhibition-prev>
+        <svg aria-hidden="true" focusable="false"><use href="#exhibition-icon-prev"></use></svg>
+      </button>
+      <button class="exhibition-edge exhibition-edge-next" type="button" aria-label="Next work" data-exhibition-next>
+        <svg aria-hidden="true" focusable="false"><use href="#exhibition-icon-next"></use></svg>
+      </button>
+
+      <div class="exhibition-overlay" data-exhibition-overlay>
+        <nav class="exhibition-menu" aria-label="Site">
+          <button class="exhibition-menu-toggle" type="button" aria-expanded="false" aria-controls="exhibition-menu-panel" aria-label="Open menu" data-exhibition-menu-toggle>
+            <svg aria-hidden="true" focusable="false"><use href="#exhibition-icon-menu"></use></svg>
+          </button>
+          <div class="exhibition-menu-panel" id="exhibition-menu-panel" hidden data-exhibition-menu-panel>
+            <a href="/">Home</a>
+            <a href="/series.html">Works</a>
+            <a href="/contact.html">Contact</a>
+            <div class="exhibition-language" data-exhibition-language>
+              <button type="button" data-language="en">English</button>
+              <button type="button" data-language="zh">中文</button>
+            </div>
+          </div>
+        </nav>
+
+        <div class="exhibition-series" data-exhibition-series data-i18n-skip></div>
+
+        <div class="exhibition-caption" data-exhibition-caption data-i18n-skip>
+          <p class="exhibition-caption-title" data-exhibition-title></p>
+          <p class="exhibition-caption-text" data-exhibition-text></p>
+        </div>
+
+        <div class="exhibition-preview" data-exhibition-preview aria-label="Other works"></div>
+      </div>
+
+      <p class="exhibition-hint" data-exhibition-hint hidden>Tap the image to show the menu</p>
+      <div class="exhibition-status" role="status" aria-live="polite" data-exhibition-status>
+        <p data-exhibition-status-text>Loading works</p>
+        <button type="button" hidden data-exhibition-retry>Retry</button>
+      </div>
+      <p class="visually-hidden" aria-live="polite" data-exhibition-announcer></p>
+    </main>
+
+    <script src="/image-guard.js?v=20261021-image-guard"></script>
+    <script src="/i18n.js?v=20261021-exhibition"></script>
+    <script src="/archive-data.js?v=20260610-works-viewer-editor"></script>
+    <script src="/public-archive.js?v=20261002-public-recovery"></script>
+    <script src="/exhibition.js?v=20261026-work-settings"></script>
+  </body>
+</html>

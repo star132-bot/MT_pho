@@ -11,7 +11,7 @@
   // settings) keep the slot for the account menu and sign-out.
   const VISITOR_PATHS = new Set([
     "/", "/index.html", "/works.html", "/work.html", "/about.html",
-    "/contact.html", "/privacy.html", "/terms.html",
+    "/contact.html", "/privacy.html", "/terms.html", "/series.html",
   ]);
   const visitorPage = VISITOR_PATHS.has(path);
   const identitySlot = header.querySelector("[data-header-identity-slot]");
@@ -27,7 +27,7 @@
 
   function routeIsCurrent(route) {
     if (route === "home") return path === "/" || path === "/index.html";
-    if (route === "works") return worksPage || path === "/work.html";
+    if (route === "works") return worksPage || path === "/work.html" || path === "/series.html";
     if (route === "about") return path === "/about.html";
     if (route === "contact") return path === "/contact.html";
     return false;

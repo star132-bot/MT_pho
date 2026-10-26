@@ -22158,3 +22158,22 @@ button.upload-studio-card-main:focus-visible {
 .global-header-language option {
   color: var(--ink);
 }
+
+/* Requirement 04: photographs on public pages cannot be saved. Images ignore
+   pointer input, so clicks, long presses and right clicks land on the
+   surrounding figure, link or button instead of the image; image-guard.js
+   blocks the remaining context-menu and drag paths. Staff pages are exempt. */
+[data-image-guard] img {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+[data-image-guard] figure,
+[data-image-guard] [data-protected-media] {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}

@@ -10,6 +10,7 @@ PUBLIC_RUNTIME_FILES = frozenset({
     "upload-studio.html", "inbox.html",     "admin-works.html", "admin-audit.html",     "styles.css", "privacy.css", "admin-audit.css", "robots.txt", "sitemap.xml", "favicon.svg",
     "script.js", "global-header.js", "archive.js", "archive-data.js", "archive-upload.js", "public-archive.js",
     "public-navigation.js", "series-data.js", "contact.js", "i18n.js", "work-detail.js", "about.js",
+    "image-guard.js", "exhibition.html", "exhibition.css", "exhibition.js", "series.html", "series.js", "studio-exhibition.js",
     "auth.js", "mfa.js", "account-menu.js", "account-settings.js",
     "upload-studio.js", "inbox.js", "site-footer.js",
     "admin-works.js", "admin-audit.js", })

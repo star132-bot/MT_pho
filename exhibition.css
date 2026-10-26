@@ -1,0 +1,1286 @@
+/* Requirement 07 prototype: the exhibition view and the series posters.
+   Wall textures are generated from SVG noise, so they stay sharp at any
+   resolution and cost almost nothing to download. */
+
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", Georgia, "Times New Roman", serif;
+  --sans: "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --noise-fine: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --noise-coarse: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='640'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.011' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --noise-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='480'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.45 0.006' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Page-level rules apply to the exhibition page only, so the stylesheet can
+   also be loaded by the upload studio for its miniature preview. */
+body.exhibition-page {
+  height: 100%;
+  margin: 0;
+}
+
+html:has(> body.exhibition-page) {
+  height: 100%;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.exhibition-icons {
+  display: none;
+}
+
+/* ===== Exhibition page ===================================================== */
+
+.exhibition-page {
+  color-scheme: dark;
+  overflow: hidden;
+  background: #000;
+  color: #f3f0ea;
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.exhibition {
+  --mx: 0;
+  --my: 0;
+  --art-w: 60vw;
+  --art-h: 60vh;
+  --art-y: 40vh;
+  --wall-height: 80%;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: pan-y pinch-zoom;
+}
+
+.exhibition.is-idle,
+.exhibition.is-idle .exhibition-edge {
+  cursor: none;
+}
+
+/* ----- Walls and floors (hall scene) -------------------------------------- */
+
+.exhibition-page[data-wall="white"] {
+  --wall-base: #e7e3db;
+  --wall-noise: var(--noise-fine), var(--noise-coarse);
+  --wall-noise-size: 220px 220px, 900px 900px;
+  --wall-noise-opacity: 0.32;
+  --floor-top: #b3ada3;
+  --floor-bottom: #6f6a62;
+  --caption-ink: rgba(30, 27, 23, 0.76);
+  --caption-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.exhibition-page[data-wall="gray"] {
+  --wall-base: #46474a;
+  --wall-noise: var(--noise-fine), var(--noise-coarse);
+  --wall-noise-size: 220px 220px, 900px 900px;
+  --wall-noise-opacity: 0.34;
+  --floor-top: #2f2f31;
+  --floor-bottom: #151516;
+}
+
+.exhibition-page[data-wall="concrete"] {
+  --wall-base: #98948d;
+  --wall-noise: var(--noise-fine), var(--noise-coarse);
+  --wall-noise-size: 180px 180px, 520px 520px;
+  --wall-noise-opacity: 0.62;
+  --floor-top: #5d5a55;
+  --floor-bottom: #302e2b;
+  --caption-ink: rgba(24, 23, 21, 0.78);
+  --caption-shadow: 0 1px 0 rgba(255, 255, 255, 0.22);
+  /* Formwork panel joints and tie holes of fair-faced concrete. */
+  --wall-pattern:
+    radial-gradient(circle, rgba(28, 26, 24, 0.55) 0 0.22vw, rgba(255, 255, 255, 0.12) 0.3vw, transparent 0.42vw),
+    linear-gradient(90deg, rgba(40, 38, 35, 0.32) 0 1px, rgba(255, 255, 255, 0.08) 1px 2px, transparent 2px),
+    linear-gradient(0deg, rgba(40, 38, 35, 0.28) 0 1px, rgba(255, 255, 255, 0.07) 1px 2px, transparent 2px);
+  --wall-pattern-size: 12vw 9vw, 36vw 18vw, 36vw 18vw;
+  --wall-pattern-position: 8vw 4.5vw, 14vw 0, 0 0;
+}
+
+.exhibition-page[data-wall="wood"] {
+  --wall-base: #4b3326;
+  --wall-noise: var(--noise-grain), var(--noise-coarse);
+  --wall-noise-size: 480px 480px, 900px 900px;
+  --wall-noise-opacity: 0.55;
+  --floor-top: #2b2019;
+  --floor-bottom: #120d0a;
+  /* Vertical veneer panels with shadowed seams. */
+  --wall-pattern:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.55) 0 2px, rgba(255, 220, 180, 0.06) 2px 3px, transparent 3px);
+  --wall-pattern-size: 16vw 100%;
+  --wall-pattern-position: 2vw 0;
+}
+
+.exhibition-page[data-wall="red"] {
+  --wall-base: #77282a;
+  --wall-noise: var(--noise-fine), var(--noise-coarse);
+  --wall-noise-size: 220px 220px, 900px 900px;
+  --wall-noise-opacity: 0.4;
+  --floor-top: #34261d;
+  --floor-bottom: #160f0b;
+}
+
+.exhibition-page[data-wall="green"] {
+  --wall-base: #26392f;
+  --wall-noise: var(--noise-fine), var(--noise-coarse);
+  --wall-noise-size: 220px 220px, 900px 900px;
+  --wall-noise-opacity: 0.4;
+  --floor-top: #2b2925;
+  --floor-bottom: #121110;
+}
+
+.exhibition-room {
+  position: absolute;
+  inset: -12px;
+  display: none;
+  transform: translate(calc(var(--mx) * -5px), calc(var(--my) * -3px));
+  transition: transform 900ms var(--ease-out);
+}
+
+[data-scene="hall"] .exhibition-room {
+  display: block;
+}
+
+.room-wall {
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--wall-height);
+  overflow: hidden;
+  background-color: var(--wall-base);
+  background-image: var(--wall-pattern, none);
+  background-size: var(--wall-pattern-size, auto);
+  background-position: var(--wall-pattern-position, 0 0);
+}
+
+.room-wall::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background-image: var(--wall-noise);
+  background-size: var(--wall-noise-size);
+  opacity: var(--wall-noise-opacity);
+  mix-blend-mode: overlay;
+}
+
+.room-floor {
+  position: absolute;
+  inset: auto 0 0;
+  height: calc(100% - var(--wall-height));
+  background:
+    radial-gradient(ellipse calc(var(--art-w) * 0.75) 70% at 50% 0%, rgba(255, 236, 205, var(--floor-glow, 0.16)), transparent 70%),
+    linear-gradient(var(--floor-top), var(--floor-bottom));
+}
+
+.room-floor::before {
+  /* Skirting shadow where the wall meets the floor. */
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1.4vh;
+  content: "";
+  background: linear-gradient(rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0));
+}
+
+.room-floor::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background-image: var(--noise-fine), var(--noise-coarse);
+  background-size: 220px 220px, 900px 900px;
+  opacity: 0.28;
+  mix-blend-mode: overlay;
+}
+
+/* ----- Light -------------------------------------------------------------- */
+
+.exhibition-page {
+  --vignette-mid: 0.24;
+  --vignette-edge: 0.66;
+  --glow: 0.34;
+  --glow-color: 255, 228, 188;
+  --pool-x: 1.05;
+  --pool-y: 1.15;
+}
+
+.exhibition-page[data-light="spot"] {
+  --vignette-mid: 0.58;
+  --vignette-edge: 0.9;
+  --glow: 0.42;
+  --pool-x: 0.82;
+  --pool-y: 0.95;
+  --floor-glow: 0.22;
+}
+
+.exhibition-page[data-light="daylight"] {
+  --vignette-mid: 0.1;
+  --vignette-edge: 0.34;
+  --glow: 0.18;
+  --glow-color: 214, 228, 255;
+  --pool-x: 1.6;
+  --pool-y: 1.6;
+}
+
+.exhibition-page[data-light="even"] {
+  --vignette-mid: 0.04;
+  --vignette-edge: 0.16;
+  --glow: 0;
+  --pool-x: 2;
+  --pool-y: 2;
+}
+
+.room-light {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Darkness falls off around the lit area; the work sits in the pool of light. */
+.room-light::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background:
+    radial-gradient(
+      ellipse calc(var(--art-w) * var(--pool-x) + 14vw) calc(var(--art-h) * var(--pool-y) + 16vh)
+        at calc(50% + var(--mx) * 8px) calc(var(--art-y) - var(--art-h) * 0.08),
+      rgba(0, 0, 0, 0) 0%,
+      rgba(0, 0, 0, var(--vignette-mid)) 62%,
+      rgba(0, 0, 0, var(--vignette-edge)) 100%
+    );
+  transition: opacity 900ms var(--ease-standard);
+}
+
+/* Warm hotspot of the ceiling light just above the work, plus a faint beam. */
+.room-light::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background:
+    radial-gradient(
+      ellipse calc(var(--art-w) * 0.62) calc(var(--art-h) * 0.5)
+        at calc(50% + var(--mx) * 10px) calc(var(--art-y) - var(--art-h) * 0.42),
+      rgba(var(--glow-color), var(--glow)) 0%,
+      rgba(var(--glow-color), 0) 100%
+    ),
+    radial-gradient(
+      ellipse calc(var(--art-w) * 0.5) calc(var(--art-y) * 1.1) at calc(50% + var(--mx) * 14px) 0%,
+      rgba(var(--glow-color), calc(var(--glow) * 0.28)) 0%,
+      rgba(var(--glow-color), 0) 100%
+    );
+  mix-blend-mode: soft-light;
+}
+
+.exhibition-page[data-light="daylight"] .room-light::after {
+  /* Slowly passing clouds: the daylight brightens and fades across the wall. */
+  background:
+    linear-gradient(105deg, rgba(var(--glow-color), 0) 20%, rgba(var(--glow-color), 0.38) 45%, rgba(var(--glow-color), 0) 70%);
+  background-size: 260% 100%;
+  animation: daylight-drift 46s ease-in-out infinite alternate;
+}
+
+@keyframes daylight-drift {
+  from { background-position: 100% 0; opacity: 0.55; }
+  50% { opacity: 1; }
+  to { background-position: 0% 0; opacity: 0.6; }
+}
+
+/* Lights up on arrival; dims while the work is being changed. */
+.exhibition-room::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 700ms var(--ease-standard);
+}
+
+.exhibition.is-dark .exhibition-room::after {
+  opacity: 1;
+  transition: none;
+}
+
+.exhibition.is-changing .exhibition-room::after {
+  opacity: 0.38;
+  transition-duration: 420ms;
+}
+
+/* ----- The work ------------------------------------------------------------ */
+
+.exhibition-stage {
+  position: absolute;
+  inset: 0;
+}
+
+.exhibition-work {
+  position: absolute;
+  top: var(--art-y);
+  left: 50%;
+  width: var(--art-w);
+  height: var(--art-h);
+  margin: 0;
+  transform: translate(-50%, -50%);
+  transition: opacity 600ms var(--ease-out);
+}
+
+.exhibition-work img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.exhibition.is-dark .exhibition-work {
+  opacity: 0;
+  transition: none;
+}
+
+.exhibition.is-changing .exhibition-work {
+  opacity: 0;
+  transition: opacity 360ms var(--ease-standard);
+}
+
+[data-scene="hall"] .exhibition-work {
+  transition: opacity 1100ms var(--ease-out);
+  box-shadow:
+    calc(var(--mx) * -7px) calc(18px + var(--my) * -3px) 34px -8px rgba(0, 0, 0, 0.5),
+    calc(var(--mx) * -3px) 5px 9px -2px rgba(0, 0, 0, 0.32),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* The work receives the same light as the wall: brighter at the top. */
+[data-scene="hall"] .exhibition-work::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(rgba(var(--glow-color), calc(var(--glow) * 0.32)), rgba(0, 0, 0, 0) 38%, rgba(0, 0, 0, calc(var(--vignette-mid) * 0.32)));
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+
+.exhibition.is-dark .exhibition-room,
+.exhibition.is-dark .exhibition-work {
+  will-change: opacity;
+}
+
+/* ----- Paging zones -------------------------------------------------------- */
+
+.exhibition-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  width: 15%;
+  padding: 0 clamp(10px, 2.4vw, 34px);
+  border: 0;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+}
+
+.exhibition-edge-prev {
+  left: 0;
+  justify-content: flex-start;
+  cursor: w-resize;
+}
+
+.exhibition-edge-next {
+  right: 0;
+  justify-content: flex-end;
+  cursor: e-resize;
+}
+
+.exhibition-edge svg {
+  width: clamp(30px, 3.2vw, 46px);
+  height: clamp(30px, 3.2vw, 46px);
+  padding: 9px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.26);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  backdrop-filter: blur(6px);
+  transition: opacity 320ms var(--ease-standard);
+}
+
+/* Viewing mode hides the arrows but they still turn the page. */
+[data-mode="info"] .exhibition-edge svg {
+  opacity: 0.62;
+}
+
+.exhibition-edge:focus-visible svg {
+  opacity: 0.9;
+  outline: 2px solid rgba(255, 255, 255, 0.8);
+  outline-offset: 3px;
+}
+
+.exhibition-edge:focus {
+  outline: none;
+}
+
+/* ----- Information overlay -------------------------------------------------- */
+
+.exhibition-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 360ms var(--ease-standard);
+}
+
+[data-mode="info"] .exhibition-overlay {
+  opacity: 1;
+}
+
+[data-mode="info"] .exhibition-menu,
+[data-mode="info"] .exhibition-preview {
+  pointer-events: auto;
+}
+
+.exhibition-menu {
+  position: absolute;
+  top: max(18px, env(safe-area-inset-top));
+  left: max(18px, env(safe-area-inset-left));
+}
+
+.exhibition-menu-toggle {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  background: rgba(10, 10, 10, 0.34);
+  color: #fff;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+}
+
+.exhibition-menu-toggle svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.exhibition-menu-panel {
+  display: grid;
+  gap: 2px;
+  min-width: 180px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(12, 12, 12, 0.62);
+  backdrop-filter: blur(14px);
+}
+
+.exhibition-menu-panel[hidden] {
+  display: none;
+}
+
+.exhibition-menu-panel a {
+  padding: 10px 12px;
+  border-radius: 6px;
+  color: #f3f0ea;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+}
+
+.exhibition-menu-panel a:hover,
+.exhibition-menu-panel a:focus-visible {
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+}
+
+.exhibition-language {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 8px 12px 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.exhibition-language button {
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(243, 240, 234, 0.6);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.exhibition-language button[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.exhibition-series {
+  position: absolute;
+  top: max(30px, calc(env(safe-area-inset-top) + 12px));
+  right: max(24px, env(safe-area-inset-right));
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* ----- Caption: the semi-transparent introduction --------------------------- */
+
+.exhibition-caption {
+  --caption-color: var(--caption-ink, rgba(245, 241, 233, 0.8));
+  position: absolute;
+  max-width: min(34rem, 72vw);
+  color: var(--caption-color);
+  text-shadow: var(--caption-shadow, 0 1px 14px rgba(0, 0, 0, 0.45));
+}
+
+[data-scene="screen"] .exhibition-caption {
+  --caption-color: rgba(255, 255, 255, 0.84);
+  --caption-shadow: 0 1px 16px rgba(0, 0, 0, 0.7);
+  max-width: min(30rem, 82vw);
+}
+
+.exhibition-caption-title {
+  margin: 0 0 0.9em;
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  opacity: 0.86;
+}
+
+.exhibition-caption-text {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(15px, 1.15vw, 19px);
+  line-height: 1.95;
+  letter-spacing: 0.04em;
+}
+
+/* Nine positions chosen per work in the admin (requirement 03). */
+[data-caption-position^="top"] .exhibition-caption { top: 13%; }
+[data-caption-position^="middle"] .exhibition-caption { top: 50%; transform: translateY(-50%); }
+[data-caption-position^="bottom"] .exhibition-caption { bottom: calc(max(22px, env(safe-area-inset-bottom)) + 92px); }
+[data-caption-position$="left"] .exhibition-caption { left: 8%; text-align: left; }
+[data-caption-position$="right"] .exhibition-caption { right: 8%; text-align: right; }
+[data-caption-position$="center"] .exhibition-caption { left: 50%; text-align: center; translate: -50% 0; }
+
+/* In the room the text belongs to the wall, placed relative to the work:
+   beside it, above or below it, or (middle-centre) on the photograph. */
+[data-scene="hall"] .exhibition-caption {
+  --caption-gap: 2.6vw;
+  --caption-column: max(150px, calc((100% - var(--art-w)) / 2 - var(--caption-gap) * 2));
+  --caption-lines: 7;
+}
+
+[data-scene="hall"][data-caption-position$="left"] .exhibition-caption {
+  right: calc(50% + var(--art-w) / 2 + var(--caption-gap));
+  left: auto;
+  width: var(--caption-column);
+  text-align: right;
+}
+
+[data-scene="hall"][data-caption-position$="right"] .exhibition-caption {
+  right: auto;
+  left: calc(50% + var(--art-w) / 2 + var(--caption-gap));
+  width: var(--caption-column);
+  text-align: left;
+}
+
+[data-scene="hall"][data-caption-position$="center"] .exhibition-caption {
+  width: min(34rem, var(--art-w));
+}
+
+[data-scene="hall"][data-caption-position^="top"] .exhibition-caption {
+  top: calc(var(--art-y) - var(--art-h) / 2);
+  bottom: auto;
+}
+
+[data-scene="hall"][data-caption-position^="middle"] .exhibition-caption {
+  top: var(--art-y);
+  bottom: auto;
+  transform: translateY(-50%);
+}
+
+[data-scene="hall"][data-caption-position^="bottom"] .exhibition-caption {
+  top: calc(var(--art-y) + var(--art-h) / 2);
+  bottom: auto;
+  transform: translateY(-100%);
+}
+
+[data-scene="hall"][data-caption-position="top-center"] .exhibition-caption {
+  --caption-lines: 3;
+  top: auto;
+  bottom: calc(100% - var(--art-y) + var(--art-h) / 2 + 2.2vh);
+  transform: none;
+}
+
+[data-scene="hall"][data-caption-position="bottom-center"] .exhibition-caption {
+  --caption-lines: 3;
+  top: calc(var(--art-y) + var(--art-h) / 2 + 2.6vh);
+  transform: none;
+}
+
+[data-scene="hall"][data-caption-position="middle-center"] .exhibition-caption {
+  --caption-color: rgba(255, 255, 255, 0.88);
+  --caption-shadow: 0 1px 18px rgba(0, 0, 0, 0.62);
+}
+
+.exhibition-caption-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--caption-lines, 6);
+}
+
+[data-caption-style="vertical"] .exhibition-caption-text {
+  display: block;
+}
+
+[data-scene="hall"] .exhibition-series {
+  color: var(--caption-ink, rgba(255, 255, 255, 0.72));
+  text-shadow: var(--caption-shadow, 0 1px 8px rgba(0, 0, 0, 0.5));
+}
+
+/* Style: serif fade. */
+[data-mode="info"][data-caption-style="serif"] .exhibition-caption {
+  animation: caption-rise 900ms var(--ease-out) both;
+}
+
+@keyframes caption-rise {
+  from { opacity: 0; filter: blur(3px); margin-top: 10px; }
+  to { opacity: 1; filter: blur(0); margin-top: 0; }
+}
+
+/* Style: vertical, read top to bottom, right to left. */
+[data-caption-style="vertical"] .exhibition-caption {
+  display: flex;
+  flex-direction: row-reverse;
+  gap: 1.4em;
+  max-width: none;
+  max-height: 62vh;
+  writing-mode: horizontal-tb;
+}
+
+[data-caption-style="vertical"] .exhibition-caption-title,
+[data-caption-style="vertical"] .exhibition-caption-text {
+  margin: 0;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  max-height: 62vh;
+}
+
+[data-caption-style="vertical"] .exhibition-caption-text {
+  letter-spacing: 0.24em;
+  line-height: 2.1;
+}
+
+[data-caption-style="vertical"][data-caption-position^="bottom"] .exhibition-caption {
+  bottom: calc(max(22px, env(safe-area-inset-bottom)) + 92px);
+  max-height: 46vh;
+}
+
+[data-mode="info"][data-caption-style="vertical"] .exhibition-caption {
+  animation: caption-fade 1200ms var(--ease-out) both;
+}
+
+@keyframes caption-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Style: words (or characters) surface one after another. */
+[data-caption-style="reveal"] .exhibition-caption-text span {
+  display: inline-block;
+  opacity: 0;
+}
+
+[data-mode="info"][data-caption-style="reveal"] .exhibition-caption-text span {
+  animation: caption-reveal 700ms var(--ease-out) both;
+  animation-delay: calc(var(--reveal-index) * 45ms + 120ms);
+}
+
+[data-mode="info"][data-caption-style="reveal"] .exhibition-caption-title {
+  animation: caption-fade 700ms var(--ease-out) both;
+}
+
+@keyframes caption-reveal {
+  from { opacity: 0; filter: blur(6px); transform: translateY(0.3em); }
+  to { opacity: 1; filter: blur(0); transform: none; }
+}
+
+/* ----- Preview of the next work --------------------------------------------- */
+
+.exhibition-preview {
+  position: absolute;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  left: 50%;
+  display: flex;
+  gap: 8px;
+  max-width: min(84vw, 980px);
+  padding: 6px;
+  overflow-x: auto;
+  transform: translateX(-50%);
+  scrollbar-width: none;
+}
+
+.exhibition-preview::-webkit-scrollbar {
+  display: none;
+}
+
+.exhibition-thumb {
+  position: relative;
+  flex: none;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  opacity: 0.64;
+  transition: opacity 200ms var(--ease-standard), transform 200ms var(--ease-out);
+}
+
+.exhibition-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.exhibition-thumb:hover,
+.exhibition-thumb:focus-visible,
+.exhibition-thumb[aria-current="true"] {
+  opacity: 1;
+  outline: none;
+}
+
+.exhibition-thumb[aria-current="true"] {
+  border-color: rgba(255, 255, 255, 0.86);
+}
+
+[data-preview="next"] .exhibition-thumb {
+  display: flex;
+  align-items: flex-end;
+  width: 58px;
+  height: 58px;
+}
+
+.exhibition-thumb-label {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 2px 0 3px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.66));
+  color: #fff;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* ----- Hint and status ------------------------------------------------------ */
+
+.exhibition-hint {
+  position: absolute;
+  bottom: max(28px, calc(env(safe-area-inset-bottom) + 18px));
+  left: 50%;
+  z-index: 5;
+  margin: 0;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: rgba(10, 10, 10, 0.5);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  transform: translateX(-50%);
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+  animation: caption-fade 900ms 1200ms var(--ease-out) both;
+  transition: opacity 500ms var(--ease-standard);
+}
+
+.exhibition-hint.is-leaving {
+  opacity: 0;
+}
+
+.exhibition-status {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-content: center;
+  gap: 14px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  text-align: center;
+}
+
+.exhibition-status[hidden] {
+  display: none;
+}
+
+.exhibition-status p {
+  margin: 0;
+}
+
+.exhibition-status button {
+  justify-self: center;
+  padding: 8px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* ----- Prototype panel (?proto=1, removed after approval) -------------------- */
+
+.exhibition-proto {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 8;
+  width: 228px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  background: rgba(14, 14, 14, 0.78);
+  color: #f3f0ea;
+  font-size: 12px;
+  backdrop-filter: blur(14px);
+}
+
+.exhibition-proto-heading {
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.exhibition-proto-fields {
+  display: grid;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.exhibition-proto.is-collapsed .exhibition-proto-fields {
+  display: none;
+}
+
+.exhibition-proto label {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.exhibition-proto select {
+  width: 100%;
+  padding: 5px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 5px;
+  background: #1b1b1b;
+  color: inherit;
+  font: inherit;
+}
+
+.exhibition-proto p {
+  margin: 4px 0 0;
+  color: rgba(243, 240, 234, 0.6);
+  line-height: 1.6;
+}
+
+[data-proto-open] .exhibition-series {
+  right: 260px;
+}
+
+/* ===== Series posters (requirement 06) ===================================== */
+
+.series-page .series-main {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 100svh;
+  background: #0b0b0b;
+}
+
+.series-poster {
+  position: relative;
+  display: block;
+  min-height: 100svh;
+  overflow: hidden;
+  color: #fff;
+  text-decoration: none;
+  isolation: isolate;
+}
+
+.series-poster-image {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  z-index: -2;
+}
+
+.series-poster-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.02);
+  transition: transform 1600ms var(--ease-out), filter 1600ms var(--ease-out);
+}
+
+.series-poster[data-series="grey"] .series-poster-image img {
+  filter: grayscale(1) contrast(1.04);
+}
+
+.series-poster::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.32) 0%, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0) 52%, rgba(0, 0, 0, 0.62) 100%);
+  transition: background-color 900ms var(--ease-out);
+}
+
+.series-poster-copy {
+  position: absolute;
+  right: clamp(24px, 5vw, 72px);
+  bottom: clamp(36px, 8vh, 96px);
+  left: clamp(24px, 5vw, 72px);
+  display: grid;
+  gap: 14px;
+}
+
+.series-poster-kicker {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.series-poster-name {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(40px, 5.4vw, 86px);
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  line-height: 1.1;
+}
+
+.series-poster-meta {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  opacity: 0.78;
+}
+
+.series-poster-note {
+  max-width: 30rem;
+  margin: 0;
+  font-family: var(--serif);
+  min-height: calc(1.9em * 2);
+  font-size: 15px;
+  line-height: 1.9;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 700ms var(--ease-out), transform 700ms var(--ease-out);
+}
+
+.series-poster-enter {
+  justify-self: start;
+  margin-top: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+/* Hover: the image settles closer and the series introduction appears. */
+@media (hover: hover) {
+  .series-poster:hover .series-poster-image img,
+  .series-poster:focus-visible .series-poster-image img {
+    transform: scale(1.07);
+  }
+
+  .series-poster:hover .series-poster-note,
+  .series-poster:focus-visible .series-poster-note {
+    opacity: 0.9;
+    transform: none;
+  }
+
+  .series-main:hover .series-poster:not(:hover)::after {
+    background-color: rgba(0, 0, 0, 0.32);
+  }
+}
+
+@media (hover: none) {
+  .series-poster-note {
+    opacity: 0.86;
+    transform: none;
+  }
+}
+
+.series-poster:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -6px;
+}
+
+.series-status {
+  grid-column: 1 / -1;
+  display: grid;
+  place-content: center;
+  min-height: 100svh;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.12em;
+}
+
+.series-status[hidden] {
+  display: none;
+}
+
+/* Question 16 default: stacked on phones. */
+@media (max-width: 760px) {
+  .series-page .series-main {
+    grid-template-columns: 1fr;
+  }
+
+  .series-poster {
+    min-height: 62svh;
+  }
+}
+
+/* ===== Reduced motion ====================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .exhibition-room,
+  .exhibition-work,
+  .series-poster-image img {
+    transition-duration: 1ms !important;
+  }
+
+  .exhibition-page[data-light="daylight"] .room-light::after,
+  [data-mode="info"] .exhibition-caption,
+  [data-mode="info"] .exhibition-caption span {
+    animation: none !important;
+  }
+
+  [data-caption-style="reveal"] .exhibition-caption-text span {
+    opacity: 1;
+  }
+}
+
+/* ===== Upload studio: exhibition display settings (requirement 03) ======== */
+
+.studio-exhibit-note {
+  margin: -4px 0 16px;
+  color: var(--muted, #62666d);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* The editor column is narrow: the miniature spans it, controls follow. */
+.studio-exhibit-layout {
+  display: grid;
+  gap: 20px;
+}
+
+.studio-exhibit-preview {
+  order: -1;
+}
+
+.studio-exhibit-controls {
+  display: grid;
+  gap: 18px;
+}
+
+.studio-exhibit-controls fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.studio-exhibit-controls legend {
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.studio-exhibit-walls {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 6px;
+}
+
+.studio-exhibit-walls label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--line, rgba(17, 17, 17, 0.12));
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.studio-exhibit-walls label:has(input:checked) {
+  border-color: var(--ink, #111);
+  box-shadow: inset 0 0 0 1px var(--ink, #111);
+}
+
+.studio-exhibit-walls label:has(input:focus-visible),
+.studio-exhibit-grid label:has(input:focus-visible) {
+  outline: 2px solid var(--accent, #2f5f7f);
+  outline-offset: 2px;
+}
+
+.studio-exhibit-walls input,
+.studio-exhibit-grid input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.studio-exhibit-swatch {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+}
+
+.studio-exhibit-swatch[data-swatch="white"] { background: #e7e3db; }
+.studio-exhibit-swatch[data-swatch="gray"] { background: #46474a; }
+.studio-exhibit-swatch[data-swatch="concrete"] { background: radial-gradient(circle at 50% 50%, #4d4a46 0 2px, transparent 3px), #98948d; }
+.studio-exhibit-swatch[data-swatch="wood"] { background: repeating-linear-gradient(90deg, #4b3326 0 3px, #563b2c 3px 5px); }
+.studio-exhibit-swatch[data-swatch="red"] { background: #77282a; }
+.studio-exhibit-swatch[data-swatch="green"] { background: #26392f; }
+
+.studio-exhibit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 34px);
+  gap: 4px;
+  width: max-content;
+  padding: 6px;
+  border: 1px solid var(--line, rgba(17, 17, 17, 0.12));
+  border-radius: 6px;
+}
+
+.studio-exhibit-grid label {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 26px;
+  border-radius: 4px;
+  background: rgba(17, 17, 17, 0.05);
+  cursor: pointer;
+}
+
+.studio-exhibit-grid label span {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(17, 17, 17, 0.28);
+}
+
+.studio-exhibit-grid label:has(input:checked) {
+  background: var(--ink, #111);
+}
+
+.studio-exhibit-grid label:has(input:checked) span {
+  background: #fff;
+}
+
+.studio-exhibit-position-label {
+  margin: 6px 0 0;
+  color: var(--muted, #62666d);
+  font-size: 12px;
+}
+
+.studio-exhibit-replay {
+  justify-self: start;
+}
+
+.studio-exhibit-tabs {
+  display: inline-flex;
+  gap: 2px;
+  margin-bottom: 8px;
+  padding: 2px;
+  border-radius: 6px;
+  background: rgba(17, 17, 17, 0.06);
+}
+
+.studio-exhibit-tabs button {
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.studio-exhibit-tabs button[aria-pressed="true"] {
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.studio-exhibit-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #0d0d0d;
+}
+
+.studio-exhibit-miniature {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.studio-exhibit-miniature .exhibition.is-miniature {
+  position: absolute;
+}
+
+.studio-exhibit-miniature .exhibition-work img {
+  max-width: none;
+}

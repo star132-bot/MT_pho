@@ -225,6 +225,7 @@ HEADER_IDENTITY_PUBLIC_PAGES = {
     "/contact.html": "contact.html",
     "/privacy.html": "privacy.html",
     "/terms.html": "terms.html",
+    "/series.html": "series.html",
 }
 PUBLIC_CREATOR_SLUG_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,94}[a-z0-9])?$")
 PUBLIC_DELIVERY_ASSET_KINDS = {"display", "thumbnail"}
@@ -630,7 +631,8 @@ PUBLIC_ROOT_STATIC_FILES = {
     "upload-studio.html", "inbox.html",     "admin-works.html", "admin-audit.html",     "styles.css", "privacy.css", "admin-audit.css", "robots.txt", "sitemap.xml", "favicon.svg",
     "script.js", "global-header.js", "archive.js", "archive-data.js", "archive-upload.js", "public-archive.js",
     "work-detail.js", "about.js",
-    "public-navigation.js", "series-data.js", "contact.js", "i18n.js",
+    "public-navigation.js", "series-data.js", "contact.js", "i18n.js", "image-guard.js",
+    "exhibition.html", "exhibition.css", "exhibition.js", "series.html", "series.js", "studio-exhibition.js",
     "auth.js", "mfa.js", "account-menu.js", "account-settings.js",
     "upload-studio.js", "inbox.js", "site-footer.js",
     "admin-works.js", "admin-audit.js", }

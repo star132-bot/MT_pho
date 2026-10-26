@@ -218,6 +218,28 @@
     "Published works loaded.": "作品已加载。",
     "Practice information": "创作信息",
     "Browse works": "浏览作品",
+
+    // Exhibition and series prototypes (requirements 06 and 07)
+    "Exhibition | MT Presence": "展厅 | MT Presence",
+    "Series | MT Presence": "系列 | MT Presence",
+    "Exhibition": "展厅",
+    "Series": "系列",
+    "Site": "网站导航",
+    "Open menu": "打开菜单",
+    "Close menu": "关闭菜单",
+    "Other works": "其他作品",
+    "Next": "下一张",
+    "Tap the image to show the menu": "轻点画面显示菜单",
+    "Click the artwork to show the menu": "点击画面显示菜单",
+    "Loading works": "正在加载作品",
+    "Retry": "重试",
+    "Works are temporarily unavailable.": "作品暂时无法加载。",
+    "No works in this series yet.": "这个系列还没有作品。",
+    "Series · Colour": "彩色系列",
+    "Series · Grey": "灰调系列",
+    "Colour that stays: light, weather and distance held in their own hues.": "留住的色彩：光线、天气与距离，停留在它们本来的颜色里。",
+    "Grey that stays: form and quiet reduced to tone.": "留住的灰：形体与安静，沉淀为影调。",
+    "Enter the series": "进入系列",
   };
 
   // Dynamic messages that carry numbers or work titles.

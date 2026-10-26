@@ -1682,6 +1682,10 @@ function renderEditor() {
     previewImage.src = displayUrl(record);
     previewImage.alt = record.title || "Uploaded image preview";
   }
+  // The exhibition display preview (studio-exhibition.js) follows the Draft.
+  document.dispatchEvent(new CustomEvent("mt:studio-record", {
+    detail: { id: record.id, src: displayUrl(record), width: record.width, height: record.height },
+  }));
   if (studioTitle) {
     studioTitle.textContent = record.title || "Untitled Work";
   }

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased - 2026-10-21
+
+Requirement 04 (remaining part) and prototypes for requirements 06 and 07 from `docs/product/client-feedback-2026-10-15.md`; plan in `docs/product/implementation-plan-2026-10-21.md`.
+
+- **No image saving on public pages.** Right-click "Save image", dragging an image out and the long-press save menu are blocked on Home, Works, work detail, About, Contact, Privacy, Terms and the new prototypes. Staff pages are unaffected. Screenshots cannot be prevented by any web page.
+- **Exhibition prototype** at `/exhibition.html?series=colour|grey`: one photograph at a time. Computers with a mouse see a virtual gallery room (generated walls and floor, ceiling light, cast shadow, light that dims while the work changes); touch devices see the work full screen and uncropped. Viewing mode shows only the work; a click or tap toggles the semi-transparent menu, arrows, introduction and next-work preview. Keyboard, edge clicks, trackpad and swipe turn the page; the address follows the current work.
+- **Series prototype** at `/series.html`: 此间留彩 and 此间留灰 posters leading into the exhibition.
+- Both prototypes are `noindex`, outside navigation and the sitemap. `?proto=1` adds a panel for comparing walls, light, preview, and caption position and style. No database or API changes.
+
 ## v1.7.0 - 2026-10-19
 
 Implements requirements 01-03 (and the download part of 04) from `docs/product/client-feedback-2026-10-15.md`.
