@@ -19,8 +19,10 @@
 
   // The About section lives on the homepage (requirement 05). Fields that are
   // not on the page are skipped; creator pages are retired, so no link is set.
+  // The heading is the site name: the account display name is a staff login
+  // label, not public copy.
   function applyProfile(profile) {
-    const displayName = cleanText(profile.display_name) || "MT Presence";
+    const displayName = "MT Presence";
     if (name) name.textContent = displayName;
     if (headline && cleanText(profile.professional_headline)) headline.textContent = profile.professional_headline;
     if (bio && cleanText(profile.bio)) bio.textContent = profile.bio;

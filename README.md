@@ -4,8 +4,8 @@ MT Presence is a fine art photography portfolio and image-workflow application. 
 
 ## Current Version
 
-- Version: `1.8.1`
-- Release label: `v1.8.1`
+- Version: `1.8.2`
+- Release label: `v1.8.2`
 - Status: public frontend, server-managed Supabase Auth/Account, protected creator workspace, Review/public delivery, Admin Works/Users, project inquiries, Notifications/Inbox, protected Audit Ledger, and production-deployment tooling. Release `v1.6.1` is active on `https://mtdo.cn`; external mailbox/provider-account, capacity, final-media, and receiving-host backup acceptance remain separately tracked.
 - Database: Phase 0/1 through Phase 4B are deployed to development. The Phase 5 communications/audit migration and its development-only rollback acceptance remain gates before production promotion. Public Works and creator profiles read strict published-only Supabase DTOs; the SQLite Archive remains development/legacy tooling rather than the production authority.
 

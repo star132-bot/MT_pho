@@ -9,6 +9,7 @@
   const status = document.querySelector("[data-series-status]");
   const retry = document.querySelector("[data-series-retry]");
   const SERIES_TYPES = { colour: "Concrete", grey: "Abstract" };
+  const posters = document.querySelectorAll("[data-series-poster]");
 
   function countLabel(count) {
     if (i18n?.language === "zh") return `${count} 件作品`;
@@ -16,26 +17,31 @@
   }
 
   // States: loading, ready, empty (no published works) and error (with retry);
-  // an error is never presented as an empty archive.
+  // an error is never presented as an empty archive. The posters are site
+  // artwork, so they show straight away while the counts load.
   function setState(state, message = "") {
     statusBox.dataset.seriesState = state;
-    statusBox.hidden = state === "ready";
+    statusBox.hidden = state === "ready" || state === "loading";
     status.textContent = message;
     retry.hidden = state !== "error";
   }
 
   async function start() {
+    posters.forEach((poster) => {
+      poster.hidden = false;
+      poster.querySelector("[data-series-count]").textContent = "";
+    });
     setState("loading", t("Loading works"));
     const result = archive ? await archive.loadPublishedWorks() : { error: true };
     if (result.error) {
-      document.querySelectorAll("[data-series-poster]").forEach((poster) => {
+      posters.forEach((poster) => {
         poster.hidden = true;
       });
       setState("error", t(result.status || "Works are temporarily unavailable."));
       return;
     }
     let shown = 0;
-    document.querySelectorAll("[data-series-poster]").forEach((poster) => {
+    posters.forEach((poster) => {
       const works = result.works.filter((work) => work.type === SERIES_TYPES[poster.dataset.series]);
       poster.hidden = !works.length;
       if (!works.length) return;

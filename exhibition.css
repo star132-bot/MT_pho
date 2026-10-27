@@ -76,13 +76,14 @@ html:has(> body.exhibition-page) {
 /* ----- Walls and floors (hall scene) -------------------------------------- */
 
 .exhibition-page[data-wall="white"] {
-  --wall-base: #e7e3db;
+  /* Warm gallery plaster and polished concrete, as in the approved design. */
+  --wall-base: #e6dccb;
   --wall-noise: var(--noise-fine), var(--noise-coarse);
   --wall-noise-size: 220px 220px, 900px 900px;
-  --wall-noise-opacity: 0.32;
-  --floor-top: #b3ada3;
-  --floor-bottom: #6f6a62;
-  --caption-ink: rgba(30, 27, 23, 0.76);
+  --wall-noise-opacity: 0.3;
+  --floor-top: #aca291;
+  --floor-bottom: #6a6256;
+  --caption-ink: rgba(38, 32, 25, 0.8);
   --caption-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
@@ -218,12 +219,14 @@ html:has(> body.exhibition-page) {
 }
 
 .exhibition-page[data-light="spot"] {
-  --vignette-mid: 0.58;
-  --vignette-edge: 0.9;
-  --glow: 0.42;
-  --pool-x: 0.82;
-  --pool-y: 0.95;
-  --floor-glow: 0.22;
+  /* A bright warm wall with a soft halo under the ceiling light. */
+  --vignette-mid: 0.1;
+  --vignette-edge: 0.32;
+  --glow: 0.62;
+  --glow-color: 255, 222, 170;
+  --pool-x: 1.7;
+  --pool-y: 1.5;
+  --floor-glow: 0.34;
 }
 
 .exhibition-page[data-light="daylight"] {
@@ -285,6 +288,22 @@ html:has(> body.exhibition-page) {
   mix-blend-mode: soft-light;
 }
 
+/* The spotlight beam: a warm cone from the fixture down over the work. */
+.exhibition-page[data-light="spot"] .room-light::after {
+  background:
+    radial-gradient(
+      ellipse calc(var(--art-w) * 0.9) calc(var(--art-h) * 0.62)
+        at calc(50% + var(--mx) * 10px) calc(var(--art-y) - var(--art-h) * 0.46),
+      rgba(var(--glow-color), var(--glow)) 0%,
+      rgba(var(--glow-color), 0) 100%
+    ),
+    radial-gradient(
+      ellipse calc(var(--art-w) * 0.62) calc(var(--art-y) * 1.05) at calc(50% + var(--mx) * 14px) 0%,
+      rgba(var(--glow-color), calc(var(--glow) * 0.55)) 0%,
+      rgba(var(--glow-color), 0) 100%
+    );
+}
+
 .exhibition-page[data-light="daylight"] .room-light::after {
   /* Slowly passing clouds: the daylight brightens and fades across the wall. */
   background:
@@ -297,6 +316,60 @@ html:has(> body.exhibition-page) {
   from { background-position: 100% 0; opacity: 0.55; }
   50% { opacity: 1; }
   to { background-position: 0% 0; opacity: 0.6; }
+}
+
+/* Ceiling track and the spotlight that lights the work (spot light only). */
+.room-fixture {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  display: none;
+  width: 22px;
+  height: 58px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+[data-light="spot"] .room-fixture {
+  display: block;
+}
+
+.room-fixture::before {
+  /* Stem from the ceiling track. */
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 4px;
+  height: 20px;
+  content: "";
+  background: #2b2723;
+  transform: translateX(-50%);
+}
+
+.room-fixture::after {
+  /* Cylinder head with its lit lens. */
+  position: absolute;
+  top: 18px;
+  left: 0;
+  width: 22px;
+  height: 34px;
+  content: "";
+  border-radius: 3px 3px 2px 2px;
+  background:
+    linear-gradient(transparent 84%, #fff2d6 84%),
+    linear-gradient(90deg, #121110, #3b3733 46%, #191715);
+  box-shadow: 0 10px 18px rgba(255, 226, 176, 0.55);
+}
+
+[data-light="spot"] .room-wall::after {
+  /* The track itself, a thin line just below the ceiling. */
+  position: absolute;
+  top: 12px;
+  right: 0;
+  left: 0;
+  height: 3px;
+  content: "";
+  background: linear-gradient(rgba(36, 32, 28, 0.42), rgba(36, 32, 28, 0.16));
 }
 
 /* Lights up on arrival; dims while the work is being changed. */
@@ -428,6 +501,22 @@ html:has(> body.exhibition-page) {
   opacity: 0.62;
 }
 
+/* In the room the controls are thin outline circles drawn in the wall ink. */
+[data-scene="hall"] .exhibition-edge {
+  color: var(--caption-ink, rgba(255, 255, 255, 0.86));
+}
+
+[data-scene="hall"] .exhibition-edge svg {
+  border: 1px solid currentColor;
+  background: transparent;
+  stroke-width: 1.2;
+  backdrop-filter: none;
+}
+
+[data-scene="hall"][data-mode="info"] .exhibition-edge svg {
+  opacity: 0.5;
+}
+
 .exhibition-edge:focus-visible svg {
   opacity: 0.9;
   outline: 2px solid rgba(255, 255, 255, 0.8);
@@ -503,6 +592,13 @@ html:has(> body.exhibition-page) {
   color: #fff;
   cursor: pointer;
   backdrop-filter: blur(10px);
+}
+
+[data-scene="hall"] .exhibition-menu-toggle {
+  border-color: currentColor;
+  background: transparent;
+  color: var(--caption-ink, #fff);
+  backdrop-filter: none;
 }
 
 .exhibition-menu-toggle svg {
@@ -597,12 +693,11 @@ html:has(> body.exhibition-page) {
 }
 
 .exhibition-caption-title {
-  margin: 0 0 0.9em;
-  font-family: var(--sans);
-  font-size: 11px;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  opacity: 0.86;
+  margin: 0 0 0.8em;
+  font-family: var(--serif);
+  font-size: clamp(15px, 1.25vw, 21px);
+  letter-spacing: 0.38em;
+  opacity: 0.92;
 }
 
 .exhibition-caption-text {
@@ -818,20 +913,43 @@ html:has(> body.exhibition-page) {
 
 [data-preview="next"] .exhibition-thumb {
   display: flex;
-  align-items: flex-end;
-  width: 58px;
-  height: 58px;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.78);
+  opacity: 0.8;
+}
+
+[data-preview="next"] .exhibition-thumb img {
+  width: 66px;
+  height: 66px;
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  border-radius: 3px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+}
+
+/* Phones: a small thumbnail with the label beside it, below the caption. */
+[data-scene="screen"][data-preview="next"] .exhibition-thumb {
+  flex-direction: row;
+  gap: 12px;
+}
+
+[data-scene="screen"][data-preview="next"] .exhibition-thumb img {
+  width: 44px;
+  height: 44px;
 }
 
 .exhibition-thumb-label {
-  position: absolute;
-  inset: auto 0 0;
-  padding: 2px 0 3px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.66));
-  color: #fff;
-  font-size: 9px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  font-family: var(--serif);
+  font-size: 12px;
+  letter-spacing: 0.32em;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
 }
 
 /* ----- Hint and status ------------------------------------------------------ */

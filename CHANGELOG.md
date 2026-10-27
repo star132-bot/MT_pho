@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.8.2 - 2026-10-27
+
+Visitor page polish against the approved mockups in `design/site-mockups-v2`. No admin, server or database changes.
+
+- **Homepage.** The About heading is always the site name, MT Presence; it no longer shows the staff account's display name (production read "MT Development Admin").
+- **Exhibition.** Warm gallery wall with a ceiling track spotlight and a soft pool of light (spot lighting is now the default), warmer polished floor, thin outline arrows and menu button in the room, the title as a spaced serif, a larger "next" thumbnail with its label beneath (beside it on phones), and the series label in one language (此间留灰 · 03 / 13).
+- **Works.** The two posters show immediately; only the counts wait for the archive. Error and empty states are unchanged.
+- **Contact.** Shorter inquiry options (授权 / 版画 / 委托), optional fields read 机构（选填）, the timeline field spans the row when the budget field is hidden, and the submit reads 发送咨询 → (the arrow is now kept when the script rewrites the label).
+
 ## v1.8.1 - 2026-10-27
 
 - **Works posters use dedicated artwork.** 此间留彩 and 此间留灰 now show generated portrait posters (`assets/art/poster-colour.jpg`, `poster-grey.jpg`) instead of the first published work, whose display file was too low in quality for a full-height poster. The work counts are still live. Placeholders until the photographer supplies finished posters.

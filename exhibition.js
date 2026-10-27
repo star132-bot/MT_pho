@@ -278,7 +278,9 @@
 
   function renderSeriesLabel() {
     const series = SERIES[seriesKey];
-    seriesLabel.textContent = `${series.name} · ${series.english}　${String(index + 1).padStart(2, "0")} / ${String(works.length).padStart(2, "0")}`;
+    // One name per language, as in the approved design: 此间留灰 · 03 / 13.
+    const name = i18n?.language === "zh" ? series.name : series.english;
+    seriesLabel.textContent = `${name} · ${String(index + 1).padStart(2, "0")} / ${String(works.length).padStart(2, "0")}`;
   }
 
   function updateUrl(work) {

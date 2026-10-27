@@ -747,6 +747,7 @@ body.mt-page {
 }
 
 .mt-poster-count {
+  min-height: 1.6em;
   margin: 0 0 14px;
   color: rgba(255, 255, 255, 0.8);
   font-size: 13px;
@@ -840,6 +841,19 @@ body.mt-page {
   color: var(--mt-faint);
 }
 
+/* Chinese marks optional fields as 机构（选填）. */
+html[lang="zh-CN"] .mt-field > label span {
+  margin-left: 0;
+}
+
+html[lang="zh-CN"] .mt-field > label span::before {
+  content: "（";
+}
+
+html[lang="zh-CN"] .mt-field > label span::after {
+  content: "）";
+}
+
 .mt-field input,
 .mt-field textarea {
   width: 100%;
@@ -898,6 +912,20 @@ body.mt-page {
 
 .mt-form-row [hidden] {
   display: none;
+}
+
+/* Timeline alone (no budget field) takes the full width. */
+.mt-form-row:has(> [hidden]) {
+  grid-template-columns: 1fr;
+}
+
+/* The script rewrites the submit label, so the arrow lives in CSS. */
+.contact-submit::after {
+  content: " →";
+}
+
+.contact-submit:disabled::after {
+  content: none;
 }
 
 /* Inquiry type: one row of text options instead of a dropdown. */
