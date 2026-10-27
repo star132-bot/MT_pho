@@ -473,11 +473,14 @@ def check_homepage_preview_boundary(app) -> None:
 
     previous = app.LOCAL_ARCHIVE_PREVIEW, app.RUNTIME_ENVIRONMENT
     try:
-        for enabled, environment, loopback, expected in (
-            (False, "development", True, False),
-            (True, "development", True, True),
-            (True, "production", True, False),
-            (True, "development", False, False),
+        # The homepage no longer reads browser-stored settings (the editor was
+        # retired in v1.7.0 and the 2026-10-27 homepage is static), so no
+        # environment may expose a preview switch on it.
+        for enabled, environment, loopback in (
+            (False, "development", True),
+            (True, "development", True),
+            (True, "production", True),
+            (True, "development", False),
         ):
             app.LOCAL_ARCHIVE_PREVIEW, app.RUNTIME_ENVIRONMENT = enabled, environment
             harness = RenderHarness()
@@ -485,7 +488,7 @@ def check_homepage_preview_boundary(app) -> None:
             harness.wfile = io.BytesIO()
             harness.serve_header_html("index.html")
             body = harness.wfile.getvalue().decode()
-            assert ('data-local-archive-preview>true</template>' in body) is expected
+            assert "data-local-archive-preview" not in body
     finally:
         app.LOCAL_ARCHIVE_PREVIEW, app.RUNTIME_ENVIRONMENT = previous
     print("public_homepage_preview_boundary=yes")

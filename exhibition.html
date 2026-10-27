@@ -6,10 +6,8 @@
     <meta name="theme-color" content="#000000" />
     <title>Exhibition | MT Presence</title>
     <meta name="description" content="View MT Presence photographs one at a time." />
-    <!-- Prototype for requirement 07: reachable by direct link only until approved. -->
-    <meta name="robots" content="noindex" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/exhibition.css?v=20261026-studio-2" />
+    <link rel="stylesheet" href="/exhibition.css?v=20261027-redesign-2" />
   </head>
   <body class="exhibition-page" data-scene="screen" data-mode="view" data-wall="white" data-light="wash" data-preview="next" data-caption-position="bottom-center" data-caption-style="serif">
     <svg class="exhibition-icons" aria-hidden="true" focusable="false">
@@ -19,7 +17,7 @@
       <symbol id="exhibition-icon-next" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" /></symbol>
     </svg>
 
-    <main class="exhibition" data-exhibition aria-label="Exhibition">
+    <main class="exhibition" data-exhibition aria-label="Exhibition view">
       <div class="exhibition-room" aria-hidden="true">
         <div class="room-wall"></div>
         <div class="room-floor"></div>
@@ -44,9 +42,10 @@
           <button class="exhibition-menu-toggle" type="button" aria-expanded="false" aria-controls="exhibition-menu-panel" aria-label="Open menu" data-exhibition-menu-toggle>
             <svg aria-hidden="true" focusable="false"><use href="#exhibition-icon-menu"></use></svg>
           </button>
+          <a class="exhibition-brand" href="/" aria-label="MT Presence home">MT Presence</a>
           <div class="exhibition-menu-panel" id="exhibition-menu-panel" hidden data-exhibition-menu-panel>
             <a href="/">Home</a>
-            <a href="/series.html">Works</a>
+            <a href="/works.html">Works</a>
             <a href="/contact.html">Contact</a>
             <div class="exhibition-language" data-exhibition-language>
               <button type="button" data-language="en">English</button>
@@ -74,9 +73,9 @@
     </main>
 
     <script src="/image-guard.js?v=20261021-image-guard"></script>
-    <script src="/i18n.js?v=20261021-exhibition"></script>
-    <script src="/archive-data.js?v=20260610-works-viewer-editor"></script>
+    <script src="/i18n.js?v=20261027-redesign-2"></script>
+    <script src="/archive-data.js?v=20261027-redesign"></script>
     <script src="/public-archive.js?v=20261002-public-recovery"></script>
-    <script src="/exhibition.js?v=20261026-work-settings"></script>
+    <script src="/exhibition.js?v=20261027-redesign-2"></script>
   </body>
 </html>

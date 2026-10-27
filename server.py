@@ -197,6 +197,8 @@ HEADER_AVATAR_SIGNED_URL_TTL = PROFILE_AVATAR_SIGNED_URL_TTL
 # useful instead of a 404.
 RETIRED_PAGE_REDIRECTS = {
     "/lightbox.html": "/works.html",
+    # The series posters became the Works page (requirement 06).
+    "/series.html": "/works.html",
     "/collections.html": "/works.html",
     "/creator.html": "/",
     "/dashboard": "/admin",
@@ -220,12 +222,9 @@ HEADER_IDENTITY_PUBLIC_PAGES = {
     "/": "index.html",
     "/index.html": "index.html",
     "/works.html": "works.html",
-    "/work.html": "work.html",
-    "/about.html": "about.html",
     "/contact.html": "contact.html",
     "/privacy.html": "privacy.html",
     "/terms.html": "terms.html",
-    "/series.html": "series.html",
 }
 PUBLIC_CREATOR_SLUG_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,94}[a-z0-9])?$")
 PUBLIC_DELIVERY_ASSET_KINDS = {"display", "thumbnail"}
@@ -626,13 +625,13 @@ AUTH_OTP_RATE_BUCKETS: dict[str, list[float]] = {}
 AUTH_OTP_RATE_LOCK = threading.Lock()
 
 PUBLIC_ROOT_STATIC_FILES = {
-    "index.html", "works.html", "work.html", "about.html", "contact.html", "privacy.html", "terms.html",
+    "index.html", "works.html", "contact.html", "privacy.html", "terms.html", "exhibition.html",
     "auth.html", "mfa.html", "account-settings.html", "admin.html",
-    "upload-studio.html", "inbox.html",     "admin-works.html", "admin-audit.html",     "styles.css", "privacy.css", "admin-audit.css", "robots.txt", "sitemap.xml", "favicon.svg",
-    "script.js", "global-header.js", "archive.js", "archive-data.js", "archive-upload.js", "public-archive.js",
-    "work-detail.js", "about.js",
-    "public-navigation.js", "series-data.js", "contact.js", "i18n.js", "image-guard.js",
-    "exhibition.html", "exhibition.css", "exhibition.js", "series.html", "series.js", "studio-exhibition.js",
+    "upload-studio.html", "inbox.html", "admin-works.html", "admin-audit.html",
+    "styles.css", "site.css", "privacy.css", "admin-audit.css", "exhibition.css", "robots.txt", "sitemap.xml", "favicon.svg",
+    "global-header.js", "archive-data.js", "archive-upload.js", "public-archive.js",
+    "about.js", "series.js", "exhibition.js", "studio-exhibition.js", "image-guard.js",
+    "public-navigation.js", "series-data.js", "contact.js", "i18n.js",
     "auth.js", "mfa.js", "account-menu.js", "account-settings.js",
     "upload-studio.js", "inbox.js", "site-footer.js",
     "admin-works.js", "admin-audit.js", }
@@ -4933,17 +4932,6 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             f'<template id="mt-enabled-oauth-providers" data-enabled-oauth-providers>{enabled_oauth_providers_markup()}</template>',
             1,
         )
-        if (
-            filename == "index.html"
-            and LOCAL_ARCHIVE_PREVIEW
-            and RUNTIME_ENVIRONMENT == "development"
-            and self.is_loopback_request()
-        ):
-            source = source.replace(
-                '<template data-local-archive-preview>false</template>',
-                '<template data-local-archive-preview>true</template>',
-                1,
-            )
         if identity.get("can_review"):
             source = source.replace(" data-review-nav hidden", " data-review-nav")
         if identity.get("can_govern"):
@@ -9537,6 +9525,17 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         # encoded legacy upload paths must never fall through as public files.
         parsed = parsed._replace(path=canonical_path, netloc="")
         parts = [part for part in parsed.path.split("/") if part]
+        if parsed.path == "/work.html":
+            # Single works are now viewed in the exhibition (requirement 07);
+            # shared work links keep pointing at the same work.
+            work_id = clean_text(single_query_value(parse_qs(parsed.query), "id"), 120)
+            destination = f"/exhibition.html?{urlencode({'work': work_id})}" if work_id else "/works.html"
+            self.send_response(HTTPStatus.MOVED_PERMANENTLY)
+            self.send_header("Location", destination)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         retired_destination = RETIRED_PAGE_REDIRECTS.get(parsed.path)
         if retired_destination is None and any(
             parsed.path == prefix or parsed.path.startswith(prefix + "/") for prefix in RETIRED_PAGE_PREFIXES

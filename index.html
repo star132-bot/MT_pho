@@ -14,209 +14,130 @@
     <meta property="og:title" content="MT Presence | Fine Art Photography" />
     <meta property="og:description" content="MT Presence is a fine art photography practice founded by MT, creating quiet images for long looking, collection, and encounter." />
     <meta property="og:url" content="https://mtdo.cn/" />
-    <meta property="og:image" content="https://mtdo.cn/assets/art/hero-concrete.jpg" />
-    <meta property="og:image:width" content="1672" />
-    <meta property="og:image:height" content="941" />
+    <meta property="og:image" content="https://mtdo.cn/assets/art/home-hero.jpg" />
+    <meta property="og:image:width" content="2400" />
+    <meta property="og:image:height" content="1350" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css?v=20261021-visitor-experience" />
+    <link rel="stylesheet" href="/site.css?v=20261027-redesign-3" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
-    <template data-local-archive-preview>false</template>
   </head>
-  <body class="home-page">
-    <header class="site-header global-header" aria-label="Primary navigation" data-public-header data-global-header data-global-header-theme="overlay">
+  <body class="mt-page home-page">
+    <header class="mt-header" aria-label="Primary navigation" data-public-header data-global-header data-global-header-theme="overlay">
       <div class="header-identity-slot" data-header-identity-slot></div>
     </header>
 
     <main id="top">
-      <section class="hero-stage" aria-labelledby="hero-title">
-        <div class="hero">
-          <div class="hero-visual" aria-hidden="true">
-            <div class="hero-image hero-image-abstract"></div>
-            <div class="hero-image hero-image-concrete"></div>
+      <section class="mt-hero" aria-labelledby="hero-title">
+        <figure class="mt-hero-image" data-protected-media>
+          <img
+            src="/assets/art/home-hero.jpg"
+            alt="Black-and-white mountain ridges floating above a sea of clouds at dawn."
+            width="2400"
+            height="1350"
+            fetchpriority="high"
+            decoding="async"
+          />
+        </figure>
+        <div class="mt-hero-copy">
+          <p class="mt-kicker">Abstract Field</p>
+          <h1 id="hero-title" class="mt-hero-title">A Quiet Field for Images</h1>
+          <p class="mt-hero-statement">Images are not records of the world. They are encounters held in the present space between the artist and the viewer.</p>
+          <div class="mt-hero-links">
+            <a class="mt-text-link" href="/works.html">Enter Works <span aria-hidden="true">→</span></a>
+            <a class="mt-text-link" href="#about">About the Practice</a>
           </div>
-          <div class="hero-copy">
-            <div class="hero-copy-text" aria-hidden="true">
-              <div class="hero-copy-panel hero-copy-panel-abstract" data-home-hero-panel="abstract">
-                <p class="eyebrow" data-home-hero-eyebrow>Abstract Field</p>
-                <h1 data-home-hero-title>A Quiet Field for Images</h1>
-                <p class="hero-statement" data-home-hero-statement>
-                  Images are not records of the world. They are encounters held in the present space between the artist and the viewer.
-                </p>
-              </div>
-              <div class="hero-copy-panel hero-copy-panel-concrete" data-home-hero-panel="concrete">
-                <p class="eyebrow" data-home-hero-eyebrow>Concrete Field</p>
-                <h1 data-home-hero-title>Where Looking Becomes Presence</h1>
-                <p class="hero-statement" data-home-hero-statement>
-                  Light, weather, and distance settle into form. Each photograph opens a quiet place for the viewer to stay.
-                </p>
-              </div>
-            </div>
-            <h1 id="hero-title" class="visually-hidden">A Quiet Field for Images</h1>
-            <div class="hero-actions" aria-label="Primary actions">
-              <a class="button button-primary" href="/works.html">Enter Works</a>
-              <a class="button button-secondary" href="/about.html">About the Practice</a>
-            </div>
+        </div>
+        <p class="mt-hero-caption">Sea of Clouds at Dawn</p>
+      </section>
+
+      <section class="mt-section" id="selected" aria-labelledby="selected-title">
+        <h2 id="selected-title" class="mt-section-heading">Selected works</h2>
+        <ul class="mt-selected-row" data-i18n-skip>
+          <li>
+            <figure class="mt-figure">
+              <img src="/assets/art/selected-01.jpg" alt="松林晨雾：浓雾中，几棵松立在岩脊上。" width="1200" height="1600" loading="lazy" decoding="async" />
+              <figcaption>松林晨雾<span>2024</span></figcaption>
+            </figure>
+          </li>
+          <li>
+            <figure class="mt-figure">
+              <img src="/assets/art/selected-02.jpg" alt="雨后湖畔：低云下的高山湖泊与倒影。" width="1200" height="1500" loading="lazy" decoding="async" />
+              <figcaption>雨后湖畔<span>2023</span></figcaption>
+            </figure>
+          </li>
+          <li>
+            <figure class="mt-figure">
+              <img src="/assets/art/selected-03.jpg" alt="雾中森林：松林在浓雾中一层层淡去。" width="1100" height="1650" loading="lazy" decoding="async" />
+              <figcaption>雾中森林<span>2022</span></figcaption>
+            </figure>
+          </li>
+          <li>
+            <figure class="mt-figure">
+              <img src="/assets/art/selected-04.jpg" alt="海岸之境：雾中的海崖与平静的海面。" width="1200" height="1600" loading="lazy" decoding="async" />
+              <figcaption>海岸之境<span>2021</span></figcaption>
+            </figure>
+          </li>
+          <li>
+            <figure class="mt-figure">
+              <img src="/assets/art/selected-05.jpg" alt="沙丘之韵：阴天下起伏的沙脊。" width="1400" height="1400" loading="lazy" decoding="async" />
+              <figcaption>沙丘之韵<span>2020</span></figcaption>
+            </figure>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Requirement 05: the About page is part of the homepage. about.js
+           replaces these defaults with the published creator profile. -->
+      <section class="mt-about" id="about" aria-labelledby="about-title">
+        <figure class="mt-about-image">
+          <img src="/assets/art/about.jpg" alt="A photographer seen from behind on a misty ridge." width="1200" height="1600" loading="lazy" decoding="async" data-about-image />
+        </figure>
+        <div class="mt-about-copy">
+          <p class="mt-kicker">About the Practice</p>
+          <h2 id="about-title" class="mt-about-name" data-about-name>MT Presence</h2>
+          <p class="mt-about-lede" data-about-headline>A fine art photography practice concerned with weather, surface, distance, and the time required to look.</p>
+          <div class="mt-about-body">
+            <p data-about-bio>MT works between abstraction and the visible world. The photographs begin with real places and objects, then stay with the point at which description becomes uncertain: a shoreline held in fog, a plane of stone, or light crossing an ordinary form.</p>
+            <p>The work does not treat photography as simple documentation. It uses landscape, weather, surface, and distance to hold a moment before it becomes explanation.</p>
+            <p data-about-practice-copy>The resulting photographs are restrained and enduring, intended to be lived with, studied over time, and passed on.</p>
           </div>
+          <ul class="mt-about-facts" aria-label="Practice information">
+            <li>
+              <small>01</small>
+              <h3 data-about-location>Based in USA</h3>
+              <p>Working from a quiet studio, with projects worldwide.</p>
+            </li>
+            <li>
+              <small>02</small>
+              <h3 data-about-availability>Available for commissions</h3>
+              <p>Limited editorial, private, and collaborative assignments.</p>
+            </li>
+            <li>
+              <small>03</small>
+              <h3>Working internationally</h3>
+              <p>Projects, exhibitions, and conversations across continents.</p>
+            </li>
+          </ul>
         </div>
       </section>
 
-      <section id="works" class="works-section" aria-labelledby="works-title">
-        <div class="section-heading">
-          <div>
-            <div class="section-kicker">Works</div>
-            <h2 id="works-title">Selected Works</h2>
-          </div>
-          <button class="button button-secondary" type="button" data-marquee-pause aria-pressed="false">Pause motion</button>
-        </div>
-
-        <div class="marquee-gallery" aria-label="Selected AI generated landscape works">
-          <div class="marquee-track">
-            <figure class="marquee-item">
-              <img src="assets/art/abstract-01.jpg" alt="AI generated monochrome fine-art landscape of basalt shoreline and sea fog." width="1024" height="1536" loading="lazy" decoding="async" />
-            </figure>
-            <figure class="marquee-item">
-              <img src="assets/art/concrete-01.jpg" alt="AI generated muted color fine-art landscape of an alpine lake after rain." width="1024" height="1536" loading="lazy" decoding="async" />
-            </figure>
-            <figure class="marquee-item">
-              <img src="assets/art/abstract-02.jpg" alt="AI generated monochrome fine-art landscape of a pine ridge dissolving into fog." width="1024" height="1536" loading="lazy" decoding="async" />
-            </figure>
-            <figure class="marquee-item">
-              <img src="assets/art/concrete-02.jpg" alt="AI generated muted color fine-art landscape of rain-darkened dunes and sparse grasses." width="1024" height="1536" loading="lazy" decoding="async" />
-            </figure>
-            <figure class="marquee-item">
-              <img src="assets/art/abstract-03.jpg" alt="AI generated monochrome fine-art landscape of a rain-dark canyon and rising mist." width="1024" height="1536" loading="lazy" decoding="async" />
-            </figure>
-            <figure class="marquee-item">
-              <img src="assets/art/concrete-03.jpg" alt="AI generated muted color fine-art landscape of a steep winter mountain forest." width="1024" height="1536" loading="lazy" decoding="async" />
-            </figure>
-          </div>
-          <div class="marquee-track" aria-hidden="true">
-            <figure class="marquee-item">
-              <img src="assets/art/abstract-01.jpg" alt="" width="1024" height="1536" loading="lazy" decoding="async" />
-            </figure>
-            <figure class="marquee-item">
-              <img src="assets/art/concrete-01.jpg" alt="" width="1024" height="1536" loading="lazy" decoding="async" />
-            </figure>
-            <figure class="marquee-item">
-              <img src="assets/art/abstract-02.jpg" alt="" width="1024" height="1536" loading="lazy" decoding="async" />
-            </figure>
-            <figure class="marquee-item">
-              <img src="assets/art/concrete-02.jpg" alt="" width="1024" height="1536" loading="lazy" decoding="async" />
-            </figure>
-            <figure class="marquee-item">
-              <img src="assets/art/abstract-03.jpg" alt="" width="1024" height="1536" loading="lazy" decoding="async" />
-            </figure>
-            <figure class="marquee-item">
-              <img src="assets/art/concrete-03.jpg" alt="" width="1024" height="1536" loading="lazy" decoding="async" />
-            </figure>
-          </div>
-        </div>
+      <section class="mt-invite" aria-labelledby="invite-title">
+        <p class="mt-kicker">Inquiries</p>
+        <h2 id="invite-title" class="mt-invite-line">Exhibitions, licensing, and commissions.</h2>
+        <a class="mt-text-link" href="/contact.html">Contact Artist <span aria-hidden="true">→</span></a>
       </section>
-
-      <section id="statement" class="statement-section" aria-labelledby="statement-title" data-statement-section>
-        <div class="statement-intro">
-          <div class="section-kicker statement-kicker">Statement</div>
-          <h2 id="statement-title" data-home-statement-title>MT Presence</h2>
-        </div>
-
-        <div class="statement-moments">
-          <article class="statement-moment" data-statement-moment data-home-statement-moment="0">
-            <figure class="statement-media">
-              <img
-                src="assets/art/abstract-02.jpg"
-                alt="Monochrome fine-art landscape of a pine ridge dissolving into fog."
-                width="1024"
-                height="1536"
-                loading="lazy"
-                decoding="async"
-                data-home-statement-image
-              />
-            </figure>
-            <div class="statement-moment-copy">
-              <span class="statement-index">01</span>
-              <p data-home-statement-text>
-                MT Presence is a fine art photography practice by MT, shaped around quiet images, long looking, and the space
-                between abstraction and the visible world.
-              </p>
-            </div>
-          </article>
-
-          <article class="statement-moment" data-statement-moment data-home-statement-moment="1">
-            <figure class="statement-media">
-              <img
-                src="assets/art/concrete-01.jpg"
-                alt="Muted color fine-art landscape of an alpine lake after rain."
-                width="1024"
-                height="1536"
-                loading="lazy"
-                decoding="async"
-                data-home-statement-image
-              />
-            </figure>
-            <div class="statement-moment-copy">
-              <span class="statement-index">02</span>
-              <p data-home-statement-text>
-                The work does not treat photography as simple documentation. It uses landscape, weather, surface, and distance
-                to hold a moment before it becomes explanation.
-              </p>
-            </div>
-          </article>
-
-          <article class="statement-moment" data-statement-moment data-home-statement-moment="2">
-            <figure class="statement-media">
-              <img
-                src="assets/art/abstract-03.jpg"
-                alt="Monochrome fine-art landscape of a rain-dark canyon and rising mist."
-                width="1024"
-                height="1536"
-                loading="lazy"
-                decoding="async"
-                data-home-statement-image
-              />
-            </figure>
-            <div class="statement-moment-copy">
-              <span class="statement-index">03</span>
-              <p data-home-statement-text>
-                Each image is made as an encounter: something to return to, collect, live with, and see differently over time.
-              </p>
-            </div>
-          </article>
-
-          <article class="statement-moment" data-statement-moment data-home-statement-moment="3">
-            <figure class="statement-media">
-              <img
-                src="assets/art/concrete-03.jpg"
-                alt="Muted color fine-art landscape of a steep winter mountain forest."
-                width="1024"
-                height="1536"
-                loading="lazy"
-                decoding="async"
-                data-home-statement-image
-              />
-            </figure>
-            <div class="statement-moment-copy">
-              <span class="statement-index">04</span>
-              <p data-home-statement-text>Enter the archive and spend time with the work.</p>
-            </div>
-          </article>
-        </div>
-
-        <div class="statement-cta">
-          <a class="button button-primary" href="/works.html">Enter Works</a>
-        </div>
-      </section>
-
     </main>
 
-    <footer class="site-footer public-footer" aria-label="Site footer" data-site-footer data-footer-variant="public"></footer>
+    <footer class="mt-footer" aria-label="Site footer" data-site-footer data-footer-variant="public"></footer>
 
     <script src="/image-guard.js?v=20261021-image-guard"></script>
-    <script src="/i18n.js?v=20261021-exhibition"></script>
-    <script src="/global-header.js?v=20261021-series"></script>
-    <script src="archive-data.js?v=20260610-works-viewer-editor"></script>
-    <script src="script.js?v=20261002-public-recovery"></script>
-    <script src="/site-footer.js?v=20261018-staff-only"></script>
+    <script src="/i18n.js?v=20261027-redesign-2"></script>
+    <script src="/global-header.js?v=20261027-redesign"></script>
+    <script src="/archive-data.js?v=20261027-redesign"></script>
+    <script src="/public-archive.js?v=20261002-public-recovery"></script>
+    <script src="/about.js?v=20261027-redesign"></script>
+    <script src="/site-footer.js?v=20261027-redesign"></script>
     <script src="/public-navigation.js?v=20260722-public-shell"></script>
   </body>
 </html>

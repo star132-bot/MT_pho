@@ -4,272 +4,61 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Works Archive | MT Presence</title>
-    <meta
-      name="description"
-      content="A quiet photography works archive for MT Presence, arranged by image type and ratio."
-    />
+    <meta name="description" content="Two series by MT Presence: 此间留彩 (Colour) and 此间留灰 (Grey)." />
     <link rel="canonical" href="https://mtdo.cn/works.html" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="MT Presence" />
     <meta property="og:title" content="Works Archive | MT Presence" />
-    <meta property="og:description" content="A quiet photography works archive for MT Presence, arranged by image type and ratio." />
+    <meta property="og:description" content="Two series by MT Presence: 此间留彩 (Colour) and 此间留灰 (Grey)." />
     <meta property="og:url" content="https://mtdo.cn/works.html" />
-    <meta property="og:image" content="https://mtdo.cn/assets/art/hero-concrete.jpg" />
-    <meta property="og:image:width" content="1672" />
-    <meta property="og:image:height" content="941" />
+    <meta property="og:image" content="https://mtdo.cn/assets/art/home-hero.jpg" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css?v=20261021-visitor-experience" />
+    <link rel="stylesheet" href="/site.css?v=20261027-redesign-3" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
-  <body class="archive-page">
-    <svg class="icon-sprite" aria-hidden="true" focusable="false">
-      <symbol id="icon-home" viewBox="0 0 24 24">
-        <path d="m3 10.5 9-7.5 9 7.5" />
-        <path d="M5 9v12h14V9" />
-        <path d="M9 21v-7h6v7" />
-      </symbol>
-      <symbol id="icon-photo" viewBox="0 0 24 24">
-        <rect x="3" y="5" width="18" height="14" rx="1.5" />
-        <path d="m7 15 3.2-3.2a1.3 1.3 0 0 1 1.8 0L16 16" />
-        <path d="m14 14 1.1-1.1a1.3 1.3 0 0 1 1.8 0L21 17" />
-        <circle cx="8.5" cy="9.2" r="1.2" />
-      </symbol>
-      <symbol id="icon-pen" viewBox="0 0 24 24">
-        <path d="m4 20 4.3-1.1 10.4-10.4a2.1 2.1 0 0 0-3-3L5.3 15.9z" />
-        <path d="m14 6 4 4" />
-      </symbol>
-      <symbol id="icon-user" viewBox="0 0 24 24">
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4.5 21a7.5 7.5 0 0 1 15 0" />
-      </symbol>
-      <symbol id="icon-folder" viewBox="0 0 24 24">
-        <path d="M3 6.8h6l2 2.4h10v8.6a1.7 1.7 0 0 1-1.7 1.7H4.7A1.7 1.7 0 0 1 3 17.8z" />
-        <path d="M3 8.8v-3a1.3 1.3 0 0 1 1.3-1.3h5.1l2 2.2" />
-      </symbol>
-      <symbol id="icon-download" viewBox="0 0 24 24">
-        <path d="M12 3v11" />
-        <path d="m7 10 5 5 5-5" />
-        <path d="M5 20h14" />
-      </symbol>
-      <symbol id="icon-bookmark" viewBox="0 0 24 24">
-        <path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.8L6 21z" />
-      </symbol>
-      <symbol id="icon-bell" viewBox="0 0 24 24">
-        <path d="M18 9a6 6 0 0 0-12 0c0 7-2 7-2 8h16c0-1-2-1-2-8" />
-        <path d="M9.7 20a2.5 2.5 0 0 0 4.6 0" />
-      </symbol>
-      <symbol id="icon-menu" viewBox="0 0 24 24">
-        <path d="M4 7h16" />
-        <path d="M4 12h16" />
-        <path d="M4 17h16" />
-      </symbol>
-      <symbol id="icon-search" viewBox="0 0 24 24">
-        <circle cx="11" cy="11" r="7" />
-        <path d="m20 20-3.8-3.8" />
-      </symbol>
-      <symbol id="icon-plus" viewBox="0 0 24 24">
-        <path d="M12 5v14" />
-        <path d="M5 12h14" />
-      </symbol>
-      <symbol id="icon-lock" viewBox="0 0 24 24">
-        <rect x="5.5" y="10" width="13" height="10" rx="1.5" />
-        <path d="M8.5 10V7.5a3.5 3.5 0 0 1 7 0V10" />
-      </symbol>
-      <symbol id="icon-sliders" viewBox="0 0 24 24">
-        <path d="M21 4h-7" />
-        <path d="M10 4H3" />
-        <path d="M21 12h-9" />
-        <path d="M8 12H3" />
-        <path d="M21 20h-5" />
-        <path d="M12 20H3" />
-        <path d="M14 2v4" />
-        <path d="M8 10v4" />
-        <path d="M16 18v4" />
-      </symbol>
-      <symbol id="icon-grip" viewBox="0 0 24 24">
-        <circle cx="9" cy="5" r="1" fill="currentColor" />
-        <circle cx="9" cy="12" r="1" fill="currentColor" />
-        <circle cx="9" cy="19" r="1" fill="currentColor" />
-        <circle cx="15" cy="5" r="1" fill="currentColor" />
-        <circle cx="15" cy="12" r="1" fill="currentColor" />
-        <circle cx="15" cy="19" r="1" fill="currentColor" />
-      </symbol>
-      <symbol id="icon-save" viewBox="0 0 24 24">
-        <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
-        <path d="M17 21v-7H7v7" />
-        <path d="M7 3v5h8" />
-      </symbol>
-      <symbol id="icon-check" viewBox="0 0 24 24">
-        <path d="M20 6 9 17l-5-5" />
-      </symbol>
-      <symbol id="icon-arrow-up" viewBox="0 0 24 24">
-        <path d="m18 15-6-6-6 6" />
-      </symbol>
-      <symbol id="icon-arrow-down" viewBox="0 0 24 24">
-        <path d="m6 9 6 6 6-6" />
-      </symbol>
-      <symbol id="icon-chevron-left" viewBox="0 0 24 24">
-        <path d="m15 18-6-6 6-6" />
-      </symbol>
-      <symbol id="icon-chevron-right" viewBox="0 0 24 24">
-        <path d="m9 18 6-6-6-6" />
-      </symbol>
-      <symbol id="icon-close" viewBox="0 0 24 24">
-        <path d="M18 6 6 18" />
-        <path d="m6 6 12 12" />
-      </symbol>
-      <symbol id="icon-zoom-in" viewBox="0 0 24 24">
-        <circle cx="11" cy="11" r="8" />
-        <path d="m21 21-4.35-4.35" />
-        <path d="M11 8v6" />
-        <path d="M8 11h6" />
-      </symbol>
-      <symbol id="icon-zoom-out" viewBox="0 0 24 24">
-        <circle cx="11" cy="11" r="8" />
-        <path d="m21 21-4.35-4.35" />
-        <path d="M8 11h6" />
-      </symbol>
-      <symbol id="icon-info" viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 10v7" />
-        <path d="M12 7h.01" />
-      </symbol>
-      <symbol id="icon-mail" viewBox="0 0 24 24">
-        <rect x="3.5" y="5.5" width="17" height="13" rx="1.8" />
-        <path d="m4.5 7 7.5 6 7.5-6" />
-      </symbol>
-    </svg>
-    <header class="site-header archive-header public-site-header global-header" aria-label="Primary navigation" data-public-header data-global-header>
+  <body class="mt-page works-page">
+    <header class="mt-header" aria-label="Primary navigation" data-public-header data-global-header data-global-header-theme="overlay">
       <div class="header-identity-slot" data-header-identity-slot></div>
     </header>
 
-    <main class="archive-main">
-      <section class="archive-controls" aria-label="Archive filters">
-        <div class="archive-discovery-bar">
-          <div class="filter-group">
-            <span class="visually-hidden">Type</span>
-            <div class="filter-options" data-type-filters>
-              <button class="filter-button is-active" type="button" data-filter-type="All" aria-pressed="true">All Works</button>
-              <button class="filter-button" type="button" data-filter-type="Abstract" aria-pressed="false">Abstract</button>
-              <button class="filter-button" type="button" data-filter-type="Concrete" aria-pressed="false">Concrete</button>
-            </div>
-          </div>
-
-          <div class="filter-group">
-            <span class="visually-hidden">Ratio</span>
-            <div class="filter-options ratio-options" data-ratio-filters>
-              <button class="filter-button is-active" type="button" data-filter-ratio="All" aria-pressed="true">All Ratios</button>
-              <button class="filter-button" type="button" data-filter-ratio="Square" aria-pressed="false">Square</button>
-              <button class="filter-button" type="button" data-filter-ratio="Classic" aria-pressed="false">Classic</button>
-              <button class="filter-button" type="button" data-filter-ratio="Portrait" aria-pressed="false">Portrait</button>
-              <button class="filter-button" type="button" data-filter-ratio="Vertical" aria-pressed="false">Vertical</button>
-              <button class="filter-button" type="button" data-filter-ratio="Landscape" aria-pressed="false">Landscape</button>
-              <button class="filter-button" type="button" data-filter-ratio="Cinema" aria-pressed="false">Cinema</button>
-              <button class="filter-button" type="button" data-filter-ratio="Panorama" aria-pressed="false">Panorama</button>
-            </div>
-          </div>
+    <!-- Requirement 06: the Works page holds only the two series posters; each
+         poster opens that series in the exhibition (requirement 07). -->
+    <main class="mt-posters" aria-label="Series">
+      <h1 class="visually-hidden">Works</h1>
+      <a class="mt-poster" href="/exhibition.html?series=colour" data-series="colour" data-series-poster hidden>
+        <figure class="mt-poster-image" data-protected-media><img alt="" decoding="async" data-series-image /></figure>
+        <div class="mt-poster-copy">
+          <p class="mt-kicker" data-i18n-skip>SERIES · COLOUR</p>
+          <h2 class="mt-poster-title" data-i18n-skip>此间留彩</h2>
+          <p class="mt-poster-count" data-series-count></p>
+          <span class="mt-text-link">Enter the series <span aria-hidden="true">→</span></span>
         </div>
-      </section>
-
-      <section class="archive-gallery-section" aria-labelledby="gallery-title">
-        <h1 id="gallery-title" class="visually-hidden">Works Archive</h1>
-        <div class="visually-hidden" data-archive-count aria-live="polite"></div>
-        <p class="visually-hidden" data-archive-data-status role="status" aria-live="polite">Loading archive.</p>
-        <button class="button button-secondary" type="button" data-archive-retry hidden>Retry loading works</button>
-        <p class="archive-empty-state" data-archive-empty hidden>No works match this search.</p>
-        <div class="archive-gallery" data-archive-gallery></div>
-      </section>
+      </a>
+      <a class="mt-poster" href="/exhibition.html?series=grey" data-series="grey" data-series-poster hidden>
+        <figure class="mt-poster-image" data-protected-media><img alt="" decoding="async" data-series-image /></figure>
+        <div class="mt-poster-copy">
+          <p class="mt-kicker" data-i18n-skip>SERIES · GREY</p>
+          <h2 class="mt-poster-title" data-i18n-skip>此间留灰</h2>
+          <p class="mt-poster-count" data-series-count></p>
+          <span class="mt-text-link">Enter the series <span aria-hidden="true">→</span></span>
+        </div>
+      </a>
+      <div class="mt-posters-status" data-series-state="loading" data-series-status-box>
+        <p role="status" aria-live="polite" data-series-status>Loading works</p>
+        <button class="mt-text-link" type="button" hidden data-series-retry>Retry</button>
+      </div>
     </main>
 
-    <footer class="site-footer public-footer" aria-label="Site footer" data-site-footer data-footer-variant="public"></footer>
-
-    <div class="archive-toast" role="status" aria-live="polite" data-archive-toast hidden></div>
-
-    <div class="work-viewer" data-work-viewer hidden>
-      <div class="work-viewer-backdrop" data-viewer-close aria-hidden="true"></div>
-      <section
-        class="work-viewer-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="work-viewer-dialog-label"
-        tabindex="-1"
-        data-work-viewer-dialog
-      >
-        <header class="work-viewer-controls viewer-toolbar" aria-label="Work viewer controls">
-          <div class="work-viewer-status">
-            <p id="work-viewer-dialog-label" class="visually-hidden" data-viewer-dialog-label>Work viewer</p>
-            <p class="work-viewer-position" data-viewer-position aria-live="polite"></p>
-            <p class="work-viewer-mode" data-viewer-mode>Fit</p>
-          </div>
-          <div class="work-viewer-actions">
-            <button class="work-viewer-icon-button" type="button" aria-label="Show work details" data-tooltip="Show details" aria-controls="work-viewer-details" aria-expanded="false" data-viewer-info-toggle>
-              <svg class="ui-icon" aria-hidden="true" focusable="false">
-                <use href="#icon-info"></use>
-              </svg>
-            </button>
-            <button class="work-viewer-icon-button" type="button" aria-label="View actual size" data-tooltip="View actual size" aria-pressed="false" data-viewer-zoom>
-              <svg class="ui-icon" aria-hidden="true" focusable="false">
-                <use href="#icon-zoom-in"></use>
-              </svg>
-            </button>
-            <button class="work-viewer-icon-button" type="button" aria-label="Previous work" data-tooltip="Previous" data-viewer-prev>
-              <svg class="ui-icon" aria-hidden="true" focusable="false">
-                <use href="#icon-chevron-left"></use>
-              </svg>
-            </button>
-            <button class="work-viewer-icon-button" type="button" aria-label="Next work" data-tooltip="Next" data-viewer-next>
-              <svg class="ui-icon" aria-hidden="true" focusable="false">
-                <use href="#icon-chevron-right"></use>
-              </svg>
-            </button>
-            <button class="work-viewer-icon-button" type="button" aria-label="Close work viewer" data-tooltip="Close" data-viewer-close-button>
-              <svg class="ui-icon" aria-hidden="true" focusable="false">
-                <use href="#icon-close"></use>
-              </svg>
-            </button>
-          </div>
-        </header>
-
-        <div class="work-viewer-layout viewer-body">
-          <figure class="work-viewer-media viewer-stage" tabindex="0" aria-label="Image viewing area" data-viewer-stage>
-            <img alt="" decoding="async" data-viewer-image />
-          </figure>
-          <aside id="work-viewer-details" class="work-viewer-info viewer-details" aria-label="Work details" aria-hidden="true" inert data-viewer-info>
-            <h2 id="work-viewer-title" data-viewer-title data-i18n-skip></h2>
-            <p class="work-viewer-creator" data-viewer-creator hidden></p>
-            <p id="work-viewer-note" class="work-viewer-note" data-viewer-note data-i18n-skip></p>
-            <div class="work-viewer-primary-actions" aria-label="Work actions">
-              <a class="work-viewer-action-button" href="contact.html?source=work" data-viewer-inquire>
-                <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-mail"></use></svg>
-                <span>Inquire</span>
-              </a>
-            </div>
-            <dl class="work-viewer-metadata" data-viewer-metadata></dl>
-            <section class="work-viewer-tags" data-viewer-tags-section hidden>
-              <h3>Tags</h3>
-              <div class="work-viewer-tag-groups" data-viewer-tags data-i18n-skip></div>
-            </section>
-            <section class="work-viewer-statement" data-viewer-statement-section hidden>
-              <h3 data-viewer-statement-heading>Statement</h3>
-              <p data-viewer-statement data-i18n-skip></p>
-            </section>
-            <section class="work-viewer-related" data-viewer-related-section hidden>
-              <h3>Related Works</h3>
-              <div class="work-viewer-related-grid" data-viewer-related></div>
-            </section>
-          </aside>
-        </div>
-      </section>
-    </div>
+    <footer class="mt-footer" aria-label="Site footer" data-site-footer data-footer-variant="public"></footer>
 
     <script src="/image-guard.js?v=20261021-image-guard"></script>
-    <script src="/i18n.js?v=20261021-exhibition"></script>
-    <script src="/global-header.js?v=20261021-series"></script>
-    <script src="archive-data.js?v=20260610-works-viewer-editor"></script>
-    <script src="public-archive.js?v=20261002-public-recovery"></script>
-    <script src="archive.js?v=20261021-image-guard"></script>
-    <script src="/site-footer.js?v=20261018-staff-only"></script>
+    <script src="/i18n.js?v=20261027-redesign-2"></script>
+    <script src="/global-header.js?v=20261027-redesign"></script>
+    <script src="/archive-data.js?v=20261027-redesign"></script>
+    <script src="/public-archive.js?v=20261002-public-recovery"></script>
+    <script src="/series.js?v=20261027-redesign-2"></script>
+    <script src="/site-footer.js?v=20261027-redesign"></script>
     <script src="/public-navigation.js?v=20260722-public-shell"></script>
   </body>
 </html>

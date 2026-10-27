@@ -11,7 +11,8 @@ window.MTPresenceArchiveData = {
   sampleItems: [
     {
       id: "sample-1",
-      title: "Square Shadow Field",
+      title: "雾中孤松",
+      description: "浓雾中，一棵松立在花岗岩上，像一句没有说完的话。",
       src: "assets/archive/abstract-square-01.jpg",
       width: 1600,
       height: 1600,
@@ -21,7 +22,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-2",
-      title: "Vertical Light Pattern",
+      title: "云海晨曦",
+      description: "晨光未至，群山先醒。云在脚下流动，像一片尚未命名的海。",
       src: "assets/archive/abstract-4x5-01.jpg",
       width: 1600,
       height: 2000,
@@ -31,7 +33,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-26",
-      title: "Balanced Abstract Field",
+      title: "静水",
+      description: "长曝光让湖面安静下来，旧木桩一根根退进雾里。",
       src: "assets/archive/abstract-4x3-01.jpg",
       width: 2000,
       height: 1500,
@@ -41,7 +44,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-27",
-      title: "Concrete Four Thirds Study",
+      title: "雨后湖泊",
+      description: "雨刚停，云还挂在松坡上，湖面把天空收了进去。",
       src: "assets/archive/concrete-4x3-01.jpg",
       width: 2000,
       height: 1500,
@@ -51,7 +55,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-3",
-      title: "Concrete Valley",
+      title: "山谷小径",
+      description: "灰色的天空下，一条小路在绿色的山谷里慢慢转弯。",
       src: "assets/archive/concrete-2x3-01.jpg",
       width: 1600,
       height: 2400,
@@ -61,7 +66,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-4",
-      title: "Architectural Plane",
+      title: "晨光海岸",
+      description: "黎明的光很淡，落在礁石和平静的海面上。",
       src: "assets/archive/concrete-3x2-01.jpg",
       width: 2400,
       height: 1600,
@@ -71,7 +77,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-5",
-      title: "Wide Weather",
+      title: "风雨原野",
+      description: "风暴将至，一束光落在起伏的草坡上。",
       src: "assets/archive/concrete-16x9-01.jpg",
       width: 1920,
       height: 1080,
@@ -81,7 +88,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-6",
-      title: "Panorama Surface",
+      title: "远山层叠",
+      description: "一层又一层的山脊，退进远处的薄雾。",
       src: "assets/archive/abstract-panorama-01.jpg",
       width: 2400,
       height: 1200,
@@ -91,7 +99,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-7",
-      title: "Minimal Stone Detail",
+      title: "石与潮",
+      description: "黑色的礁石之间，潮水被时间拉成了丝。",
       src: "assets/archive/abstract-4x5-02.jpg",
       width: 1600,
       height: 2000,
@@ -101,7 +110,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-8",
-      title: "Identifiable Coast",
+      title: "海崖",
+      description: "海蚀柱立在青灰色的海里，像守望的人。",
       src: "assets/archive/concrete-2x3-02.jpg",
       width: 1600,
       height: 2400,
@@ -111,7 +121,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-9",
-      title: "Horizontal Silence",
+      title: "雪原",
+      description: "雪覆盖了一切声音，只留下几棵树。",
       src: "assets/archive/abstract-3x2-01.jpg",
       width: 2400,
       height: 1600,
@@ -121,7 +132,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-10",
-      title: "Color Object Study",
+      title: "秋池",
+      description: "落叶浮在深色的池水上，秋天在这里停了一会儿。",
       src: "assets/archive/concrete-square-01.jpg",
       width: 1600,
       height: 1600,
@@ -131,7 +143,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-11",
-      title: "Abstract Wide Interval",
+      title: "海上光",
+      description: "云层裂开，光落在开阔的海面上。",
       src: "assets/archive/abstract-16x9-01.jpg",
       width: 1920,
       height: 1080,
@@ -141,7 +154,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-12",
-      title: "Concrete Animal Study",
+      title: "雪山初光",
+      description: "第一缕光落在雪峰上，山谷仍在云里沉睡。",
       src: "assets/archive/concrete-4x5-01.jpg",
       width: 1600,
       height: 2000,
@@ -151,7 +165,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-13",
-      title: "Concrete Panorama",
+      title: "草原暮色",
+      description: "日落之后，草原和天空只剩下温柔的颜色。",
       src: "assets/archive/concrete-panorama-01.jpg",
       width: 2400,
       height: 1200,
@@ -161,7 +176,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-14",
-      title: "Square Abstract Interval",
+      title: "沙脊",
+      description: "一道沙脊，把光和影分成两半。",
       src: "assets/archive/abstract-square-02.jpg",
       width: 1600,
       height: 1600,
@@ -171,7 +187,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-15",
-      title: "Concrete Square Study",
+      title: "苔石",
+      description: "雨后的林间，石头上长满了苔藓。",
       src: "assets/archive/concrete-square-02.jpg",
       width: 1600,
       height: 1600,
@@ -181,7 +198,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-16",
-      title: "Vertical Abstract Surface",
+      title: "松林晨雾",
+      description: "晨雾从山谷升起，松林在灰白中若隐若现。",
       src: "assets/archive/abstract-4x5-03.jpg",
       width: 1600,
       height: 2000,
@@ -191,7 +209,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-17",
-      title: "Concrete Vertical Field",
+      title: "林间溪流",
+      description: "溪水绕过青苔，在高大的树下低声流过。",
       src: "assets/archive/concrete-4x5-02.jpg",
       width: 1600,
       height: 2000,
@@ -201,7 +220,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-18",
-      title: "Tall Abstract Study",
+      title: "峡谷飞瀑",
+      description: "瀑布落进雾气弥漫的峡谷，声音被雾吞没。",
       src: "assets/archive/abstract-2x3-01.jpg",
       width: 1600,
       height: 2400,
@@ -211,7 +231,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-19",
-      title: "Tall Concrete Study",
+      title: "冰川湖",
+      description: "从山脊俯看，碧色的冰川湖躺在灰色的碎石之间。",
       src: "assets/archive/concrete-2x3-03.jpg",
       width: 1600,
       height: 2400,
@@ -221,7 +242,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-20",
-      title: "Abstract Horizontal Plane",
+      title: "雾中孤树",
+      description: "浓雾里，一棵树站在缓坡上。",
       src: "assets/archive/abstract-3x2-02.jpg",
       width: 2400,
       height: 1600,
@@ -231,7 +253,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-21",
-      title: "Concrete Horizontal Plane",
+      title: "湖畔小屋",
+      description: "晨雾中的湖岸，一间红色的小木屋。",
       src: "assets/archive/concrete-3x2-02.jpg",
       width: 2400,
       height: 1600,
@@ -241,7 +264,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-22",
-      title: "Abstract Wide Field",
+      title: "夜港",
+      description: "夜里的港口，水面静止，远处几点灯火。",
       src: "assets/archive/abstract-16x9-02.jpg",
       width: 1920,
       height: 1080,
@@ -251,7 +275,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-23",
-      title: "Concrete Wide Field",
+      title: "梯田晨雾",
+      description: "注满水的梯田，在晨雾里一层层亮起来。",
       src: "assets/archive/concrete-16x9-02.jpg",
       width: 1920,
       height: 1080,
@@ -261,7 +286,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-24",
-      title: "Abstract Long Horizon",
+      title: "长堤",
+      description: "一条木栈桥伸向起雾的海，看不见尽头。",
       src: "assets/archive/abstract-panorama-02.jpg",
       width: 2400,
       height: 1200,
@@ -271,7 +297,8 @@ window.MTPresenceArchiveData = {
     },
     {
       id: "sample-25",
-      title: "Concrete Long Horizon",
+      title: "海湾黄昏",
+      description: "黄昏的海湾，蓝色与桃色慢慢融在一起。",
       src: "assets/archive/concrete-panorama-02.jpg",
       width: 2400,
       height: 1200,

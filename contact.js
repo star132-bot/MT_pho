@@ -392,3 +392,67 @@ restoreRequestedInquiryType();
 updateConditionalFields();
 contactForm?.addEventListener("submit", submitContactForm);
 hydrateContactContext();
+
+// Inquiry type as one row of text options (design/site-mockups-v2). The
+// hidden select stays the form field, so validation and submission are
+// unchanged; the options only mirror it.
+(function initializeInquiryChoices() {
+  const select = contactFieldElement("inquiry_type");
+  const row = document.querySelector("[data-inquiry-choices]");
+  if (!select || !row) return;
+  const options = Array.from(select.options).filter((option) => option.value);
+  const buttons = options.map((option, index) => {
+    if (index) {
+      const divider = document.createElement("span");
+      divider.className = "mt-choice-divider";
+      divider.setAttribute("aria-hidden", "true");
+      divider.textContent = "/";
+      row.append(divider);
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "mt-choice";
+    button.setAttribute("role", "radio");
+    button.dataset.value = option.value;
+    button.textContent = option.textContent;
+    row.append(button);
+    return button;
+  });
+
+  function sync() {
+    buttons.forEach((button) => {
+      const checked = button.dataset.value === select.value;
+      button.setAttribute("aria-checked", String(checked));
+      button.tabIndex = checked || (!select.value && button === buttons[0]) ? 0 : -1;
+    });
+    row.setAttribute("aria-invalid", select.getAttribute("aria-invalid") === "true" ? "true" : "false");
+  }
+
+  function choose(button) {
+    select.value = button.dataset.value;
+    select.dispatchEvent(new Event("input", { bubbles: true }));
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    sync();
+  }
+
+  row.addEventListener("click", (event) => {
+    const button = event.target.closest(".mt-choice");
+    if (button) choose(button);
+  });
+  row.addEventListener("keydown", (event) => {
+    if (!["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"].includes(event.key)) return;
+    event.preventDefault();
+    const current = Math.max(0, buttons.indexOf(document.activeElement));
+    const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
+    const next = buttons[(current + step + buttons.length) % buttons.length];
+    choose(next);
+    next.focus();
+  });
+  select.addEventListener("change", sync);
+  contactForm?.addEventListener("reset", () => window.setTimeout(sync, 0));
+  document.querySelector("[data-contact-another]")?.addEventListener("click", () => window.setTimeout(sync, 0));
+  new MutationObserver(sync).observe(select, { attributes: true, attributeFilter: ["aria-invalid"] });
+  // Focus the options when validation sends focus to the hidden select.
+  select.addEventListener("focus", () => (buttons.find((button) => button.tabIndex === 0) || buttons[0])?.focus());
+  sync();
+})();

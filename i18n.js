@@ -222,7 +222,7 @@
     // Exhibition and series prototypes (requirements 06 and 07)
     "Exhibition | MT Presence": "展厅 | MT Presence",
     "Series | MT Presence": "系列 | MT Presence",
-    "Exhibition": "展厅",
+    "Exhibition view": "作品浏览",
     "Series": "系列",
     "Site": "网站导航",
     "Open menu": "打开菜单",
@@ -240,6 +240,15 @@
     "Colour that stays: light, weather and distance held in their own hues.": "留住的色彩：光线、天气与距离，停留在它们本来的颜色里。",
     "Grey that stays: form and quiet reduced to tone.": "留住的灰：形体与安静，沉淀为影调。",
     "Enter the series": "进入系列",
+
+    // Visitor site redesign (design/site-mockups-v2)
+    "Selected works": "精选作品",
+    "Sea of Clouds at Dawn": "云海晨曦",
+    "Search works": "搜索作品",
+    "Close search": "关闭搜索",
+    "Language": "语言",
+    "Works in this inquiry": "本次咨询的作品",
+    "Works are temporarily unavailable. Please retry.": "作品暂时无法加载，请重试。",
   };
 
   // Dynamic messages that carry numbers or work titles.
@@ -339,6 +348,12 @@
       }
       node = walker.nextNode();
     }
+    // Text areas are skipped so typed text is never touched, but their
+    // placeholder is interface copy and is translated.
+    const textareas = root.nodeType === Node.ELEMENT_NODE && root.matches("textarea") ? [root] : Array.from(root.querySelectorAll?.("textarea[placeholder]") || []);
+    textareas.forEach((textarea) => {
+      if (!textarea.closest("[data-i18n-skip]")) translateElementAttributes(textarea);
+    });
   }
 
   function setLanguage(next) {

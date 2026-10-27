@@ -348,7 +348,7 @@ def seed_item(connection: sqlite3.Connection, item: dict, index: int) -> None:
             SEED_ARTIST_ID,
             title,
             slugify(title, image_id),
-            "",
+            str(item.get("description") or ""),
             "",
             "",
             "",

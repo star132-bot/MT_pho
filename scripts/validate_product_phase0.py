@@ -5,8 +5,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = ROOT / "database" / "product_schema.sql"
-PUBLIC_PAGES = ["index.html", "works.html", "work.html", "about.html", "contact.html", "privacy.html", "terms.html"]
-RETIRED_PAGES = ["lightbox.html", "collections.html", "creator.html", "dashboard.html"]
+PUBLIC_PAGES = ["index.html", "works.html", "contact.html", "privacy.html", "terms.html"]
+# about.html joined the homepage (requirement 05); work.html and series.html
+# gave way to the series posters and the exhibition view (requirements 06/07).
+RETIRED_PAGES = ["lightbox.html", "collections.html", "creator.html", "dashboard.html", "about.html", "work.html", "series.html"]
 
 
 def require(source: str, tokens: set[str], label: str) -> None:
@@ -64,12 +66,17 @@ def main() -> None:
         "dataset.publicNavToggle = \"\"",
         '["home", "Home", "/"]',
         '["works", "Works", "/works.html"]',
-        '["about", "About", "/about.html"]',
+        '["about", "About", "/#about"]',
         '["contact", "Contact", "/contact.html"]',
-        "const visitorPage = VISITOR_PATHS.has(path);",
-        # Visitor pages are served without an identity slot; the header must still render.
-        "if (!identitySlot && !visitorPage) return;",
+        # Visitors never sign in: the header carries search and the language
+        # toggle, and renders without any identity slot.
+        "dataset.globalSearchToggle = \"\"",
+        'element("div", "mt-language", { role: "group", "aria-label": "Language" })',
+        "header.replaceChildren(brand, navigation, menuToggle, search);",
     }, "reusable GlobalHeader navigation")
+    for forbidden in ("identitySlot", "account-menu", "data-header-identity-slot"):
+        if forbidden in global_header:
+            raise RuntimeError(f"Visitor GlobalHeader still renders account controls: {forbidden}")
     for forbidden in ("lightbox", "Lightbox", '"/admin/reviews"'):
         if forbidden in global_header:
             raise RuntimeError(f"GlobalHeader still exposes retired navigation: {forbidden}")

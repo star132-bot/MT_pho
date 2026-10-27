@@ -6,10 +6,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 # Visitors browse anonymously: no account menu, Lightbox, save, or download.
-VISITOR_PAGES = ("index.html", "works.html", "work.html", "about.html", "contact.html")
+VISITOR_PAGES = ("index.html", "works.html", "contact.html")
 # Staff pages keep the server-rendered Header Identity and account menu.
 STAFF_PAGES = ("admin.html", "upload-studio.html", "account-settings.html", "admin-works.html")
-GLOBAL_HEADER_PAGES = {"index.html", "works.html", "work.html", "about.html", "contact.html"}
+GLOBAL_HEADER_PAGES = {"index.html", "works.html", "contact.html"}
 
 
 def read(path: str) -> str:
@@ -35,24 +35,24 @@ def block(source: str, start: str, end: str) -> str:
 
 
 def main() -> None:
-    archive = read("archive.js")
     works_html = read("works.html")
-    work_html = read("work.html")
-    work_detail = read("work-detail.js")
+    exhibition_html = read("exhibition.html")
+    exhibition = read("exhibition.js")
+    homepage = read("index.html")
+    site_styles = read("site.css")
     contact = read("contact.js")
     account_menu = read("account-menu.js")
     global_header = read("global-header.js")
     site_footer = read("site-footer.js")
     server = read("server.py")
     styles = read("styles.css")
-    homepage = read("script.js")
 
-    # Saving to a Lightbox and downloading images were retired with public accounts.
-    # Button markup only: the shared Lightbox helpers are removed with the Works rewrite.
-    forbid(archive, ('type="button" data-card-action="lightbox"', 'type="button" data-card-action="download"', "/creators/${"), "Works gallery cards")
-    forbid(works_html, ('data-viewer-action="lightbox"', 'data-viewer-action="download"'), "Works viewer actions")
-    forbid(work_html, ("data-work-detail-save", "data-work-detail-download"), "Work detail actions")
-    forbid(work_detail, ("requireAuthentication", "toggleLightboxId", "link.download"), "Work detail controller")
+    # Saving to a Lightbox and downloading images were retired with public accounts
+    # (requirements 02 and 04); works are viewed in the exhibition (requirement 07).
+    forbid(works_html, ("lightbox", "download", "/creators/"), "Works series posters")
+    forbid(exhibition_html, ("lightbox", "download"), "Exhibition view")
+    forbid(exhibition, ("requireAuthentication", "toggleLightboxId", "link.download", ".download ="), "Exhibition controller")
+    require(works_html, {'href="/exhibition.html?series=colour"', 'href="/exhibition.html?series=grey"'}, "Works series posters")
     forbid(contact, ("lightbox", "readInquirySelectionIds"), "Contact inquiry context")
     require(contact, {
         'contactParams.getAll("work")',
@@ -138,10 +138,9 @@ def main() -> None:
         "dataset.globalHeaderReady",
         "Search works, artists, tags",
         "SEARCH_DELAY_MS = 260",
-        "const visitorPage = VISITOR_PATHS.has(path);",
-        'window.dispatchEvent(new CustomEvent("mt:global-search-change"',
         'setSearchMessage("No matching works."',
         'event.key === "Escape"',
+        "return `/exhibition.html?${params.toString()}`;",
     }, "GlobalHeader component")
 
     require(styles, {
@@ -153,26 +152,26 @@ def main() -> None:
         ".account-profile-link.is-image-ready",
     }, "interaction styles")
 
-    home_editorial = block(
-        styles,
-        "/* Home: a bounded sticky image stage followed by the archive in normal document flow. */",
-        "/* Works: unframed image wall with only a restrained hover command layer. */",
-    )
-    require(home_editorial, {
-        "height: 160svh;",
-        "overflow: visible;",
-        "position: sticky;",
-        "height: 100svh;",
-    }, "Home scroll image stage")
+    # Home (design/site-mockups-v2): one full-bleed hero, then the selected
+    # works, the About section (requirement 05) and the contact invitation.
     require(homepage, {
-        'const heroStage = document.querySelector(".hero-stage")',
-        "const stageTravel = Math.max(stageHeight - pinnedHeight, 1);",
-        "const copyProgress = reduceMotion.matches ? 0 : concreteProgress;",
-    }, "Home scroll image controller")
+        'class="mt-hero"',
+        'fetchpriority="high"',
+        'id="about"',
+        "data-about-name",
+        'src="/about.js',
+        'href="/contact.html"',
+    }, "Home editorial structure")
+    require(site_styles, {
+        ".mt-hero {",
+        "height: 100svh;",
+        "@media (prefers-reduced-motion: reduce)",
+        "animation: none;",
+    }, "Home hero styles")
 
     print("visitor_save_download_retired=yes")
     print("header_identity_bootstrap=yes")
-    print("home_hero_scroll_transition=yes")
+    print("home_editorial_structure=yes")
 
 
 if __name__ == "__main__":

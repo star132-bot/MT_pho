@@ -5,12 +5,13 @@ from __future__ import annotations
 
 
 PUBLIC_RUNTIME_FILES = frozenset({
-    "index.html", "works.html", "work.html", "about.html", "contact.html", "privacy.html", "terms.html",
+    "index.html", "works.html", "contact.html", "privacy.html", "terms.html", "exhibition.html",
     "auth.html", "mfa.html", "account-settings.html", "admin.html",
-    "upload-studio.html", "inbox.html",     "admin-works.html", "admin-audit.html",     "styles.css", "privacy.css", "admin-audit.css", "robots.txt", "sitemap.xml", "favicon.svg",
-    "script.js", "global-header.js", "archive.js", "archive-data.js", "archive-upload.js", "public-archive.js",
-    "public-navigation.js", "series-data.js", "contact.js", "i18n.js", "work-detail.js", "about.js",
-    "image-guard.js", "exhibition.html", "exhibition.css", "exhibition.js", "series.html", "series.js", "studio-exhibition.js",
+    "upload-studio.html", "inbox.html", "admin-works.html", "admin-audit.html",
+    "styles.css", "site.css", "privacy.css", "admin-audit.css", "exhibition.css", "robots.txt", "sitemap.xml", "favicon.svg",
+    "global-header.js", "archive-data.js", "archive-upload.js", "public-archive.js",
+    "about.js", "series.js", "exhibition.js", "studio-exhibition.js", "image-guard.js",
+    "public-navigation.js", "series-data.js", "contact.js", "i18n.js",
     "auth.js", "mfa.js", "account-menu.js", "account-settings.js",
     "upload-studio.js", "inbox.js", "site-footer.js",
     "admin-works.js", "admin-audit.js", })

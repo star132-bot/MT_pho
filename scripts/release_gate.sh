@@ -55,13 +55,14 @@ browser_scripts=(
   account-menu.js
   site-footer.js
   public-navigation.js
-  archive.js
   public-archive.js
   about.js
-  work-detail.js
+  series.js
+  exhibition.js
+  studio-exhibition.js
+  image-guard.js
   contact.js
   inbox.js
-  script.js
 )
 
 boundary_tests=(

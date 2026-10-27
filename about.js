@@ -6,7 +6,6 @@
   const location = document.querySelector("[data-about-location]");
   const availability = document.querySelector("[data-about-availability]");
   const avatar = document.querySelector("[data-about-avatar]");
-  const statementLink = document.querySelector("[data-about-statement-link]");
 
   function cleanText(value) {
     return value === null || value === undefined ? "" : String(value).trim();
@@ -18,14 +17,17 @@
     return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() || "").join("") || "MT";
   }
 
+  // The About section lives on the homepage (requirement 05). Fields that are
+  // not on the page are skipped; creator pages are retired, so no link is set.
   function applyProfile(profile) {
     const displayName = cleanText(profile.display_name) || "MT Presence";
-    name.textContent = displayName;
-    if (cleanText(profile.professional_headline)) headline.textContent = profile.professional_headline;
-    if (cleanText(profile.bio)) bio.textContent = profile.bio;
+    if (name) name.textContent = displayName;
+    if (headline && cleanText(profile.professional_headline)) headline.textContent = profile.professional_headline;
+    if (bio && cleanText(profile.bio)) bio.textContent = profile.bio;
     const place = [cleanText(profile.city), cleanText(profile.country_code)].filter(Boolean).join(", ");
-    if (place) location.textContent = `Based in ${place}`;
-    if (cleanText(profile.availability_status)) availability.textContent = profile.availability_status;
+    if (location && place) location.textContent = `Based in ${place}`;
+    if (availability && cleanText(profile.availability_status)) availability.textContent = profile.availability_status;
+    if (!avatar) return;
     avatar.textContent = initials(displayName);
     const avatarUrl = cleanText(profile.avatar_url);
     if (avatarUrl) {
@@ -36,8 +38,6 @@
       image.addEventListener("load", () => avatar.classList.add("is-image-ready"), { once: true });
       avatar.append(image);
     }
-    const slug = cleanText(profile.slug);
-    if (slug) statementLink.href = `/creators/${encodeURIComponent(slug)}#about`;
   }
 
   async function loadPublicProfile() {

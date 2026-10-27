@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased - 2026-10-27
+
+Visitor site redesign after the approved mockups in `design/site-mockups-v2` (requirements 05, 06 and 07).
+
+- **New visual language.** Museum-catalogue restraint on warm paper: a letter-spaced `MT PRESENCE` wordmark, four small text links, a search icon that opens one quiet search line, and a plain `中 / EN` toggle in place of the dropdown. Text links with a hairline replace boxed buttons. New shared stylesheet `site.css`; the footer is one quiet line.
+- **Homepage (requirement 05).** One full-bleed black-and-white hero, a staggered row of selected works, the About section merged in (`/#about`, still hydrated by the published creator profile), and a single contact invitation. `/about.html` is removed without a redirect, as confirmed; the scroll-driven double hero and the moving marquee are gone.
+- **Works (requirement 06).** `works.html` is now the two series posters, 此间留彩 and 此间留灰, each opening its series in the exhibition. Loading, empty and error states are distinct, with Retry. `/series.html` redirects here.
+- **Exhibition (requirement 07)** is now the public way to view a work: no longer `noindex`, with the wordmark in the overlay. `/work.html?id=…` redirects to the same work in the exhibition; header search results open the exhibition. Image decoding can no longer stall the first frame in a hidden window.
+- **Contact.** Hairline fields; the inquiry type is a row of text options backed by the same select, so validation and submission are unchanged.
+- **Imagery.** New generated site imagery (`assets/art/home-hero.jpg`, `selected-01…05`, `about`, `contact`) and the 27 local sample works regenerated as quiet landscapes with Chinese titles and short introductions. All are placeholders, see `docs/design/image-sources.md`.
+- **Fixes.** The homepage heading showed 已选作品 because a later dictionary entry overrode 精选作品; text-area placeholders are now translated; the Exhibition option of the contact form no longer reads 展厅.
+- Removed `about.html`, `work.html`, `work-detail.js`, `archive.js`, `script.js`, `series.html` and six unused art files. Static contracts and the browser acceptance were updated to the new pages.
+
 ## Unreleased - 2026-10-21
 
 Requirement 04 (remaining part) and prototypes for requirements 06 and 07 from `docs/product/client-feedback-2026-10-15.md`; plan in `docs/product/implementation-plan-2026-10-21.md`.

@@ -3,62 +3,21 @@
   if (!footers.length) return;
 
   const currentYear = new Date().getFullYear();
-  function publicFooterMarkup(isContactPage) {
+  // Visitor footer: one quiet line on the paper, as in design/site-mockups-v2.
+  function publicFooterMarkup() {
     return `
-      <div class="site-footer-frame">
-        ${
-          isContactPage
-            ? ""
-            : `
-              <section class="public-footer-contact" aria-labelledby="footer-contact-title">
-                <div class="public-footer-contact-copy">
-                  <p class="site-footer-kicker">Inquiries</p>
-                  <h2 id="footer-contact-title">Exhibitions, licensing, and commissions.</h2>
-                  <p>For presentations, image use, and considered collaborations, begin a conversation with the artist.</p>
-                </div>
-                <a class="public-footer-contact-link" href="/contact.html">
-                  <span>Contact Artist</span>
-                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <path d="M5 12h14"></path>
-                    <path d="m13 6 6 6-6 6"></path>
-                  </svg>
-                </a>
-              </section>
-            `
-        }
-
-        <div class="public-footer-main">
-          <section class="public-footer-brand" aria-labelledby="footer-brand-title">
-            <h2 id="footer-brand-title"><a href="/">MT Presence</a></h2>
-            <p>Fine art photography for long looking.</p>
-          </section>
-
-          <nav class="site-footer-nav" aria-label="Explore">
-            <h2>Explore</h2>
-            <a href="/">Home</a>
-            <a href="/works.html">Works</a>
-            <a href="/about.html">About</a>
-            <a href="/contact.html">Contact</a>
-            <a href="/privacy.html">Privacy</a>
-          </nav>
-
-          <nav class="site-footer-nav" aria-label="Practice">
-            <h2>Practice</h2>
-            <a href="/contact.html?type=exhibition">Exhibition inquiries</a>
-            <a href="/contact.html?type=licensing">Licensing</a>
-            <a href="/contact.html?type=commission">Commissions</a>
-          </nav>
-
-        </div>
-
-        <div class="site-footer-bottom">
-          <p>&copy; <span data-footer-year>${currentYear}</span> MT Presence</p>
-          <p>All rights reserved.</p>
-        </div>
+      <div class="mt-footer-inner">
+        <a class="mt-footer-brand" href="/">MT Presence</a>
+        <nav class="mt-footer-nav" aria-label="Explore">
+          <a href="/">Home</a>
+          <a href="/works.html">Works</a>
+          <a href="/contact.html">Contact</a>
+          <a href="/privacy.html">Privacy</a>
+        </nav>
+        <p class="mt-footer-copy">&copy; <span data-footer-year>${currentYear}</span> MT Presence</p>
       </div>
     `;
   }
-
   function workspaceFooterMarkup() {
     return `
       <div class="workspace-footer-inner">
@@ -89,9 +48,8 @@
 
   footers.forEach((footer) => {
     const isWorkspace = footer.dataset.footerVariant === "workspace";
-    footer.innerHTML = isWorkspace
-      ? workspaceFooterMarkup()
-      : publicFooterMarkup(footer.dataset.footerContext === "contact");
+    footer.innerHTML = isWorkspace ? workspaceFooterMarkup() : publicFooterMarkup();
+    if (!isWorkspace) footer.classList.add("mt-footer");
     footer.dataset.footerReady = "true";
     markCurrentLinks(footer);
   });

@@ -197,7 +197,7 @@ def main() -> None:
         raise RuntimeError("Audit export projection failed")
     assert_no_private(cleaned_export, "Audit export")
 
-    public_paths = ("/index.html", "/styles.css", "/script.js")
+    public_paths = ("/index.html", "/styles.css", "/site.css", "/exhibition.js")
     blocked_paths = (
         "/server.py", "/database/product_schema.sql", "/scripts/test_user_dashboard_boundary.py",
         "/deploy/web-environment.example", "/docs/product/user-upload-admin-spec.md", "/.git/config",

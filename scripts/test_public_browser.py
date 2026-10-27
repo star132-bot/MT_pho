@@ -24,7 +24,7 @@ def main() -> None:
     artifacts = ROOT / "tmp" / "optimization"
     artifacts.mkdir(parents=True, exist_ok=True)
     works = [
-        {"id": f"browser-work-{i}", "title": f"Quiet Weather {i}", "image_url": f"/assets/art/{'abstract' if i % 2 else 'concrete'}-0{i % 3 + 1}.jpg",
+        {"id": f"browser-work-{i}", "title": f"Quiet Weather {i}", "image_url": f"/assets/art/selected-0{i % 5 + 1}.jpg",
          "original_width": 1024, "original_height": 1536, "content_type": "abstract" if i % 2 else "concrete", "ratio_label": "2:3",
          "visibility": "published", "sort_order": i, "creator": {"slug": "browser-creator", "display_name": "Browser Creator"}}
         for i in range(1, 31)
@@ -61,79 +61,74 @@ def main() -> None:
     measurements = []
     try:
         browser.close()
+        # Visitor pages after the redesign (design/site-mockups-v2): About is
+        # part of the homepage, Works holds the two series posters and single
+        # works are viewed in the exhibition (requirements 05-07).
+        routes = ("/", "/works.html", "/exhibition.html?series=grey", "/contact.html", "/auth/sign-in", "/privacy.html", "/terms.html")
         for width, height in ((1440, 900), (1024, 768), (390, 844)):
             browser.command("set", "viewport", str(width), str(height))
-            for route in ("/", "/about.html", "/works.html", "/lightbox.html", "/contact.html", "/work.html?id=browser-work-1", "/creators/browser-creator", "/auth/sign-in", "/privacy.html", "/terms.html"):
+            for route in routes:
                 browser.command("open", base + route)
                 browser.wait_for("document.readyState === 'complete'")
-                if route == "/works.html": browser.wait_for("document.querySelectorAll('[data-item-id]').length === 30")
-                if route == "/about.html": browser.wait_for("document.querySelector('[data-about-name]').textContent === 'Browser Creator'")
+                if route == "/":
+                    browser.wait_for("document.querySelector('[data-about-name]').textContent === 'Browser Creator'")
+                if route == "/works.html":
+                    browser.wait_for("document.querySelector('[data-series-status-box]').dataset.seriesState === 'ready' && document.querySelectorAll('[data-series-poster]:not([hidden])').length === 2")
+                if route.startswith("/exhibition.html"):
+                    browser.wait_for("document.querySelector('[data-exhibition-status]').hidden === true")
                 assert_browser(browser, "document.documentElement.scrollWidth <= innerWidth + 1", f"Overflow at {route} {width}")
-                # Offscreen anti-bot fields are deliberately inaccessible.
-                # Ratio tabs may scroll horizontally within a bounded strip.
-                assert_browser(browser, "[...document.querySelectorAll('button:not([hidden]), input:not([type=hidden]), select')].filter(n => n.offsetWidth && !n.closest('[hidden], .contact-honeypot[aria-hidden=true]')).every(n => {const r=n.getBoundingClientRect();if(r.left >= -1 && r.right <= innerWidth + 1)return true;for(let p=n.parentElement;p;p=p.parentElement){if(['auto','scroll'].includes(getComputedStyle(p).overflowX)&&p.scrollWidth>p.clientWidth){const q=p.getBoundingClientRect();return q.left>=-1&&q.right<=innerWidth+1&&r.width<=p.clientWidth;}}return false;})", f"Control escapes viewport at {route} {width}")
+                # Offscreen anti-bot fields are deliberately inaccessible; the
+                # selected-works row may scroll horizontally on phones.
+                assert_browser(browser, "[...document.querySelectorAll('button:not([hidden]), input:not([type=hidden]), select')].filter(n => n.offsetWidth && !n.closest('[hidden], .mt-honeypot[aria-hidden=true]') && !n.classList.contains('visually-hidden')).every(n => {const r=n.getBoundingClientRect();if(r.left >= -1 && r.right <= innerWidth + 1)return true;for(let p=n.parentElement;p;p=p.parentElement){if(['auto','scroll'].includes(getComputedStyle(p).overflowX)&&p.scrollWidth>p.clientWidth){const q=p.getBoundingClientRect();return q.left>=-1&&q.right<=innerWidth+1&&r.width<=p.clientWidth;}}return false;})", f"Control escapes viewport at {route} {width}")
                 errors = browser.json_command("errors")
                 assert errors.get("data", {}).get("errors", []) == [], f"Uncaught browser error at {route}: {errors}"
-                if route in ("/", "/works.html", "/about.html"):
+                if route in ("/", "/works.html"):
                     metrics = browser.evaluate("(async () => {const shifts=[]; const paints=[];const a=new PerformanceObserver(l=>shifts.push(...l.getEntries()));a.observe({type:'layout-shift',buffered:true});const b=new PerformanceObserver(l=>paints.push(...l.getEntries()));b.observe({type:'largest-contentful-paint',buffered:true});await new Promise(r=>setTimeout(r,100));a.disconnect();b.disconnect();return {cls:(()=>{let max=0,sum=0,start=0,last=0;for(const e of shifts.filter(e=>!e.hadRecentInput)){if(e.startTime-last>=1000||e.startTime-start>=5000){sum=0;start=e.startTime;}sum+=e.value;last=e.startTime;max=Math.max(max,sum);}return max;})(),lcp_ms:paints.at(-1)?.startTime||null,transferred_bytes:performance.getEntriesByType('resource').reduce((s,e)=>s+e.transferSize,0)};})()")
                     measurements.append({"route": route, "viewport": f"{width}x{height}", **metrics})
                     browser.command("screenshot", str(artifacts / f"public-{route.strip('/').split('.')[0] or 'home'}-{width}.png"))
-                if route == "/":
-                    browser.command("click", "[data-marquee-pause]")
-                    assert_browser(browser, "document.querySelector('[data-marquee-pause]').getAttribute('aria-pressed') === 'true' && getComputedStyle(document.querySelector('.marquee-track')).animationPlayState === 'paused'", "Marquee pause failed")
-                    browser.command("click", "[data-marquee-pause]")
             print(f"public_browser_viewport_{width}=yes", flush=True)
 
-        browser.command("open", base + "/")
-        browser.evaluate("(async()=>{const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('mt-cijian-archive',4);r.onupgradeneeded=()=>{for(const name of ['images','site_settings'])if(!r.result.objectStoreNames.contains(name))r.result.createObjectStore(name,{keyPath:'id'});};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});await new Promise((resolve,reject)=>{const t=db.transaction('site_settings','readwrite');t.objectStore('site_settings').put({id:'homepage',hero:{abstract:{title:'Private preview canary'}}});t.oncomplete=resolve;t.onerror=()=>reject(t.error);});db.close();return true;})()")
-        browser.command("open", base + "/")
-        assert_browser(browser, "document.querySelector('[data-home-hero-panel=abstract] [data-home-hero-title]').textContent !== 'Private preview canary'", "Private homepage settings leaked into public mode")
-        app.LOCAL_ARCHIVE_PREVIEW = True
-        browser.command("open", base + "/")
-        browser.wait_for("document.querySelector('[data-home-hero-panel=abstract] [data-home-hero-title]').textContent === 'Private preview canary'")
-        app.LOCAL_ARCHIVE_PREVIEW = False
-        print("public_browser_homepage_preview_isolated=yes", flush=True)
+        browser.command("set", "viewport", "1440", "900")
+        browser.command("open", base + "/contact.html")
+        browser.wait_for("document.readyState === 'complete'")
+        assert_browser(browser, "(async()=>{const s=async p=>{const r=await fetch(p,{cache:'no-store'});const u=new URL(r.url);return [r.status,u.pathname+u.search];};const [about]=await s('/about.html');const [,work]=await s('/work.html?id=browser-work-1');const [,series]=await s('/series.html');const [,lightbox]=await s('/lightbox.html');return about===404&&work==='/exhibition.html?work=browser-work-1'&&series==='/works.html'&&lightbox==='/works.html';})()", "Retired visitor routes are not handled")
+        print("public_browser_retired_routes=yes", flush=True)
 
+        browser.evaluate("(()=>{document.querySelector('[data-global-search-toggle]').click();const i=document.querySelector('[data-global-search-input]');i.value='Quiet Weather 3';i.dispatchEvent(new Event('input',{bubbles:true}));return true;})()")
+        browser.wait_for("document.querySelector('[data-global-search-results] [role=option]')")
+        assert_browser(browser, "document.querySelector('[data-global-search-results] [role=option]').getAttribute('href').startsWith('/exhibition.html?series=grey&work=browser-work-3')", "Search does not open the exhibition")
+        print("public_browser_search_opens_exhibition=yes", flush=True)
+
+        Handler.mode = "error"
         browser.command("open", base + "/works.html")
-        assert_browser(browser, "(()=>{const n=document.querySelector('[data-filter-ratio=Panorama]');n.focus();const r=n.getBoundingClientRect();return r.left>=-1&&r.right<=innerWidth+1;})()", "Keyboard cannot reach last ratio tab")
-        print("public_browser_ratio_tabs_reachable=yes", flush=True)
-
-        Handler.mode = "error"
-        browser.command("open", base + "/works.html?type=Abstract")
-        browser.wait_for("document.querySelector('[data-archive-data-status]').dataset.state === 'error'")
-        assert_browser(browser, "!document.querySelector('[data-archive-retry]').hidden && document.querySelector('[data-archive-empty]').hidden", "Works error presented as empty")
+        browser.wait_for("document.querySelector('[data-series-status-box]').dataset.seriesState === 'error'")
+        assert_browser(browser, "!document.querySelector('[data-series-retry]').hidden && document.querySelectorAll('[data-series-poster]:not([hidden])').length === 0", "Works error presented as empty")
         Handler.mode = "normal"
-        browser.command("click", "[data-archive-retry]")
-        browser.wait_for("document.querySelector('[data-archive-data-status]').dataset.state === 'ready'")
-        assert_browser(browser, "document.querySelector('[data-filter-type=Abstract]').getAttribute('aria-pressed') === 'true'", "Retry lost filters")
-        print("public_browser_error_retry_preserves_filters=yes", flush=True)
-
-        Handler.mode = "error"
-        browser.command("open", base + "/lightbox.html")
-        browser.wait_for("document.querySelector('[data-lightbox-status]').dataset.state === 'error'")
-        assert_browser(browser, "document.querySelector('[data-lightbox-empty]').hidden && !document.querySelector('[data-lightbox-retry]').hidden", "Lightbox error presented as empty")
-        Handler.mode = "normal"
-        browser.command("click", "[data-lightbox-retry]")
-        browser.wait_for("document.querySelector('[data-lightbox-status]').dataset.state === 'ready'")
-        print("public_browser_lightbox_recovery=yes", flush=True)
+        browser.command("click", "[data-series-retry]")
+        browser.wait_for("document.querySelector('[data-series-status-box]').dataset.seriesState === 'ready'")
+        print("public_browser_error_retry=yes", flush=True)
 
         Handler.mode = "empty"
         browser.command("open", base + "/works.html")
-        browser.wait_for("document.querySelector('[data-archive-data-status]').dataset.state === 'ready'")
-        assert_browser(browser, "!document.querySelector('[data-archive-empty]').hidden && document.querySelectorAll('[data-item-id]').length === 0", "Empty authority fell back to samples")
+        browser.wait_for("document.querySelector('[data-series-status-box]').dataset.seriesState === 'empty'")
+        assert_browser(browser, "document.querySelectorAll('[data-series-poster]:not([hidden])').length === 0", "Empty authority fell back to samples")
         print("public_browser_authoritative_empty=yes", flush=True)
 
         Handler.mode = "slow"
         browser.command("open", base + "/works.html")
-        browser.wait_for("document.querySelector('[data-archive-data-status]').dataset.state === 'error'", timeout=18)
-        assert_browser(browser, "document.querySelector('[data-archive-data-status]').textContent.includes('timed out')", "Slow request did not time out")
+        browser.wait_for("document.querySelector('[data-series-status-box]').dataset.seriesState === 'error'", timeout=18)
+        assert_browser(browser, "document.querySelector('[data-series-status]').textContent.includes('timed out')", "Slow request did not time out")
         print("public_browser_timeout_recovery=yes", flush=True)
 
         Handler.mode = "normal"
-        browser.command("open", base + "/work.html?id=browser-work-1")
-        browser.wait_for("document.querySelector('[data-work-detail-main]')?.getAttribute('aria-busy') === 'false' || document.querySelector('[data-work-detail-save]')?.offsetWidth > 0")
-        assert_browser(browser, "(Object.defineProperty(window,'localStorage',{configurable:true,get(){throw new DOMException('Blocked','SecurityError')}}),window.MTPresencePublicArchive.readLightboxIds().length === 0)", "Blocked storage broke reading")
-        print("public_browser_blocked_storage_safe=yes", flush=True)
+        browser.command("open", base + "/exhibition.html?series=colour&work=browser-work-2")
+        browser.wait_for("document.querySelector('[data-exhibition-status]').hidden === true")
+        browser.evaluate("(document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true})),true)")
+        browser.wait_for("new URLSearchParams(location.search).get('work') === 'browser-work-4'")
+        # Blocked storage (hint, per-work display settings) must not stop paging.
+        browser.evaluate("(Object.defineProperty(window,'localStorage',{configurable:true,get(){throw new DOMException('Blocked','SecurityError')}}),document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true})),true)")
+        browser.wait_for("new URLSearchParams(location.search).get('work') === 'browser-work-2'")
+        print("public_browser_exhibition_paging=yes", flush=True)
         (artifacts / "public-browser-result.json").write_text(json.dumps(measurements, indent=2))
         print("public_browser_acceptance=yes", flush=True)
     finally:

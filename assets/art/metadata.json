@@ -13,46 +13,60 @@
     "model": "gpt-image-2-all",
     "generated": "2026-06-06"
   },
-  "abstract-01.jpg": {
-    "src": "assets/art/abstract-01.jpg",
-    "width": 1024,
-    "height": 1536,
-    "model": "gpt-image-2-all",
-    "generated": "2026-06-06"
+  "home-hero.jpg": {
+    "src": "assets/art/home-hero.jpg",
+    "width": 2400,
+    "height": 1350,
+    "model": "gpt-image-2.5-sunburst",
+    "generated": "2026-10-27"
   },
-  "abstract-02.jpg": {
-    "src": "assets/art/abstract-02.jpg",
-    "width": 1024,
-    "height": 1536,
-    "model": "gpt-image-2-all",
-    "generated": "2026-06-06"
+  "selected-01.jpg": {
+    "src": "assets/art/selected-01.jpg",
+    "width": 1200,
+    "height": 1600,
+    "model": "gpt-image-2.5-sunburst",
+    "generated": "2026-10-27"
   },
-  "abstract-03.jpg": {
-    "src": "assets/art/abstract-03.jpg",
-    "width": 1024,
-    "height": 1536,
-    "model": "gpt-image-2-all",
-    "generated": "2026-06-06"
+  "selected-02.jpg": {
+    "src": "assets/art/selected-02.jpg",
+    "width": 1200,
+    "height": 1500,
+    "model": "gpt-image-2.5-sunburst",
+    "generated": "2026-10-27"
   },
-  "concrete-01.jpg": {
-    "src": "assets/art/concrete-01.jpg",
-    "width": 1024,
-    "height": 1536,
-    "model": "gpt-image-2-all",
-    "generated": "2026-06-06"
+  "selected-03.jpg": {
+    "src": "assets/art/selected-03.jpg",
+    "width": 1100,
+    "height": 1650,
+    "model": "gpt-image-2.5-sunburst",
+    "generated": "2026-10-27"
   },
-  "concrete-02.jpg": {
-    "src": "assets/art/concrete-02.jpg",
-    "width": 1024,
-    "height": 1536,
-    "model": "gpt-image-2-all",
-    "generated": "2026-06-06"
+  "selected-04.jpg": {
+    "src": "assets/art/selected-04.jpg",
+    "width": 1200,
+    "height": 1600,
+    "model": "gpt-image-2.5-sunburst",
+    "generated": "2026-10-27"
   },
-  "concrete-03.jpg": {
-    "src": "assets/art/concrete-03.jpg",
-    "width": 1024,
-    "height": 1536,
-    "model": "gpt-image-2-all",
-    "generated": "2026-06-06"
+  "selected-05.jpg": {
+    "src": "assets/art/selected-05.jpg",
+    "width": 1400,
+    "height": 1400,
+    "model": "gpt-image-2.5-sunburst",
+    "generated": "2026-10-27"
+  },
+  "about.jpg": {
+    "src": "assets/art/about.jpg",
+    "width": 1200,
+    "height": 1600,
+    "model": "gpt-image-2.5-sunburst",
+    "generated": "2026-10-27"
+  },
+  "contact.jpg": {
+    "src": "assets/art/contact.jpg",
+    "width": 2000,
+    "height": 1333,
+    "model": "gpt-image-2.5-sunburst",
+    "generated": "2026-10-27"
   }
 }

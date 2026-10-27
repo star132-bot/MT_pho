@@ -174,8 +174,10 @@
           const loader = new Image();
           loader.decoding = "async";
           loader.onload = () => {
+            // Decoding first avoids a half-drawn frame, but a hidden window may
+            // postpone it indefinitely, so it never holds the work back long.
             const decoded = loader.decode ? loader.decode().catch(() => {}) : Promise.resolve();
-            decoded.then(() => resolve(true));
+            Promise.race([decoded, new Promise((done) => global.setTimeout(done, 1500))]).then(() => resolve(true));
           };
           loader.onerror = () => {
             imageCache.delete(src);

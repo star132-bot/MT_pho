@@ -17,7 +17,8 @@ import re
 ROOT = Path(__file__).resolve().parents[1]
 MIGRATION_PATH = ROOT / "database" / "migrations" / "20260722_public_delivery.sql"
 SERVER_PATH = ROOT / "server.py"
-ARCHIVE_CLIENT_PATH = ROOT / "archive.js"
+# The Works posters and the exhibition share this loader (requirements 06/07).
+ARCHIVE_CLIENT_PATH = ROOT / "public-archive.js"
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "database.yml"
 RELEASE_GATE_PATH = ROOT / "scripts" / "release_gate.sh"
 DEPLOY_PATH = ROOT / "scripts" / "deploy_supabase_phase1.sh"
@@ -248,21 +249,19 @@ def validate_server(server: str) -> None:
 def validate_archive_client(client: str) -> None:
     require(client, {
         'const ARCHIVE_API_URL = "/api/archive/images"',
-        "async function fetchArchiveApiItems()",
-        "apiResult = await fetchArchiveApiItems()",
-        "const authoritative = apiResult?.authoritative === true || apiError?.authoritative === true",
-        "if (authoritative)",
-        'archiveDataSource = apiResult?.source || apiError?.source || "supabase"',
-        'archiveItems = (apiResult?.items || []).filter(isPublishedArchiveItem)',
-        'setArchiveDataStatus(archiveItems.length ? "Published works loaded." : "No published works yet.", "ready")',
-        'typeof apiError.authoritative !== "boolean"',
-        "apiError.authoritative = true",
+        "async function loadPublishedWorks()",
+        "authoritative = result.authoritative;",
+        'status = works.length ? "Published works loaded." : "No published works yet.";',
+        "if (error?.authoritative !== false) {",
+        "error.authoritative = true;",
+        "if (!authoritative) {",
     }, "Works authoritative public source")
     require_order(client, (
-        "if (authoritative) {",
-        'archiveItems = (apiResult?.items || []).filter(isPublishedArchiveItem);',
-        "} else {",
-        "let baseItems = sampleItems;",
+        "async function loadPublishedWorks()",
+        "if (error?.authoritative !== false) {",
+        "error: true,",
+        'source = "sample";',
+        "if (!authoritative) {",
     ), "Works authoritative result before legacy fallback")
 
 

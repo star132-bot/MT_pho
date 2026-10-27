@@ -48,14 +48,16 @@ def read_images(relative_path: str) -> list[dict[str, str]]:
     return parser.images
 
 
+def art_path(image: dict[str, str]) -> str:
+    return image.get("src", "").lstrip("/")
+
+
 def assert_static_dimensions(images: list[dict[str, str]], label: str) -> None:
-    static_images = [
-        image for image in images if image.get("src", "").startswith(STATIC_ART_PREFIX)
-    ]
+    static_images = [image for image in images if art_path(image).startswith(STATIC_ART_PREFIX)]
     if not static_images:
         raise AssertionError(f"{label} has no static art images")
     for image in static_images:
-        width, height = jpeg_dimensions(ROOT / image["src"])
+        width, height = jpeg_dimensions(ROOT / art_path(image))
         for key, expected in {"width": str(width), "height": str(height)}.items():
             if image.get(key) != expected:
                 raise AssertionError(
@@ -67,50 +69,27 @@ def assert_static_dimensions(images: list[dict[str, str]], label: str) -> None:
 def main() -> None:
     index_images = read_images("index.html")
     assert_static_dimensions(index_images, "index.html")
+    art = [image for image in index_images if art_path(image).startswith(STATIC_ART_PREFIX)]
 
-    marquee_images = [
-        image
-        for image in index_images
-        if image.get("src", "").startswith(STATIC_ART_PREFIX)
-        and "data-home-statement-image" not in image
-    ]
-    if not marquee_images:
-        raise AssertionError("index.html marquee image contract is missing")
-    for image in marquee_images:
+    # The first-screen hero loads immediately; everything below it is lazy.
+    hero = art[0] if art else None
+    if hero is None or hero.get("loading") == "lazy" or hero.get("fetchpriority") != "high" or hero.get("decoding") != "async":
+        raise AssertionError("index.html hero image must be eager, high priority and async")
+    below_fold = art[1:]
+    if not below_fold:
+        raise AssertionError("index.html selected works and About images are missing")
+    for image in below_fold:
         if image.get("loading") != "lazy" or image.get("decoding") != "async":
-            raise AssertionError(
-                f"index.html marquee image {image.get('src')} must be lazy and async"
-            )
+            raise AssertionError(f"index.html image {image.get('src')} must be lazy and async")
 
-    statement_images = [
-        image for image in index_images if "data-home-statement-image" in image
-    ]
-    if not statement_images:
-        raise AssertionError("index.html statement image contract is missing")
-    for image in statement_images:
-        if image.get("loading") != "lazy" or image.get("decoding") != "async":
-            raise AssertionError(
-                f"index.html statement image {image.get('src')} must be lazy and async"
-            )
-
-    about_images = read_images("about.html")
-    assert_static_dimensions(about_images, "about.html")
-    about_image = next(
-        (
-            image
-            for image in about_images
-            if image.get("src", "").startswith(STATIC_ART_PREFIX)
-        ),
-        None,
-    )
-    if about_image is None or about_image.get("decoding") != "async":
-        raise AssertionError("about.html hero image must use async decoding")
-    if about_image.get("loading") == "lazy":
-        raise AssertionError("about.html hero image must remain eager")
+    contact_images = read_images("contact.html")
+    assert_static_dimensions(contact_images, "contact.html")
+    if any(image.get("decoding") != "async" for image in contact_images if art_path(image).startswith(STATIC_ART_PREFIX)):
+        raise AssertionError("contact.html images must use async decoding")
 
     print("public_image_dimensions=yes")
+    print("public_home_hero_eager=yes")
     print("public_home_images_lazy_async=yes")
-    print("public_about_hero_async_eager=yes")
 
 
 if __name__ == "__main__":

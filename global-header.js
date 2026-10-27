@@ -1,21 +1,16 @@
 (function initializeGlobalHeader() {
+  // Visitor header (docs/product/implementation-plan-2026-10-21.md, design in
+  // design/site-mockups-v2): a letter-spaced wordmark, four small text links,
+  // a search icon that opens a quiet search line, and a plain "中 / EN"
+  // language toggle. Visitors never sign in, so there are no account controls.
   const header = document.querySelector("[data-global-header]");
   if (!header || header.dataset.globalHeaderReady === "true") return;
 
   const SEARCH_DELAY_MS = 260;
   const SEARCH_LIMIT = 6;
   const path = window.location.pathname.replace(/\/$/, "") || "/";
-  const worksPage = path === "/works.html";
-  // Visitors never sign in, so public pages carry no account controls and the
-  // server renders them without an identity slot. Staff pages (/admin,
-  // settings) keep the slot for the account menu and sign-out.
-  const VISITOR_PATHS = new Set([
-    "/", "/index.html", "/works.html", "/work.html", "/about.html",
-    "/contact.html", "/privacy.html", "/terms.html", "/series.html",
-  ]);
-  const visitorPage = VISITOR_PATHS.has(path);
-  const identitySlot = header.querySelector("[data-header-identity-slot]");
-  if (!identitySlot && !visitorPage) return;
+  const i18n = window.MTPresenceI18n;
+  const t = (text) => (i18n ? i18n.t(text) : text);
   let searchTimer = null;
   let searchRequest = null;
   let searchItems = null;
@@ -25,165 +20,150 @@
     return value === null || value === undefined ? "" : String(value).trim();
   }
 
+  function element(tag, className, attributes = {}) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    Object.entries(attributes).forEach(([name, value]) => node.setAttribute(name, value));
+    return node;
+  }
+
+  function icon(paths) {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    paths.forEach(([tag, attributes]) => {
+      const shape = document.createElementNS(svg.namespaceURI, tag);
+      Object.entries(attributes).forEach(([name, value]) => shape.setAttribute(name, value));
+      svg.append(shape);
+    });
+    return svg;
+  }
+
   function routeIsCurrent(route) {
     if (route === "home") return path === "/" || path === "/index.html";
-    if (route === "works") return worksPage || path === "/work.html" || path === "/series.html";
-    if (route === "about") return path === "/about.html";
+    if (route === "works") return path === "/works.html";
     if (route === "contact") return path === "/contact.html";
     return false;
   }
 
-  function createBrand() {
-    const brand = document.createElement("a");
-    brand.className = "brand-mark global-header-brand";
-    brand.href = "/";
-    brand.setAttribute("aria-label", "MT Presence home");
-    const mark = document.createElement("span");
-    mark.textContent = "MT";
-    const name = document.createElement("span");
-    name.textContent = "Presence";
-    brand.append(mark, name);
-    return brand;
-  }
+  // ----- Markup -------------------------------------------------------------
 
-  function searchIcon() {
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("viewBox", "0 0 24 24");
-    svg.setAttribute("aria-hidden", "true");
-    svg.classList.add("global-header-search-icon");
-    const circle = document.createElementNS(svg.namespaceURI, "circle");
-    circle.setAttribute("cx", "11");
-    circle.setAttribute("cy", "11");
-    circle.setAttribute("r", "6.5");
-    const line = document.createElementNS(svg.namespaceURI, "path");
-    line.setAttribute("d", "m16 16 4 4");
-    svg.append(circle, line);
-    return svg;
-  }
+  const brand = element("a", "mt-brand", { href: "/", "aria-label": "MT Presence home" });
+  brand.textContent = "MT Presence";
 
-  function createSearch() {
-    const form = document.createElement("form");
-    form.className = "global-header-search";
-    form.dataset.globalSearch = "";
-    form.setAttribute("role", "search");
-    form.noValidate = true;
-
-    const label = document.createElement("label");
-    label.className = "visually-hidden";
-    label.htmlFor = "global-header-search-input";
-    label.textContent = "Search works, artists, and tags";
-
-    const input = document.createElement("input");
-    input.id = "global-header-search-input";
-    input.className = "global-header-search-input";
-    input.type = "search";
-    input.inputMode = "search";
-    input.autocomplete = "off";
-    input.spellcheck = false;
-    input.placeholder = "Search works, artists, tags";
-    input.dataset.globalSearchInput = "";
-    input.setAttribute("aria-autocomplete", "list");
-    input.setAttribute("aria-controls", "global-header-search-results");
-    input.setAttribute("aria-expanded", "false");
-    if (worksPage) input.value = cleanText(new URLSearchParams(window.location.search).get("q"));
-
-    const submit = document.createElement("button");
-    submit.className = "global-header-search-submit";
-    submit.type = "submit";
-    submit.dataset.globalSearchSubmit = "";
-    submit.setAttribute("aria-label", "Search the archive");
-    submit.append(searchIcon());
-
-    const results = document.createElement("div");
-    results.id = "global-header-search-results";
-    results.className = "global-header-search-results";
-    results.dataset.globalSearchResults = "";
-    results.setAttribute("role", "listbox");
-    results.setAttribute("aria-label", "Search suggestions");
-    results.hidden = true;
-
-    form.append(label, input, submit, results);
-    return form;
-  }
-
-  function createNavigation() {
-    const nav = document.createElement("nav");
-    nav.id = "public-site-navigation";
-    nav.className = "site-nav public-site-nav global-header-nav";
-    nav.dataset.publicNav = "";
-    nav.setAttribute("aria-label", "Primary");
-    const routes = [
-      ["home", "Home", "/"],
-      ["works", "Works", "/works.html"],
-      ["about", "About", "/about.html"],
-      ["contact", "Contact", "/contact.html"],
-    ];
-    routes.forEach(([route, label, href]) => {
-      const link = document.createElement("a");
-      link.href = href;
+  const navigation = element("nav", "mt-nav", { id: "public-site-navigation", "aria-label": "Primary" });
+  navigation.dataset.publicNav = "";
+  const links = element("div", "mt-nav-links");
+  // About is part of the homepage (requirement 05).
+  [["home", "Home", "/"], ["works", "Works", "/works.html"], ["about", "About", "/#about"], ["contact", "Contact", "/contact.html"]]
+    .forEach(([route, label, href]) => {
+      const link = element("a", "mt-nav-link", { href });
       link.dataset.globalRoute = route;
-      if (routeIsCurrent(route)) link.setAttribute("aria-current", "page");
       link.textContent = label;
-      nav.append(link);
+      if (routeIsCurrent(route)) link.setAttribute("aria-current", "page");
+      links.append(link);
     });
-    const languageSwitch = createLanguageSwitch();
-    if (languageSwitch) nav.append(languageSwitch);
-    return nav;
-  }
 
-  // English / 中文 switch for visitors. The choice is remembered and applied
-  // by i18n.js, which translates the page on load.
-  function createLanguageSwitch() {
-    const i18n = window.MTPresenceI18n;
-    if (!visitorPage || !i18n) return null;
-    const select = document.createElement("select");
-    select.className = "global-header-language";
-    select.dataset.languageSwitch = "";
-    select.setAttribute("aria-label", "Language");
-    [["en", "English"], ["zh", "中文"]].forEach(([value, label]) => {
-      const option = document.createElement("option");
-      option.value = value;
-      option.textContent = label;
-      option.selected = value === i18n.language;
-      select.append(option);
+  const searchToggle = element("button", "mt-icon-button", {
+    type: "button",
+    "aria-label": "Search works",
+    "aria-expanded": "false",
+    "aria-controls": "global-header-search",
+  });
+  searchToggle.dataset.globalSearchToggle = "";
+  searchToggle.append(icon([["circle", { cx: "11", cy: "11", r: "6.5" }], ["path", { d: "m16 16 4 4" }]]));
+
+  const language = element("div", "mt-language", { role: "group", "aria-label": "Language" });
+  language.dataset.i18nSkip = "";
+  [["zh", "中"], ["en", "EN"]].forEach(([code, label], index) => {
+    if (index) {
+      const divider = element("span", "mt-language-divider", { "aria-hidden": "true" });
+      divider.textContent = "/";
+      language.append(divider);
+    }
+    const button = element("button", "mt-language-option", {
+      type: "button",
+      lang: code === "zh" ? "zh-CN" : "en",
+      "aria-label": code === "zh" ? "中文" : "English",
+      "aria-pressed": String((i18n?.language || "en") === code),
     });
-    select.addEventListener("change", () => i18n.setLanguage(select.value));
-    return select;
-  }
+    button.textContent = label;
+    button.addEventListener("click", () => i18n?.setLanguage(code));
+    language.append(button);
+  });
 
-  function createNavigationToggle() {
-    const button = document.createElement("button");
-    button.className = "public-nav-toggle";
-    button.type = "button";
-    button.dataset.publicNavToggle = "";
-    button.setAttribute("aria-label", "Open navigation");
-    button.setAttribute("aria-controls", "public-site-navigation");
-    button.setAttribute("aria-expanded", "false");
-    button.title = "Open navigation";
-    const icon = document.createElement("span");
-    icon.className = "public-nav-toggle-icon";
-    icon.setAttribute("aria-hidden", "true");
-    icon.append(document.createElement("span"), document.createElement("span"), document.createElement("span"));
-    button.append(icon);
-    return button;
-  }
+  const tools = element("div", "mt-nav-tools");
+  tools.append(searchToggle, language);
+  navigation.append(links, tools);
 
-  const brand = createBrand();
-  const search = createSearch();
-  const navigation = createNavigation();
-  const divider = document.createElement("span");
-  divider.className = "global-header-account-divider";
-  divider.setAttribute("aria-hidden", "true");
-  const navigationToggle = createNavigationToggle();
-  if (visitorPage) {
-    header.replaceChildren(brand, search, navigation, navigationToggle);
-  } else {
-    header.replaceChildren(brand, search, navigation, divider, identitySlot, navigationToggle);
-  }
+  const menuToggle = element("button", "mt-menu-toggle", {
+    type: "button",
+    "aria-label": "Open navigation",
+    "aria-controls": "public-site-navigation",
+    "aria-expanded": "false",
+  });
+  menuToggle.dataset.publicNavToggle = "";
+  menuToggle.append(element("span", "mt-menu-toggle-line"), element("span", "mt-menu-toggle-line"));
+
+  const search = element("form", "mt-search", { id: "global-header-search", role: "search" });
+  search.noValidate = true;
+  search.hidden = true;
+  search.dataset.globalSearch = "";
+  const searchLabel = element("label", "visually-hidden", { for: "global-header-search-input" });
+  searchLabel.textContent = "Search works, artists, and tags";
+  const input = element("input", "mt-search-input", {
+    id: "global-header-search-input",
+    type: "search",
+    inputmode: "search",
+    autocomplete: "off",
+    spellcheck: "false",
+    placeholder: "Search works, artists, tags",
+    "aria-autocomplete": "list",
+    "aria-controls": "global-header-search-results",
+    "aria-expanded": "false",
+  });
+  input.dataset.globalSearchInput = "";
+  const results = element("div", "mt-search-results", {
+    id: "global-header-search-results",
+    role: "listbox",
+    "aria-label": "Search suggestions",
+  });
+  results.dataset.globalSearchResults = "";
+  results.hidden = true;
+  search.append(searchLabel, input, results);
+
+  header.classList.add("mt-header");
+  header.replaceChildren(brand, navigation, menuToggle, search);
   header.dataset.globalHeaderReady = "true";
 
-  const input = search.querySelector("[data-global-search-input]");
-  const results = search.querySelector("[data-global-search-results]");
+  // Over a full-bleed photograph the header is transparent until the visitor
+  // scrolls past the first screen.
+  if (header.dataset.globalHeaderTheme === "overlay") {
+    const syncScrolled = () => header.classList.toggle("is-scrolled", window.scrollY > window.innerHeight * 0.82);
+    window.addEventListener("scroll", syncScrolled, { passive: true });
+    window.addEventListener("resize", syncScrolled);
+    syncScrolled();
+  }
+
+  // ----- Search -------------------------------------------------------------
+
+  function openSearch() {
+    search.hidden = false;
+    header.classList.add("is-search-open");
+    searchToggle.setAttribute("aria-expanded", "true");
+    searchToggle.setAttribute("aria-label", t("Close search"));
+    input.focus();
+  }
+
+  function closeSearch({ restoreFocus = false } = {}) {
+    closeSearchResults();
+    search.hidden = true;
+    header.classList.remove("is-search-open");
+    searchToggle.setAttribute("aria-expanded", "false");
+    searchToggle.setAttribute("aria-label", t("Search works"));
+    if (restoreFocus) searchToggle.focus();
+  }
 
   function closeSearchResults() {
     activeSuggestion = -1;
@@ -194,8 +174,7 @@
 
   function setSearchMessage(message, tone = "default") {
     results.replaceChildren();
-    const status = document.createElement("p");
-    status.className = "global-header-search-status";
+    const status = element("p", "mt-search-status");
     status.dataset.tone = tone;
     status.textContent = message;
     results.append(status);
@@ -206,23 +185,14 @@
   function flattenedTags(item) {
     const direct = Array.isArray(item.tags) ? item.tags : [];
     const grouped = Array.isArray(item.tag_groups)
-      ? item.tag_groups.flatMap((group) => Array.isArray(group?.tags) ? group.tags : [])
+      ? item.tag_groups.flatMap((group) => (Array.isArray(group?.tags) ? group.tags : []))
       : [];
     return [...direct, ...grouped].map(cleanText).filter(Boolean);
   }
 
   function itemSearchText(item) {
-    const creator = item.creator && typeof item.creator === "object" ? item.creator : {};
-    return [
-      item.title,
-      item.series,
-      item.content_type,
-      item.type,
-      item.ratio_label,
-      item.ratio,
-      creator.display_name,
-      ...flattenedTags(item),
-    ].map(cleanText).join(" ").toLocaleLowerCase();
+    return [item.title, item.series, item.content_type, item.type, item.ratio_label, item.ratio, item.creator?.display_name, ...flattenedTags(item)]
+      .map(cleanText).join(" ").toLocaleLowerCase();
   }
 
   async function loadSearchItems() {
@@ -243,11 +213,16 @@
     return searchRequest;
   }
 
-  function suggestionHref(item, query) {
-    const params = new URLSearchParams();
-    if (item.id) params.set("id", cleanText(item.id));
-    if (query) params.set("q", query);
-    return `/work.html?${params.toString()}`;
+  // Works are viewed one at a time in the exhibition (requirement 07).
+  function suggestionHref(item) {
+    const category = cleanText(item.content_type || item.content_category || item.type).toLowerCase();
+    const params = new URLSearchParams({ series: category === "abstract" ? "grey" : "colour", work: cleanText(item.id) });
+    return `/exhibition.html?${params.toString()}`;
+  }
+
+  function seriesName(item) {
+    const category = cleanText(item.content_type || item.content_category || item.type).toLowerCase();
+    return category === "abstract" ? "此间留灰" : "此间留彩";
   }
 
   function setActiveSuggestion(index) {
@@ -255,12 +230,11 @@
     if (!options.length) return;
     activeSuggestion = (index + options.length) % options.length;
     options.forEach((option, optionIndex) => option.classList.toggle("is-active", optionIndex === activeSuggestion));
-    const active = options[activeSuggestion];
-    input.setAttribute("aria-activedescendant", active.id);
-    active.scrollIntoView({ block: "nearest" });
+    input.setAttribute("aria-activedescendant", options[activeSuggestion].id);
+    options[activeSuggestion].scrollIntoView({ block: "nearest" });
   }
 
-  function renderSearchSuggestions(items, query) {
+  function renderSearchSuggestions(items) {
     results.replaceChildren();
     activeSuggestion = -1;
     if (!items.length) {
@@ -268,17 +242,12 @@
       return;
     }
     items.forEach((item, index) => {
-      const link = document.createElement("a");
-      link.id = `global-search-option-${index}`;
-      link.className = "global-header-search-result";
+      const link = element("a", "mt-search-result", { id: `global-search-option-${index}`, role: "option", href: suggestionHref(item) });
       link.dataset.i18nSkip = "";
-      link.href = suggestionHref(item, query);
-      link.setAttribute("role", "option");
-      const title = document.createElement("strong");
+      const title = element("strong");
       title.textContent = cleanText(item.title) || "Untitled work";
-      const creator = cleanText(item.creator?.display_name);
-      const details = document.createElement("span");
-      details.textContent = creator || cleanText(item.content_type || item.type || item.ratio_label || item.ratio) || "Published work";
+      const details = element("span");
+      details.textContent = seriesName(item);
       link.append(title, details);
       results.append(link);
     });
@@ -286,16 +255,7 @@
     input.setAttribute("aria-expanded", "true");
   }
 
-  function dispatchWorksSearch(query) {
-    window.dispatchEvent(new CustomEvent("mt:global-search-change", { detail: { query } }));
-  }
-
   async function updateSearch(query) {
-    if (worksPage) {
-      closeSearchResults();
-      dispatchWorksSearch(query);
-      return;
-    }
     if (!query) {
       closeSearchResults();
       return;
@@ -307,7 +267,7 @@
         .filter((item) => item?.id && itemSearchText(item).includes(normalized))
         .slice(0, SEARCH_LIMIT);
       if (cleanText(input.value) !== query) return;
-      renderSearchSuggestions(items, query);
+      renderSearchSuggestions(items);
     } catch (_error) {
       if (cleanText(input.value) === query) setSearchMessage("Search is temporarily unavailable.", "error");
     }
@@ -320,58 +280,28 @@
     else searchTimer = window.setTimeout(() => updateSearch(query), SEARCH_DELAY_MS);
   }
 
+  searchToggle.addEventListener("click", () => (search.hidden ? openSearch() : closeSearch({ restoreFocus: true })));
   input.addEventListener("input", () => scheduleSearch());
-  input.addEventListener("focus", () => {
-    if (!worksPage && cleanText(input.value)) scheduleSearch();
-  });
   input.addEventListener("keydown", (event) => {
     const options = [...results.querySelectorAll("[role='option']")];
     if ((event.key === "ArrowDown" || event.key === "ArrowUp") && options.length && !results.hidden) {
       event.preventDefault();
       setActiveSuggestion(activeSuggestion + (event.key === "ArrowDown" ? 1 : -1));
-      return;
-    }
-    if (event.key === "Escape") {
-      if (!results.hidden) {
-        event.preventDefault();
-        closeSearchResults();
-      } else if (input.value) {
-        event.preventDefault();
-        input.value = "";
-        scheduleSearch(true);
-      } else {
-        search.classList.remove("is-search-open");
-      }
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      closeSearch({ restoreFocus: true });
     }
   });
 
   search.addEventListener("submit", (event) => {
     event.preventDefault();
-    const query = cleanText(input.value);
-    const active = results.querySelectorAll("[role='option']")[activeSuggestion];
-    if (active && !results.hidden) {
-      window.location.assign(active.href);
-      return;
-    }
-    if (!query && window.matchMedia("(max-width: 760px)").matches) {
-      search.classList.add("is-search-open");
-      input.focus();
-      return;
-    }
-    if (worksPage) {
-      scheduleSearch(true);
-      return;
-    }
-    const target = new URL("/works.html", window.location.origin);
-    if (query) target.searchParams.set("q", query);
-    window.location.assign(`${target.pathname}${target.search}`);
+    const options = [...results.querySelectorAll("[role='option']")];
+    const chosen = options[activeSuggestion] || options[0];
+    if (chosen && !results.hidden) window.location.assign(chosen.href);
+    else scheduleSearch(true);
   });
 
   document.addEventListener("pointerdown", (event) => {
-    if (!search.contains(event.target)) closeSearchResults();
-  });
-  window.addEventListener("popstate", () => {
-    if (!worksPage) return;
-    input.value = cleanText(new URLSearchParams(window.location.search).get("q"));
+    if (!search.hidden && !header.contains(event.target)) closeSearch();
   });
 })();

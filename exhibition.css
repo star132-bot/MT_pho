@@ -462,6 +462,33 @@ html:has(> body.exhibition-page) {
   position: absolute;
   top: max(18px, env(safe-area-inset-top));
   left: max(18px, env(safe-area-inset-left));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 18px;
+  max-width: 340px;
+}
+
+.exhibition-brand {
+  color: rgba(255, 255, 255, 0.82);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 12px;
+  letter-spacing: 0.46em;
+  text-decoration: none;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.45);
+  text-transform: uppercase;
+}
+
+/* Phones: the series counter needs the top line. */
+@media (max-width: 720px) {
+  .exhibition-brand {
+    display: none;
+  }
+}
+
+[data-scene="hall"] .exhibition-brand {
+  color: var(--caption-ink, rgba(255, 255, 255, 0.82));
+  text-shadow: var(--caption-shadow, 0 1px 10px rgba(0, 0, 0, 0.45));
 }
 
 .exhibition-menu-toggle {
@@ -489,6 +516,7 @@ html:has(> body.exhibition-page) {
 
 .exhibition-menu-panel {
   display: grid;
+  flex-basis: 100%;
   gap: 2px;
   min-width: 180px;
   margin-top: 10px;
@@ -928,169 +956,11 @@ html:has(> body.exhibition-page) {
   right: 260px;
 }
 
-/* ===== Series posters (requirement 06) ===================================== */
-
-.series-page .series-main {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  min-height: 100svh;
-  background: #0b0b0b;
-}
-
-.series-poster {
-  position: relative;
-  display: block;
-  min-height: 100svh;
-  overflow: hidden;
-  color: #fff;
-  text-decoration: none;
-  isolation: isolate;
-}
-
-.series-poster-image {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  z-index: -2;
-}
-
-.series-poster-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transform: scale(1.02);
-  transition: transform 1600ms var(--ease-out), filter 1600ms var(--ease-out);
-}
-
-.series-poster[data-series="grey"] .series-poster-image img {
-  filter: grayscale(1) contrast(1.04);
-}
-
-.series-poster::after {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  content: "";
-  background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.32) 0%, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0) 52%, rgba(0, 0, 0, 0.62) 100%);
-  transition: background-color 900ms var(--ease-out);
-}
-
-.series-poster-copy {
-  position: absolute;
-  right: clamp(24px, 5vw, 72px);
-  bottom: clamp(36px, 8vh, 96px);
-  left: clamp(24px, 5vw, 72px);
-  display: grid;
-  gap: 14px;
-}
-
-.series-poster-kicker {
-  margin: 0;
-  font-size: 11px;
-  letter-spacing: 0.34em;
-  text-transform: uppercase;
-  opacity: 0.8;
-}
-
-.series-poster-name {
-  margin: 0;
-  font-family: var(--serif);
-  font-size: clamp(40px, 5.4vw, 86px);
-  font-weight: 400;
-  letter-spacing: 0.18em;
-  line-height: 1.1;
-}
-
-.series-poster-meta {
-  margin: 0;
-  font-size: 13px;
-  letter-spacing: 0.16em;
-  opacity: 0.78;
-}
-
-.series-poster-note {
-  max-width: 30rem;
-  margin: 0;
-  font-family: var(--serif);
-  min-height: calc(1.9em * 2);
-  font-size: 15px;
-  line-height: 1.9;
-  opacity: 0;
-  transform: translateY(8px);
-  transition: opacity 700ms var(--ease-out), transform 700ms var(--ease-out);
-}
-
-.series-poster-enter {
-  justify-self: start;
-  margin-top: 6px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.5);
-  font-size: 12px;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-}
-
-/* Hover: the image settles closer and the series introduction appears. */
-@media (hover: hover) {
-  .series-poster:hover .series-poster-image img,
-  .series-poster:focus-visible .series-poster-image img {
-    transform: scale(1.07);
-  }
-
-  .series-poster:hover .series-poster-note,
-  .series-poster:focus-visible .series-poster-note {
-    opacity: 0.9;
-    transform: none;
-  }
-
-  .series-main:hover .series-poster:not(:hover)::after {
-    background-color: rgba(0, 0, 0, 0.32);
-  }
-}
-
-@media (hover: none) {
-  .series-poster-note {
-    opacity: 0.86;
-    transform: none;
-  }
-}
-
-.series-poster:focus-visible {
-  outline: 2px solid #fff;
-  outline-offset: -6px;
-}
-
-.series-status {
-  grid-column: 1 / -1;
-  display: grid;
-  place-content: center;
-  min-height: 100svh;
-  color: rgba(255, 255, 255, 0.7);
-  letter-spacing: 0.12em;
-}
-
-.series-status[hidden] {
-  display: none;
-}
-
-/* Question 16 default: stacked on phones. */
-@media (max-width: 760px) {
-  .series-page .series-main {
-    grid-template-columns: 1fr;
-  }
-
-  .series-poster {
-    min-height: 62svh;
-  }
-}
-
 /* ===== Reduced motion ====================================================== */
 
 @media (prefers-reduced-motion: reduce) {
   .exhibition-room,
-  .exhibition-work,
-  .series-poster-image img {
+  .exhibition-work {
     transition-duration: 1ms !important;
   }
 
