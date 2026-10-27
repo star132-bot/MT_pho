@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased - 2026-10-27
+## v1.8.0 - 2026-10-27
 
-Visitor site redesign after the approved mockups in `design/site-mockups-v2` (requirements 05, 06 and 07).
+Implements requirements 04-07 from `docs/product/client-feedback-2026-10-15.md`: a visitor site redesign following the approved mockups in `design/site-mockups-v2`, plus image protection. No database schema changes.
 
 - **New visual language.** Museum-catalogue restraint on warm paper: a letter-spaced `MT PRESENCE` wordmark, four small text links, a search icon that opens one quiet search line, and a plain `中 / EN` toggle in place of the dropdown. Text links with a hairline replace boxed buttons. New shared stylesheet `site.css`; the footer is one quiet line.
 - **Homepage (requirement 05).** One full-bleed black-and-white hero, a staggered row of selected works, the About section merged in (`/#about`, still hydrated by the published creator profile), and a single contact invitation. `/about.html` is removed without a redirect, as confirmed; the scroll-driven double hero and the moving marquee are gone.
@@ -13,9 +13,9 @@ Visitor site redesign after the approved mockups in `design/site-mockups-v2` (re
 - **Fixes.** The homepage heading showed 已选作品 because a later dictionary entry overrode 精选作品; text-area placeholders are now translated; the Exhibition option of the contact form no longer reads 展厅.
 - Removed `about.html`, `work.html`, `work-detail.js`, `archive.js`, `script.js`, `series.html` and six unused art files. Static contracts and the browser acceptance were updated to the new pages.
 
-## Unreleased - 2026-10-21
+### Earlier work in this release (2026-10-21)
 
-Requirement 04 (remaining part) and prototypes for requirements 06 and 07 from `docs/product/client-feedback-2026-10-15.md`; plan in `docs/product/implementation-plan-2026-10-21.md`.
+Requirement 04 (remaining part) and the first prototypes for requirements 06 and 07, since superseded by the pages above from `docs/product/client-feedback-2026-10-15.md`; plan in `docs/product/implementation-plan-2026-10-21.md`.
 
 - **No image saving on public pages.** Right-click "Save image", dragging an image out and the long-press save menu are blocked on Home, Works, work detail, About, Contact, Privacy, Terms and the new prototypes. Staff pages are unaffected. Screenshots cannot be prevented by any web page.
 - **Exhibition prototype** at `/exhibition.html?series=colour|grey`: one photograph at a time. Computers with a mouse see a virtual gallery room (generated walls and floor, ceiling light, cast shadow, light that dims while the work changes); touch devices see the work full screen and uncropped. Viewing mode shows only the work; a click or tap toggles the semi-transparent menu, arrows, introduction and next-work preview. Keyboard, edge clicks, trackpad and swipe turn the page; the address follows the current work.
