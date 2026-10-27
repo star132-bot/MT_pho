@@ -1,7 +1,7 @@
 (function initializeSeriesPosters(global) {
   // Requirement 06: the Works page shows two posters, 此间留彩 and 此间留灰.
-  // Until the photographer supplies finished posters (question 2), each poster
-  // uses the first work of its series and is laid out by the page.
+  // The poster images are fixed site artwork (assets/art/poster-*.jpg) until the
+  // photographer supplies finished posters (question 2); only the counts are live.
   const archive = global.MTPresencePublicArchive;
   const i18n = global.MTPresenceI18n;
   const t = (text) => (i18n ? i18n.t(text) : text);
@@ -39,10 +39,6 @@
       const works = result.works.filter((work) => work.type === SERIES_TYPES[poster.dataset.series]);
       poster.hidden = !works.length;
       if (!works.length) return;
-      const cover = works[0];
-      const image = poster.querySelector("[data-series-image]");
-      image.src = cover.src;
-      image.alt = cover.alt_text || cover.title;
       poster.querySelector("[data-series-count]").textContent = countLabel(works.length);
       shown += 1;
     });

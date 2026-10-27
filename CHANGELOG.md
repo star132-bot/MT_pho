@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.8.1 - 2026-10-27
+
+- **Works posters use dedicated artwork.** 此间留彩 and 此间留灰 now show generated portrait posters (`assets/art/poster-colour.jpg`, `poster-grey.jpg`) instead of the first published work, whose display file was too low in quality for a full-height poster. The work counts are still live. Placeholders until the photographer supplies finished posters.
+
 ## v1.8.0 - 2026-10-27
 
 Implements requirements 04-07 from `docs/product/client-feedback-2026-10-15.md`: a visitor site redesign following the approved mockups in `design/site-mockups-v2`, plus image protection. No database schema changes.
