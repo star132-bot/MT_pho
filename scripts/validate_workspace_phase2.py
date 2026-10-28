@@ -174,23 +174,23 @@ def main() -> None:
     }, "Phase 2 server boundary")
 
     require(upload_html, {
-        'accept="image/jpeg,image/png,image/webp"', ">Series<", ">Introduction<",
-        "Uploading confirms that you own the rights to this photograph.", "data-studio-hidden-fields",
-        "Save Draft", "Move to Trash", "data-folder-form", "data-folder-list",
+        'accept="image/jpeg,image/png,image/webp"', ">系列<", ">简介<",
+        "上传即表示你拥有该作品的版权。", "data-studio-hidden-fields",
+        "存为草稿", "移到回收站", "data-folder-form", "data-folder-list",
         'id="icon-retry"', 'id="icon-x"',
-        'data-editor-state="empty"', "Loading folders", "upload-studio-loading",
+        'data-editor-state="empty"', "正在读取文件夹", "upload-studio-loading",
         'name="alt_text"', 'name="copyright_holder"', 'name="copyright_year"',
         'name="contains_recognizable_people"', 'data-model-release-field',
         'name="property_release_status"', 'name="rights_declared"',
         'name="ai_disclosure"', 'name="sensitive_content_disclosure"',
         "data-studio-reload-record", "20261018-upload-prefill",
         "data-studio-readiness", "data-studio-readiness-refresh", "data-studio-readiness-list",
-        "Publishing checks", "Submission state", "data-studio-submit-record",
-        "Publish this Draft?", "data-studio-submit-dialog",
+        "发布检查", "发布状态", "data-studio-submit-record",
+        "把这张草稿发布到网站？", "data-studio-submit-dialog",
         'data-studio-view="drafts"', 'data-studio-view="trash"', "data-studio-trash-count",
         "data-quick-upload-open", "data-quick-upload-dialog", "data-quick-upload-form",
         "data-quick-upload-input", "data-studio-submit-ready", "data-quick-hidden-fields",
-        "Uploads still go through private storage and malware scanning",
+        "上传后的图片先存入私有存储并经过安全扫描",
     }, "Phase 2 Upload Studio page")
     if 'href="/admin/reviews"' in upload_html or "Submit for Review" in upload_html:
         raise RuntimeError("Upload Studio still points at the retired review queue")
@@ -207,7 +207,7 @@ def main() -> None:
         'const WORKSPACE_UPLOAD_INTENTS_API = "/api/uploads/intents"',
         'method: "PUT"', 'credentials: "omit"', 'signed_url',
         "createWorkspaceUploadIntent", "completeWorkspaceUpload", "saveWorkspaceDraft",
-        "trashWorkspaceDraft", "Offline read-only", "loadOfflineCache",
+        "trashWorkspaceDraft", "离线只读", "loadOfflineCache",
         "restoreWorkspaceDraft", "loadTrashRecords", "restoreTrashedRecord", "data-trash-restore",
         "window.history.replaceState", "data-folder-rename", "data-folder-delete",
         "allowEmptyTitle: true", 'record.title || "Untitled Work"',
@@ -231,7 +231,7 @@ def main() -> None:
         "applyQuickUploadDefaults", "quickUploadDefaultsFromForm", "rememberedQuickUploadDefaults",
         "record = await saveWorkspaceDraft(applyQuickUploadDefaults(record, task.quickDefaults))",
         "submitReadyRecordsInFolder", "getWorkspaceDraftReadiness", "mapWithConcurrency",
-        "Only ready Drafts in", "submitWorkspaceDraft(record, idempotencyKey)",
+        "里已通过检查的草稿", "submitWorkspaceDraft(record, idempotencyKey)",
     }, "Phase 2 Upload Studio client")
     require(works_html, {
         "data-public-header",
@@ -241,7 +241,7 @@ def main() -> None:
     if 'src="/account-menu.js' in works_html:
         raise RuntimeError("Works public shell still loads the retired visitor account menu")
     require(account_menu, {
-        'destination("Upload", "/workspace/images")',
+        'destination("上传图片", "/workspace/images")',
     }, "staff account menu Upload navigation")
     title_input = re.search(r'<input\b[^>]*\bname="title"[^>]*>', upload_html)
     if not title_input or re.search(r"\brequired\b", title_input.group(0)):

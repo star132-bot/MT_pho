@@ -64,7 +64,7 @@ async function workspaceRequest(url, options = {}) {
     throw new Error("Administrator MFA is required.");
   }
   if (!response.ok) {
-    const error = new Error(result.error?.message || result.error || "Unable to complete this Workspace request.");
+    const error = new Error(result.error?.message || result.error || "操作没有完成，请重试。");
     error.code = result.error?.code || "WORKSPACE_REQUEST_FAILED";
     error.status = response.status;
     error.fieldErrors = result.error?.field_errors || {};
@@ -179,28 +179,28 @@ function nullableBoolean(value) {
 const READINESS_CHECK_DEFAULTS = [
   {
     code: "work_details",
-    label: "Work details",
-    message: "Title, alt text and content category are required.",
+    label: "作品信息",
+    message: "需要填写标题，并选择系列。",
   },
   {
     code: "rights_disclosures",
-    label: "Rights & disclosures",
-    message: "Complete the rights, releases and disclosure fields.",
+    label: "版权声明",
+    message: "需要完成版权声明。",
   },
   {
     code: "image_assets",
-    label: "Image assets",
-    message: "Original, display and thumbnail assets are required.",
+    label: "图片文件",
+    message: "需要原图、展示图和缩略图。",
   },
   {
     code: "security_scan",
-    label: "Security scan",
-    message: "All image assets must pass security scanning.",
+    label: "安全扫描",
+    message: "所有图片文件都要通过安全扫描。",
   },
   {
     code: "submission_state",
-    label: "Submission state",
-    message: "This image must remain an editable Draft.",
+    label: "发布状态",
+    message: "这张图片必须还是可编辑的草稿。",
   },
 ];
 
@@ -353,7 +353,7 @@ function formatBytes(value) {
 
 function formatTrashDate(value) {
   const date = new Date(value || "");
-  if (Number.isNaN(date.getTime())) return "Recently moved";
+  if (Number.isNaN(date.getTime())) return "刚刚移入";
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
@@ -1114,7 +1114,7 @@ function showToast(message, state = "info", link = null) {
 }
 
 function publicWorkLink(imageId) {
-  return { href: `/work.html?id=${encodeURIComponent(imageId)}`, label: "View on website" };
+  return { href: `/work.html?id=${encodeURIComponent(imageId)}`, label: "在网站中查看" };
 }
 
 function setSaveState(message = "", state = "") {
@@ -1185,16 +1185,16 @@ function applyReadinessFieldErrors(readiness) {
 }
 
 function readinessSummaryText(readiness) {
-  if (!workspaceOnline) return "Readiness is unavailable while this Workspace is offline.";
-  if (!readiness || readiness.status === "checking") return "Checking publishing requirements...";
-  if (readiness.status === "submitting") return "Publishing...";
-  if (readiness.status === "stale") return "Save the latest changes to refresh readiness.";
-  if (readiness.status === "error") return readiness.message || "Readiness could not be checked. Try again.";
-  if (readiness.status === "submitted") return "This version has been submitted.";
-  if (readiness.ready) return "Ready to publish.";
-  if (readinessIsPending(readiness)) return "Automated checks are still in progress.";
+  if (!workspaceOnline) return "离线时无法检查。";
+  if (!readiness || readiness.status === "checking") return "正在检查发布条件…";
+  if (readiness.status === "submitting") return "正在发布…";
+  if (readiness.status === "stale") return "保存最新修改后会重新检查。";
+  if (readiness.status === "error") return readiness.message || "检查失败，请重试。";
+  if (readiness.status === "submitted") return "这个版本已经提交。";
+  if (readiness.ready) return "可以发布。";
+  if (readinessIsPending(readiness)) return "自动检查还在进行中。";
   const blockers = Number.isInteger(readiness.blocker_count) ? readiness.blocker_count : 0;
-  return blockers === 1 ? "1 requirement needs attention." : `${blockers || "Some"} requirements need attention.`;
+  return blockers === 1 ? "有 1 项需要处理。" : `有 ${blockers || "几"} 项需要处理。`;
 }
 
 function renderReadiness() {
@@ -1264,7 +1264,7 @@ async function refreshActiveReadiness({ silent = false, allowWhileSubmitting = f
       readiness.status = "blocked";
       readiness.message = "A newer server Draft exists. Reload it before submitting.";
       readiness.blocker_count = Math.max(readiness.blocker_count || 0, 1);
-      setSaveState("A newer server Draft exists. Reload before saving or submitting.", "conflict");
+      setSaveState("这张草稿刚在别处被修改过，请先重新读取。", "conflict");
     }
     replaceRecordReadiness(recordId, readiness);
     renderReadiness();
@@ -1279,7 +1279,7 @@ async function refreshActiveReadiness({ silent = false, allowWhileSubmitting = f
       image_id: recordId,
       status: "error",
       ready: false,
-      message: error?.message || "Readiness could not be checked. Try again.",
+      message: error?.message || "检查失败，请重试。",
       checks: currentRecord?.readiness?.checks || READINESS_CHECK_DEFAULTS.map((check) => ({ ...check, state: "blocked" })),
     };
     replaceRecordReadiness(recordId, errorReadiness);
@@ -1291,19 +1291,47 @@ async function refreshActiveReadiness({ silent = false, allowWhileSubmitting = f
 
 function taskLabel(stage) {
   const labels = {
-    queued: "Queued",
-    reading: "Reading",
-    compressing: "Compressing",
-    slicing: "Slicing",
-    analyzing: "Analyzing",
-    uploading: "Uploading",
-    canceling: "Canceling",
-    canceled: "Canceled",
-    complete: "Draft ready",
-    warning: "Offline cache",
-    failed: "Failed",
+    queued: "排队中",
+    reading: "读取中",
+    compressing: "压缩中",
+    slicing: "生成展示图",
+    analyzing: "分析中",
+    uploading: "上传中",
+    canceling: "正在取消",
+    canceled: "已取消",
+    complete: "已就绪",
+    warning: "离线缓存",
+    failed: "失败",
   };
-  return labels[stage] || "Working";
+  return labels[stage] || "处理中";
+}
+
+// Upload → security scan → display images → publishable (design/admin-mockups-v4).
+const UPLOAD_STEP_LABELS = ["上传", "安全扫描", "生成展示图", "可发布"];
+
+function uploadStepsHtml(index, { failed = false, done = false } = {}) {
+  const items = UPLOAD_STEP_LABELS.map((label, step) => {
+    let state = "";
+    if (step < index || (step === index && done)) state = "done";
+    else if (step === index) state = failed ? "failed" : "current";
+    return `<li${state ? ` data-state="${state}"` : ""}>${label}</li>`;
+  }).join("");
+  return `<ol class="admin-steps" aria-label="进度：${UPLOAD_STEP_LABELS[index]}${failed ? "失败" : ""}">${items}</ol>`;
+}
+
+function taskStepIndex(stage) {
+  if (stage === "uploading") return 0;
+  if (["compressing", "slicing", "analyzing"].includes(stage)) return 2;
+  if (stage === "complete") return 1;
+  return 0;
+}
+
+function recordStepsHtml(record) {
+  const processing = record.processing_status;
+  if (processing === "failed" || processing === "canceled") return uploadStepsHtml(1, { failed: true });
+  if (!record.serverBacked || processing === "pending" || processing === "uploading") return uploadStepsHtml(0);
+  if (processing === "processing") return uploadStepsHtml(1);
+  return uploadStepsHtml(3, { done: record.publication_status === "published" });
 }
 
 function createTask(file, index, folder, quickDefaults = null) {
@@ -1316,7 +1344,7 @@ function createTask(file, index, folder, quickDefaults = null) {
     quickDefaults,
     stage: "queued",
     progress: 0,
-    message: "Waiting to start.",
+    message: "等待开始。",
     attempt: 0,
     inFlight: false,
     cancelRequested: false,
@@ -1395,7 +1423,7 @@ function renderFolders() {
     trashCountElement.textContent = String(trashedRecords.length);
   }
   if (workspaceLoading) {
-    if (folderSummary) folderSummary.textContent = "Loading folders";
+    if (folderSummary) folderSummary.textContent = "正在读取文件夹";
     if (folderList) {
       folderList.innerHTML = '<div class="upload-studio-folder-loading" aria-hidden="true"><span></span><span></span></div>';
     }
@@ -1406,19 +1434,19 @@ function renderFolders() {
     return;
   }
   const showingTrash = activeWorkspaceView === "trash";
-  if (folderPanelTitle) folderPanelTitle.textContent = showingTrash ? "Trash" : "Folders";
+  if (folderPanelTitle) folderPanelTitle.textContent = showingTrash ? "回收站" : "文件夹";
   if (folderForm) folderForm.hidden = showingTrash;
   if (folderList) folderList.hidden = showingTrash;
   if (showingTrash) {
     if (folderSummary) {
       folderSummary.textContent = trashLoading
-        ? "Loading items"
+        ? "正在读取"
         : trashError
-          ? "Unavailable"
-          : `${trashedRecords.length} item${trashedRecords.length === 1 ? "" : "s"}`;
+          ? "暂不可用"
+          : `${trashedRecords.length} 张`;
     }
   } else if (folderSummary) {
-    folderSummary.textContent = `${folders.length} folder${folders.length === 1 ? "" : "s"}`;
+    folderSummary.textContent = `${folders.length} 个文件夹`;
   }
   if (folderList && !showingTrash) {
     folderList.innerHTML = folders
@@ -1437,7 +1465,7 @@ function renderFolders() {
             </button>
             ${folder.is_system || !workspaceOnline ? "" : `
               <span class="upload-studio-folder-actions">
-                <button type="button" data-folder-rename="${escapeHtml(folder.id)}" aria-label="Rename ${escapeHtml(folder.name)}" data-tooltip="Rename folder">
+                <button type="button" data-folder-rename="${escapeHtml(folder.id)}" aria-label="Rename ${escapeHtml(folder.name)}" data-tooltip="重命名文件夹">
                   <svg class="ui-icon" aria-hidden="true"><use href="#icon-pen"></use></svg>
                 </button>
                 <button type="button" data-folder-delete="${escapeHtml(folder.id)}" aria-label="Delete ${escapeHtml(folder.name)}" data-tooltip="Delete folder">
@@ -1475,8 +1503,8 @@ function renderTrashQueue() {
     queueElement.innerHTML = `
       <article class="upload-studio-empty upload-studio-trash-message" data-state="error">
         <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-alert"></use></svg>
-        <h2>${permissionError ? "Trash access unavailable" : "Trash could not be loaded"}</h2>
-        <p>${escapeHtml(permissionError ? "Your account cannot read or restore these Drafts." : trashError.message || "Try loading Trash again.")}</p>
+        <h2>${permissionError ? "无法打开回收站" : "回收站读取失败"}</h2>
+        <p>${escapeHtml(permissionError ? "你的账号不能查看或恢复这些草稿。" : trashError.message || "请重新打开回收站。")}</p>
         ${permissionError ? "" : `<button class="upload-studio-secondary" type="button" data-trash-retry>
           <svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg>
           Retry
@@ -1523,7 +1551,7 @@ function renderQueue() {
   if (queueElement) queueElement.setAttribute("aria-busy", String(workspaceLoading));
   if (workspaceLoading) {
     if (countElement) countElement.textContent = "–";
-    if (statusElement) statusElement.textContent = "Loading";
+    if (statusElement) statusElement.textContent = "读取中";
     if (queueElement) {
       queueElement.innerHTML = `
         <article class="upload-studio-empty upload-studio-loading" aria-label="Loading workspace">
@@ -1543,14 +1571,14 @@ function renderQueue() {
     const failedCount = activeTasks.filter((task) => task.stage === "failed").length;
     const canceledCount = activeTasks.filter((task) => task.stage === "canceled").length;
     statusElement.textContent = !workspaceOnline
-      ? "Offline"
+      ? "离线"
       : workingCount
-        ? `${workingCount} active`
+        ? `${workingCount} 张处理中`
         : failedCount
-          ? `${failedCount} failed`
+          ? `${failedCount} 张失败`
           : canceledCount
-            ? `${canceledCount} canceled`
-            : "Ready";
+            ? `${canceledCount} 张已取消`
+            : "就绪";
   }
   if (!queueElement) {
     return;
@@ -1559,7 +1587,7 @@ function renderQueue() {
     queueElement.innerHTML = `
       <article class="upload-studio-empty">
         <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-image"></use></svg>
-        <h2>No image in ${escapeHtml(activeFolder().name)}</h2>
+        <h2>「${escapeHtml(activeFolder().name)}」里还没有图片</h2>
       </article>
     `;
     return;
@@ -1571,15 +1599,15 @@ function renderQueue() {
     const canDismiss = !task.inFlight && ["failed", "canceled"].includes(task.stage);
     const actions = [
       canRetry ? `
-        <button type="button" data-task-retry="${escapeHtml(task.id)}" aria-label="Retry ${escapeHtml(task.name)}" data-tooltip="Retry upload">
+        <button type="button" data-task-retry="${escapeHtml(task.id)}" aria-label="重试 ${escapeHtml(task.name)}" data-tooltip="重试">
           <svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg>
         </button>` : "",
       canCancel ? `
-        <button type="button" data-task-cancel="${escapeHtml(task.id)}" aria-label="Cancel ${escapeHtml(task.name)}" data-tooltip="Cancel upload">
+        <button type="button" data-task-cancel="${escapeHtml(task.id)}" aria-label="取消 ${escapeHtml(task.name)}" data-tooltip="取消上传">
           <svg class="ui-icon" aria-hidden="true"><use href="#icon-x"></use></svg>
         </button>` : "",
       canDismiss ? `
-        <button type="button" data-task-dismiss="${escapeHtml(task.id)}" aria-label="Remove ${escapeHtml(task.name)}" data-tooltip="Remove from queue">
+        <button type="button" data-task-dismiss="${escapeHtml(task.id)}" aria-label="移除 ${escapeHtml(task.name)}" data-tooltip="从列表移除">
           <svg class="ui-icon" aria-hidden="true"><use href="#icon-trash"></use></svg>
         </button>` : "",
     ].join("");
@@ -1592,10 +1620,11 @@ function renderQueue() {
           <span class="upload-studio-card-copy">
             <strong>${escapeHtml(task.name)}</strong>
             <small>${escapeHtml(task.message)}</small>
-            <small>Attempt ${task.attempt || 1}</small>
+            <small>${task.attempt > 1 ? `第 ${task.attempt} 次尝试` : ""}</small>
           </span>
           <span class="upload-studio-card-state" data-state="${escapeHtml(task.stage)}">${escapeHtml(taskLabel(task.stage))}</span>
         </div>
+        ${uploadStepsHtml(taskStepIndex(task.stage), { failed: task.stage === "failed" })}
         <span class="upload-studio-task-actions">${actions}</span>
         <span class="upload-studio-progress" aria-hidden="true"><span style="width:${Math.min(Math.max(task.progress, 0), 100)}%;"></span></span>
       </article>`;
@@ -1610,14 +1639,15 @@ function renderQueue() {
       return `
         <article class="upload-studio-card ${record.id === activeRecordId ? "is-active" : ""}">
           <button class="upload-studio-card-main" type="button" data-record-id="${escapeHtml(record.id)}">
-            <img src="${escapeHtml(thumbnailUrl(record))}" alt="${escapeHtml(record.title || "Uploaded image preview")}" loading="lazy" decoding="async" />
+            <img src="${escapeHtml(thumbnailUrl(record))}" alt="${escapeHtml(record.title || "图片预览")}" loading="lazy" decoding="async" />
             <span class="upload-studio-card-copy">
-              <strong>${escapeHtml(record.title || "Untitled Work")}</strong>
-              <small>${escapeHtml(contentTypeLabel(record.imageRecord?.content_type || record.type))} / ${escapeHtml(record.ratio || "1:1")}</small>
-              <small>${escapeHtml(formatBytes(original?.byte_size))} -> ${escapeHtml(formatBytes(display?.byte_size || original?.byte_size))}</small>
+              <strong>${escapeHtml(record.title || "未命名作品")}</strong>
+              <small>${contentTypeCode(record.imageRecord?.content_type || record.type) === "abstract" ? "此间留灰" : "此间留彩"} · ${escapeHtml(record.ratio || "1:1")}</small>
+              <small>原图 ${escapeHtml(formatBytes(original?.byte_size))} · 展示图 ${escapeHtml(formatBytes(display?.byte_size || original?.byte_size))}</small>
             </span>
-            <span class="upload-studio-card-state" data-state="${escapeHtml(stage)}">${escapeHtml(taskLabel(stage))}</span>
+            <span class="upload-studio-card-state" data-state="${escapeHtml(stage)}">${escapeHtml(record.publication_status === "published" ? "已发布" : taskLabel(stage))}</span>
           </button>
+          ${recordStepsHtml(record)}
           <span class="upload-studio-progress" aria-hidden="true"><span style="width:${Math.min(Math.max(progress, 0), 100)}%;"></span></span>
         </article>`;
     });
@@ -1680,7 +1710,7 @@ function renderEditor() {
   }
   if (previewImage) {
     previewImage.src = displayUrl(record);
-    previewImage.alt = record.title || "Uploaded image preview";
+    previewImage.alt = record.title || "图片预览";
   }
   // The exhibition display preview (studio-exhibition.js) follows the Draft.
   document.dispatchEvent(new CustomEvent("mt:studio-record", {
@@ -1697,10 +1727,10 @@ function renderEditor() {
     const display = preferredAsset(record, ["display"]);
     const thumbnail = preferredAsset(record, ["thumbnail"]);
     assetSummary.innerHTML = [
-      ["Original", `${record.width} x ${record.height} / ${formatBytes(original?.byte_size)}`],
-      ["Display", display ? `${display.width} x ${display.height} / ${formatBytes(display.byte_size)}` : "Original fallback"],
-      ["Thumbnail", thumbnail ? `${thumbnail.width} x ${thumbnail.height} / ${formatBytes(thumbnail.byte_size)}` : "Not generated"],
-      ["Status", titleCase(record.visibility || "draft")],
+      ["原图", `${record.width} × ${record.height} · ${formatBytes(original?.byte_size)}`],
+      ["展示图", display ? `${display.width} × ${display.height} · ${formatBytes(display.byte_size)}` : "使用原图"],
+      ["缩略图", thumbnail ? `${thumbnail.width} × ${thumbnail.height} · ${formatBytes(thumbnail.byte_size)}` : "未生成"],
+      ["状态", record.publication_status === "published" ? "已发布" : "草稿"],
     ]
       .map(([term, value]) => `<div><dt>${escapeHtml(term)}</dt><dd>${escapeHtml(value)}</dd></div>`)
       .join("");
@@ -1767,8 +1797,8 @@ function setWorkspaceControls() {
   }
   if (submitRecordLabel) {
     submitRecordLabel.textContent = submissionInFlight
-      ? (record?.readiness?.status === "submitting" ? "Publishing..." : "Checking...")
-      : "Publish";
+      ? (record?.readiness?.status === "submitting" ? "正在发布…" : "正在检查…")
+      : "发布到网站";
   }
   if (submitRecordButton) {
     submitRecordButton.disabled = !workspaceOnline
@@ -1784,8 +1814,8 @@ function setWorkspaceControls() {
   if (submitReadyButton) {
     submitReadyButton.disabled = importDisabled || !recordsForActiveFolder().length;
     submitReadyButton.textContent = bulkSubmissionInFlight
-      ? (submissionInFlight ? "Publishing ready Drafts…" : "Checking readiness…")
-      : "Check & publish ready";
+      ? (submissionInFlight ? "正在发布…" : "正在检查…")
+      : "检查并发布";
   }
 }
 
@@ -1904,7 +1934,7 @@ function markDraftDirty() {
   draftEditRevision += 1;
   draftDirty = true;
   if (draftConflict) {
-    setSaveState("A newer server Draft exists. Reload before saving.", "conflict");
+    setSaveState("这张草稿刚在别处被修改过，请先重新读取。", "conflict");
     setWorkspaceControls();
     return;
   }
@@ -1917,7 +1947,7 @@ function markDraftDirty() {
     checks: record?.readiness?.checks || READINESS_CHECK_DEFAULTS.map((check) => ({ ...check, state: "pending" })),
   });
   renderReadiness();
-  setSaveState("Unsaved changes. Saving automatically...", "dirty");
+  setSaveState("有未保存的修改，正在自动保存…", "dirty");
   setWorkspaceControls();
   if (draftSaveInFlight) {
     pendingAutosave = true;
@@ -1947,16 +1977,16 @@ async function performDraftSave(source) {
     return false;
   }
   if (!workspaceOnline) {
-    setSaveState("Offline cache is read-only. Reconnect before saving.", "warning");
+    setSaveState("离线缓存只能查看，请联网后再保存。", "warning");
     return false;
   }
   if (!draftDirty) {
-    setSaveState("All changes saved.", "saved");
+    setSaveState("已保存。", "saved");
     return true;
   }
   const valid = source === "manual" ? formElement.reportValidity() : formElement.checkValidity();
   if (!valid) {
-    setSaveState("Fix the invalid fields before this Draft can be saved.", "error");
+    setSaveState("请先修正标红的内容再保存。", "error");
     return false;
   }
   const savingRecordId = record.id;
@@ -1964,7 +1994,7 @@ async function performDraftSave(source) {
   const nextRecord = recordFromForm(record);
   let refreshReadinessAfterSave = false;
   draftSaveInFlight = true;
-  setSaveState(source === "autosave" ? "Saving changes..." : "Saving Draft...", "saving");
+  setSaveState(source === "autosave" ? "正在保存…" : "正在保存草稿…", "saving");
   setWorkspaceControls();
   try {
     const { savedRecord, cacheSaved } = await persistRecord(nextRecord);
@@ -1978,14 +2008,14 @@ async function performDraftSave(source) {
       pendingAutosave = false;
       refreshReadinessAfterSave = true;
       const successMessage = cacheSaved
-        ? (source === "autosave" ? "Saved automatically." : "Saved to your secure Workspace.")
-        : "Saved to the server. Offline cache is unavailable.";
+        ? (source === "autosave" ? "已自动保存。" : "已保存。")
+        : "已保存到服务器（本地缓存不可用）。";
       setSaveState(successMessage, cacheSaved ? "saved" : "warning");
-      if (source === "manual") showToast("Draft information saved.");
+      if (source === "manual") showToast("草稿已保存。");
     } else {
       draftDirty = true;
       pendingAutosave = true;
-      setSaveState("Unsaved changes. Saving automatically...", "dirty");
+      setSaveState("有未保存的修改，正在自动保存…", "dirty");
     }
     return true;
   } catch (error) {
@@ -1994,11 +2024,11 @@ async function performDraftSave(source) {
       clearAutosaveTimer();
       pendingAutosave = false;
       draftConflict = true;
-      setSaveState("A newer server Draft exists. Reload before saving.", "conflict");
-      showToast("Draft changed elsewhere. Reload the server version before continuing.", "error");
+      setSaveState("这张草稿刚在别处被修改过，请先重新读取。", "conflict");
+      showToast("这张草稿刚在别处被修改过，请先重新读取。", "error");
     } else {
-      setSaveState(error?.message || "Save failed. Your changes remain in this form.", "error");
-      showToast("Draft save failed. Your changes remain in this form.", "error");
+      setSaveState(error?.message || "保存失败，修改仍保留在表单里。", "error");
+      showToast("保存失败，修改仍保留在表单里。", "error");
     }
     return false;
   } finally {
@@ -2041,7 +2071,7 @@ async function reloadActiveRecord() {
   const recordId = activeRecordId;
   if (!recordId || draftSaveInFlight || submissionPreparing || submissionInFlight || !workspaceOnline) return;
   clearAutosaveTimer();
-  setSaveState("Reloading server Draft...", "saving");
+  setSaveState("正在重新读取草稿…", "saving");
   setWorkspaceControls();
   try {
     await loadExistingUploadRecords();
@@ -2051,12 +2081,12 @@ async function reloadActiveRecord() {
     activeRecordId = recordId;
     activeFolderId = records.find((record) => record.id === recordId).folder_id;
     saveActiveFolder();
-    resetDraftEditState("Server Draft loaded.");
+    resetDraftEditState("已重新读取草稿。");
     renderAll();
     refreshActiveReadiness();
   } catch (error) {
-    setSaveState(error?.message || "Unable to reload the server Draft.", "error");
-    showToast("Unable to reload the server Draft.", "error");
+    setSaveState(error?.message || "重新读取失败。", "error");
+    showToast("重新读取失败。", "error");
   }
 }
 
@@ -2078,8 +2108,8 @@ function confirmDraftSubmission(record) {
   const title = record?.title || "Untitled Work";
   return confirmSubmission({
     title: `Publish "${title}"?`,
-    message: "The saved version is published to the website straight away. You confirm that you own this photograph and that it is suitable for public display.",
-    confirmLabel: "Publish",
+    message: "已保存的版本会立即出现在网站上。发布即表示你拥有这张照片的版权，并且它适合公开展示。",
+    confirmLabel: "发布到网站",
   });
 }
 
@@ -2106,7 +2136,7 @@ async function performActiveRecordSubmission() {
   try {
     const saved = await flushDraftBeforeNavigation();
     if (!saved || activeRecordId !== recordId) {
-      showToast("Save the latest Draft changes before submitting.", "error");
+      showToast("请先保存最新修改再发布。", "error");
       return false;
     }
     submissionInFlight = true;
@@ -2115,7 +2145,7 @@ async function performActiveRecordSubmission() {
     const readiness = await refreshActiveReadiness({ allowWhileSubmitting: true });
     const currentRecord = records.find((item) => item.id === recordId);
     if (!currentRecord || !readiness?.ready || readiness.status !== "ready" || draftConflict) {
-      showToast(readiness?.message || "This Draft is not ready to submit.", "error");
+      showToast(readiness?.message || "这张草稿还不能发布。", "error");
       focusReadiness();
       return false;
     }
@@ -2154,17 +2184,17 @@ async function performActiveRecordSubmission() {
     activeRecordId = recordsForActiveFolder()[0]?.id || null;
     nextRecordId = activeRecordId;
     submitted = true;
-    resetDraftEditState(activeRecordId ? "All changes saved." : "");
+    resetDraftEditState(activeRecordId ? "已保存。" : "");
     if (publishError) {
       const reason = publishError.code === "REVIEW_SELF_PUBLISH_FORBIDDEN"
-        ? "Publishing needs a Super Admin account."
-        : publishError.message || "Publishing failed.";
-      showToast(`Saved and submitted, but not yet public: ${reason}`, "error");
+        ? "发布需要超级管理员账号。"
+        : publishError.message || "发布失败。";
+      showToast(`已保存并提交，但还没公开：${reason}`, "error");
       return true;
     }
     showToast(cacheDeleted
-      ? "Published to the website."
-      : "Published to the website; offline cache cleanup is pending.", "info", publicWorkLink(recordId));
+      ? "已发布到网站。"
+      : "已发布到网站。", "info", publicWorkLink(recordId));
     return true;
   } catch (error) {
     if (error?.status && error.status < 500) submissionIdempotencyKeys.delete(recordId);
@@ -2175,8 +2205,8 @@ async function performActiveRecordSubmission() {
     if (error?.code === "DRAFT_VERSION_CONFLICT") {
       draftConflict = true;
       clearReadinessPoll();
-      setSaveState("A newer server Draft exists. Reload before submitting.", "conflict");
-      showToast("Draft changed elsewhere. Reload the server version before submitting.", "error");
+      setSaveState("这张草稿刚在别处被修改过，请先重新读取。", "conflict");
+      showToast("这张草稿刚在别处被修改过，请先重新读取。", "error");
     } else {
       const record = records.find((item) => item.id === recordId);
       const currentReadiness = record?.readiness;
@@ -2185,10 +2215,10 @@ async function performActiveRecordSubmission() {
         image_id: recordId,
         status: error?.readiness ? currentReadiness?.status || "blocked" : "error",
         ready: false,
-        message: error?.message || "Submission failed. Try again.",
+        message: error?.message || "发布失败，请重试。",
         checks: currentReadiness?.checks || READINESS_CHECK_DEFAULTS.map((check) => ({ ...check, state: "blocked" })),
       });
-      showToast(error?.message || "Submission failed. The Draft remains available.", "error");
+      showToast(error?.message || "发布失败，草稿仍然保留。", "error");
     }
     return false;
   } finally {
@@ -2256,13 +2286,13 @@ async function submitReadyRecordsInFolder() {
     || activeWorkspaceView !== "drafts"
   ) return;
   if (!(await flushDraftBeforeNavigation())) {
-    showToast("Save the active Draft before starting batch submission.", "error");
+    showToast("请先保存当前草稿再批量发布。", "error");
     return;
   }
   const folder = activeFolder();
   const candidates = [...recordsForActiveFolder()];
   if (!candidates.length) {
-    showToast(`There are no Drafts in ${folder.name}.`, "error");
+    showToast(`「${folder.name}」里没有草稿。`, "error");
     return;
   }
 
@@ -2288,17 +2318,17 @@ async function submitReadyRecordsInFolder() {
       const pending = readinessResults.length - checkingFailed;
       showToast(
         checkingFailed
-          ? `No Draft is ready; ${checkingFailed} readiness check${checkingFailed === 1 ? "" : "s"} failed.`
-          : `${pending} Draft${pending === 1 ? " is" : "s are"} still waiting for metadata or security scanning.`,
+          ? `没有可以发布的草稿，其中 ${checkingFailed} 张检查失败。`
+          : `${pending} 张草稿还在等待填写信息或安全扫描。`,
         "error",
       );
       return;
     }
 
     const confirmed = await confirmSubmission({
-      title: `Publish ${ready.length} ready Draft${ready.length === 1 ? "" : "s"}?`,
-      message: `Only ready Drafts in ${folder.name} are published to the website. Pending or blocked Drafts stay here. You confirm that you own these photographs and that they are suitable for public display.`,
-      confirmLabel: `Publish ${ready.length}`,
+      title: `发布 ${ready.length} 张已就绪的草稿？`,
+      message: `只发布「${folder.name}」里已通过检查的草稿，其余的留在这里。发布即表示你拥有这些照片的版权，并且它们适合公开展示。`,
+      confirmLabel: `发布 ${ready.length} 张`,
     });
     if (!confirmed) return;
 
@@ -2329,19 +2359,19 @@ async function submitReadyRecordsInFolder() {
     const failed = submittedResults.length - submitted.length;
     const cacheWarnings = submitted.filter((result) => !result.cacheDeleted).length;
     activeRecordId = recordsForActiveFolder()[0]?.id || null;
-    resetDraftEditState(activeRecordId ? "All changes saved." : "");
+    resetDraftEditState(activeRecordId ? "已保存。" : "");
     const problems = [
-      notPublic ? `${notPublic} submitted but not yet public` : "",
-      failed ? `${failed} stayed in Drafts and need attention` : "",
+      notPublic ? `${notPublic} 张已提交但还没公开` : "",
+      failed ? `${failed} 张留在草稿里需要处理` : "",
     ].filter(Boolean);
     showToast(
       problems.length
-        ? `${published} published; ${problems.join("; ")}.`
+        ? `已发布 ${published} 张；${problems.join("；")}。`
         : cacheWarnings
-          ? `${published} published; offline cache cleanup is pending.`
-          : `${published} Draft${published === 1 ? "" : "s"} published to the website.`,
+          ? `已发布 ${published} 张。`
+          : `已发布 ${published} 张到网站。`,
       problems.length ? "error" : "info",
-      published ? { href: "/works.html", label: "View Works" } : null,
+      published ? { href: "/works.html", label: "作品管理" } : null,
     );
   } finally {
     bulkSubmissionInFlight = false;
@@ -2360,18 +2390,18 @@ async function deleteActiveRecord() {
     return;
   }
   if (!workspaceOnline) {
-    showToast("Offline cache is read-only.", "error");
+    showToast("离线缓存只能查看。", "error");
     return;
   }
   if (!(await flushDraftBeforeNavigation())) return;
   if (activeRecordId !== recordId) return;
   record = records.find((item) => item.id === recordId);
   if (!record) return;
-  const confirmed = window.confirm(`Move "${record.title || "Untitled Work"}" to Trash?`);
+  const confirmed = window.confirm(`把《${record.title || "未命名作品"}》移到回收站？`);
   if (!confirmed) {
     return;
   }
-  setSaveState("Deleting image...", "saving");
+  setSaveState("正在删除…", "saving");
   if (deleteRecordButton) {
     deleteRecordButton.disabled = true;
   }
@@ -2397,18 +2427,18 @@ async function deleteActiveRecord() {
     taskByRecordId.delete(record.id);
     uploadTasks = uploadTasks.filter((task) => task !== completedTask);
     activeRecordId = recordsForActiveFolder()[0]?.id || null;
-    resetDraftEditState(cacheDeleted ? "Draft moved to Trash." : "Draft moved to Trash. Offline cache cleanup is pending.");
-    showToast(cacheDeleted ? "Draft moved to Trash." : "Draft moved to Trash; offline cache cleanup is pending.");
+    resetDraftEditState(cacheDeleted ? "已移到回收站。" : "已移到回收站。");
+    showToast(cacheDeleted ? "已移到回收站。" : "已移到回收站。");
     renderAll();
     if (activeRecordId) refreshActiveReadiness();
   } catch (error) {
     if (error?.code === "DRAFT_VERSION_CONFLICT") {
       draftConflict = true;
-      setSaveState("A newer server Draft exists. Reload before moving it to Trash.", "conflict");
-      showToast("Draft changed elsewhere. Reload the server version before continuing.", "error");
+      setSaveState("这张草稿刚在别处被修改过，请先重新读取。", "conflict");
+      showToast("这张草稿刚在别处被修改过，请先重新读取。", "error");
     } else {
-      setSaveState(error?.message || "Unable to delete image.", "error");
-      showToast("Unable to delete image.", "error");
+      setSaveState(error?.message || "删除失败。", "error");
+      showToast("删除失败。", "error");
     }
   } finally {
     setWorkspaceControls();
@@ -2478,15 +2508,15 @@ async function processUploadTask(task) {
   task.intent = null;
   task.cleanupStatus = null;
   task.abortController = new AbortController();
-  task.update("queued", 2, task.attempt > 1 ? "Preparing retry." : "Waiting to start.");
+  task.update("queued", 2, task.attempt > 1 ? "准备重试。" : "等待开始。");
 
   try {
     await prepareUploadTask(task);
     throwIfTaskCanceled(task);
     if (task.attempt > 1) {
-      task.update("uploading", 80, "Reusing prepared image assets.");
+      task.update("uploading", 80, "使用已生成的图片文件。");
     }
-    task.update("uploading", 82, "Creating secure upload destinations.");
+    task.update("uploading", 82, "正在准备上传。");
     task.intent = await createWorkspaceUploadIntent(task.localRecord, task.uploadAssets, task.abortController.signal);
     throwIfTaskCanceled(task);
     for (const [assetIndex, destination] of task.intent.assets.entries()) {
@@ -2495,17 +2525,17 @@ async function processUploadTask(task) {
       await uploadAssetToSignedUrl(destination, source, task.abortController.signal);
       throwIfTaskCanceled(task);
     }
-    task.update("uploading", 97, "Verifying assets and creating the server Draft.");
+    task.update("uploading", 97, "正在校验文件并创建草稿。");
     let record = await completeWorkspaceUpload(task.intent, task.localRecord, task.abortController.signal);
     task.intent = null;
     let quickDefaultsApplied = false;
     if (task.quickDefaults) {
-      task.update("uploading", 99, "Applying shared rights and disclosure defaults.");
+      task.update("uploading", 99, "正在应用共用设置。");
       try {
         record = await saveWorkspaceDraft(applyQuickUploadDefaults(record, task.quickDefaults));
         quickDefaultsApplied = true;
       } catch (error) {
-        task.message = error?.message || "Shared defaults could not be saved; the private Draft remains editable.";
+        task.message = error?.message || "共用设置没有保存，草稿仍可编辑。";
       }
     }
     task.recordId = record.id;
@@ -2513,7 +2543,7 @@ async function processUploadTask(task) {
     records = [record, ...records.filter((existing) => existing.id !== record.id)];
     if (!draftDirty && !draftSaveInFlight && !draftConflict && !submissionPreparing && !submissionInFlight) {
       activeRecordId = record.id;
-      resetDraftEditState("All changes saved.");
+      resetDraftEditState("已保存。");
     }
     let cacheSaved = true;
     try {
@@ -2527,18 +2557,18 @@ async function processUploadTask(task) {
       "complete",
       100,
       quickDefaultsApplied
-        ? "Quick Draft ready; security scan continues."
+        ? "草稿已创建，安全扫描进行中。"
         : task.quickDefaults
-          ? "Draft ready; review the shared defaults before submission."
-          : "Server Draft ready.",
+          ? "草稿已创建，发布前请检查共用设置。"
+          : "草稿已创建。",
     );
     if (activeRecordId === record.id) refreshActiveReadiness();
     showToast(
       task.quickDefaults && !quickDefaultsApplied
-        ? "Image is safe as a private Draft, but shared defaults need review."
+        ? "图片已存为草稿，共用设置需要检查。"
         : cacheSaved
-          ? "Image uploaded as a private Draft."
-          : "Image uploaded as a private Draft; offline cache is unavailable.",
+          ? "图片已上传为草稿。"
+          : "图片已上传为草稿。",
       task.quickDefaults && !quickDefaultsApplied ? "error" : "info",
     );
   } catch (error) {
@@ -2555,7 +2585,7 @@ async function processUploadTask(task) {
     task.progress = canceled ? Math.min(task.progress, 99) : 100;
     task.message = canceled
       ? `Upload canceled.${cleanupWarning}`
-      : `${error?.message || "Upload failed."}${cleanupWarning}`;
+      : `${error?.message || "上传失败。"}${cleanupWarning}`;
     showToast(task.message, canceled ? "info" : "error");
     renderAll();
   } finally {
@@ -2570,18 +2600,18 @@ async function cancelUploadTask(taskId) {
   if (!task.inFlight) {
     task.retryable = true;
     task.stage = "canceled";
-    task.message = "Queued upload canceled before processing.";
+    task.message = "已取消。";
     renderAll();
     return;
   }
   task.stage = "canceling";
-  task.message = "Stopping upload and removing temporary objects.";
+  task.message = "正在停止上传并清理临时文件。";
   task.abortController?.abort();
   renderAll();
   await cleanupTaskIntent(task);
   if (task.inFlight) {
     task.stage = "canceling";
-    task.message = "Waiting for local image processing to stop.";
+    task.message = "等待本地处理停止。";
   }
   renderAll();
 }
@@ -2652,16 +2682,16 @@ async function handleFiles(fileList, { quickDefaults = null } = {}) {
     return;
   }
   if (activeWorkspaceView !== "drafts" || !workspaceOnline || submissionPreparing || submissionInFlight) {
-    showToast(workspaceOnline ? "Wait for the current submission to finish." : "Reconnect before importing images.", "error");
+    showToast(workspaceOnline ? "请等当前发布完成。" : "请联网后再上传。", "error");
     return;
   }
   if (!window.MTArchiveUpload) {
-    showToast("Upload module is not available.", "error");
+    showToast("上传组件不可用，请刷新页面。", "error");
     return;
   }
   const files = confirmDuplicateUploads(chosenFiles);
   if (!files.length) {
-    showToast("Skipped photographs that are already in your Drafts.");
+    showToast("已跳过草稿中已有的照片。");
     return;
   }
   if (!archiveDb) {
@@ -2681,7 +2711,7 @@ async function selectRecord(recordId) {
   activeRecordId = recordId;
   activeFolderId = records.find((record) => record.id === recordId)?.folder_id || activeFolderId;
   saveActiveFolder();
-  resetDraftEditState("All changes saved.");
+  resetDraftEditState("已保存。");
   renderAll();
   refreshActiveReadiness();
   return true;
@@ -2724,7 +2754,7 @@ async function switchWorkspaceView(nextView) {
   clearReadinessPoll();
   activeWorkspaceView = next;
   activeRecordId = next === "drafts" ? recordsForActiveFolder()[0]?.id || null : null;
-  resetDraftEditState(activeRecordId ? "All changes saved." : "");
+  resetDraftEditState(activeRecordId ? "已保存。" : "");
   saveActiveFolder();
   renderAll();
   if (next === "trash") {
@@ -2750,16 +2780,16 @@ async function restoreTrashedRecord(recordId) {
     saveActiveFolder();
     if (!archiveDb) archiveDb = await openArchiveDatabase();
     await putStoredItem(restored).catch(() => undefined);
-    showToast(`Draft restored to ${restored.folder_name || "Inbox"}.`, "success");
+    showToast(`草稿已恢复到「${restored.folder_name || "Inbox"}」。`, "success");
     restoredSuccessfully = true;
   } catch (error) {
     const message = error?.status === 403
-      ? "Your account cannot restore this Draft."
+      ? "你的账号不能恢复这张草稿。"
       : error?.status === 409
-        ? "This Draft changed elsewhere. Refresh Trash before retrying."
+        ? "这张草稿刚在别处被修改过，请刷新回收站后重试。"
         : error?.status === 404
-          ? "This Draft is no longer in Trash. Refresh the list."
-          : error?.message || "The Draft could not be restored.";
+          ? "这张草稿已不在回收站，请刷新列表。"
+          : error?.message || "恢复失败。";
     trashRestoreErrors.set(recordId, message);
     showToast(message, "error");
   } finally {
@@ -2788,7 +2818,7 @@ async function loadOfflineCache() {
 folderForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!workspaceOnline || submissionPreparing || submissionInFlight) {
-    showToast("Reconnect before creating folders.", "error");
+    showToast("请联网后再新建文件夹。", "error");
     return;
   }
   const formData = new FormData(folderForm);
@@ -2805,9 +2835,9 @@ folderForm?.addEventListener("submit", async (event) => {
     saveActiveFolder();
     folderForm.reset();
     renderAll();
-    showToast(`Folder created: ${result.folder.name}`);
+    showToast(`已新建文件夹「${result.folder.name}」`);
   } catch (error) {
-    showToast(error.message || "Unable to create folder.", "error");
+    showToast(error.message || "新建文件夹失败。", "error");
   } finally {
     submit.disabled = false;
   }
@@ -2824,16 +2854,16 @@ folderList?.addEventListener("click", async (event) => {
   const renameButton = event.target.closest("[data-folder-rename]");
   if (renameButton) {
     const folder = folders.find((item) => item.id === renameButton.dataset.folderRename);
-    const nextName = window.prompt("Rename folder", folder?.name || "");
+    const nextName = window.prompt("重命名文件夹", folder?.name || "");
     if (!folder || nextName === null || !cleanText(nextName) || cleanText(nextName) === folder.name) return;
     try {
       const result = await renameWorkspaceFolder(folder.id, cleanText(nextName));
       folders = folders.map((item) => (item.id === folder.id ? result.folder : item));
       records = records.map((record) => (record.folder_id === folder.id ? { ...record, folder_name: result.folder.name } : record));
       renderAll();
-      showToast("Folder renamed.");
+      showToast("文件夹已重命名。");
     } catch (error) {
-      showToast(error.message || "Unable to rename folder.", "error");
+      showToast(error.message || "重命名失败。", "error");
     }
     return;
   }
@@ -2843,7 +2873,7 @@ folderList?.addEventListener("click", async (event) => {
     const folder = folders.find((item) => item.id === deleteButton.dataset.folderDelete);
     const folderTasks = uploadTasks.filter((task) => task.folder_id === folder?.id && !task.recordId);
     if (folderTasks.length) {
-      showToast("Finish or remove this folder's upload tasks before deleting it.", "error");
+      showToast("请先完成或移除这个文件夹里的上传任务，再删除文件夹。", "error");
       return;
     }
     if (!folder || !window.confirm(`Delete "${folder.name}"? Images in this folder will move to Inbox.`)) return;
@@ -2853,9 +2883,9 @@ folderList?.addEventListener("click", async (event) => {
       await loadExistingUploadRecords();
       renderAll();
       if (activeRecordId) refreshActiveReadiness();
-      showToast("Folder deleted. Its images are in Inbox.");
+      showToast("文件夹已删除，里面的图片移到了 Inbox。");
     } catch (error) {
-      showToast(error.message || "Unable to delete folder.", "error");
+      showToast(error.message || "删除文件夹失败。", "error");
     }
     return;
   }
@@ -2867,7 +2897,7 @@ folderList?.addEventListener("click", async (event) => {
   activeFolderId = button.dataset.folderId;
   saveActiveFolder();
   activeRecordId = recordsForActiveFolder()[0]?.id || null;
-  resetDraftEditState(activeRecordId ? "All changes saved." : "");
+  resetDraftEditState(activeRecordId ? "已保存。" : "");
   renderAll();
   if (activeRecordId) refreshActiveReadiness();
 });
@@ -3042,8 +3072,8 @@ async function initUploadStudio() {
       activeRecordId = null;
       await loadTrashRecords();
     }
-    setGlobalStatus("Ready");
-    resetDraftEditState(activeRecordId ? "All changes saved." : "");
+    setGlobalStatus("就绪");
+    resetDraftEditState(activeRecordId ? "已保存。" : "");
   } catch (error) {
     workspaceOnline = false;
     activeWorkspaceView = "drafts";
@@ -3052,9 +3082,9 @@ async function initUploadStudio() {
       records = [];
       activeRecordId = null;
     });
-    setGlobalStatus("Offline read-only");
+    setGlobalStatus("离线只读");
     saveActiveFolder();
-    showToast(error?.message || "Workspace unavailable. Showing a read-only local cache.", "error");
+    showToast(error?.message || "无法连接后台，正在显示本地缓存（只能查看）。", "error");
   }
   workspaceLoading = false;
   renderAll();

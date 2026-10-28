@@ -1,16 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Account Settings | MT Presence</title>
+    <title>账号与安全 | MT Presence 后台</title>
     <meta name="description" content="Manage your MT Presence profile, authorship preferences, and secure sessions." />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/styles.css?v=20261021-visitor-experience" />
+    <link rel="stylesheet" href="/admin.css?v=20261028-admin-2" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
     <template id="mt-enabled-oauth-providers" data-enabled-oauth-providers>google,apple</template>
   </head>
-  <body class="account-settings-page">
+  <body class="admin-page account-settings-page" data-admin-page="account">
     <a class="auth-skip" href="#account-content">Skip to account settings</a>
 
     <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -35,31 +36,30 @@
       </symbol>
     </svg>
 
-    <header class="site-header account-settings-header" aria-label="Workspace navigation">
-      <a class="brand-mark" href="/admin" aria-label="Open the staff admin">
-        <span>MT</span>
-        <span>Admin</span>
-      </a>
-      <nav class="site-nav" aria-label="Staff navigation">
-        <a href="/admin">Admin</a>
-        <a href="/workspace/images">Upload</a>
-        <a href="/admin/works">Works</a>
-        <a href="/inbox">Inquiries</a>
-        <a href="/">Website</a>
-      </nav>
-      <div class="header-identity-slot" data-header-identity-slot></div>
-    </header>
+    <div class="admin-shell">
+      <aside class="admin-sidebar" aria-label="后台导航">
+        <a class="admin-brand" href="/admin"><strong>MT PRESENCE</strong><span>后台</span></a>
+        <nav class="admin-nav" aria-label="后台页面" data-admin-nav>
+          <a href="/admin">总览</a>
+          <a href="/workspace/images">上传图片</a>
+          <a href="/admin/site-images">网站图片位</a>
+          <a href="/admin/works">作品管理</a>
+          <a href="/inbox">询价</a>
+          <a href="/settings/account" aria-current="page">账号</a>
+        </nav>
+        <div class="admin-sidebar-foot">
+          <a href="/" target="_blank" rel="noopener">查看网站 ↗</a>
+          <p class="admin-connection" data-admin-connection><span class="admin-dot"></span><span data-admin-connection-label>数据连接 · 检查中</span></p>
+          <div class="header-identity-slot" data-header-identity-slot></div>
+        </div>
+      </aside>
+      <script src="/admin-shell.js?v=20261028-admin"></script>
 
-    <main id="account-content" class="account-settings-shell">
+    <main id="account-content" class="admin-main account-settings-shell">
       <header class="account-settings-intro">
         <div>
-          <p class="section-kicker">Personal Account</p>
-          <h1>Edit profile</h1>
-          <p>Update your creator identity, professional details, and account access.</p>
-          <a class="account-return-profile" href="/admin">
-            <svg class="ui-icon" aria-hidden="true"><use href="#icon-arrow-left"></use></svg>
-            Return to admin
-          </a>
+          <h1>账号与安全</h1>
+          <p>个人资料、密码、两步验证和登录设备。<a class="admin-link" href="/admin/audit">操作记录 →</a></p>
         </div>
         <div class="account-identity-summary" data-account-summary hidden>
           <a class="account-avatar" href="/admin" aria-label="Return to the staff admin" data-account-avatar-visual>
@@ -77,31 +77,29 @@
       <div class="account-page-notice" role="status" aria-live="polite" aria-atomic="true" tabindex="-1" data-account-notice hidden></div>
       <div class="account-page-loading" role="status" aria-live="polite" data-account-loading>
         <span aria-hidden="true"></span>
-        <p>Loading your secure account…</p>
+        <p>正在读取账号…</p>
       </div>
 
       <div class="account-settings-layout" data-account-content hidden>
         <nav class="account-settings-index" aria-label="Account settings sections">
-          <a href="#profile" aria-current="location">Profile</a>
-          <a href="#preferences">Preferences</a>
-          <a href="#security">Security</a>
-          <a href="#sessions">Sessions</a>
+          <a href="#profile" aria-current="location">个人资料</a>
+          <a href="#security">修改密码与两步验证</a>
+          <a href="#sessions">登录设备</a>
         </nav>
 
         <div class="account-settings-content">
           <section id="profile" class="account-settings-section" aria-labelledby="profile-title">
             <div class="account-section-heading">
               <div>
-                <p>01 / Identity</p>
-                <h2 id="profile-title">Profile information</h2>
+                <h2 id="profile-title">个人资料</h2>
               </div>
-              <p>Your identity, professional details, location, biography, and links.</p>
+              <p>显示名称和简介会出现在网站首页的「关于创作」。</p>
             </div>
             <form class="account-form account-profile-form" data-profile-form novalidate>
               <fieldset class="account-profile-group account-profile-group-identity">
                 <legend>
-                  <span>Identity</span>
-                  <small>Name, portrait, and the roles shown on your public profile.</small>
+                  <span>头像与名称</span>
+                  <small></small>
                 </legend>
                 <div class="account-profile-identity-layout">
                   <div class="account-profile-avatar-summary" aria-label="Profile avatar">
@@ -111,7 +109,7 @@
                     </span>
                     <span class="account-profile-avatar-copy">
                       <strong data-profile-summary-name>Member</strong>
-                      <small>Shown across your profile and workspace.</small>
+                      <small>显示在后台右下角。</small>
                     </span>
                     <input
                       id="account-profile-avatar-input"
@@ -124,25 +122,25 @@
                     <span class="account-profile-avatar-actions">
                       <button class="account-profile-avatar-action" type="button" data-profile-avatar-choose>
                         <svg class="ui-icon" aria-hidden="true"><use href="#icon-camera"></use></svg>
-                        Upload photo
+                        上传头像
                       </button>
                       <button class="account-profile-avatar-action is-danger" type="button" data-profile-avatar-remove hidden>
                         <svg class="ui-icon" aria-hidden="true"><use href="#icon-trash"></use></svg>
-                        Remove
+                        移除
                       </button>
                     </span>
                     <small class="account-profile-avatar-help" id="account-profile-avatar-help">
-                      JPG, PNG, or WebP. Center-cropped to a square; the original file is not uploaded.
+                      支持 JPG、PNG 或 WebP。头像会居中裁成正方形，不上传原文件。
                     </small>
                     <small class="account-profile-avatar-status" role="status" aria-live="polite" data-profile-avatar-status></small>
                   </div>
                   <div class="account-profile-grid">
                     <label class="account-field" for="account-display-name">
-                      <span>Display name</span>
+                      <span>显示名称</span>
                       <input id="account-display-name" name="display_name" type="text" autocomplete="name" required maxlength="120" aria-describedby="account-display-name-error" />
                       <small id="account-display-name-error" data-field-error="display_name"></small>
                     </label>
-                    <fieldset class="account-field account-role-picker account-field-wide" data-professional-role-picker>
+                    <fieldset class="account-field account-role-picker account-field-wide" data-professional-role-picker data-admin-hidden>
                       <legend id="account-professional-roles-label">Professional roles</legend>
                       <p id="account-professional-roles-hint">Choose up to three. These become your public professional headline.</p>
                       <div class="account-role-options" aria-labelledby="account-professional-roles-label" aria-describedby="account-professional-roles-hint account-headline-error" data-professional-role-options>
@@ -167,7 +165,7 @@
                 </div>
               </fieldset>
 
-              <fieldset class="account-profile-group account-profile-group-work">
+              <fieldset class="account-profile-group account-profile-group-work" data-admin-hidden>
                 <legend>
                   <span>Work</span>
                   <small>Studio affiliation and commission availability.</small>
@@ -192,18 +190,18 @@
 
               <fieldset class="account-profile-group account-profile-group-location">
                 <legend>
-                  <span>Location</span>
-                  <small>Where your practice is currently based.</small>
+                  <span>所在地</span>
+                  <small></small>
                 </legend>
                 <div class="account-profile-grid">
                   <label class="account-field" for="account-country">
-                    <span>Country / region</span>
+                    <span>国家 / 地区</span>
                     <input id="account-country" name="country_code" type="text" inputmode="text" maxlength="2" autocomplete="country" placeholder="CN" aria-describedby="account-country-hint account-country-error" />
-                    <em id="account-country-hint">Two-letter country or region code.</em>
+                    <em id="account-country-hint">两位字母代码，例如 CN。</em>
                     <small id="account-country-error" data-field-error="country_code"></small>
                   </label>
                   <label class="account-field" for="account-city">
-                    <span>City</span>
+                    <span>城市</span>
                     <input id="account-city" name="city" type="text" autocomplete="address-level2" maxlength="120" aria-describedby="account-city-error" />
                     <small id="account-city-error" data-field-error="city"></small>
                   </label>
@@ -212,20 +210,20 @@
 
               <fieldset class="account-profile-group account-profile-group-about">
                 <legend>
-                  <span>About</span>
-                  <small>A concise introduction to your practice and approach.</small>
+                  <span>简介</span>
+                  <small></small>
                 </legend>
                 <div class="account-profile-grid">
                   <label class="account-field account-field-wide" for="account-bio">
-                    <span>Biography</span>
+                    <span>简介</span>
                     <textarea id="account-bio" name="bio" rows="6" maxlength="1600" aria-describedby="account-bio-hint account-bio-error"></textarea>
-                    <em id="account-bio-hint">Maximum 1,600 characters.</em>
+                    <em id="account-bio-hint">最多 1600 字。</em>
                     <small id="account-bio-error" data-field-error="bio"></small>
                   </label>
                 </div>
               </fieldset>
 
-              <fieldset class="account-profile-group account-profile-group-links">
+              <fieldset class="account-profile-group account-profile-group-links" data-admin-hidden>
                 <legend>
                   <span>Links</span>
                   <small>External destinations connected to your practice.</small>
@@ -251,13 +249,13 @@
               </fieldset>
 
               <div class="account-form-actions account-field-wide">
-                <p data-profile-save-state data-state="clean" aria-live="polite">No unsaved changes.</p>
-                <button class="button button-primary" type="submit" data-profile-submit disabled>Save profile</button>
+                <p data-profile-save-state data-state="clean" aria-live="polite">没有未保存的修改。</p>
+                <button class="admin-button" type="submit" data-profile-submit disabled>保存</button>
               </div>
             </form>
           </section>
 
-          <section id="preferences" class="account-settings-section" aria-labelledby="preferences-title">
+          <section id="preferences" class="account-settings-section" aria-labelledby="preferences-title" data-admin-hidden>
             <div class="account-section-heading">
               <div>
                 <p>02 / Authorship</p>
@@ -316,12 +314,11 @@
           <section id="security" class="account-settings-section" aria-labelledby="security-title">
             <div class="account-section-heading">
               <div>
-                <p>03 / Access</p>
-                <h2 id="security-title">Security</h2>
+                <h2 id="security-title">修改密码与两步验证</h2>
               </div>
-              <p>Trusted identity signals are verified on the server and never read from browser storage.</p>
+              <p>修改密码会发送一封重置邮件到你的邮箱。</p>
             </div>
-            <dl class="account-security-list">
+            <dl class="account-security-list" data-admin-hidden>
               <div>
                 <dt>Email</dt>
                 <dd><strong data-security-email></strong><span data-security-email-state></span></dd>
@@ -339,13 +336,13 @@
             <div class="account-mfa-settings" data-mfa-settings aria-busy="true">
               <div class="account-mfa-heading">
                 <div>
-                  <p class="account-mfa-label">Two-factor authentication</p>
-                  <h3>Authenticator app</h3>
+                  <p class="account-mfa-label">两步验证</p>
+                  <h3>身份验证器</h3>
                 </div>
-                <span class="account-mfa-status" data-mfa-status data-state="loading">Checking</span>
+                <span class="account-mfa-status" data-mfa-status data-state="loading">检查中</span>
               </div>
               <div class="account-mfa-control-row">
-                <p data-mfa-description>Checking your authenticator protection…</p>
+                <p data-mfa-description>正在检查两步验证…</p>
                 <button
                   class="account-mfa-switch"
                   type="button"
@@ -356,16 +353,16 @@
                   disabled
                 >
                   <span class="account-mfa-switch-track" aria-hidden="true"><i></i></span>
-                  <span data-mfa-action-label>Checking</span>
+                  <span data-mfa-action-label>检查中</span>
                 </button>
               </div>
-              <p id="account-mfa-help" class="account-mfa-help">Use a time-based code from 1Password, Google Authenticator, Microsoft Authenticator, or Apple Passwords.</p>
+              <p id="account-mfa-help" class="account-mfa-help">可以使用 1Password、Google Authenticator、Microsoft Authenticator 或 Apple 密码中的验证码。</p>
               <p class="account-mfa-feedback" role="status" aria-live="polite" data-mfa-feedback hidden></p>
             </div>
 
-            <a class="account-text-action" href="/auth/forgot-password">Send a password reset email</a>
+            <a class="admin-button-quiet account-text-action" href="/auth/forgot-password">修改密码（发送重置邮件）</a>
 
-            <div class="account-linked-identities" data-linked-identities>
+            <div class="account-linked-identities" data-linked-identities data-admin-hidden>
               <div class="account-linked-heading">
                 <div>
                   <h3>Linked accounts</h3>
@@ -397,31 +394,29 @@
           <section id="sessions" class="account-settings-section" aria-labelledby="sessions-title">
             <div class="account-section-heading">
               <div>
-                <p>04 / Devices</p>
-                <h2 id="sessions-title">Sessions</h2>
+                <h2 id="sessions-title">登录设备</h2>
               </div>
-              <p>Supabase securely exposes this current session and bulk revocation. Individual remote-device history is not fabricated.</p>
+              <p>显示当前设备；可以让其他设备退出登录。</p>
             </div>
             <div class="account-session-loading" role="status" data-session-loading>
               <span aria-hidden="true"></span>
-              Loading current session…
+              正在读取…
             </div>
             <ul class="account-session-list" aria-live="polite" data-session-list hidden></ul>
             <div class="account-session-note" data-session-note hidden>
               <svg class="ui-icon" aria-hidden="true"><use href="#icon-shield"></use></svg>
-              <p>Revoking another device prevents future refreshes. Its existing short-lived access can remain valid until expiry.</p>
+              <p>让其他设备退出后，它们最多还能保持几分钟登录状态。</p>
             </div>
             <div class="account-session-actions" data-session-actions hidden>
-              <button class="button button-secondary" type="button" data-sign-out-current>Sign out this device</button>
-              <button class="button button-secondary" type="button" data-session-action="others">Sign out other devices</button>
-              <button class="button button-danger" type="button" data-session-action="all">Sign out all devices</button>
+              <button class="admin-button-quiet" type="button" data-sign-out-current>退出这台设备</button>
+              <button class="admin-button-quiet" type="button" data-session-action="others">退出其他设备</button>
+              <button class="admin-button-quiet" type="button" data-session-action="all">退出所有设备</button>
             </div>
           </section>
         </div>
       </div>
     </main>
-
-    <footer class="site-footer workspace-footer" aria-label="Workspace footer" data-site-footer data-footer-variant="workspace"></footer>
+    </div>
 
     <div class="account-settings-live visually-hidden" role="status" aria-live="polite" aria-atomic="true" data-account-live></div>
 
@@ -458,14 +453,13 @@
         <p id="mfa-confirm-description">Future sign-ins will no longer require an authenticator code. Other device sessions will be signed out before the authenticator is removed.</p>
         <div class="account-dialog-notice" role="alert" tabindex="-1" data-mfa-dialog-notice hidden></div>
         <div class="account-dialog-actions">
-          <button class="button button-secondary" type="button" data-mfa-dialog-cancel>Keep 2FA on</button>
-          <button class="button button-danger" type="submit" value="confirm" data-mfa-dialog-confirm>Turn off 2FA</button>
+          <button class="admin-button-quiet" type="button" data-mfa-dialog-cancel>保持开启</button>
+          <button class="admin-button" type="submit" value="confirm" data-mfa-dialog-confirm>关闭两步验证</button>
         </div>
       </form>
     </dialog>
 
-    <script src="/site-footer.js?v=20261018-staff-only"></script>
-    <script src="/account-menu.js?v=20261018-staff-admin"></script>
-    <script src="/account-settings.js?v=20260810-optional-mfa"></script>
+    <script src="/account-menu.js?v=20261028-admin"></script>
+    <script src="/account-settings.js?v=20261028-admin"></script>
   </body>
 </html>

@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Upload Studio | MT Presence</title>
+    <title>上传图片 | MT Presence 后台</title>
     <meta
       name="description"
       content="A secure workspace for importing images, organizing folders, and editing private MT Presence Drafts."
@@ -11,9 +11,10 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/styles.css?v=20261021-visitor-experience" />
     <link rel="stylesheet" href="/exhibition.css?v=20261026-studio-2" />
+    <link rel="stylesheet" href="/admin.css?v=20261028-admin-2" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
-  <body class="upload-studio-page">
+  <body class="admin-page upload-studio-page" data-admin-page="upload">
     <svg class="icon-sprite" aria-hidden="true" focusable="false">
       <symbol id="icon-upload-cloud" viewBox="0 0 24 24">
         <path d="M16 16h2.5a3.5 3.5 0 0 0 .4-7 5.8 5.8 0 0 0-10.8-2A4.7 4.7 0 0 0 4.8 16H8" />
@@ -99,72 +100,47 @@
       </symbol>
     </svg>
 
-    <aside class="archive-rail upload-studio-rail" aria-label="Artist workspace navigation">
-      <a class="archive-rail-brand" href="/" aria-label="Back to MT Presence home">MT</a>
-      <nav class="archive-rail-nav" aria-label="Publishing workflow navigation">
-        <a class="archive-rail-button" href="/admin" aria-label="Admin">
-          <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-home"></use></svg>
-          <span class="archive-rail-copy">Admin</span>
-        </a>
-        <a class="archive-rail-button" href="/works.html" aria-label="Works Archive">
-          <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-photo"></use></svg>
-          <span class="archive-rail-copy">Works</span>
-        </a>
-        <a class="archive-rail-button is-active" href="/workspace/images" aria-label="Upload Studio" aria-current="page">
-          <svg class="ui-icon" aria-hidden="true" focusable="false">
-            <use href="#icon-folder"></use>
-          </svg>
-          <span class="archive-rail-copy">Upload</span>
-        </a>
-      </nav>
-      <div class="archive-rail-footer">
-        <a class="archive-rail-button" href="/settings/account" aria-label="Account settings">
-          <svg class="ui-icon" aria-hidden="true" focusable="false">
-            <use href="#icon-user"></use>
-          </svg>
-          <span class="archive-rail-copy">Account</span>
-        </a>
-      </div>
-    </aside>
+    <div class="admin-shell">
+      <aside class="admin-sidebar" aria-label="后台导航">
+        <a class="admin-brand" href="/admin"><strong>MT PRESENCE</strong><span>后台</span></a>
+        <nav class="admin-nav" aria-label="后台页面" data-admin-nav>
+          <a href="/admin">总览</a>
+          <a href="/workspace/images" aria-current="page">上传图片</a>
+          <a href="/admin/site-images">网站图片位</a>
+          <a href="/admin/works">作品管理</a>
+          <a href="/inbox">询价</a>
+          <a href="/settings/account">账号</a>
+        </nav>
+        <div class="admin-sidebar-foot">
+          <a href="/" target="_blank" rel="noopener">查看网站 ↗</a>
+          <p class="admin-connection" data-admin-connection><span class="admin-dot"></span><span data-admin-connection-label>数据连接 · 检查中</span></p>
+          <div class="header-identity-slot" data-header-identity-slot></div>
+        </div>
+      </aside>
+      <script src="/admin-shell.js?v=20261028-admin"></script>
 
-    <header class="site-header upload-studio-header" aria-label="Artist workspace navigation">
-      <a class="brand-mark" href="/admin" aria-label="Open the staff admin">
-        <span>MT</span>
-        <span>Admin</span>
-      </a>
-      <nav class="site-nav" aria-label="Staff navigation">
-        <a href="/admin">Admin</a>
-        <a href="/workspace/images" aria-current="page">Upload</a>
-        <a href="/admin/works">Works</a>
-        <a href="/inbox">Inquiries</a>
-        <a href="/">Website</a>
-      </nav>
-      <div class="header-identity-slot" data-header-identity-slot></div>
-    </header>
-
-    <main class="upload-studio-shell">
+    <main class="admin-main upload-studio-shell">
       <section class="upload-studio-command" aria-labelledby="upload-studio-title">
         <div class="upload-studio-title-block">
-          <div class="section-kicker">Personal Upload Studio</div>
-          <h1 id="upload-studio-title">Upload Studio</h1>
+          <h1 id="upload-studio-title">上传图片</h1>
         </div>
         <div class="upload-studio-actions">
           <button class="upload-studio-primary" type="button" data-quick-upload-open>
             <svg class="ui-icon" aria-hidden="true" focusable="false">
               <use href="#icon-upload-cloud"></use>
             </svg>
-            Quick Upload
+            批量上传
           </button>
           <label class="upload-studio-secondary" for="upload-studio-input">
             <svg class="ui-icon" aria-hidden="true" focusable="false">
               <use href="#icon-upload-cloud"></use>
             </svg>
-            Import as Drafts
+            逐张上传
           </label>
           <input id="upload-studio-input" class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" multiple data-upload-studio-input />
           <input id="quick-upload-input" class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" multiple data-quick-upload-input />
-          <a class="upload-studio-secondary" href="/works.html">
-            View Works
+          <a class="upload-studio-secondary" href="/admin/works">
+            作品管理
             <svg class="ui-icon" aria-hidden="true" focusable="false">
               <use href="#icon-arrow-right"></use>
             </svg>
@@ -177,25 +153,25 @@
           <div class="upload-studio-view-switch" role="group" aria-label="Workspace view">
             <button type="button" data-studio-view="drafts" aria-pressed="true">
               <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-folder"></use></svg>
-              <span>Drafts</span>
+              <span>草稿</span>
               <small data-studio-draft-count>0</small>
             </button>
             <button type="button" data-studio-view="trash" aria-pressed="false">
               <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
-              <span>Trash</span>
+              <span>回收站</span>
               <small data-studio-trash-count hidden>0</small>
             </button>
           </div>
           <div class="upload-studio-panel-heading">
             <div>
-              <h2 id="upload-folders-title" data-folder-panel-title>Folders</h2>
-              <p data-folder-summary>Loading folders</p>
+              <h2 id="upload-folders-title" data-folder-panel-title>文件夹</h2>
+              <p data-folder-summary>正在读取文件夹</p>
             </div>
           </div>
           <form class="upload-studio-folder-form" data-folder-form>
-            <label class="visually-hidden" for="upload-folder-name">Folder name</label>
-            <input id="upload-folder-name" name="folder_name" type="text" maxlength="80" placeholder="New folder" autocomplete="off" />
-            <button type="submit" aria-label="Create folder">
+            <label class="visually-hidden" for="upload-folder-name">文件夹名称</label>
+            <input id="upload-folder-name" name="folder_name" type="text" maxlength="80" placeholder="新建文件夹" autocomplete="off" />
+            <button type="submit" aria-label="新建文件夹">
               <svg class="ui-icon" aria-hidden="true" focusable="false">
                 <use href="#icon-folder"></use>
               </svg>
@@ -212,28 +188,29 @@
               <use href="#icon-upload-cloud"></use>
             </svg>
             <div>
-              <h2 id="upload-drop-title">Drop images here</h2>
+              <h2 id="upload-drop-title">将图片拖到这里，或</h2>
+              <p>支持 JPG / PNG / WebP，单张不超过 40 MB</p>
             </div>
-            <label for="upload-studio-input">Choose files</label>
+            <label for="upload-studio-input">选择文件</label>
           </div>
 
           <div class="upload-studio-meter" aria-label="Upload summary" data-studio-drafts-only>
             <div>
               <span data-studio-count>–</span>
-              <small>items</small>
+              <small>张图片</small>
             </div>
             <div>
-              <span data-studio-status>Loading</span>
-              <small>state</small>
+              <span data-studio-status>读取中</span>
+              <small>状态</small>
             </div>
           </div>
 
           <div class="upload-studio-batch-bar" data-studio-drafts-only>
             <div>
-              <strong>Batch publish</strong>
-              <span>Checks every Draft in this folder and publishes only the ones that pass the publishing checks.</span>
+              <strong>批量发布</strong>
+              <span>检查这个文件夹里的每张草稿，只发布通过发布检查的图片。</span>
             </div>
-            <button type="button" data-studio-submit-ready disabled>Check &amp; publish ready</button>
+            <button type="button" data-studio-submit-ready disabled>检查并发布</button>
           </div>
 
           <div class="upload-studio-queue" data-studio-queue aria-live="polite">
@@ -250,7 +227,7 @@
             <svg class="ui-icon" aria-hidden="true" focusable="false">
               <use href="#icon-image"></use>
             </svg>
-            <h2 id="upload-editor-title">Upload an image to edit details</h2>
+            <h2 id="upload-editor-title">选择一张图片，在这里填写标题、系列和简介</h2>
           </div>
 
           <form class="upload-studio-form" data-studio-form hidden novalidate>
@@ -259,52 +236,52 @@
                 <img alt="" decoding="async" data-studio-preview />
               </figure>
               <div class="upload-studio-summary">
-                <p data-studio-kicker>Uploaded record</p>
-                <h2 data-studio-title>Untitled Work</h2>
+                <p data-studio-kicker>图片详情</p>
+                <h2 data-studio-title>未命名作品</h2>
                 <dl data-studio-asset-summary></dl>
                 <p class="upload-studio-save-state" data-studio-save-state aria-live="polite"></p>
               </div>
             </header>
 
             <section class="upload-studio-field-group" aria-labelledby="studio-work-details-heading">
-              <h3 id="studio-work-details-heading">Work details</h3>
+              <h3 id="studio-work-details-heading">作品信息</h3>
               <div class="upload-studio-fields">
                 <label class="form-field" for="studio-title">
-                  <span>Title</span>
+                  <span>标题</span>
                   <input id="studio-title" name="title" type="text" maxlength="180" />
                 </label>
 
                 <label class="form-field" for="studio-type">
-                  <span>Series</span>
+                  <span>系列</span>
                   <select id="studio-type" name="content_type">
-                    <option value="concrete">此间留彩 · Colour</option>
-                    <option value="abstract">此间留灰 · Grey</option>
+                    <option value="concrete">此间留彩</option>
+                    <option value="abstract">此间留灰</option>
                   </select>
                 </label>
 
                 <label class="form-field" for="studio-folder">
-                  <span>Folder</span>
+                  <span>文件夹</span>
                   <select id="studio-folder" name="folder_id" data-folder-select></select>
                 </label>
 
                 <label class="form-field upload-studio-span" for="studio-note">
-                  <span>Introduction</span>
+                  <span>简介</span>
                   <textarea id="studio-note" name="curatorial_note" rows="3" maxlength="500"></textarea>
                 </label>
 
                 <label class="form-field upload-studio-span" for="studio-tags">
-                  <span>Tags</span>
+                  <span>标签</span>
                   <textarea id="studio-tags" name="tags" rows="3" maxlength="1000"></textarea>
                 </label>
 
-                <p class="upload-studio-rights-note upload-studio-span">Uploading confirms that you own the rights to this photograph. 上传即表示你拥有该作品的版权。</p>
+                <p class="upload-studio-rights-note upload-studio-span">上传即表示你拥有该作品的版权。</p>
               </div>
             </section>
 
             <!-- Requirement 03 prototype: how this work is shown in the
                  exhibition (studio-exhibition.js). Saved in this browser only
                  until the new database exists; never sent with the Draft. -->
-            <section class="upload-studio-field-group studio-exhibit" aria-labelledby="studio-exhibit-heading" data-studio-exhibit>
+            <section class="upload-studio-field-group studio-exhibit" aria-labelledby="studio-exhibit-heading" data-studio-exhibit hidden>
               <h3 id="studio-exhibit-heading">Exhibition display · 展厅展示</h3>
               <p class="studio-exhibit-note">原型：这些设置暂时只保存在本浏览器，正式版会随新数据库一起保存。右侧是作品在展厅里的实际效果。</p>
               <div class="studio-exhibit-layout">
@@ -462,15 +439,15 @@
             <section class="upload-studio-readiness" data-studio-readiness data-state="checking" aria-labelledby="studio-readiness-heading">
               <header class="upload-studio-readiness-header">
                 <div>
-                  <h3 id="studio-readiness-heading">Publishing checks</h3>
-                  <p data-studio-readiness-summary aria-live="polite">Checking submission requirements...</p>
+                  <h3 id="studio-readiness-heading">发布检查</h3>
+                  <p data-studio-readiness-summary aria-live="polite">正在检查…</p>
                 </div>
                 <button
                   class="upload-studio-readiness-refresh"
                   type="button"
                   data-studio-readiness-refresh
-                  aria-label="Refresh submission readiness"
-                  data-tooltip="Refresh readiness"
+                  aria-label="重新检查"
+                  data-tooltip="重新检查"
                 >
                   <svg class="ui-icon" aria-hidden="true" focusable="false">
                     <use href="#icon-retry"></use>
@@ -478,11 +455,11 @@
                 </button>
               </header>
               <ul class="upload-studio-readiness-list" data-studio-readiness-list>
-                <li data-state="pending"><svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg><span><strong>Work details</strong><small>Checking required metadata.</small></span></li>
-                <li data-state="pending"><svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg><span><strong>Rights &amp; disclosures</strong><small>Checking rights and release declarations.</small></span></li>
-                <li data-state="pending"><svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg><span><strong>Image assets</strong><small>Checking original, display and thumbnail assets.</small></span></li>
-                <li data-state="pending"><svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg><span><strong>Security scan</strong><small>Checking asset scan results.</small></span></li>
-                <li data-state="pending"><svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg><span><strong>Submission state</strong><small>Checking the current Draft workflow state.</small></span></li>
+                <li data-state="pending"><svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg><span><strong>作品信息</strong><small>正在检查标题和系列。</small></span></li>
+                <li data-state="pending"><svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg><span><strong>版权声明</strong><small>正在检查版权声明。</small></span></li>
+                <li data-state="pending"><svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg><span><strong>图片文件</strong><small>正在检查原图、展示图和缩略图。</small></span></li>
+                <li data-state="pending"><svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg><span><strong>安全扫描</strong><small>正在检查扫描结果。</small></span></li>
+                <li data-state="pending"><svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg><span><strong>发布状态</strong><small>正在检查草稿状态。</small></span></li>
               </ul>
             </section>
 
@@ -492,27 +469,27 @@
                   <svg class="ui-icon" aria-hidden="true" focusable="false">
                     <use href="#icon-trash"></use>
                   </svg>
-                  Move to Trash
+                  移到回收站
                 </button>
               </div>
               <div class="upload-studio-footer-actions">
-                <button class="upload-studio-save" type="submit" data-studio-save-record title="Save Draft (Ctrl+S / ⌘S)" aria-keyshortcuts="Control+S Meta+S">
+                <button class="upload-studio-save" type="submit" data-studio-save-record title="存为草稿（Ctrl+S / ⌘S）" aria-keyshortcuts="Control+S Meta+S">
                   <svg class="ui-icon" aria-hidden="true" focusable="false">
                     <use href="#icon-save"></use>
                   </svg>
-                  Save Draft
+                  存为草稿
                 </button>
                 <button class="upload-studio-reload" type="button" data-studio-reload-record hidden>
                   <svg class="ui-icon" aria-hidden="true" focusable="false">
                     <use href="#icon-retry"></use>
                   </svg>
-                  Reload Server Draft
+                  重新读取草稿
                 </button>
-                <button class="upload-studio-submit" type="button" data-studio-submit-record disabled title="Publish (Ctrl+Enter / ⌘Enter)" aria-keyshortcuts="Control+Enter Meta+Enter">
+                <button class="upload-studio-submit" type="button" data-studio-submit-record disabled title="发布到网站（Ctrl+Enter / ⌘Enter）" aria-keyshortcuts="Control+Enter Meta+Enter">
                   <svg class="ui-icon" aria-hidden="true" focusable="false">
                     <use href="#icon-arrow-right"></use>
                   </svg>
-                  <span data-studio-submit-label>Publish</span>
+                  <span data-studio-submit-label>发布到网站</span>
                 </button>
               </div>
             </div>
@@ -520,8 +497,7 @@
         </section>
       </section>
     </main>
-
-    <footer class="site-footer workspace-footer" aria-label="Workspace footer" data-site-footer data-footer-variant="workspace"></footer>
+    </div>
 
     <div class="archive-toast upload-studio-toast" role="status" aria-live="polite" data-studio-toast hidden></div>
 
@@ -532,16 +508,16 @@
             <svg class="ui-icon"><use href="#icon-check"></use></svg>
           </span>
           <div>
-            <p>Ready to publish</p>
-            <h2 id="studio-submit-dialog-title" data-studio-submit-dialog-title>Publish this Draft?</h2>
+            <p>准备发布</p>
+            <h2 id="studio-submit-dialog-title" data-studio-submit-dialog-title>把这张草稿发布到网站？</h2>
           </div>
         </header>
-        <p id="studio-submit-dialog-description" data-studio-submit-dialog-description>The saved version is published to the website straight away.</p>
+        <p id="studio-submit-dialog-description" data-studio-submit-dialog-description>已保存的版本会立即出现在网站上。</p>
         <div class="upload-studio-confirm-actions">
-          <button class="upload-studio-secondary" type="submit" value="cancel">Cancel</button>
+          <button class="upload-studio-secondary" type="submit" value="cancel">取消</button>
           <button class="upload-studio-submit" type="submit" value="confirm" data-studio-submit-dialog-confirm>
             <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#icon-arrow-right"></use></svg>
-            <span data-studio-submit-dialog-label>Publish</span>
+            <span data-studio-submit-dialog-label>发布</span>
           </button>
         </div>
       </form>
@@ -555,27 +531,27 @@
             <svg class="ui-icon"><use href="#icon-upload-cloud"></use></svg>
           </span>
           <div>
-            <p>Reusable batch defaults</p>
-            <h2 id="quick-upload-title">Quick Upload</h2>
+            <p>一次上传多张</p>
+            <h2 id="quick-upload-title">批量上传</h2>
           </div>
           </header>
-          <p id="quick-upload-description">Black-and-white photographs go to Grey and colour photographs to Colour, unless you choose a series. Titles, captions and keywords come from Lightroom/Photoshop metadata or the filename; each Draft remains editable.</p>
+          <p id="quick-upload-description">没有指定系列时，黑白照片自动归入此间留灰，彩色照片归入此间留彩。标题、简介和关键词从 Lightroom / Photoshop 信息或文件名读取，上传后每张都还能修改。</p>
           <div class="upload-studio-quick-fields">
           <label class="form-field upload-studio-span">
-            <span>Series</span>
+            <span>系列</span>
             <select name="content_category" required>
-              <option value="auto">Detect automatically · 自动识别黑白</option>
-              <option value="concrete">此间留彩 · Colour</option>
-              <option value="abstract">此间留灰 · Grey</option>
+              <option value="auto">自动识别黑白</option>
+              <option value="concrete">此间留彩</option>
+              <option value="abstract">此间留灰</option>
             </select>
           </label>
           <label class="form-field upload-studio-span">
-            <span>Shared Tags <small>Optional</small></span>
-            <input name="tags" type="text" maxlength="1000" placeholder="landscape, birds, 2026" />
+            <span>共用标签 <small>选填</small></span>
+            <input name="tags" type="text" maxlength="1000" placeholder="风景，云海，2026" />
           </label>
           <label class="upload-studio-check upload-studio-span">
             <input name="rights_declared" type="checkbox" required />
-            <span>I confirm that I own the rights to every selected photograph. 我确认拥有所有选中作品的版权。</span>
+            <span>我确认拥有所有选中作品的版权。</span>
           </label>
           <!-- Declarations about the owner's own photography; prefilled when the
                dialog opens and kept out of view. -->
@@ -602,13 +578,13 @@
             </select>
           </div>
           </div>
-          <p class="upload-studio-quick-note">Uploads still go through private storage and malware scanning before they can be published.</p>
+          <p class="upload-studio-quick-note">上传后的图片先存入私有存储并经过安全扫描，通过后才能发布。</p>
         </div>
         <div class="upload-studio-confirm-actions">
-          <button class="upload-studio-secondary" type="button" data-quick-upload-cancel>Cancel</button>
+          <button class="upload-studio-secondary" type="button" data-quick-upload-cancel>取消</button>
           <button class="upload-studio-submit" type="submit">
             <svg class="ui-icon" aria-hidden="true"><use href="#icon-upload-cloud"></use></svg>
-            Choose Images
+            选择图片
           </button>
         </div>
       </form>
@@ -616,9 +592,8 @@
 
     <script src="/archive-data.js?v=20260610-works-viewer-editor"></script>
     <script src="/archive-upload.js?v=20261018-upload-prefill"></script>
-    <script src="/site-footer.js?v=20261018-staff-only"></script>
-    <script src="/account-menu.js?v=20261018-staff-admin"></script>
-    <script src="/upload-studio.js?v=20261026-exhibit-settings"></script>
+    <script src="/account-menu.js?v=20261028-admin"></script>
+    <script src="/upload-studio.js?v=20261028-admin"></script>
     <script src="/studio-exhibition.js?v=20261026-prototype"></script>
   </body>
 </html>

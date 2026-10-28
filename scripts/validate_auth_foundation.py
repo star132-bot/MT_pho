@@ -77,7 +77,7 @@ def main() -> None:
         'inputmode="numeric"', 'pattern="[0-9]{8}"',
         'data-auth-field="recovery_code"', 'data-field-error="recovery_code"',
         'data-auth-oauth', 'data-auth-google', 'data-auth-provider="google"', 'data-auth-provider="apple"',
-        'Sign in with Google', 'Sign in with Apple', 'href="/auth/oauth/apple"',
+        '使用 Google 登录', '使用 Apple 登录', 'href="/auth/oauth/apple"',
         'auth-google-logo', 'fill="#4285F4"', 'fill="#34A853"',
         'fill="#FBBC05"', 'fill="#EA4335"', 'auth-apple-logo',
     }, "auth page")
@@ -98,11 +98,11 @@ def main() -> None:
     require(auth_js, {
         'credentials: "same-origin"', 'form.reportValidity()',
         'aria-invalid', '/api/auth/', 'DEFAULT_AUTH_DESTINATION = "/works.html"', 'result.next_action === "mfa"',
-        'authRequest("/api/me")', 'cache: "no-store"', 'Open sign-in in a full browser',
+        'authRequest("/api/me")', 'cache: "no-store"', '在完整浏览器中打开登录页',
         'safeInternalPath', 'sessionCheck.response.status === 401',
         'forgotPassword', 'resetPassword', 'callbackParameters',
         'history.replaceState', 'token_hash', 'refresh_token', 'X-CSRF-Token',
-        'If an account exists for this email', 'password_confirmation',
+        '如果这个邮箱有账号', 'password_confirmation',
         '/api/auth/verify-recovery-code', 'recovery_code',
         '/auth/oauth/${provider}?next=', 'showOAuthResult', 'oauth_error', 'oauth_provider',
     }, "auth client")
@@ -144,8 +144,8 @@ def main() -> None:
         '/api/auth/csrf', 'X-CSRF-Token', 'form.reportValidity()',
         'RECOVERY_SESSION_RESTRICTED', 'MFA_REQUIRED', 'beforeunload',
         'submittedPayload', 'currentPayload[name] === submittedPayload[name]',
-        'Newer edits remain unsaved.', 'suppressBeforeUnload',
-        'navigateWithoutDirtyPrompt', 'Sign out failed. Your session remains active.',
+        '新的修改还没保存', 'suppressBeforeUnload',
+        'navigateWithoutDirtyPrompt', '退出失败，仍保持登录。',
         '}).catch((error) => {', 'dialogNotice.focus();',
         'PROFESSIONAL_ROLE_LIMIT = 3', 'setProfessionalRoles(',
         'syncProfessionalRolePicker()', 'addLegacyProfessionalRole(',

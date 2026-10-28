@@ -182,7 +182,7 @@ function showNotice(message, kind = "error", retry = null) {
   if (retry) {
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = "Retry";
+    button.textContent = "重试";
     button.addEventListener("click", retry, { once: true });
     pageNotice.append(" ", button);
   }
@@ -426,14 +426,14 @@ async function uploadProfileAvatar(file) {
   const previousProfile = { ...(accountData?.profile || {}) };
   let uploadId = "";
   setProfileAvatarBusy(true);
-  setProfileAvatarStatus("Preparing photo…", "working");
+  setProfileAvatarStatus("正在处理头像…", "working");
   hideNotice();
   try {
     const blob = await prepareProfileAvatar(file);
     releaseProfileAvatarPreview();
     profileAvatarPreviewUrl = URL.createObjectURL(blob);
     await showProfileAvatar(profileAvatarPreviewUrl, { persisted: false });
-    setProfileAvatarStatus("Uploading photo…", "working");
+    setProfileAvatarStatus("正在上传头像…", "working");
     const intentResult = await accountRequest("/api/me/profile/avatar/intents", {
       method: "POST",
       body: JSON.stringify({ mime_type: "image/jpeg", byte_size: blob.size, width: 512, height: 512 }),
@@ -442,7 +442,7 @@ async function uploadProfileAvatar(file) {
     uploadId = String(destination.id || "");
     if (!uploadId) throw new Error("The secure profile photo destination was unavailable.");
     await uploadPreparedAvatar(destination, blob);
-    setProfileAvatarStatus("Saving photo…", "working");
+    setProfileAvatarStatus("正在保存头像…", "working");
     const result = await accountRequest(
       `/api/me/profile/avatar/intents/${encodeURIComponent(uploadId)}/complete`,
       { method: "POST", body: JSON.stringify({ confirmation: "complete-profile-avatar" }) },
@@ -451,8 +451,8 @@ async function uploadProfileAvatar(file) {
     releaseProfileAvatarPreview();
     renderAccountChrome(accountData);
     emitProfileCommitted(accountData.profile);
-    setProfileAvatarStatus("Profile photo saved.", "saved");
-    announce("Profile photo saved.");
+    setProfileAvatarStatus("头像已保存。", "saved");
+    announce("头像已保存。");
   } catch (error) {
     if (uploadId) {
       accountRequest(
@@ -464,8 +464,8 @@ async function uploadProfileAvatar(file) {
     if (accountData) accountData.profile = previousProfile;
     renderAccountChrome(accountData || { profile: previousProfile, account: {} });
     if (redirectForAuth(error)) return;
-    setProfileAvatarStatus(error.message || "Profile photo upload failed.", "error");
-    announce("Profile photo upload failed.");
+    setProfileAvatarStatus(error.message || "头像上传失败。", "error");
+    announce("头像上传失败。");
   } finally {
     profileAvatarInput.value = "";
     setProfileAvatarBusy(false);
@@ -474,9 +474,9 @@ async function uploadProfileAvatar(file) {
 
 async function removeProfileAvatar() {
   if (profileAvatarBusy || profileAvatarRemove.hidden) return;
-  if (!window.confirm("Remove your current profile photo? Your initials will be shown instead.")) return;
+  if (!window.confirm("移除当前头像？移除后会显示名称首字母。")) return;
   setProfileAvatarBusy(true);
-  setProfileAvatarStatus("Removing photo…", "working");
+  setProfileAvatarStatus("正在移除头像…", "working");
   hideNotice();
   try {
     const result = await accountRequest("/api/me/profile/avatar", {
@@ -486,12 +486,12 @@ async function removeProfileAvatar() {
     accountData.profile = { ...accountData.profile, ...(result.profile || {}), avatar_url: null };
     renderAccountChrome(accountData);
     emitProfileCommitted(accountData.profile);
-    setProfileAvatarStatus("Profile photo removed.", "saved");
-    announce("Profile photo removed. Your initials are now shown.");
+    setProfileAvatarStatus("头像已移除。", "saved");
+    announce("头像已移除。");
   } catch (error) {
     if (redirectForAuth(error)) return;
-    setProfileAvatarStatus(error.message || "Profile photo removal failed.", "error");
-    announce("Profile photo removal failed.");
+    setProfileAvatarStatus(error.message || "头像移除失败。", "error");
+    announce("头像移除失败。");
   } finally {
     setProfileAvatarBusy(false);
   }
@@ -716,32 +716,32 @@ function renderMfaSettings(mfa) {
   mfaFeedback.textContent = "";
 
   if (!available) {
-    mfaStatus.textContent = "Unavailable";
-    mfaDescription.textContent = "Authenticator protection could not be verified right now.";
-    mfaActionLabel.textContent = "Unavailable";
+    mfaStatus.textContent = "无法读取";
+    mfaDescription.textContent = "暂时无法确认两步验证状态。";
+    mfaActionLabel.textContent = "暂不可用";
     mfaAction.disabled = true;
     return;
   }
 
   if (mandatory) {
-    mfaStatus.textContent = "Required";
-    mfaDescription.textContent = "Administrator accounts must verify a current authenticator code at every new sign-in.";
-    mfaActionLabel.textContent = "Required for administrators";
+    mfaStatus.textContent = "已开启";
+    mfaDescription.textContent = "管理员账号每次登录都要输入身份验证器上的验证码。";
+    mfaActionLabel.textContent = "管理员必须开启";
     mfaAction.disabled = true;
     return;
   }
 
   if (enabled) {
-    mfaStatus.textContent = "On";
-    mfaDescription.textContent = "Every new password, Google, or Apple sign-in stops for your current six-digit authenticator code.";
-    mfaActionLabel.textContent = canDisable ? "Turn off 2FA" : "Verify to manage";
+    mfaStatus.textContent = "已开启";
+    mfaDescription.textContent = "每次登录都要输入身份验证器上的六位验证码。";
+    mfaActionLabel.textContent = canDisable ? "关闭两步验证" : "验证后才能修改";
     mfaAction.disabled = !canDisable;
     return;
   }
 
-  mfaStatus.textContent = "Off";
-  mfaDescription.textContent = "Add an authenticator app so a password or linked account alone cannot open your workspace.";
-  mfaActionLabel.textContent = "Turn on 2FA";
+  mfaStatus.textContent = "未开启";
+  mfaDescription.textContent = "开启后，只知道密码也无法登录后台。";
+  mfaActionLabel.textContent = "开启两步验证";
   mfaAction.disabled = false;
 }
 
@@ -756,7 +756,7 @@ function renderAccountChrome(result) {
   showAccountAvatar(profile.avatar_url);
   showProfileAvatar(profile.avatar_url);
   document.querySelector("[data-account-email]").textContent = account.email || "";
-  document.querySelector("[data-account-status]").textContent = `${String(account.account_status || "active").replaceAll("_", " ")} account`;
+  document.querySelector("[data-account-status]").textContent = (account.account_status || "active") === "active" ? "账号正常" : "账号受限";
 
   document.querySelector("[data-security-email]").textContent = account.email || "";
   document.querySelector("[data-security-email-state]").textContent = account.email_verified ? "Verified email" : "Verification pending";
@@ -852,7 +852,7 @@ function updateFormDirtyState(form) {
   const { submit, status } = formStateElements(form);
   const dirty = isFormDirty(form);
   submit.disabled = !dirty;
-  setFormStatus(status, dirty ? "dirty" : "clean", dirty ? "Unsaved changes" : "No unsaved changes");
+  setFormStatus(status, dirty ? "dirty" : "clean", dirty ? "有未保存的修改" : "没有未保存的修改。");
 }
 
 function clearFieldErrors(form) {
@@ -887,7 +887,7 @@ async function saveForm(form) {
   if (!form.reportValidity()) return;
   const submittedPayload = formPayload(form, names);
   submit.disabled = true;
-  submit.textContent = "Saving…";
+  submit.textContent = "正在保存…";
   form.setAttribute("aria-busy", "true");
   setFormStatus(status, "saving", "Saving");
   hideNotice();
@@ -932,19 +932,19 @@ async function saveForm(form) {
       setFormStatus(
         status,
         isFormDirty(form) ? "dirty" : "saved",
-        isFormDirty(form) ? "Saved submitted changes. New edits remain unsaved." : "Saved just now",
+        isFormDirty(form) ? "已保存提交的内容，新的修改还没保存。" : "刚刚已保存",
       );
     } else if (failed) {
-      setFormStatus(status, "error", "Error. Changes were not saved");
+      setFormStatus(status, "error", "保存失败，修改没有保存");
     }
   }
 }
 
 function formatExpiry(value) {
-  if (!value) return "Expiry managed by your authentication provider";
+  if (!value) return "登录有效期由登录服务管理";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Expiry managed by your authentication provider";
-  return `Access renews before ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date)}`;
+  if (Number.isNaN(date.getTime())) return "登录有效期由登录服务管理";
+  return `登录有效期至 ${new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(date)}`;
 }
 
 function renderSessions(result) {
@@ -962,23 +962,23 @@ function renderSessions(result) {
     const copy = document.createElement("span");
     copy.className = "account-session-copy";
     const title = document.createElement("strong");
-    title.textContent = `${session.browser || "Browser"} on ${session.operating_system || session.device || "this device"}`;
+    title.textContent = `${session.operating_system || session.device || "这台设备"} · ${session.browser || "浏览器"}`;
     const detail = document.createElement("span");
-    detail.textContent = `${session.device || "Current device"} · Active now · ${String(session.aal || "aal1").toUpperCase()}`;
+    detail.textContent = `${session.device || "当前设备"} · 正在使用${String(session.aal || "aal1") === "aal2" ? " · 已通过两步验证" : ""}`;
     const expiry = document.createElement("small");
     expiry.textContent = formatExpiry(session.expires_at);
     copy.append(title, detail, expiry);
 
     const current = document.createElement("span");
     current.className = "account-session-current";
-    current.textContent = "Current session";
+    current.textContent = "当前设备";
     item.append(icon, copy, current);
     sessionList.append(item);
   });
   if (!sessions.length) {
     const item = document.createElement("li");
     item.className = "account-session-empty";
-    item.textContent = "The current session could not be described.";
+    item.textContent = "无法读取当前设备信息。";
     sessionList.append(item);
   }
   sessionLoading.hidden = true;
@@ -1103,7 +1103,7 @@ async function disableMfa() {
   mfaDialogBusy = true;
   mfaDialogCancel.disabled = true;
   mfaDialogConfirm.disabled = true;
-  mfaDialogConfirm.textContent = "Turning off…";
+  mfaDialogConfirm.textContent = "正在关闭…";
   mfaDialogNotice.hidden = true;
   try {
     const result = await accountRequest("/api/auth/mfa", {
@@ -1113,18 +1113,18 @@ async function disableMfa() {
     if (accountData?.account) accountData.account.mfa = result.mfa;
     renderMfaSettings(result.mfa);
     mfaDialog.close();
-    showNotice(result.message || "Two-factor authentication is off.", "success");
-    announce("Two-factor authentication turned off. Other devices were signed out.");
+    showNotice("两步验证已关闭。", "success");
+    announce("两步验证已关闭，其他设备已退出登录。");
   } catch (error) {
     if (redirectForAuth(error)) return;
-    mfaDialogNotice.textContent = error.message || "Two-factor authentication could not be turned off.";
+    mfaDialogNotice.textContent = "关闭失败，请重试。";
     mfaDialogNotice.hidden = false;
     mfaDialogNotice.focus();
   } finally {
     mfaDialogBusy = false;
     mfaDialogCancel.disabled = false;
     mfaDialogConfirm.disabled = false;
-    mfaDialogConfirm.textContent = "Turn off 2FA";
+    mfaDialogConfirm.textContent = "关闭两步验证";
   }
 }
 
@@ -1149,15 +1149,15 @@ async function loadAccount() {
 function dialogCopy(target) {
   if (target === "all") {
     return {
-      title: "Sign out all devices?",
-      description: "This browser and every other device will lose refresh access. You will need to sign in again before opening your Workspace.",
-      confirm: "Sign out all devices",
+      title: "退出所有设备？",
+      description: "包括这台设备在内，所有设备都会退出登录，之后需要重新登录。",
+      confirm: "退出所有设备",
     };
   }
   return {
-    title: "Sign out other devices?",
-    description: "Every other device will lose refresh access. This current browser will remain signed in.",
-    confirm: "Sign out other devices",
+    title: "退出其他设备？",
+    description: "其他设备都会退出登录，这台设备保持登录。",
+    confirm: "退出其他设备",
   };
 }
 
@@ -1180,7 +1180,7 @@ async function revokeSessions() {
   dialogCancel.disabled = true;
   dialogConfirm.disabled = true;
   const originalLabel = dialogConfirm.textContent;
-  dialogConfirm.textContent = "Signing out…";
+  dialogConfirm.textContent = "正在退出…";
   dialogNotice.hidden = true;
   try {
     const result = await accountRequest(`/api/me/sessions/${sessionAction}`, {
@@ -1192,8 +1192,8 @@ async function revokeSessions() {
       navigateWithoutDirtyPrompt("/auth/sign-in", true);
       return;
     }
-    showNotice(result.message || "Other device sessions were revoked.", "success");
-    announce("Other devices signed out.");
+    showNotice("其他设备已退出登录。", "success");
+    announce("其他设备已退出登录。");
     await loadSessions();
   } catch (error) {
     if (redirectForAuth(error)) return;
@@ -1314,7 +1314,7 @@ document.querySelectorAll("[data-session-action]").forEach((button) => {
 signOutCurrent.addEventListener("click", async () => {
   const originalLabel = signOutCurrent.textContent;
   signOutCurrent.disabled = true;
-  signOutCurrent.textContent = "Signing out…";
+  signOutCurrent.textContent = "正在退出…";
   hideNotice();
   try {
     await accountRequest("/api/auth/sign-out", { method: "POST", body: JSON.stringify({}) });
@@ -1323,8 +1323,8 @@ signOutCurrent.addEventListener("click", async () => {
     if (redirectForAuth(error)) return;
     signOutCurrent.disabled = false;
     signOutCurrent.textContent = originalLabel;
-    showNotice(error.message || "This device could not be signed out. Please retry.");
-    announce("Sign out failed. Your session remains active.");
+    showNotice("退出失败，请重试。");
+    announce("退出失败，仍保持登录。");
   }
 });
 

@@ -74,11 +74,11 @@ def main() -> None:
         'refresh_avatar", "1"',
         'document.querySelectorAll("[data-review-nav]")',
         "bootstrapElement?.content?.textContent",
-        'destination("Admin", "/admin")',
-        'destination("Upload", "/workspace/images")',
-        'destination("Account Settings", "/settings/account")',
+        'destination("总览", "/admin")',
+        'destination("上传图片", "/workspace/images")',
+        'destination("账号与安全", "/settings/account")',
         "dataset.accountMenuAvatarInitials",
-        "Active account",
+        "账号正常",
         "window.MTPresenceHeaderIdentity = identity",
     }, "Header Identity controller")
     forbidden_menu = (
@@ -131,7 +131,11 @@ def main() -> None:
         if page in GLOBAL_HEADER_PAGES:
             require(html, {"data-global-header", 'src="/global-header.js'}, f"{page} GlobalHeader shell")
         else:
-            require(html, {'aria-label="Staff navigation"', 'href="/admin"'}, f"{page} staff navigation")
+            # The 2026-10-27 admin shell renders its navigation from admin-shell.js.
+            if "data-admin-nav" in html:
+                require(html, {'href="/admin"', 'src="/admin-shell.js'}, f"{page} staff navigation")
+            else:
+                require(html, {'aria-label="Staff navigation"', 'href="/admin"'}, f"{page} staff navigation")
             forbid(html, ('href="/admin/reviews"', 'href="/admin/users"', 'href="/dashboard"'), f"{page} staff navigation")
 
     require(global_header, {

@@ -495,7 +495,7 @@ def validate_frontend(frontend: str) -> None:
         'event?.result === "failure"',
         "[...governanceHistory, ...failedAuditHistory]",
         'item.dataset.result = failed ? "failure" : "success"',
-        'failed ? " - Failed" : ""',
+        'failed ? "（未成功）" : ""',
     }, "Admin Works failure audit history UI")
 
 

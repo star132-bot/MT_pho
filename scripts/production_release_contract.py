@@ -14,7 +14,9 @@ PUBLIC_RUNTIME_FILES = frozenset({
     "public-navigation.js", "series-data.js", "contact.js", "i18n.js",
     "auth.js", "mfa.js", "account-menu.js", "account-settings.js",
     "upload-studio.js", "inbox.js", "site-footer.js",
-    "admin-works.js", "admin-audit.js", })
+    "admin-works.js", "admin-audit.js",
+    "admin.css", "admin-shell.js", "admin-overview.js", "admin-site-images.html", "admin-site-images.js",
+    "site-images.js", })
 
 DATABASE_MIGRATION_FILES = frozenset({
     "database/migrations/20260713_admin_mfa_hardening.sql",
@@ -35,6 +37,7 @@ DATABASE_MIGRATION_FILES = frozenset({
     "database/migrations/20260723_b_admin_user_governance.sql",
     "database/migrations/20260723_c_profile_avatar_upload.sql",
     "database/migrations/20260723_d_communications_audit.sql",
+    "database/migrations/20261027_b_site_images_admin_assets.sql",
 })
 
 REQUIRED_RELEASE_FILES = PUBLIC_RUNTIME_FILES | DATABASE_MIGRATION_FILES | frozenset({

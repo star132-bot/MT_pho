@@ -37,39 +37,39 @@ const MODE_BY_PATH = {
 
 const MODES = {
   signIn: {
-    documentTitle: "Staff Sign In",
-    eyebrow: "Site Staff",
-    title: "Sign in",
-    intro: "Sign in to manage the MT Presence website. Visitors do not need an account.",
+    documentTitle: "登录",
+    eyebrow: "后台",
+    title: "登录",
+    intro: "仅限网站管理人员。访客浏览网站不需要账号。",
     fields: ["email", "password"],
     endpoint: "/api/auth/sign-in",
-    submit: "Sign in",
-    pending: "Signing in…",
+    submit: "登录",
+    pending: "正在登录…",
   },
   forgotPassword: {
-    documentTitle: "Reset Password",
-    eyebrow: "Account Recovery",
-    title: "Reset your password",
-    intro: "Enter your email and we’ll send a secure, time-limited recovery code.",
+    documentTitle: "找回密码",
+    eyebrow: "找回密码",
+    title: "找回密码",
+    intro: "输入邮箱，我们会发送一个有时效的验证码。",
     fields: ["email", "recovery_code"],
     endpoint: "/api/auth/forgot-password",
-    submit: "Send recovery code",
-    pending: "Sending recovery code…",
-    switchCopy: "Remembered your password?",
-    switchLabel: "Return to sign in",
+    submit: "发送验证码",
+    pending: "正在发送…",
+    switchCopy: "想起密码了？",
+    switchLabel: "返回登录",
     switchHref: "/auth/sign-in",
   },
   resetPassword: {
-    documentTitle: "Choose New Password",
-    eyebrow: "Security Checkpoint",
-    title: "Choose a new password",
-    intro: "Use a strong password that you do not use for another account.",
+    documentTitle: "设置新密码",
+    eyebrow: "设置新密码",
+    title: "设置新密码",
+    intro: "请使用一个没有在其他网站用过的密码。",
     fields: ["password", "password_confirmation"],
     endpoint: "/api/auth/reset-password",
-    submit: "Update password",
-    pending: "Updating password…",
-    switchCopy: "Need a new recovery link?",
-    switchLabel: "Request another link",
+    submit: "更新密码",
+    pending: "正在更新…",
+    switchCopy: "链接失效了？",
+    switchLabel: "重新获取",
     switchHref: "/auth/forgot-password",
     callbackType: "recovery",
     callbackEndpoint: "/api/auth/recovery-session",
@@ -154,7 +154,7 @@ function configureMode() {
   const password = form.elements.password;
   if (password) {
     password.autocomplete = mode === "signIn" ? "current-password" : "new-password";
-    passwordLabel.textContent = mode === "resetPassword" ? "New password" : "Password";
+    passwordLabel.textContent = mode === "resetPassword" ? "新密码" : "密码";
     password.minLength = mode === "signIn" ? 1 : 12;
     password.maxLength = mode === "signIn" ? 256 : 128;
     passwordHint.hidden = mode !== "resetPassword";
@@ -166,7 +166,7 @@ function configureMode() {
   if (config.callbackType) {
     form.hidden = true;
     loading.hidden = false;
-    loadingCopy.textContent = "Validating your recovery link…";
+    loadingCopy.textContent = "正在验证链接…";
   }
 }
 
@@ -227,8 +227,8 @@ function setBusy(busy) {
   form.setAttribute("aria-busy", String(busy));
   submitButton.disabled = busy;
   submitButton.textContent = busy
-    ? (recoveryCodeStep ? "Verifying recovery code…" : config.pending)
-    : (recoveryCodeStep ? "Verify recovery code" : config.submit);
+    ? (recoveryCodeStep ? "正在验证…" : config.pending)
+    : (recoveryCodeStep ? "验证" : config.submit);
 }
 
 async function csrfToken(force = false) {
@@ -286,7 +286,7 @@ function callbackParameters() {
   return payload;
 }
 
-function showCompletion(message, label = "Return to sign in", href = "/auth/sign-in") {
+function showCompletion(message, label = "返回登录", href = "/auth/sign-in") {
   loading.hidden = true;
   form.hidden = true;
   forgotLink.hidden = true;
@@ -310,7 +310,7 @@ function showInvalidCallback(message) {
 async function prepareCallbackMode() {
   const callback = callbackParameters();
   if (callback.hasError) {
-    showInvalidCallback("This secure link is invalid or has expired.");
+    showInvalidCallback("这个链接无效或已过期。");
     return;
   }
 
@@ -318,7 +318,7 @@ async function prepareCallbackMode() {
     const hasCallback = Boolean(callback.type || callback.token_hash || callback.refresh_token);
     if (hasCallback) {
       if (callback.type !== config.callbackType || (!callback.token_hash && !callback.refresh_token)) {
-        showInvalidCallback("This secure link is invalid or has expired.");
+        showInvalidCallback("这个链接无效或已过期。");
         return;
       }
       const { response, result } = await authRequest(config.callbackEndpoint, {
@@ -330,13 +330,13 @@ async function prepareCallbackMode() {
         }),
       });
       if (!response.ok) {
-        showInvalidCallback(result.error?.message || "This secure link is invalid or has expired.");
+        showInvalidCallback(result.error?.message || "这个链接无效或已过期。");
         return;
       }
     } else {
       const { response, result } = await authRequest("/api/auth/recovery-status");
       if (!response.ok || result.recovery_ready !== true) {
-        showInvalidCallback("This secure link is invalid or has expired.");
+        showInvalidCallback("这个链接无效或已过期。");
         return;
       }
     }
@@ -346,7 +346,7 @@ async function prepareCallbackMode() {
     window.setTimeout(() => form.elements.password?.focus(), 0);
   } catch {
     loading.hidden = true;
-    showInvalidCallback("Unable to validate this secure link. Check your connection and try again.");
+    showInvalidCallback("无法验证链接，请检查网络后重试。");
   }
 }
 
@@ -357,8 +357,8 @@ form.addEventListener("submit", async (event) => {
     const password = form.elements.password.value;
     const confirmation = form.elements.password_confirmation.value;
     if (password !== confirmation) {
-      form.elements.password_confirmation.setCustomValidity("Passwords do not match.");
-      applyFieldErrors({ password_confirmation: "Passwords do not match." });
+      form.elements.password_confirmation.setCustomValidity("两次输入的密码不一致。");
+      applyFieldErrors({ password_confirmation: "两次输入的密码不一致。" });
       return;
     }
   }
@@ -386,10 +386,10 @@ form.addEventListener("submit", async (event) => {
       body: JSON.stringify(requestPayload),
     });
     if (!response.ok) {
-      showNotice(result.error?.message || "Unable to continue. Try again.");
+      showNotice(result.error?.message || "操作没有完成，请重试。");
       applyFieldErrors(result.error?.field_errors);
       if (mode === "forgotPassword" && recoveryCodeStep) {
-        resendLink.textContent = "Request a new recovery code";
+        resendLink.textContent = "重新获取验证码";
         resendLink.href = "/auth/forgot-password";
         resendLink.hidden = false;
       }
@@ -402,10 +402,10 @@ form.addEventListener("submit", async (event) => {
         recoveryCodeStep = true;
         setFieldVisibility("email", false);
         setFieldVisibility("recovery_code", true);
-        resendLink.textContent = "Request a new recovery code";
+        resendLink.textContent = "重新获取验证码";
         resendLink.href = "/auth/forgot-password";
         resendLink.hidden = false;
-        showNotice(result.message || "If an account exists for this email, a recovery code has been sent. Enter it below.", "success");
+        showNotice("如果这个邮箱有账号，验证码已经发出，请在下面输入。", "success");
         window.setTimeout(() => form.elements.recovery_code?.focus(), 0);
         return;
       }
@@ -415,7 +415,7 @@ form.addEventListener("submit", async (event) => {
     }
     if (mode === "resetPassword") {
       form.reset();
-      showCompletion(result.message || "Password updated. Sign in with your new password.");
+      showCompletion("密码已更新，请用新密码登录。");
       return;
     }
 
@@ -429,10 +429,10 @@ form.addEventListener("submit", async (event) => {
       openBrowserLink.href = browserUrl.href;
       openBrowserLink.hidden = false;
       if (sessionCheck.response.status === 401) {
-        showNotice("This embedded preview did not retain the secure session. Open sign-in in a full browser and try again.");
+        showNotice("这个窗口没有保存登录状态，请在完整浏览器中打开登录页再试。");
       } else {
         openBrowserLink.hidden = true;
-        showNotice("Authentication is temporarily unavailable. Please try again shortly.");
+        showNotice("登录服务暂时不可用，请稍后再试。");
       }
       return;
     }
@@ -443,7 +443,7 @@ form.addEventListener("submit", async (event) => {
     }
     window.location.assign(next);
   } catch {
-    showNotice("Unable to reach the server. Check your connection and try again.");
+    showNotice("连不上服务器，请检查网络后重试。");
   } finally {
     setBusy(false);
   }

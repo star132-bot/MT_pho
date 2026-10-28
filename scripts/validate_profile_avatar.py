@@ -179,7 +179,7 @@ def validate_account_ui(html: str, javascript: str) -> None:
         'type="button" data-profile-avatar-choose',
         'type="button" data-profile-avatar-remove hidden',
         'role="status" aria-live="polite" data-profile-avatar-status',
-        "Center-cropped to a square; the original file is not uploaded.",
+        "头像会居中裁成正方形，不上传原文件。",
     }, "Account Settings avatar controls")
     forbid(html, {'name="avatar_url"'}, "Account Settings avatar form")
 

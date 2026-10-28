@@ -443,7 +443,22 @@ ADMIN_WORKS_ERROR_STATUS = {
     "ADMIN_GOVERNANCE_IDEMPOTENCY_CONFLICT": HTTPStatus.CONFLICT,
     "ADMIN_GOVERNANCE_STATE_CONFLICT": HTTPStatus.CONFLICT,
     "ADMIN_GOVERNANCE_RESTORE_BLOCKED": HTTPStatus.CONFLICT,
+    "ADMIN_SITE_IMAGE_SLOT_INVALID": HTTPStatus.UNPROCESSABLE_ENTITY,
+    "ADMIN_SITE_IMAGE_NOT_LIVE": HTTPStatus.CONFLICT,
+    "ADMIN_SITE_IMAGE_SERIES_MISMATCH": HTTPStatus.CONFLICT,
 }
+
+# Fixed image places of the visitor site and how many works each holds
+# (database/migrations/20261027_b_site_images_admin_assets.sql).
+SITE_IMAGE_SLOTS = {
+    "home_hero": 1,
+    "home_selected": 5,
+    "home_about": 1,
+    "works_poster_colour": 1,
+    "works_poster_grey": 1,
+    "contact": 1,
+}
+ADMIN_WORK_DERIVATIVE_KINDS = ("original", "display", "thumbnail")
 
 ADMIN_USERS_ACCOUNT_STATUSES = {
     "pending_verification",
@@ -634,7 +649,9 @@ PUBLIC_ROOT_STATIC_FILES = {
     "public-navigation.js", "series-data.js", "contact.js", "i18n.js",
     "auth.js", "mfa.js", "account-menu.js", "account-settings.js",
     "upload-studio.js", "inbox.js", "site-footer.js",
-    "admin-works.js", "admin-audit.js", }
+    "admin-works.js", "admin-audit.js",
+    "admin.css", "admin-shell.js", "admin-overview.js", "admin-site-images.html", "admin-site-images.js",
+    "site-images.js", }
 PUBLIC_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"}
 
 
@@ -3422,9 +3439,74 @@ def clean_admin_work_summary(value) -> dict | None:
         "asset_summary": counts,
         "latest_review": latest_review,
         "latest_governance_action": latest_action,
+        "content_category": category if (category := clean_text(value.get("content_category"), 40)) in ARCHIVE_CONTENT_TYPES else None,
+        "derivatives": clean_admin_work_derivatives(value.get("derivatives")),
         "_owner_user_id": owner_id,
         "_thumbnail_asset": thumbnail,
     }
+
+
+def clean_admin_work_derivatives(value) -> dict:
+    """Size and scan state of the newest original, display and thumbnail file."""
+    derivatives = {kind: None for kind in ADMIN_WORK_DERIVATIVE_KINDS}
+    if not isinstance(value, dict):
+        return derivatives
+    for kind in ADMIN_WORK_DERIVATIVE_KINDS:
+        raw = value.get(kind)
+        if not isinstance(raw, dict):
+            continue
+        numbers = [raw.get(key) for key in ("byte_size", "width", "height")]
+        if any(isinstance(number, bool) or not isinstance(number, int) or number < 0 for number in numbers):
+            continue
+        scan_status = clean_text(raw.get("scan_status"), 40)
+        derivatives[kind] = {
+            "byte_size": numbers[0],
+            "width": numbers[1],
+            "height": numbers[2],
+            "mime_type": clean_text(raw.get("mime_type"), 80) or None,
+            "scan_status": scan_status if scan_status in {"pending", "clean", "flagged", "failed"} else None,
+        }
+    return derivatives
+
+
+def clean_admin_site_images_result(value) -> list[dict] | None:
+    """Assigned image places for staff; each work is a cleaned Works summary."""
+    if not isinstance(value, dict) or not isinstance(value.get("items"), list):
+        return None
+    items = []
+    seen = set()
+    for raw in value["items"]:
+        if not isinstance(raw, dict):
+            return None
+        slot_key = raw.get("slot_key")
+        position = raw.get("position")
+        live = raw.get("live")
+        if (
+            slot_key not in SITE_IMAGE_SLOTS
+            or isinstance(position, bool)
+            or not isinstance(position, int)
+            or not 1 <= position <= SITE_IMAGE_SLOTS[slot_key]
+            or (slot_key, position) in seen
+            or not isinstance(live, bool)
+        ):
+            return None
+        try:
+            image_id = clean_uuid(raw.get("image_id"), "site image work id")
+        except ValueError:
+            return None
+        work = clean_admin_work_summary(raw.get("work"))
+        if work is None or work["id"] != image_id:
+            return None
+        seen.add((slot_key, position))
+        items.append({
+            "slot_key": slot_key,
+            "position": position,
+            "image_id": image_id,
+            "live": live,
+            "updated_at": clean_text(raw.get("updated_at"), 80) or None,
+            "work": work,
+        })
+    return items
 
 
 def clean_admin_work_list_result(
@@ -4842,7 +4924,7 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         email = html.escape(clean_text(identity.get("email"), 320), quote=True)
         initials = html.escape(clean_text(identity.get("initials"), 8) or "MT", quote=True)
         account_status = clean_text(identity.get("account_status"), 40)
-        status_label = "Active account" if account_status == "active" else "Account access limited"
+        status_label = "账号正常" if account_status == "active" else "账号受限"
         avatar_url = clean_text(identity.get("avatar_url"), 2048)
         avatar_markup = ""
         if avatar_url:
@@ -4874,11 +4956,11 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
       </div>
       <div class="account-menu-actions" id="account-menu-actions" role="menu" aria-label="Account">
         <nav class="account-menu-links" role="none">
-          <a href="/admin" role="menuitem">Admin</a>
-          <a href="/workspace/images" role="menuitem">Upload</a>
-          <a href="/settings/account" role="menuitem">Account Settings</a>
+          <a href="/admin" role="menuitem">总览</a>
+          <a href="/workspace/images" role="menuitem">上传图片</a>
+          <a href="/settings/account" role="menuitem">账号与安全</a>
         </nav>
-        <button class="account-menu-signout" type="button" role="menuitem" data-account-menu-signout>Sign out</button>
+        <button class="account-menu-signout" type="button" role="menuitem" data-account-menu-signout>退出登录</button>
       </div>
       <p class="account-menu-error" role="alert" tabindex="-1" data-account-menu-error hidden></p>
     </div>
@@ -8160,6 +8242,112 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
         self.send_auth_json(HTTPStatus.OK, response)
 
+    def send_admin_site_images(self, user: dict, result: dict) -> None:
+        items = clean_admin_site_images_result(result)
+        if items is None:
+            self.send_auth_json(
+                HTTPStatus.BAD_GATEWAY,
+                auth_error("ADMIN_WORKS_PROVIDER_FAILED", "The site images response was invalid."),
+            )
+            return
+        for item in items:
+            if self.present_admin_work_summary(user, item["work"]) is None:
+                return
+        self.send_auth_json(HTTPStatus.OK, {"slots": SITE_IMAGE_SLOTS, "items": items})
+
+    def handle_admin_site_images_get(self) -> None:
+        user, _, result = self.admin_works_rpc("admin_list_site_images", {})
+        if result is None or user is None:
+            return
+        self.send_admin_site_images(user, result)
+
+    def handle_admin_site_images_update(self, slot_key: str) -> None:
+        allowed, authorization = self.require_admin()
+        user = getattr(self, "_admin_principal_user", None)
+        if not allowed or not user or not authorization:
+            return
+        if slot_key not in SITE_IMAGE_SLOTS:
+            self.send_auth_json(
+                HTTPStatus.NOT_FOUND,
+                auth_error("ADMIN_SITE_IMAGE_SLOT_INVALID", "This image place does not exist."),
+            )
+            return
+        body = self.read_json_body()
+        if body is None:
+            return
+        raw_ids = body.get("image_ids")
+        image_ids = []
+        if set(body) == {"image_ids"} and isinstance(raw_ids, list) and len(raw_ids) <= SITE_IMAGE_SLOTS[slot_key]:
+            try:
+                image_ids = [clean_uuid(value, "site image work id") for value in raw_ids]
+            except ValueError:
+                raw_ids = None
+        else:
+            raw_ids = None
+        if raw_ids is None or len(set(image_ids)) != len(image_ids):
+            self.send_auth_json(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                auth_error(
+                    "ADMIN_GOVERNANCE_VALIDATION_FAILED",
+                    f"Choose up to {SITE_IMAGE_SLOTS[slot_key]} different works for this place.",
+                ),
+            )
+            return
+        _, _, result = self.admin_works_rpc(
+            "admin_set_site_image_slot",
+            {"target_slot": slot_key, "target_image_ids": image_ids},
+            principal=(user, authorization),
+        )
+        if result is None:
+            return
+        self.send_admin_site_images(user, result)
+
+    def load_public_site_images(self) -> dict:
+        """Signed images for the visitor site's image places; empty on any failure."""
+        status, result = supabase_rest_request("rpc/get_public_site_images", SUPABASE_PUBLISHABLE_KEY, {})
+        if status != HTTPStatus.OK or not isinstance(result, dict) or not isinstance(result.get("items"), list):
+            return {"items": []}
+        works = {}
+        places = []
+        for raw in result["items"][:20]:
+            if not isinstance(raw, dict):
+                continue
+            slot_key = raw.get("slot_key")
+            position = raw.get("position")
+            if (
+                slot_key not in SITE_IMAGE_SLOTS
+                or isinstance(position, bool)
+                or not isinstance(position, int)
+                or not 1 <= position <= SITE_IMAGE_SLOTS[slot_key]
+                or clean_public_work(raw.get("work")) is None
+            ):
+                continue
+            works[raw["work"]["id"]] = raw["work"]
+            places.append((slot_key, position, raw["work"]["id"]))
+        if not works:
+            return {"items": []}
+        signed = self.signed_public_works({"items": list(works.values()), "count": len(works)}, maximum=len(works))
+        if signed is None:
+            return {"items": []}
+        by_id = {item["id"]: item for item in signed["items"]}
+        return {
+            "items": [
+                {"slot_key": slot_key, "position": position, "work": by_id[image_id]}
+                for slot_key, position, image_id in places
+                if image_id in by_id
+            ]
+        }
+
+    def handle_public_site_images_get(self) -> None:
+        cached = cached_public_response("site-images")
+        if cached is not None:
+            self.send_json(HTTPStatus.OK, cached)
+            return
+        generation = public_works_cache_generation()
+        response = self.load_public_site_images()
+        store_public_response("site-images", response, generation)
+        self.send_json(HTTPStatus.OK, response)
+
     def handle_admin_work_mutation(self, image_id: str, action: str) -> None:
         allowed, authorization = self.require_admin()
         user = getattr(self, "_admin_principal_user", None)
@@ -9592,6 +9780,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path in {"/admin/works", "/admin/works/"}:
             self.serve_admin_works_page()
             return
+        if parsed.path in {"/admin/site-images", "/admin/site-images/"}:
+            self.serve_staff_page("admin-site-images.html", "/admin/site-images", "You do not have access to the site images.")
+            return
         if len(parts) == 3 and parts[:2] == ["admin", "works"]:
             try:
                 image_id = clean_uuid(parts[2], "admin work id")
@@ -9787,6 +9978,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/admin/works":
             self.handle_admin_works_list_get(parsed)
             return
+        if parsed.path == "/api/admin/site-images":
+            self.handle_admin_site_images_get()
+            return
         if len(parts) == 4 and parts[:3] == ["api", "admin", "works"]:
             self.handle_admin_work_detail_get(parts[3])
             return
@@ -9800,6 +9994,9 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
         if len(parts) == 4 and parts[:3] == ["api", "public", "creators"]:
             self.handle_public_creator_get(parts[3])
+            return
+        if parsed.path == "/api/public/site-images":
+            self.handle_public_site_images_get()
             return
         if parsed.path == "/api/archive/images":
             visibility = single_query_value(parse_qs(parsed.query), "visibility").lower()
@@ -9969,6 +10166,11 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
                 return
             self.handle_admin_work_mutation(parts[3], parts[4])
             return
+        if len(parts) == 4 and parts[:3] == ["api", "admin", "site-images"]:
+            if not self.require_csrf():
+                return
+            self.handle_admin_site_images_update(parts[3])
+            return
 
         self.send_json(HTTPStatus.NOT_FOUND, {"error": "API endpoint not found."})
 
@@ -10080,6 +10282,7 @@ class PublicWorksRefresher(MTRequestHandler):
         if response is None:
             return False
         store_public_response(f"works:{PUBLIC_DELIVERY_MAX_WORKS}", response, generation)
+        store_public_response("site-images", self.load_public_site_images(), generation)
         slugs = {
             item["creator"]["slug"]
             for item in response.get("items", [])

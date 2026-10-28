@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>网站图片位 | MT Presence 后台</title>
+    <meta name="description" content="Choose which published works appear in the fixed image places of the MT Presence website." />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/admin.css?v=20261028-admin-2" />
+    <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
+  </head>
+  <body class="admin-page" data-admin-page="site-images">
+    <div class="admin-shell">
+      <aside class="admin-sidebar" aria-label="后台导航">
+        <a class="admin-brand" href="/admin"><strong>MT PRESENCE</strong><span>后台</span></a>
+        <nav class="admin-nav" aria-label="后台页面" data-admin-nav></nav>
+        <div class="admin-sidebar-foot">
+          <a href="/" target="_blank" rel="noopener">查看网站 ↗</a>
+          <p class="admin-connection" data-admin-connection><span class="admin-dot"></span><span data-admin-connection-label>数据连接 · 检查中</span></p>
+          <div class="header-identity-slot" data-header-identity-slot></div>
+        </div>
+      </aside>
+      <script src="/admin-shell.js?v=20261028-admin"></script>
+
+      <main class="admin-main" id="site-images-main">
+        <header class="admin-head">
+          <div>
+            <h1>网站图片位</h1>
+            <p>管理网站每个位置显示的图片。只能使用已经发布到网站的作品；没有设置的位置显示网站默认图。</p>
+          </div>
+        </header>
+
+        <p class="admin-error" data-site-images-error hidden></p>
+
+        <div class="site-images-layout">
+          <!-- A wireframe of the visitor pages with the numbered image places. -->
+          <section class="site-images-map" aria-labelledby="site-images-map-title">
+            <h2 class="admin-section-title" id="site-images-map-title">网站图片位分布</h2>
+            <div class="site-wireframes">
+              <figure class="site-wireframe">
+                <figcaption>首页</figcaption>
+                <div class="wire-page">
+                  <span class="wire-bar"></span>
+                  <button class="wire-slot wire-hero" type="button" data-slot-button="home_hero" aria-label="首页大图"><b>1</b></button>
+                  <span class="wire-caption">精选作品</span>
+                  <button class="wire-slot wire-selected" type="button" data-slot-button="home_selected" aria-label="首页精选作品">
+                    <i></i><i></i><i></i><i></i><i></i><b>2</b>
+                  </button>
+                  <button class="wire-slot wire-about" type="button" data-slot-button="home_about" aria-label="关于照片"><b>3</b></button>
+                  <span class="wire-lines"><i></i><i></i><i></i></span>
+                </div>
+              </figure>
+              <figure class="site-wireframe">
+                <figcaption>作品页</figcaption>
+                <div class="wire-page">
+                  <span class="wire-bar"></span>
+                  <div class="wire-posters">
+                    <button class="wire-slot" type="button" data-slot-button="works_poster_colour" aria-label="作品页海报 · 此间留彩"><b>4</b><small>此间留彩</small></button>
+                    <button class="wire-slot" type="button" data-slot-button="works_poster_grey" aria-label="作品页海报 · 此间留灰"><b>5</b><small>此间留灰</small></button>
+                  </div>
+                </div>
+              </figure>
+              <figure class="site-wireframe">
+                <figcaption>联系页</figcaption>
+                <div class="wire-page">
+                  <span class="wire-bar"></span>
+                  <div class="wire-contact">
+                    <button class="wire-slot" type="button" data-slot-button="contact" aria-label="联系页配图"><b>6</b></button>
+                    <span class="wire-form"><i></i><i></i><i></i><i></i><em></em></span>
+                  </div>
+                </div>
+              </figure>
+            </div>
+            <ol class="site-slot-legend" data-slot-legend></ol>
+          </section>
+
+          <!-- The chosen place: its images, order and status. -->
+          <section class="site-images-detail" aria-live="polite" data-slot-detail>
+            <header class="site-slot-head">
+              <h2 class="admin-title" data-slot-title>首页大图</h2>
+              <p class="admin-meta" data-slot-description></p>
+            </header>
+            <p class="site-slot-state" data-slot-state></p>
+            <ol class="site-slot-images" data-slot-images></ol>
+            <div class="site-slot-actions">
+              <button class="admin-link" type="button" data-slot-pick>从作品中选择</button>
+              <button class="admin-link" type="button" data-slot-reset>恢复默认图</button>
+              <a class="admin-link" href="/" target="_blank" rel="noopener" data-slot-view>在网站中查看 ↗</a>
+            </div>
+            <footer class="site-slot-save">
+              <span class="admin-meta" data-slot-dirty></span>
+              <button class="admin-button" type="button" data-slot-save disabled>保存并发布</button>
+            </footer>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <!-- Picker of published works, filtered by series. -->
+    <dialog class="site-picker" data-picker aria-labelledby="site-picker-title">
+      <form method="dialog" class="site-picker-inner">
+        <header class="site-picker-head">
+          <div>
+            <h2 class="admin-title" id="site-picker-title">从作品中选择</h2>
+            <p class="admin-meta" data-picker-hint>只显示已发布到网站的作品。</p>
+          </div>
+          <button class="admin-link" type="submit" value="cancel">关闭</button>
+        </header>
+        <div class="admin-tabs" role="group" aria-label="系列" data-picker-tabs>
+          <button type="button" data-picker-series="all" aria-pressed="true">全部</button>
+          <button type="button" data-picker-series="concrete" aria-pressed="false">此间留彩</button>
+          <button type="button" data-picker-series="abstract" aria-pressed="false">此间留灰</button>
+        </div>
+        <p class="admin-meta site-picker-status" data-picker-status>正在读取作品…</p>
+        <ul class="site-picker-grid" data-picker-grid></ul>
+        <footer class="site-picker-foot">
+          <button class="admin-link" type="button" data-picker-more hidden>加载更多</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <div class="contact-toast" role="status" aria-live="polite" aria-atomic="true" data-site-images-toast></div>
+    <script src="/account-menu.js?v=20261028-admin"></script>
+    <script src="/admin-site-images.js?v=20261028-admin"></script>
+  </body>
+</html>

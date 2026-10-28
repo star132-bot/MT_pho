@@ -51,21 +51,25 @@ const FILTER_STATUSES = new Set(["all", "never_published", "published", "unpubli
 const SORT_OPTIONS = new Set(["updated_desc", "published_desc", "uploaded_desc", "title_asc"]);
 const ACTION_REASONS = {
   takedown: [
-    ["copyright", "Copyright"],
-    ["privacy", "Privacy"],
-    ["illegal_content", "Illegal content"],
-    ["policy_violation", "Policy violation"],
-    ["security", "Security"],
-    ["user_request", "User request"],
-    ["other", "Other"],
+    ["copyright", "版权问题"],
+    ["privacy", "隐私问题"],
+    ["illegal_content", "违法内容"],
+    ["policy_violation", "不符合网站规定"],
+    ["security", "安全问题"],
+    ["user_request", "本人要求"],
+    ["other", "其他"],
   ],
   restore: [
-    ["appeal_upheld", "Appeal upheld"],
-    ["investigation_cleared", "Investigation cleared"],
-    ["administrative_error", "Administrative error"],
-    ["other", "Other"],
+    ["appeal_upheld", "申诉成立"],
+    ["investigation_cleared", "核查无问题"],
+    ["administrative_error", "之前操作有误"],
+    ["other", "其他"],
   ],
 };
+// The two series of the site (content_category).
+const SERIES_LABELS = { concrete: "此间留彩", abstract: "此间留灰" };
+const STATUS_TONES = { published: "ok", never_published: "", unpublished: "bad", quarantined: "bad", archived: "", deleted: "bad" };
+const SLOW_LOAD_SECONDS = 1.5;
 const CONFLICT_CODES = new Set([
   "ADMIN_IMAGE_VERSION_CONFLICT",
   "ADMIN_GOVERNANCE_STATE_CONFLICT",
@@ -73,18 +77,18 @@ const CONFLICT_CODES = new Set([
   "ADMIN_GOVERNANCE_IDEMPOTENCY_CONFLICT",
 ]);
 const STATUS_LABELS = {
-  published: "Published",
-  quarantined: "Taken down",
-  never_published: "Never published",
-  unpublished: "Unpublished",
-  archived: "Archived",
-  deleted: "Deleted",
-  approved: "Approved",
-  in_review: "In review",
-  submitted: "Submitted",
-  ready: "Ready",
-  draft: "Draft",
-  rejected: "Rejected",
+  published: "已发布",
+  quarantined: "已撤下",
+  never_published: "草稿",
+  unpublished: "已下架",
+  archived: "已归档",
+  deleted: "已删除",
+  approved: "已通过",
+  in_review: "审核中",
+  submitted: "已提交",
+  ready: "已就绪",
+  draft: "草稿",
+  rejected: "未通过",
 };
 
 let csrfPromise = null;
@@ -129,7 +133,7 @@ function value(...candidates) {
 function displayValue(...candidates) {
   const emptyFallback = candidates.at(-1) === "";
   const next = value(...candidates);
-  return next === null ? (emptyFallback ? "" : "Not recorded") : String(next);
+  return next === null ? (emptyFallback ? "" : "未记录") : String(next);
 }
 
 function canonicalStatus(record = {}) {
@@ -156,7 +160,7 @@ function canonicalStatus(record = {}) {
 }
 
 function statusLabel(status) {
-  return STATUS_LABELS[status] || displayValue(status, "Unknown").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return STATUS_LABELS[status] || displayValue(status, "未知").replaceAll("_", " ");
 }
 
 function creatorFrom(record = {}) {
@@ -215,8 +219,10 @@ function normalizeWork(record = {}) {
     quarantinedAt: value(record.quarantined_at, record.taken_down_at, takedown.created_at, takedown.taken_down_at),
     unpublishedAt: value(record.unpublished_at, publication.unpublished_at),
     publicUrl: displayValue(record.public_url, publication.url, record.work_url, ""),
-    type: displayValue(record.work_type, record.type, record.category, currentVersion.content_category, "Not classified"),
-    ratio: displayValue(record.ratio_label, record.ratio, record.aspect_ratio, "Not recorded"),
+    series: value(record.content_category, currentVersion.content_category),
+    derivatives: record.derivatives || {},
+    type: SERIES_LABELS[value(record.content_category, currentVersion.content_category)] || "未分类",
+    ratio: displayValue(record.ratio_label, record.ratio, record.aspect_ratio, "未记录"),
     history: governanceHistory.length || failedAuditHistory.length
       ? [...governanceHistory, ...failedAuditHistory].sort((left, right) => {
         const leftTime = Date.parse(value(left.created_at, left.occurred_at, left.timestamp, "")) || 0;
@@ -234,10 +240,10 @@ function normalizeWork(record = {}) {
 }
 
 function formatDate(candidate, includeTime = false) {
-  if (!candidate) return "Not recorded";
+  if (!candidate) return "未记录";
   const date = new Date(candidate);
   if (Number.isNaN(date.getTime())) return String(candidate);
-  return new Intl.DateTimeFormat(undefined, includeTime
+  return new Intl.DateTimeFormat("zh-CN", includeTime
     ? { dateStyle: "medium", timeStyle: "short" }
     : { dateStyle: "medium" }).format(date);
 }
@@ -248,7 +254,12 @@ function shortId(candidate) {
 }
 
 function humanize(candidate) {
-  return displayValue(candidate, "Unknown").replace(/[._-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const action = displayValue(candidate, "");
+  if (/takedown|quarantine/.test(action)) return "撤下作品";
+  if (/unpublish/.test(action)) return "下架作品";
+  if (/restore/.test(action)) return "恢复作品";
+  if (/publish/.test(action)) return "发布作品";
+  return action.replace(/[._-]+/g, " ") || "操作";
 }
 
 function createIdempotencyKey() {
@@ -359,6 +370,11 @@ function setListState(message, tone = "", retry = false) {
 }
 
 function setDetailState(title, tone = "", message = "", retry = false) {
+  // With nothing selected the table takes the full width.
+  if (tone === "empty") {
+    detailRegion.hidden = true;
+    delete workspace.dataset.detailOpen;
+  }
   detailStateTitle.textContent = title;
   detailStateMessage.textContent = message;
   detailState.dataset.tone = tone;
@@ -386,7 +402,7 @@ function setMutationBusy(busy) {
   refreshButton.disabled = busy || listLoading;
   loadMoreButton.disabled = busy || listLoading;
   dialogForm.querySelectorAll("select, textarea, button").forEach((control) => { control.disabled = busy; });
-  dialogConfirm.textContent = busy ? "Working…" : pendingAction === "restore" ? "Restore work" : "Take down work";
+  dialogConfirm.textContent = busy ? "处理中…" : pendingAction === "restore" ? "恢复作品" : "撤下作品";
 }
 
 function renderMetrics(counts = {}) {
@@ -397,6 +413,10 @@ function renderMetrics(counts = {}) {
   });
   document.querySelectorAll("[data-status-filter]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.statusFilter === statusFilter));
+    if (button.hasAttribute("data-optional-filter")) {
+      const key = button.dataset.statusFilter;
+      button.hidden = key !== statusFilter && !(Number(counts[key]) > 0);
+    }
   });
 }
 
@@ -408,6 +428,80 @@ function createStatusBadge(status, className = "admin-works-status") {
   return badge;
 }
 
+function cell(label, ...children) {
+  const element = document.createElement("td");
+  element.dataset.label = label;
+  element.append(...children);
+  return element;
+}
+
+function stateElement(tone, text) {
+  const wrapper = document.createElement("span");
+  wrapper.className = "admin-state";
+  const dot = document.createElement("span");
+  dot.className = "admin-dot";
+  if (tone) dot.dataset.tone = tone;
+  wrapper.append(dot, text);
+  return wrapper;
+}
+
+function formatBytes(bytes) {
+  const size = Number(bytes);
+  if (!Number.isFinite(size) || size <= 0) return "—";
+  return size < 1024 * 1024 ? `${Math.max(1, Math.round(size / 1024))} KB` : `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function filesElement(work) {
+  const wrapper = document.createElement("span");
+  wrapper.className = "admin-works-files";
+  const summary = work.asset_summary || {};
+  [["display", "展示图"], ["thumbnail", "缩略图"]].forEach(([kind, label]) => {
+    const line = document.createElement("span");
+    const file = work.derivatives?.[kind];
+    if (!file) {
+      line.dataset.tone = "warn";
+      line.textContent = `${label}缺失`;
+    } else if (file.scan_status === "pending") {
+      line.textContent = `${label} · 扫描中`;
+    } else if (file.scan_status === "flagged" || file.scan_status === "failed") {
+      line.dataset.tone = "bad";
+      line.textContent = `${label} · 未通过扫描`;
+    } else {
+      line.textContent = `${label} ✓`;
+    }
+    wrapper.append(line);
+  });
+  if (!work.derivatives?.display && !work.derivatives?.thumbnail && Number(summary.pending_count) > 0) {
+    wrapper.replaceChildren(Object.assign(document.createElement("span"), { textContent: "处理中" }));
+  }
+  return wrapper;
+}
+
+// 加载: how long this browser took to load the work's thumbnail.
+function timedThumbnail(work, loadCell) {
+  const thumb = document.createElement("span");
+  thumb.className = "admin-thumb";
+  if (!work.thumbnailUrl) {
+    loadCell.replaceChildren("—");
+    return thumb;
+  }
+  const image = document.createElement("img");
+  const started = performance.now();
+  image.alt = "";
+  image.decoding = "async";
+  image.addEventListener("load", () => {
+    const seconds = (performance.now() - started) / 1000;
+    loadCell.replaceChildren(stateElement(seconds > SLOW_LOAD_SECONDS ? "warn" : "ok", `${seconds < 0.1 ? "<0.1" : seconds.toFixed(1)} s`));
+  });
+  image.addEventListener("error", () => {
+    image.remove();
+    loadCell.replaceChildren(stateElement("bad", "加载失败"));
+  });
+  image.src = work.thumbnailUrl;
+  thumb.append(image);
+  return thumb;
+}
+
 function renderRows() {
   const fragment = document.createDocumentFragment();
   items.forEach((work) => {
@@ -415,65 +509,54 @@ function renderRows() {
     row.dataset.workId = work.id;
     row.classList.toggle("is-active", work.id === selectedId);
 
-    const workCell = document.createElement("td");
-    workCell.dataset.label = "Work";
+    const loadCell = cell("加载", "…");
     const openButton = document.createElement("button");
     openButton.className = "admin-works-row-button";
     openButton.type = "button";
     openButton.dataset.openWork = work.id;
-    openButton.setAttribute("aria-label", `Inspect ${work.title}`);
+    openButton.setAttribute("aria-label", `查看《${work.title}》`);
     if (work.id === selectedId) openButton.setAttribute("aria-current", "true");
-    const thumb = document.createElement("span");
-    thumb.className = "admin-works-thumb";
-    if (work.thumbnailUrl) {
-      const image = document.createElement("img");
-      image.src = work.thumbnailUrl;
-      image.alt = "";
-      image.loading = "lazy";
-      image.decoding = "async";
-      image.addEventListener("error", () => image.remove());
-      thumb.append(image);
-    }
     const titleCopy = document.createElement("span");
     titleCopy.className = "admin-works-title-copy";
     const strong = document.createElement("strong");
     strong.textContent = work.title;
     const small = document.createElement("small");
-    small.textContent = `#${shortId(work.id)} · ${work.type}`;
+    small.textContent = displayValue(work.original_filename, "");
     titleCopy.append(strong, small);
-    openButton.append(thumb, titleCopy);
-    workCell.append(openButton);
+    openButton.append(timedThumbnail(work, loadCell), titleCopy);
 
-    const creatorCell = document.createElement("td");
-    creatorCell.dataset.label = "Creator";
-    const creatorName = document.createElement("strong");
-    creatorName.textContent = work.creator.name;
-    const creatorMeta = document.createElement("small");
-    creatorMeta.textContent = work.creator.email || (work.creator.id ? `#${shortId(work.creator.id)}` : "Identity unavailable");
-    creatorCell.append(creatorName, creatorMeta);
+    const syncTime = document.createElement("time");
+    if (work.updatedAt) syncTime.dateTime = String(work.updatedAt);
+    const updated = new Date(work.updatedAt);
+    syncTime.textContent = Number.isNaN(updated.getTime())
+      ? "已同步"
+      : `已同步 · ${String(updated.getMonth() + 1).padStart(2, "0")}-${String(updated.getDate()).padStart(2, "0")}`;
+    const sync = stateElement("ok", "");
+    sync.lastChild.replaceWith(syncTime);
 
-    const statusCell = document.createElement("td");
-    statusCell.dataset.label = "Publication";
-    statusCell.append(createStatusBadge(work.status));
+    const actions = document.createElement("span");
+    actions.className = "admin-works-row-actions";
+    const edit = document.createElement("a");
+    edit.className = "admin-link";
+    edit.href = `/workspace/images?image=${encodeURIComponent(work.id)}`;
+    edit.textContent = "编辑";
+    const detail = document.createElement("button");
+    detail.className = "admin-link";
+    detail.type = "button";
+    detail.dataset.openWork = work.id;
+    detail.textContent = "详情";
+    actions.append(edit, " · ", detail);
 
-    const updatedCell = document.createElement("td");
-    updatedCell.dataset.label = "Updated";
-    const time = document.createElement("time");
-    if (work.updatedAt) time.dateTime = String(work.updatedAt);
-    time.textContent = formatDate(work.updatedAt);
-    updatedCell.append(time);
-
-    const arrowCell = document.createElement("td");
-    arrowCell.className = "admin-works-row-arrow";
-    arrowCell.setAttribute("aria-hidden", "true");
-    const arrow = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    arrow.setAttribute("class", "ui-icon");
-    const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
-    use.setAttribute("href", "#icon-chevron");
-    arrow.append(use);
-    arrowCell.append(arrow);
-
-    row.append(workCell, creatorCell, statusCell, updatedCell, arrowCell);
+    row.append(
+      cell("作品", openButton),
+      cell("系列", SERIES_LABELS[work.series] || "—"),
+      cell("状态", stateElement(STATUS_TONES[work.status] || "", statusLabel(work.status))),
+      cell("图片文件", filesElement(work)),
+      cell("大小", formatBytes(work.derivatives?.display?.byte_size)),
+      loadCell,
+      cell("后台同步", sync),
+      cell("操作", actions),
+    );
     fragment.append(row);
   });
   worksList.replaceChildren(fragment);
@@ -481,11 +564,11 @@ function renderRows() {
 
 function renderListSummary() {
   const shown = items.length;
-  listCount.textContent = `${total.toLocaleString()} ${total === 1 ? "work" : "works"}`;
-  rangeLabel.textContent = `${shown.toLocaleString()} of ${total.toLocaleString()}`;
+  listCount.textContent = `${total.toLocaleString()} 件`;
+  rangeLabel.textContent = `已显示 ${shown.toLocaleString()} / ${total.toLocaleString()}`;
   loadMoreButton.hidden = !hasMore;
   clearButton.hidden = !query;
-  filterSummary.textContent = `${total.toLocaleString()} ${total === 1 ? "result" : "results"} · ${statusFilter === "all" ? "All states" : statusLabel(statusFilter)}`;
+  filterSummary.textContent = `${statusFilter === "all" ? "全部状态" : statusLabel(statusFilter)}${query ? ` · 搜索「${query}」` : ""} · 数据来自后台，打开页面时读取`;
 }
 
 function markSelectedRow() {
@@ -523,7 +606,7 @@ function renderHistory(work) {
   if (!events.length) {
     const empty = document.createElement("li");
     empty.className = "is-empty";
-    empty.textContent = "No governance events have been recorded for this work.";
+    empty.textContent = "这件作品还没有下架或恢复记录。";
     historyList.append(empty);
     return;
   }
@@ -535,9 +618,9 @@ function renderHistory(work) {
     marker.setAttribute("aria-hidden", "true");
     const copy = document.createElement("div");
     const title = document.createElement("strong");
-    title.textContent = `${humanize(value(event.action, event.event_type, event.type, event.status))}${failed ? " - Failed" : ""}`;
+    title.textContent = `${humanize(value(event.action, event.event_type, event.type, event.status))}${failed ? "（未成功）" : ""}`;
     const meta = document.createElement("small");
-    const actorName = displayValue(event.actor_name, event.admin_name, event.actor?.display_name, "Administrator");
+    const actorName = displayValue(event.actor_name, event.admin_name, event.actor?.display_name, "管理员");
     meta.textContent = `${formatDate(value(event.created_at, event.occurred_at, event.timestamp), true)} · ${actorName}`;
     copy.append(title, meta);
     const message = value(event.public_message, event.user_message, event.reason, event.message, event.internal_note);
@@ -562,37 +645,37 @@ function renderAction(work) {
   actionButton.removeAttribute("data-action");
   const canGovern = explicitPermission(work, "can_govern");
   if (canGovern === false) {
-    actionNote.textContent = "Your administrator role does not include publication controls.";
+    actionNote.textContent = "你的账号没有下架和恢复的权限。";
     return;
   }
   if (work.status === "published") {
     const permitted = explicitPermission(work, "can_takedown");
     if (permitted === false) {
-      actionNote.textContent = "This work cannot be taken down in its current state.";
+      actionNote.textContent = "这件作品当前状态下不能撤下。";
       return;
     }
     actionButton.hidden = false;
     actionButton.dataset.action = "takedown";
     actionButton.classList.add("admin-works-danger");
-    actionButton.textContent = "Take down work";
-    actionNote.textContent = "Taking down removes the work from public Works and the creator profile immediately.";
+    actionButton.textContent = "撤下作品";
+    actionNote.textContent = "撤下后，作品会立即从网站的作品页和展厅中消失。";
   } else if (work.status === "quarantined") {
     const permitted = explicitPermission(work, "can_restore");
     if (permitted === false) {
-      actionNote.textContent = "Restore is unavailable until the current approved, ready, clean display and thumbnail are verified.";
+      actionNote.textContent = "展示图和缩略图都通过检查后才能恢复。";
       return;
     }
     actionButton.hidden = false;
     actionButton.dataset.action = "restore";
     actionButton.classList.add("button-secondary");
-    actionButton.textContent = "Restore publication";
-    actionNote.textContent = "Restore succeeds only when current approval, readiness, policy, display, and thumbnail checks pass.";
+    actionButton.textContent = "恢复到网站";
+    actionNote.textContent = "恢复前会再检查一次作品状态和图片文件。";
   } else {
-    actionNote.textContent = "Publication controls become available when a work is published or taken down.";
+    actionNote.textContent = "作品发布或被撤下后，才能在这里撤下或恢复。";
   }
   if (!actionButton.hidden && (work.version === null || work.version === undefined || work.version === "")) {
     actionButton.disabled = true;
-    actionNote.textContent = "The work version is unavailable. Reload before applying a publication control.";
+    actionNote.textContent = "作品版本未知，请先刷新。";
   } else {
     actionButton.disabled = mutationBusy;
   }
@@ -608,18 +691,23 @@ function renderDetail(work, nextActor = null) {
   conflictNotice.hidden = true;
   conflictMessage.textContent = "";
 
+  detailRegion.hidden = false;
+  workspace.dataset.detailOpen = "true";
   detailState.hidden = true;
   detailElement.hidden = false;
   detailStatus.dataset.status = work.status;
   detailStatus.textContent = statusLabel(work.status);
-  detailVersion.textContent = work.version === null ? "Version unavailable" : `Version ${work.version}`;
+  const listed = items.find((item) => item.id === work.id) || {};
+  const series = SERIES_LABELS[value(work.series, listed.series)] || "未分类";
+  const derivatives = Object.keys(work.derivatives || {}).length ? work.derivatives : listed.derivatives || {};
+  detailVersion.textContent = work.version === null ? "版本未知" : `第 ${work.version} 版`;
   detailTitle.textContent = work.title;
-  detailCreator.textContent = work.creator.email ? `${work.creator.name} · ${work.creator.email}` : work.creator.name;
+  detailCreator.textContent = work.publishedAt ? `${series} · ${formatDate(work.publishedAt)} 发布` : series;
 
   detailImageError.hidden = true;
   if (work.displayUrl) {
     detailImage.src = work.displayUrl;
-    detailImage.alt = `${work.title} preview`;
+    detailImage.alt = `《${work.title}》预览`;
     detailImage.hidden = false;
   } else {
     detailImage.removeAttribute("src");
@@ -638,23 +726,25 @@ function renderDetail(work, nextActor = null) {
   }
 
   publicationList.replaceChildren();
-  appendDefinition(publicationList, "State", statusLabel(work.status));
-  appendDefinition(publicationList, "Published", formatDate(work.publishedAt, true));
+  appendDefinition(publicationList, "状态", statusLabel(work.status));
+  appendDefinition(publicationList, "发布时间", formatDate(work.publishedAt, true));
   if (work.status === "quarantined" || work.quarantinedAt) {
-    appendDefinition(publicationList, "Taken down", formatDate(work.quarantinedAt, true));
-    appendDefinition(publicationList, "Category", humanize(value(work.takedown.reason_code, work.reason_code)));
-    appendDefinition(publicationList, "Creator message", value(work.takedown.public_message, work.takedown.user_message, work.public_message));
+    appendDefinition(publicationList, "撤下时间", formatDate(work.quarantinedAt, true));
+    appendDefinition(publicationList, "原因", humanize(value(work.takedown.reason_code, work.reason_code)));
+    appendDefinition(publicationList, "说明", value(work.takedown.public_message, work.takedown.user_message, work.public_message));
   } else if (work.unpublishedAt) {
-    appendDefinition(publicationList, "Unpublished", formatDate(work.unpublishedAt, true));
+    appendDefinition(publicationList, "下架时间", formatDate(work.unpublishedAt, true));
   }
 
   recordList.replaceChildren();
-  appendDefinition(recordList, "Work ID", work.id);
-  appendDefinition(recordList, "Type", work.type);
-  appendDefinition(recordList, "Ratio", work.ratio);
-  appendDefinition(recordList, "Created", formatDate(work.createdAt, true));
-  appendDefinition(recordList, "Updated", formatDate(work.updatedAt, true));
-  appendDefinition(recordList, "Version", work.version);
+  appendDefinition(recordList, "系列", series);
+  [["original", "原图"], ["display", "展示图"], ["thumbnail", "缩略图"]].forEach(([kind, label]) => {
+    const file = derivatives[kind];
+    appendDefinition(recordList, label, file ? `${file.width}×${file.height} · ${formatBytes(file.byte_size)}` : "缺失");
+  });
+  appendDefinition(recordList, "上传时间", formatDate(work.createdAt, true));
+  appendDefinition(recordList, "最后更新", formatDate(work.updatedAt, true));
+  appendDefinition(recordList, "作品编号", work.id);
 
   renderHistory(work);
   renderAction(work);
@@ -686,7 +776,7 @@ async function loadList({ append = false, selectFirst = false } = {}) {
     hasMore = false;
     worksList.replaceChildren();
     renderListSummary();
-    setListState("Loading works", "loading");
+    setListState("正在读取作品…", "loading");
   }
   setListBusy(true);
   const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset), sort });
@@ -704,11 +794,11 @@ async function loadList({ append = false, selectFirst = false } = {}) {
     renderListSummary();
     if (!items.length) {
       const description = query
-        ? "No works match this search and publication state."
-        : "No works are available in this publication state.";
+        ? "没有符合搜索条件的作品。"
+        : "这个状态下还没有作品。";
       setListState(description, "empty");
       if (selectedId) await loadDetail(selectedId, { showMobile: true });
-      else setDetailState("No work selected", "empty", "Adjust the filters to inspect another publication state.");
+      else setDetailState("没有选中作品", "empty", "换一个状态或搜索条件试试。");
       return;
     }
     setListState("", "");
@@ -721,10 +811,10 @@ async function loadList({ append = false, selectFirst = false } = {}) {
     if (isAbortError(error) || serial !== listRequestSerial) return;
     if (handleBoundaryError(error)) return;
     const permissionMessage = error.status === 403
-      ? "Administrator access is required to view governed works."
-      : error.message || "Works could not be loaded.";
+      ? "需要管理员权限才能查看作品。"
+      : "作品读取失败，请重试。";
     setListState(permissionMessage, "error", true);
-    filterSummary.textContent = "Works unavailable";
+    filterSummary.textContent = "作品读取失败";
     showToast(permissionMessage, "error");
   } finally {
     if (serial === listRequestSerial) setListBusy(false);
@@ -747,7 +837,9 @@ async function loadDetail(workId, { focus = false, showMobile = false, historyMo
   syncUrl({ push: historyMode === "push" });
   markSelectedRow();
   setDetailBusy(true);
-  setDetailState("Loading work", "loading", "Retrieving publication and governance evidence.");
+  detailRegion.hidden = false;
+  workspace.dataset.detailOpen = "true";
+  setDetailState("正在读取作品…", "loading", "");
   if (showMobile) setMobileView("detail");
   try {
     const payload = detailPayload(await worksRequest(`/api/admin/works/${encodeURIComponent(workId)}`, { signal: controller.signal }));
@@ -756,7 +848,7 @@ async function loadDetail(workId, { focus = false, showMobile = false, historyMo
     renderDetail(payload.work, payload.actor);
     if (showMobile && window.matchMedia("(max-width: 900px)").matches) {
       window.requestAnimationFrame(() => {
-        const headerHeight = document.querySelector(".admin-works-header")?.getBoundingClientRect().height || 0;
+        const headerHeight = document.querySelector(".admin-sidebar")?.getBoundingClientRect().height || 0;
         const top = window.scrollY + workspace.getBoundingClientRect().top - headerHeight - 8;
         const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
         window.scrollTo({ top: Math.max(0, top), behavior });
@@ -767,9 +859,9 @@ async function loadDetail(workId, { focus = false, showMobile = false, historyMo
     if (isAbortError(error) || serial !== detailRequestSerial) return;
     if (handleBoundaryError(error)) return;
     const message = error.status === 404
-      ? "This work no longer exists or is outside your administrative scope."
-      : error.message || "Work details could not be loaded.";
-    setDetailState(error.status === 404 ? "Work unavailable" : "Could not load work", "error", message, true);
+      ? "这件作品已不存在。"
+      : "作品详情读取失败，请重试。";
+    setDetailState(error.status === 404 ? "作品不存在" : "读取失败", "error", message, true);
     showToast(message, "error");
   } finally {
     if (serial === detailRequestSerial) setDetailBusy(false);
@@ -795,7 +887,9 @@ function closeDetail({ push = true, focusList = true } = {}) {
   selectedDetail = null;
   syncUrl({ push });
   markSelectedRow();
-  setDetailState("Select a work", "empty", "Choose a row to inspect publication evidence and governance history.");
+  setDetailState("选择一件作品", "empty", "点击表格中的「详情」查看这件作品。");
+  detailRegion.hidden = true;
+  delete workspace.dataset.detailOpen;
   setMobileView("list", { focusList, focusId: closingId });
 }
 
@@ -818,7 +912,7 @@ function closeDialog({ restoreFocus = true } = {}) {
 function openDialog(action) {
   if (!selectedDetail || mutationBusy || !["takedown", "restore"].includes(action)) return;
   if (selectedDetail.version === null || selectedDetail.version === undefined || selectedDetail.version === "") {
-    showToast("Reload this work before applying a publication control.", "error");
+    showToast("请先刷新这件作品再操作。", "error");
     return;
   }
   pendingAction = action;
@@ -829,7 +923,7 @@ function openDialog(action) {
   const reasonSelect = dialogForm.elements.reason_code;
   const placeholder = document.createElement("option");
   placeholder.value = "";
-  placeholder.textContent = "Select a reason";
+  placeholder.textContent = "选择原因";
   reasonSelect.replaceChildren(placeholder);
   ACTION_REASONS[action].forEach(([code, label]) => {
     const option = document.createElement("option");
@@ -838,12 +932,12 @@ function openDialog(action) {
     reasonSelect.append(option);
   });
   const restoring = action === "restore";
-  dialogKicker.textContent = restoring ? "Restore publication" : "Public takedown";
-  dialogTitle.textContent = restoring ? "Restore this work?" : "Take down this work?";
+  dialogKicker.textContent = restoring ? "恢复到网站" : "撤下作品";
+  dialogTitle.textContent = restoring ? "把这件作品恢复到网站？" : "从网站撤下这件作品？";
   dialogDescription.textContent = restoring
-    ? "The server will verify current approval, readiness, policy, display, and thumbnail evidence before returning the work to public delivery."
-    : "The work will leave public Works and the creator profile immediately. The action and creator message will be audited.";
-  dialogConfirm.textContent = restoring ? "Restore work" : "Take down work";
+    ? "恢复前会再检查一次作品状态、展示图和缩略图。"
+    : "作品会立即从作品页和展厅中消失。这次操作和说明会写入操作记录。";
+  dialogConfirm.textContent = restoring ? "恢复作品" : "撤下作品";
   dialogConfirm.classList.toggle("admin-works-danger", !restoring);
   if (typeof dialog.showModal === "function") dialog.showModal();
   else dialog.setAttribute("open", "");
@@ -852,7 +946,7 @@ function openDialog(action) {
 
 function showConflict(message) {
   detailConflict = true;
-  conflictMessage.textContent = `${message || "This work changed in another session."} Reload the current record before continuing.`;
+  conflictMessage.textContent = "这件作品刚在别处被修改过，请重新读取后再操作。";
   conflictNotice.hidden = false;
   actionButton.disabled = true;
   window.requestAnimationFrame(() => conflictReloadButton.focus({ preventScroll: true }));
@@ -866,12 +960,12 @@ async function mutateWork() {
   const internalNote = String(dialogForm.elements.internal_note.value || "").trim();
   const allowedReasons = new Set(ACTION_REASONS[pendingAction]?.map(([code]) => code) || []);
   if (!allowedReasons.has(reasonCode)) {
-    dialogError.textContent = "Select a valid reason category.";
+    dialogError.textContent = "请选择原因。";
     dialogForm.elements.reason_code.focus();
     return;
   }
   if (publicMessage.length < 5) {
-    dialogError.textContent = "Enter at least 5 characters in the message to the creator.";
+    dialogError.textContent = "说明至少写 5 个字。";
     dialogForm.elements.public_message.focus();
     return;
   }
@@ -899,10 +993,10 @@ async function mutateWork() {
     const restored = completedAction === "restore" || (!completedAction && action === "restore");
     showToast(
       replayed
-        ? "The existing publication control result was loaded."
+        ? "这次操作之前已经完成。"
         : restored
-          ? "Work restored to public delivery."
-          : "Work taken down from public delivery.",
+          ? "作品已恢复到网站。"
+          : "作品已从网站撤下。",
       "success",
     );
     setMutationBusy(false);
@@ -917,7 +1011,7 @@ async function mutateWork() {
       closeDialog({ restoreFocus: false });
       showConflict(error.message);
     } else {
-      dialogError.textContent = error.message || "The publication control failed.";
+      dialogError.textContent = "操作没有成功，请重试。";
       showToast(dialogError.textContent, "error");
     }
   } finally {
@@ -934,7 +1028,7 @@ document.querySelectorAll("[data-status-filter]").forEach((button) => {
     selectedDetail = null;
     syncUrl();
     renderMetrics({});
-    setDetailState("Select a work", "empty", "Choose a row to inspect publication evidence and governance history.");
+    setDetailState("选择一件作品", "empty", "点击表格中的「详情」查看这件作品。");
     setMobileView("list");
     loadList();
   });
@@ -949,7 +1043,7 @@ filterForm.addEventListener("submit", (event) => {
   selectedId = "";
   selectedDetail = null;
   syncUrl();
-  setDetailState("Select a work", "empty", "Choose a row to inspect publication evidence and governance history.");
+  setDetailState("选择一件作品", "empty", "点击表格中的「详情」查看这件作品。");
   setMobileView("list");
   loadList();
 });
@@ -961,7 +1055,7 @@ sortSelect.addEventListener("change", () => {
   selectedId = "";
   selectedDetail = null;
   syncUrl();
-  setDetailState("Select a work", "empty", "Choose a row to inspect publication evidence and governance history.");
+  setDetailState("选择一件作品", "empty", "点击表格中的「详情」查看这件作品。");
   setMobileView("list");
   loadList();
 });
@@ -1035,7 +1129,7 @@ window.addEventListener("popstate", () => {
   sortSelect.value = sort;
   renderMetrics({});
   setMobileView(selectedId ? "detail" : "list");
-  if (!selectedId) setDetailState("Select a work", "empty", "Choose a row to inspect publication evidence and governance history.");
+  if (!selectedId) setDetailState("选择一件作品", "empty", "点击表格中的「详情」查看这件作品。");
   loadList({ selectFirst: false });
 });
 

@@ -1,102 +1,102 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sign In | MT Presence</title>
+    <title>登录 | MT Presence 后台</title>
     <meta name="description" content="Sign in to the private MT Presence image workspace." />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/styles.css?v=20261021-visitor-experience" />
+    <link rel="stylesheet" href="/admin.css?v=20261028-admin-2" />
     <template id="mt-enabled-oauth-providers" data-enabled-oauth-providers>google</template>
   </head>
-  <body class="auth-page">
-    <a class="auth-skip" href="#auth-form">Skip to form</a>
+  <body class="auth-page admin-auth">
+    <a class="auth-skip" href="#auth-form">跳到登录表单</a>
     <main class="auth-shell">
       <section class="auth-visual" aria-label="MT Presence">
-        <a class="auth-brand" href="/" aria-label="MT Presence home"><span>MT</span><small>Presence</small></a>
         <figure>
-          <img src="/assets/art/hero-concrete.jpg" alt="A quiet mountain landscape held in low cloud." />
-          <figcaption>A private workspace for images in progress.</figcaption>
+          <img src="/assets/art/selected-01.jpg" alt="浓雾中，几棵松立在岩脊上。" />
         </figure>
       </section>
 
       <section class="auth-panel" aria-labelledby="auth-title">
         <div class="auth-panel-inner">
-          <p class="auth-eyebrow">Site Staff</p>
-          <h1 id="auth-title">Sign in</h1>
-          <p id="auth-intro" class="auth-intro" data-auth-intro>Sign in to manage the MT Presence website. Visitors do not need an account.</p>
+          <a class="auth-wordmark" href="/" aria-label="MT Presence 首页">MT PRESENCE</a>
+          <p class="auth-eyebrow">后台</p>
+          <h1 id="auth-title">登录</h1>
+          <p id="auth-intro" class="auth-intro" data-auth-intro>仅限网站管理人员。访客浏览网站不需要账号。</p>
 
           <div class="auth-notice" role="status" aria-live="polite" aria-atomic="true" tabindex="-1" data-auth-notice hidden></div>
-          <a class="auth-open-browser" href="/auth/sign-in" target="_blank" rel="noopener" data-auth-open-browser hidden>Open secure sign-in in a full browser</a>
+          <a class="auth-open-browser" href="/auth/sign-in" target="_blank" rel="noopener" data-auth-open-browser hidden>在完整浏览器中打开登录页</a>
 
           <div class="auth-loading" role="status" aria-live="polite" data-auth-loading hidden>
             <span aria-hidden="true"></span>
-            <p data-auth-loading-copy>Validating your secure link…</p>
+            <p data-auth-loading-copy>正在验证链接…</p>
           </div>
 
           <form id="auth-form" class="auth-form" data-auth-form aria-describedby="auth-intro" novalidate>
             <label class="auth-field" data-auth-field="email">
-              <span>Email</span>
+              <span>邮箱</span>
               <input id="auth-email" name="email" type="email" autocomplete="email" inputmode="email" required maxlength="254" autocapitalize="none" spellcheck="false" aria-describedby="auth-email-error" />
               <small id="auth-email-error" data-field-error="email"></small>
             </label>
 
             <label class="auth-field" data-auth-field="recovery_code" hidden>
-              <span>Recovery code</span>
+              <span>验证码</span>
               <input id="auth-recovery-code" name="recovery_code" type="text" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{8}" minlength="8" maxlength="8" aria-describedby="auth-recovery-code-hint auth-recovery-code-error" />
-              <p id="auth-recovery-code-hint" class="auth-field-hint">Enter the 8-digit code from your password recovery email.</p>
+              <p id="auth-recovery-code-hint" class="auth-field-hint">输入找回密码邮件中的 8 位验证码。</p>
               <small id="auth-recovery-code-error" data-field-error="recovery_code"></small>
             </label>
 
             <label class="auth-field" data-auth-field="password">
-              <span data-password-label>Password</span>
+              <span data-password-label>密码</span>
               <input id="auth-password" name="password" type="password" autocomplete="current-password" required minlength="12" maxlength="256" aria-describedby="auth-password-hint auth-password-error" />
-              <p id="auth-password-hint" class="auth-field-hint" data-password-hint hidden>Use 12 to 128 characters. A unique passphrase works well.</p>
+              <p id="auth-password-hint" class="auth-field-hint" data-password-hint hidden>12 到 128 个字符，建议用一句不常见的话。</p>
               <small id="auth-password-error" data-field-error="password"></small>
             </label>
 
             <label class="auth-field" data-auth-field="password_confirmation" hidden>
-              <span data-password-confirmation-label>Confirm password</span>
+              <span data-password-confirmation-label>再次输入新密码</span>
               <input id="auth-password-confirmation" name="password_confirmation" type="password" autocomplete="new-password" required minlength="12" maxlength="128" aria-describedby="auth-password-confirmation-error" />
               <small id="auth-password-confirmation-error" data-field-error="password_confirmation"></small>
             </label>
 
-            <button class="auth-submit" type="submit" data-auth-submit>Sign in</button>
+            <button class="auth-submit" type="submit" data-auth-submit>登录</button>
           </form>
 
           <div class="auth-oauth" data-auth-oauth hidden>
-            <div class="auth-divider" role="separator"><span>or</span></div>
+            <div class="auth-divider" role="separator"><span>或</span></div>
             <div class="auth-oauth-providers">
-              <a class="auth-oauth-button" href="/auth/oauth/google" data-auth-provider="google" data-auth-google aria-label="Sign in with Google">
+              <a class="auth-oauth-button" href="/auth/oauth/google" data-auth-provider="google" data-auth-google aria-label="使用 Google 登录">
                 <svg class="auth-provider-logo auth-google-logo" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
                   <path fill="#4285F4" d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.482h4.844c-.209 1.125-.843 2.078-1.797 2.716v2.258h2.909c1.702-1.567 2.684-3.874 2.684-6.615Z" />
                   <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.909-2.258c-.806.54-1.836.859-3.047.859-2.344 0-4.329-1.585-5.037-3.711H.956v2.333C2.437 15.984 5.482 18 9 18Z" />
                   <path fill="#FBBC05" d="M3.963 10.71A5.418 5.418 0 0 1 3.682 9c0-.593.101-1.17.281-1.71V4.957H.956A9.002 9.002 0 0 0 0 9c0 1.451.347 2.827.956 4.043l3.007-2.333Z" />
                   <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.441 1.345l2.581-2.581C13.464.892 11.426 0 9 0 5.482 0 2.437 2.016.956 4.957L3.963 7.29C4.671 5.164 6.656 3.58 9 3.58Z" />
                 </svg>
-                <span>Sign in with Google</span>
+                <span>使用 Google 登录</span>
               </a>
-              <a class="auth-oauth-button auth-oauth-button-apple" href="/auth/oauth/apple" data-auth-provider="apple" aria-label="Sign in with Apple" hidden>
+              <a class="auth-oauth-button auth-oauth-button-apple" href="/auth/oauth/apple" data-auth-provider="apple" aria-label="使用 Apple 登录" hidden>
                 <svg class="auth-provider-logo auth-apple-logo" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                   <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35-.07 2.29.74 3.08.74 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.53 4.14ZM12.03 7.19C11.88 4.96 13.69 3.12 15.77 3c.29 2.58-2.34 4.5-3.74 4.19Z" />
                 </svg>
-                <span>Sign in with Apple</span>
+                <span>使用 Apple 登录</span>
               </a>
             </div>
           </div>
 
-          <a class="auth-secondary-link" href="/auth/forgot-password" data-auth-forgot-link>Forgot password?</a>
-          <a class="auth-secondary-link" href="/auth/forgot-password" data-auth-resend-link hidden>Request a new recovery code</a>
+          <a class="auth-secondary-link" href="/auth/forgot-password" data-auth-forgot-link>忘记密码</a>
+          <a class="auth-secondary-link" href="/auth/forgot-password" data-auth-resend-link hidden>重新获取验证码</a>
 
           <p class="auth-switch" hidden>
             <span data-auth-switch-copy></span>
             <a href="/auth/sign-in" data-auth-switch-link></a>
           </p>
-          <a class="auth-next-link" href="/auth/sign-in" data-auth-next-link hidden>Return to sign in</a>
-          <a class="auth-public-link" href="/">Return to the website</a>
+          <a class="auth-next-link" href="/auth/sign-in" data-auth-next-link hidden>返回登录</a>
+          <a class="auth-public-link" href="/">返回网站</a>
         </div>
       </section>
     </main>
-    <script src="/auth.js?v=20261018-staff-only"></script>
+    <script src="/auth.js?v=20261028-admin"></script>
   </body>
 </html>

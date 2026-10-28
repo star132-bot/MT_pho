@@ -1,3 +1,14 @@
+// Chinese labels for the contact form's inquiry types and conversation states.
+const INQUIRY_TYPE_LABELS = {
+  exhibition: "展览",
+  editorial: "出版",
+  licensing: "授权",
+  print: "版画",
+  commission: "委托",
+  other: "其他",
+};
+const INQUIRY_STATUS_LABELS = { open: "未处理", replied: "已回复", closed: "已完成" };
+
 const inboxWorkspace = document.querySelector("[data-inbox-workspace]");
 const inboxInventory = document.querySelector("[data-inbox-inventory]");
 const inboxListState = document.querySelector("[data-inbox-list-state]");
@@ -91,8 +102,8 @@ function inboxUuid() {
 
 function inboxDate(value, withTime = true) {
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "Date unavailable";
-  return new Intl.DateTimeFormat("en", withTime
+  if (Number.isNaN(parsed.getTime())) return "时间未知";
+  return new Intl.DateTimeFormat("zh-CN", withTime
     ? { dateStyle: "medium", timeStyle: "short" }
     : { dateStyle: "medium" }).format(parsed);
 }
@@ -103,7 +114,7 @@ function inboxTitle(item) {
   const use = inboxText(item.project_use, 240);
   if (use) return use;
   const type = inboxText(item.inquiry_type, 80);
-  return type ? `${type.charAt(0).toUpperCase()}${type.slice(1)} inquiry` : "Project inquiry";
+  return INQUIRY_TYPE_LABELS[type] || "项目询价";
 }
 
 function normalizeInboxItem(value) {
@@ -116,8 +127,8 @@ function normalizeInboxItem(value) {
   const latest = inboxObject(raw.latest_message || raw.last_message);
   return {
     id,
-    public_reference: inboxText(raw.reference || raw.public_reference, 80) || "Reference pending",
-    sender_name: inboxText(sender.display_name || raw.sender_name || raw.contact_name, 120) || "Contact",
+    public_reference: inboxText(raw.reference || raw.public_reference, 80) || "编号待生成",
+    sender_name: inboxText(sender.display_name || raw.sender_name || raw.contact_name, 120) || "访客",
     sender_email: inboxText(sender.email || raw.sender_email || raw.contact_email, 180),
     sender_kind: inboxText(sender.kind || raw.sender_kind, 40) || "member",
     recipient_name: inboxText(recipient.display_name, 120),
@@ -352,7 +363,7 @@ function createInboxListItem(item) {
   button.dataset.inboxOpen = item.id;
   button.setAttribute("aria-current", item.id === inboxSelectedId ? "true" : "false");
   button.setAttribute("aria-label", item.unread_count > 0
-    ? `${inboxTitle(item)}, ${item.unread_count} unread message${item.unread_count === 1 ? "" : "s"}`
+    ? `${inboxTitle(item)}，${item.unread_count} 条未读`
     : inboxTitle(item));
 
   const top = document.createElement("span");
@@ -369,14 +380,14 @@ function createInboxListItem(item) {
   title.textContent = inboxTitle(item);
   const preview = document.createElement("span");
   preview.className = "inbox-list-item-preview";
-  preview.textContent = item.message_preview || `${item.message_count || 1} recorded message${item.message_count === 1 ? "" : "s"}`;
+  preview.textContent = item.message_preview || `${item.message_count || 1} 条记录`;
 
   const bottom = document.createElement("span");
   bottom.className = "inbox-list-item-bottom";
   const status = document.createElement("span");
   status.className = "inbox-status";
   status.dataset.status = item.status;
-  status.textContent = item.status;
+  status.textContent = INQUIRY_STATUS_LABELS[item.status] || item.status;
   const reference = document.createElement("span");
   reference.className = "inbox-list-reference";
   reference.textContent = item.public_reference;
@@ -384,7 +395,7 @@ function createInboxListItem(item) {
   if (item.unread_count > 0) {
     const unread = document.createElement("span");
     unread.className = "inbox-unread-count";
-    unread.textContent = `${item.unread_count} unread`;
+    unread.textContent = "未读";
     bottom.append(unread);
   }
   button.append(top, title, preview, bottom);
@@ -417,8 +428,8 @@ function renderInboxList() {
     const filtered = Boolean(inboxQuery || inboxStatus !== "all");
     setInboxListState(
       "empty",
-      filtered ? "No matching conversations" : "No conversations yet",
-      filtered ? "Adjust the search or status filter." : "Recorded project inquiries will appear here.",
+      filtered ? "没有符合条件的询价" : "还没有询价",
+      filtered ? "换一个搜索词或状态试试。" : "访客在联系页提交的询价会出现在这里。",
     );
   }
 }
@@ -447,8 +458,8 @@ function createInboxMessage(message) {
   body.textContent = message.body;
   const delivery = document.createElement("small");
   delivery.textContent = message.delivery_status === "provider_unavailable"
-    ? "Recorded / external delivery unavailable"
-    : "Recorded in Inbox";
+    ? "已记录（邮件未送达）"
+    : "已记录";
   item.append(header, body, delivery);
   return item;
 }
@@ -458,8 +469,8 @@ function setReplyAvailability(detail) {
   inboxReplyMessage.disabled = closed || inboxReplyBusy || inboxStatusBusy;
   inboxReplySubmit.disabled = closed || inboxReplyBusy || inboxStatusBusy;
   inboxReplySubmit.setAttribute("aria-busy", String(inboxReplyBusy));
-  inboxReplyMessage.placeholder = closed ? "This conversation is closed" : "Write a reply";
-  if (closed) inboxReplyError.textContent = "Closed conversations cannot accept replies.";
+  inboxReplyMessage.placeholder = closed ? "这条询价已完成" : "写下回复内容";
+  if (closed) inboxReplyError.textContent = "已完成的询价不能再回复。";
   else if (!inboxReplyBusy && inboxReplyError.textContent === "Closed conversations cannot accept replies.") inboxReplyError.textContent = "";
 }
 
@@ -473,7 +484,7 @@ function setInboxDetailCommands(detail) {
   if (recipientCanManage) {
     const closing = detail.status !== "closed";
     inboxStatusAction.replaceChildren(inboxIcon(closing ? "icon-lock" : "icon-unlock"));
-    inboxStatusAction.append(document.createTextNode(inboxStatusBusy ? "Updating..." : closing ? "Close conversation" : "Reopen conversation"));
+    inboxStatusAction.append(document.createTextNode(inboxStatusBusy ? "正在更新…" : closing ? "标记为已完成" : "重新打开"));
     inboxStatusAction.setAttribute("aria-label", closing ? "Close conversation" : "Reopen conversation");
   }
   inboxManualEmail.hidden = !guestEmail;
@@ -482,9 +493,9 @@ function setInboxDetailCommands(detail) {
   if (guestEmail) {
     const subject = encodeURIComponent(`Re: ${detail.public_reference}`);
     inboxManualEmail.href = `mailto:${guestEmail}?subject=${subject}`;
-    inboxManualEmail.setAttribute("aria-label", `Email ${guestEmail} manually`);
+    inboxManualEmail.setAttribute("aria-label", `用邮箱回复 ${guestEmail}`);
     inboxCopyEmail.dataset.email = guestEmail;
-    inboxCopyEmail.setAttribute("aria-label", `Copy email address ${guestEmail}`);
+    inboxCopyEmail.setAttribute("aria-label", `复制邮箱 ${guestEmail}`);
   } else {
     inboxManualEmail.removeAttribute("href");
     inboxCopyEmail.removeAttribute("data-email");
@@ -498,7 +509,7 @@ function renderInboxDetail(detail, { focus = false } = {}) {
   inboxDetail.hidden = false;
   const status = document.querySelector("[data-inbox-detail-status]");
   status.dataset.status = detail.status;
-  status.textContent = detail.status;
+  status.textContent = INQUIRY_STATUS_LABELS[detail.status] || detail.status;
   document.querySelector("[data-inbox-detail-reference]").textContent = detail.public_reference;
   const title = document.querySelector("[data-inbox-detail-title]");
   title.textContent = inboxTitle(detail);
@@ -508,15 +519,16 @@ function renderInboxDetail(detail, { focus = false } = {}) {
 
   const context = document.querySelector("[data-inbox-context]");
   context.replaceChildren();
-  appendDefinition(context, "Contact", detail.sender_email || "Email unavailable");
-  appendDefinition(context, "Type", detail.inquiry_type);
-  appendDefinition(context, "Project / use", detail.project_use);
-  appendDefinition(context, "Timeline", detail.timeline);
-  appendDefinition(context, "Budget", detail.budget_range);
-  appendDefinition(context, "Received", inboxDate(detail.created_at));
+  appendDefinition(context, "邮箱", detail.sender_email || "未提供");
+  appendDefinition(context, "类型", INQUIRY_TYPE_LABELS[detail.inquiry_type] || detail.inquiry_type);
+  appendDefinition(context, "机构", detail.organization);
+  appendDefinition(context, "项目 / 用途", detail.project_use);
+  appendDefinition(context, "时间安排", detail.timeline);
+  appendDefinition(context, "预算", detail.budget_range);
+  appendDefinition(context, "收到时间", inboxDate(detail.created_at));
   if (detail.works.length) {
     const dt = document.createElement("dt");
-    dt.textContent = "Selected works";
+    dt.textContent = "提到的作品";
     const dd = document.createElement("dd");
     const list = document.createElement("ul");
     detail.works.forEach((work) => {
@@ -534,7 +546,7 @@ function renderInboxDetail(detail, { focus = false } = {}) {
   const messages = document.querySelector("[data-inbox-messages]");
   messages.replaceChildren(...detail.messages.map(createInboxMessage));
   const messageCount = detail.messages.length;
-  document.querySelector("[data-inbox-message-count]").textContent = `${messageCount} message${messageCount === 1 ? "" : "s"}`;
+  document.querySelector("[data-inbox-message-count]").textContent = `${messageCount} 条`;
   inboxStatusNotice.hidden = true;
   inboxStatusError.textContent = "";
   setInboxDetailCommands(detail);
@@ -572,7 +584,7 @@ async function loadInbox({ append = false } = {}) {
   if (!append) {
     inboxListController?.abort();
     inboxListController = new AbortController();
-    setInboxListState("loading", "Loading conversations...");
+    setInboxListState("loading", "正在读取询价…");
     inboxList.hidden = true;
   }
   setInboxBusy();
@@ -601,7 +613,7 @@ async function loadInbox({ append = false } = {}) {
     if (!append && inboxSelectedId && !selectedStillVisible && !requestedId) {
       inboxSelectedId = "";
       inboxSelectedDetail = null;
-      setInboxDetailState("empty", "Select a conversation", "Conversation details will appear here.");
+      setInboxDetailState("empty", "选择一条询价", "来信内容会显示在这里。");
     }
     const firstVisibleId = inboxList.querySelector("[data-inbox-open]")?.dataset.inboxOpen || "";
     const initialId = requestedId || (window.matchMedia("(min-width: 761px)").matches ? firstVisibleId : "");
@@ -621,9 +633,9 @@ async function loadInbox({ append = false } = {}) {
     }
     setInboxListState(
       error?.status === 403 ? "permission" : "error",
-      error?.status === 403 ? "Inbox unavailable" : "Inbox could not be loaded",
-      error.message || "Try the request again.",
-      { label: "Retry", handler: () => loadInbox() },
+      error?.status === 403 ? "无法查看询价" : "询价读取失败",
+      "请重试。",
+      { label: "重试", handler: () => loadInbox() },
     );
   } finally {
     if (requestId === inboxListSerial) {
@@ -644,7 +656,7 @@ async function loadInboxDetail(id, { showMobile = true, focus = true } = {}) {
   updateInboxUrl(safeId);
   if (showMobile) inboxWorkspace.dataset.mobileView = "detail";
   renderInboxList();
-  setInboxDetailState("loading", "Loading conversation...");
+  setInboxDetailState("loading", "正在读取…");
   setInboxBusy();
   try {
     const payload = await inboxRequest(`/api/inbox/${encodeURIComponent(safeId)}`, {
@@ -661,9 +673,9 @@ async function loadInboxDetail(id, { showMobile = true, focus = true } = {}) {
     if (handleInboxBoundary(error)) return;
     setInboxDetailState(
       error?.status === 403 ? "permission" : "error",
-      error?.status === 403 ? "Conversation unavailable" : "Conversation could not be loaded",
-      error.message || "Try the request again.",
-      { label: "Retry", handler: () => loadInboxDetail(safeId, { showMobile, focus }) },
+      error?.status === 403 ? "无法查看这条询价" : "读取失败",
+      "请重试。",
+      { label: "重试", handler: () => loadInboxDetail(safeId, { showMobile, focus }) },
     );
   } finally {
     if (requestId === inboxDetailSerial) {
@@ -712,7 +724,7 @@ async function updateInboxStatus() {
     announceInbox(message);
   } catch (error) {
     if (!handleInboxBoundary(error)) {
-      showInboxStatusError(error.message || "The conversation status could not be updated. Reload and try again.");
+      showInboxStatusError("状态没有更新，请重新读取后再试。");
     }
   } finally {
     inboxStatusBusy = false;
@@ -741,10 +753,10 @@ async function copyInboxEmail() {
       if (!document.execCommand("copy")) throw new Error("Copy failed");
       field.remove();
     }
-    showInboxToast("Email address copied.");
-    announceInbox("Email address copied.");
+    showInboxToast("邮箱已复制。");
+    announceInbox("邮箱已复制。");
   } catch (_error) {
-    showInboxToast("The email address could not be copied.", "error");
+    showInboxToast("复制失败。", "error");
   }
 }
 
@@ -759,8 +771,8 @@ function replyDeliveryMessage(payload) {
     || delivery.provider_action_required === true
     || payload.delivery_status === "provider_unavailable";
   return unavailable
-    ? "Reply recorded. External email delivery is unavailable."
-    : "Reply recorded in this inbox.";
+    ? "回复已记录，邮件没有送达。"
+    : "回复已记录。";
 }
 
 async function submitInboxReply(event) {
@@ -770,11 +782,11 @@ async function submitInboxReply(event) {
   inboxReplyError.textContent = "";
   inboxReplyMessage.setAttribute("aria-invalid", "false");
   if (inboxSelectedDetail.status === "closed") {
-    inboxReplyError.textContent = "Closed conversations cannot accept replies.";
+    inboxReplyError.textContent = "已完成的询价不能再回复。";
     return;
   }
   if (!message) {
-    inboxReplyError.textContent = "Enter a reply before recording it.";
+    inboxReplyError.textContent = "请先写下回复内容。";
     inboxReplyMessage.setAttribute("aria-invalid", "true");
     inboxReplyMessage.focus();
     return;
@@ -820,9 +832,9 @@ async function submitInboxReply(event) {
       "CONVERSATION_CLOSED",
       "CONVERSATION_STATE_CONFLICT",
     ]).has(error.code)) {
-      inboxReplyError.textContent = error.message || "The conversation changed. Reload it before replying.";
+      inboxReplyError.textContent = "这条询价刚被更新过，请重新读取后再回复。";
     } else {
-      inboxReplyError.textContent = error.message || "The reply could not be recorded.";
+      inboxReplyError.textContent = "回复没有记录成功，请重试。";
     }
     inboxReplyMessage.setAttribute("aria-invalid", "true");
     inboxReplyMessage.focus();

@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.9.0 - 2026-10-28
+
+Staff admin redesign after the approved mockups in `design/admin-mockups-v4` (and the sign-in, inquiries and account mockups in `design/admin-mockups-v3`). The admin is a workroom for images: photographs appear only as small thumbnails. All staff pages are in Chinese.
+
+- **One shell for every staff page.** Left navigation 总览 · 上传图片 · 网站图片位 · 作品管理 · 询价 · 账号, with the unread inquiry count, 查看网站 ↗ and a live 数据连接 status (`admin.css`, `admin-shell.js`). The old icon rail, top navigation and visitor footer are gone.
+- **总览.** Image processing, visitor loading (timed in the browser) and database status; 需要处理 (scan failures, missing derivatives, oversized display images, site image places whose work went offline); the upload → scan → derivatives → publishable queue; recent audit events.
+- **网站图片位 (new).** Choose which published works fill the fixed image places of the visitor site: 首页大图, 首页精选作品 (up to 5, ordered), 关于照片, the two Works posters (each only from its own series, 此间留彩 or 此间留灰) and 联系页配图. Unset places keep the built-in artwork. Changes are audited (`site_image.updated` / `site_image.reset`) and the visitor pages load them through `/api/public/site-images` (`site-images.js`), swapping images only after they have loaded.
+- **作品管理** is a table: series, status, display/thumbnail presence, size, measured load time, sync, edit/details; the detail panel lists original, display and thumbnail sizes.
+- **上传图片, 询价, 账号与安全, 登录** keep their behaviour and markup hooks with the new shell, copy and styling; the upload list shows each image's four-step progress. The account page shows profile, password, two-step verification and devices; other profile fields are kept (hidden) so saving preserves them. The browser-only exhibition display prototype is hidden on the upload page.
+- **Database:** `database/migrations/20261027_b_site_images_admin_assets.sql` adds `site_image_slots` (RLS on, no direct grants), `admin_list_site_images`, `admin_set_site_image_slot`, `get_public_site_images`, and adds series and derivative facts to `admin_image_summary_json`. Rehearsed on a schema-only copy of production.
+
 ## v1.8.2 - 2026-10-27
 
 Visitor page polish against the approved mockups in `design/site-mockups-v2`. No admin, server or database changes.

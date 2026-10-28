@@ -191,16 +191,16 @@
     links.className = "account-menu-links";
     links.setAttribute("role", "none");
     links.append(
-      destination("Admin", "/admin"),
-      destination("Upload", "/workspace/images"),
-      destination("Account Settings", "/settings/account"),
+      destination("总览", "/admin"),
+      destination("上传图片", "/workspace/images"),
+      destination("账号与安全", "/settings/account"),
     );
     const signout = document.createElement("button");
     signout.className = "account-menu-signout";
     signout.type = "button";
     signout.dataset.accountMenuSignout = "";
     signout.setAttribute("role", "menuitem");
-    signout.textContent = "Sign out";
+    signout.textContent = "退出登录";
     actions.append(links, signout);
     const errorElement = document.createElement("p");
     errorElement.className = "account-menu-error";
@@ -308,7 +308,7 @@
     if (!elements || signoutBusy) return;
     signoutBusy = true;
     elements.signout.disabled = true;
-    elements.signout.textContent = "Signing out...";
+    elements.signout.textContent = "正在退出…";
     elements.error.hidden = true;
     try {
       const response = await fetch("/api/auth/sign-out", {
@@ -328,14 +328,14 @@
         await csrfToken(true);
         return signOut(false);
       }
-      if (!response.ok) throw new Error(payload.error?.message || "Sign out failed. Try again.");
+      if (!response.ok) throw new Error(payload.error?.message || "退出失败，请重试。");
       window.location.assign("/");
     } catch (error) {
-      elements.error.textContent = error.message || "Sign out failed. Try again.";
+      elements.error.textContent = error.message || "退出失败，请重试。";
       elements.error.hidden = false;
       signoutBusy = false;
       elements.signout.disabled = false;
-      elements.signout.textContent = "Sign out";
+      elements.signout.textContent = "退出登录";
       elements.error.focus?.();
     }
   }
@@ -453,8 +453,8 @@
     container.querySelector("[data-account-menu-name]").textContent = displayName;
     container.querySelector("[data-account-menu-email]").textContent = identity.email;
     container.querySelector("[data-account-menu-status]").textContent = identity.account_status === "active"
-      ? "Active account"
-      : "Account access limited";
+      ? "账号正常"
+      : "账号受限";
     container.querySelector("[data-account-profile-link]").setAttribute("aria-label", `Open account menu for ${displayName}`);
     markCurrentMenuLinks(container);
     bindAccountShell(container);

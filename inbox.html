@@ -1,16 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Inbox | MT Presence</title>
+    <title>询价 | MT Presence 后台</title>
     <meta name="description" content="Your recorded MT Presence inquiry conversations." />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/styles.css?v=20261021-visitor-experience" />
+    <link rel="stylesheet" href="/admin.css?v=20261028-admin-2" />
     <template id="mt-header-identity">{"authenticated":false,"status":"pending"}</template>
   </head>
-  <body class="communications-page inbox-page">
-    <a class="communications-skip" href="#inbox-main">Skip to inbox</a>
+  <body class="admin-page communications-page inbox-page" data-admin-page="inquiries">
+    <a class="communications-skip visually-hidden" href="#inbox-main">跳到询价列表</a>
 
     <svg class="icon-sprite" aria-hidden="true" focusable="false">
       <symbol id="icon-inbox" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" /><path d="M4 14h4l2 3h4l2-3h4" /></symbol>
@@ -26,44 +27,50 @@
       <symbol id="icon-unlock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="1.5" /><path d="M8 10V7a4 4 0 0 1 7-2.6" /></symbol>
     </svg>
 
-    <header class="site-header communications-header" aria-label="Workspace navigation">
-      <a class="brand-mark" href="/admin" aria-label="Open the staff admin"><span>MT</span><span>Admin</span></a>
-      <nav class="site-nav" aria-label="Staff navigation">
-        <a href="/admin">Admin</a>
-        <a href="/workspace/images">Upload</a>
-        <a href="/admin/works">Works</a>
-        <a href="/inbox" aria-current="page">Inquiries</a>
-        <a href="/">Website</a>
-      </nav>
-      <div class="header-identity-slot" data-header-identity-slot></div>
-    </header>
+    <div class="admin-shell">
+      <aside class="admin-sidebar" aria-label="后台导航">
+        <a class="admin-brand" href="/admin"><strong>MT PRESENCE</strong><span>后台</span></a>
+        <nav class="admin-nav" aria-label="后台页面" data-admin-nav>
+          <a href="/admin">总览</a>
+          <a href="/workspace/images">上传图片</a>
+          <a href="/admin/site-images">网站图片位</a>
+          <a href="/admin/works">作品管理</a>
+          <a href="/inbox" aria-current="page">询价</a>
+          <a href="/settings/account">账号</a>
+        </nav>
+        <div class="admin-sidebar-foot">
+          <a href="/" target="_blank" rel="noopener">查看网站 ↗</a>
+          <p class="admin-connection" data-admin-connection><span class="admin-dot"></span><span data-admin-connection-label>数据连接 · 检查中</span></p>
+          <div class="header-identity-slot" data-header-identity-slot></div>
+        </div>
+      </aside>
+      <script src="/admin-shell.js?v=20261028-admin"></script>
 
-    <main class="communications-shell inbox-shell" id="inbox-main" tabindex="-1">
+    <main class="admin-main communications-shell inbox-shell" id="inbox-main" tabindex="-1">
       <header class="communications-command">
         <div>
-          <p class="section-kicker">Communications</p>
-          <h1>Inbox</h1>
+          <h1>询价 <small data-inbox-unread-title></small></h1>
         </div>
-        <button class="communications-icon-button" type="button" data-inbox-refresh aria-label="Refresh inbox" title="Refresh inbox">
+        <button class="communications-icon-button" type="button" data-inbox-refresh aria-label="刷新" title="刷新">
           <svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg>
         </button>
       </header>
 
       <form class="inbox-filters" data-inbox-filters role="search">
         <label class="inbox-search">
-          <span class="visually-hidden">Search inquiries</span>
+          <span class="visually-hidden">搜索询价</span>
           <svg class="ui-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
-          <input type="search" name="q" maxlength="160" autocomplete="off" placeholder="Search loaded conversations" />
+          <input type="search" name="q" maxlength="160" autocomplete="off" placeholder="搜索姓名、机构、内容" />
         </label>
-        <button type="submit">Search</button>
-        <button type="button" data-inbox-clear hidden>Clear</button>
+        <button class="visually-hidden" type="submit">搜索</button>
+        <button class="admin-link" type="button" data-inbox-clear hidden>清除</button>
         <label class="inbox-status-filter">
-          <span>Status</span>
+          <span class="visually-hidden">状态</span>
           <select name="status">
-            <option value="all">All</option>
-            <option value="open">Open</option>
-            <option value="replied">Replied</option>
-            <option value="closed">Closed</option>
+            <option value="all">全部</option>
+            <option value="open">未处理</option>
+            <option value="replied">已回复</option>
+            <option value="closed">已完成</option>
           </select>
         </label>
       </form>
@@ -71,15 +78,15 @@
       <section class="inbox-workspace" aria-label="Inquiry inbox" data-inbox-workspace data-mobile-view="list">
         <section class="inbox-inventory" aria-labelledby="inbox-list-title" aria-busy="true" data-inbox-inventory>
           <header>
-            <div><h2 id="inbox-list-title">Conversations</h2><span data-inbox-total>0</span></div>
+            <div><h2 id="inbox-list-title">全部询价</h2><span data-inbox-total>0</span></div>
           </header>
           <div class="communications-state" data-inbox-list-state data-tone="loading" role="status" aria-live="polite">
             <span class="communications-spinner" aria-hidden="true"></span>
-            <p>Loading conversations...</p>
+            <p>正在读取询价…</p>
           </div>
           <ol class="inbox-list" data-inbox-list hidden></ol>
           <footer class="communications-pagination" data-inbox-pagination hidden>
-            <button type="button" data-inbox-more>Load more</button>
+            <button class="admin-link" type="button" data-inbox-more>加载更多</button>
           </footer>
         </section>
 
@@ -87,12 +94,12 @@
           <div class="inbox-mobile-toolbar">
             <button type="button" data-inbox-back>
               <svg class="ui-icon" aria-hidden="true"><use href="#icon-arrow-left"></use></svg>
-              Conversations
+              返回列表
             </button>
           </div>
           <div class="communications-state inbox-detail-state" data-inbox-detail-state data-tone="empty" role="status" aria-live="polite">
             <svg class="ui-icon" aria-hidden="true"><use href="#icon-inbox"></use></svg>
-            <div><h2>Select a conversation</h2><p>Conversation details will appear here.</p></div>
+            <div><h2>选择一条询价</h2><p>来信内容会显示在这里。</p></div>
           </div>
           <article class="inbox-detail" data-inbox-detail hidden>
             <header class="inbox-detail-header">
@@ -105,43 +112,43 @@
               <div class="inbox-detail-commands" data-inbox-detail-commands hidden>
                 <a data-inbox-manual-email hidden>
                   <svg class="ui-icon" aria-hidden="true"><use href="#icon-mail"></use></svg>
-                  Email manually
+                  用邮箱回复
                 </a>
                 <button type="button" data-inbox-copy-email hidden>
                   <svg class="ui-icon" aria-hidden="true"><use href="#icon-copy"></use></svg>
-                  Copy address
+                  复制邮箱
                 </button>
                 <button type="button" data-inbox-status-action hidden></button>
               </div>
               <p class="inbox-manual-delivery-note" data-inbox-manual-delivery-note hidden>
-                Guest replies are recorded here; use the email command for manual external delivery.
+                访客没有账号，回复要通过邮箱发送；这里的记录只用于存档。
               </p>
               <div class="inbox-status-notice" data-inbox-status-notice role="alert" tabindex="-1" hidden>
                 <p data-inbox-status-error></p>
-                <button type="button" data-inbox-status-reload>Reload conversation</button>
+                <button class="admin-link" type="button" data-inbox-status-reload>重新读取</button>
               </div>
             </header>
 
             <section class="inbox-context" aria-labelledby="inbox-context-title">
-              <h3 id="inbox-context-title">Inquiry</h3>
+              <h3 id="inbox-context-title">询价信息</h3>
               <dl data-inbox-context></dl>
             </section>
 
             <section class="inbox-transcript" aria-labelledby="inbox-transcript-title">
-              <div class="inbox-section-heading"><h3 id="inbox-transcript-title">Conversation</h3><span data-inbox-message-count></span></div>
+              <div class="inbox-section-heading"><h3 id="inbox-transcript-title">来往记录</h3><span data-inbox-message-count></span></div>
               <ol data-inbox-messages></ol>
             </section>
 
             <form class="inbox-reply-form" data-inbox-reply-form novalidate>
-              <div class="inbox-section-heading"><h3>Reply</h3><span data-inbox-reply-count>0 / 5000</span></div>
-              <label for="inbox-reply-message" class="visually-hidden">Reply message</label>
-              <textarea id="inbox-reply-message" name="message" rows="6" maxlength="5000" placeholder="Write a reply" aria-describedby="inbox-reply-error inbox-delivery-note" required></textarea>
+              <div class="inbox-section-heading"><h3>记录回复</h3><span data-inbox-reply-count>0 / 5000</span></div>
+              <label for="inbox-reply-message" class="visually-hidden">回复内容</label>
+              <textarea id="inbox-reply-message" name="message" rows="6" maxlength="5000" placeholder="写下回复内容" aria-describedby="inbox-reply-error inbox-delivery-note" required></textarea>
               <p class="inbox-reply-error" id="inbox-reply-error" role="alert" data-inbox-reply-error></p>
               <div class="inbox-reply-actions">
-                <p id="inbox-delivery-note">Replies are recorded in this inbox. Email delivery is not implied.</p>
-                <button class="button button-primary" type="submit" data-inbox-reply-submit>
+                <p id="inbox-delivery-note">回复会记录在这里，不会自动发邮件。</p>
+                <button class="admin-button" type="submit" data-inbox-reply-submit>
                   <svg class="ui-icon" aria-hidden="true"><use href="#icon-send"></use></svg>
-                  Record reply
+                  记录回复
                 </button>
               </div>
             </form>
@@ -154,8 +161,7 @@
     <div class="contact-toast" role="status" aria-live="polite" data-inbox-toast></div>
     <div class="visually-hidden" aria-live="polite" aria-atomic="true" data-inbox-live></div>
 
-    <script src="/site-footer.js?v=20261018-staff-only"></script>
-    <script src="/account-menu.js?v=20261018-staff-admin"></script>
-    <script src="/inbox.js?v=20260723-communications-v1"></script>
+    <script src="/account-menu.js?v=20261028-admin"></script>
+    <script src="/inbox.js?v=20261028-admin"></script>
   </body>
 </html>
