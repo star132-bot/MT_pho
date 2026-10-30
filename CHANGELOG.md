@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.9.1 - 2026-10-30
+
+Brand copy from the client for MT 此间 (MT Presence), with language fixes. Review, final wording and placement: `docs/product/brand-copy-2026-10-30.md`. Visitor pages only; no admin, server or database changes.
+
+- **Homepage hero.** The title is the brand name (MT 此间 / MT Presence) and the brand line is set in two lines beneath it, slightly larger: 影像不是对世界的记录，而是与观者在此间的相遇。 The placeholder 抽象之境 / 影像的静谧之境 is gone.
+- **About.** Kicker 关于此间; the lede, first paragraph and second paragraph are the client's 关于此间 text and the short supplement. The three placeholder paragraphs are removed. Profile headline and bio, when filled in the admin, still replace the lede and first paragraph (both empty in production).
+- **Brand name in Chinese.** Page titles, the About heading and the footer copyright read MT 此间 in Chinese (MT 此间 | 艺术影像); the header and footer wordmark stays MT PRESENCE. Home meta and share descriptions are bilingual.
+
 ## v1.9.0 - 2026-10-28
 
 Staff admin redesign after the approved mockups in `design/admin-mockups-v4` (and the sign-in, inquiries and account mockups in `design/admin-mockups-v3`). The admin is a workroom for images: photographs appear only as small thumbnails. All staff pages are in Chinese.

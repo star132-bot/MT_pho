@@ -483,11 +483,13 @@ body.mt-page {
   line-height: 1.35;
 }
 
+/* The brand line, set in two lines under the name. */
 .mt-hero-statement {
-  margin: 0 0 2.4em;
-  color: rgba(255, 255, 255, 0.86);
-  font-size: 14px;
-  letter-spacing: 0.06em;
+  margin: 0 0 2.2em;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: clamp(15px, 1.2vw, 18px);
+  letter-spacing: 0.1em;
+  line-height: 2;
 }
 
 .mt-hero-links {

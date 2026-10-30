@@ -42,7 +42,8 @@ assert.strictEqual(page.document.documentElement.lang, "en");
 page = load({ languages: ["zh-CN", "en"] });
 assert.strictEqual(page.i18n.language, "zh");
 assert.strictEqual(page.document.documentElement.lang, "zh-CN");
-assert.strictEqual(page.document.title, "作品 | MT Presence");
+// In Chinese the brand reads MT 此间 (docs/product/brand-copy-2026-10-30.md).
+assert.strictEqual(page.document.title, "作品 | MT 此间");
 
 // A remembered choice wins over the browser language.
 page = load({ stored: "en", languages: ["zh-CN"] });
@@ -60,6 +61,10 @@ assert.strictEqual(t("Open full-screen viewer for Grey Heron"), "全屏查看《
 assert.strictEqual(t("View from the Hill"), "View from the Hill");
 // Unknown text (for example a photographer's title) is never altered.
 assert.strictEqual(t("Grey Heron at Dawn"), "Grey Heron at Dawn");
+// The home brand line is translated line by line (it is split by <br>).
+assert.strictEqual(t("MT Presence"), "MT 此间");
+assert.strictEqual(t("An image is not a record of the world,"), "影像不是对世界的记录，");
+assert.strictEqual(t("but an encounter with the viewer, here."), "而是与观者在此间的相遇。");
 
 // Switching stores the choice and reloads; choosing the current language is a no-op.
 page.i18n.setLanguage("zh");

@@ -7,7 +7,7 @@
   function publicFooterMarkup() {
     return `
       <div class="mt-footer-inner">
-        <a class="mt-footer-brand" href="/">MT Presence</a>
+        <a class="mt-footer-brand" href="/" data-i18n-skip>MT Presence</a>
         <nav class="mt-footer-nav" aria-label="Explore">
           <a href="/">Home</a>
           <a href="/works.html">Works</a>

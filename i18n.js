@@ -11,13 +11,13 @@
 
   const ZH = {
     // Page titles
-    "MT Presence | Fine Art Photography": "MT Presence | 艺术摄影",
-    "Works Archive | MT Presence": "作品 | MT Presence",
-    "Work | MT Presence": "作品 | MT Presence",
-    "About | MT Presence": "关于 | MT Presence",
-    "Contact Artist | MT Presence": "联系艺术家 | MT Presence",
-    "Privacy | MT Presence": "隐私说明 | MT Presence",
-    "Terms of Use | MT Presence": "使用条款 | MT Presence",
+    "MT Presence | Fine Art Photography": "MT 此间 | 艺术影像",
+    "Works Archive | MT Presence": "作品 | MT 此间",
+    "Work | MT Presence": "作品 | MT 此间",
+    "About | MT Presence": "关于 | MT 此间",
+    "Contact Artist | MT Presence": "联系艺术家 | MT 此间",
+    "Privacy | MT Presence": "隐私说明 | MT 此间",
+    "Terms of Use | MT Presence": "使用条款 | MT 此间",
 
     // Header and navigation
     "Home": "首页",
@@ -25,7 +25,7 @@
     "About": "关于",
     "Contact": "联系",
     "Primary": "主导航",
-    "MT Presence home": "MT Presence 首页",
+    "MT Presence home": "MT 此间首页",
     "Open navigation": "打开导航",
     "Close navigation": "关闭导航",
     "Search works, artists, tags": "搜索作品、艺术家、标签",
@@ -56,20 +56,24 @@
     "Public Works": "公开作品",
 
     // Home
-    "Abstract Field": "抽象之境",
-    "A Quiet Field for Images": "影像的静谧之境",
-    "Images are not records of the world. They are encounters held in the present space between the artist and the viewer.": "影像不是对世界的记录，而是艺术家与观者在当下相遇的空间。",
+    // Brand copy approved by the client: docs/product/brand-copy-2026-10-30.md.
+    // The header and footer wordmark stays Latin (data-i18n-skip).
+    "MT Presence": "MT 此间",
+    "An image is not a record of the world,": "影像不是对世界的记录，",
+    "but an encounter with the viewer, here.": "而是与观者在此间的相遇。",
+    "About Presence": "关于此间",
+    "MT Presence is a fine art image brand for collectors, founded by the image-maker MT.": "MT 此间是由影像创作者 MT 创立的收藏级艺术影像品牌。",
+    "We strip away photography's role as a record and build, in a purely visual language, an open space for contemplation. Every work is made for long looking and for keeping, in the hope that each viewer may see, here, into their own heart.": "我们剥离摄影的记录属性，以纯粹的视觉语言构建一个开放的精神场域。每一件作品皆为长久的凝视与珍藏而作，期待每一位观者在此间，照见自己的内心。",
+    "At MT Presence, an image is something to look at again and again. It is in no hurry to explain, nor to be seen and done with; over time, its echo slowly widens.": "在 MT 此间，影像是一种可以反复凝视的存在。它不急于解释，也不急于被看完，而是在时间里慢慢荡开回声。",
     "Concrete Field": "具象之境",
     "Where Looking Becomes Presence": "凝视，成为在场",
     "Light, weather, and distance settle into form. Each photograph opens a quiet place for the viewer to stay.": "光线、天气与距离沉淀为形。每一幅作品，都为观者留出一处可以停留的安静之地。",
     "Enter Works": "进入作品",
-    "About the Practice": "关于创作",
     "Selected Works": "精选作品",
     "Pause motion": "暂停滚动",
     "Resume motion": "继续滚动",
     "Statement": "创作理念",
     "MT Presence is a fine art photography practice by MT, shaped around quiet images, long looking, and the space between abstraction and the visible world.": "MT Presence 是 MT 的艺术摄影创作，关注安静的影像、长久的凝视，以及抽象与可见世界之间的空间。",
-    "The work does not treat photography as simple documentation. It uses landscape, weather, surface, and distance to hold a moment before it becomes explanation.": "这些作品并不把摄影当作简单的记录，而是借由风景、天气、表面与距离，留住那个尚未被解释的瞬间。",
     "Each image is made as an encounter: something to return to, collect, live with, and see differently over time.": "每一幅影像都是一次相遇：值得反复回看、收藏、与之相处，并随时间看出不同。",
     "Enter the archive and spend time with the work.": "进入作品，与它们共度一段时光。",
     "Homepage statement image.": "首页创作理念配图。",
@@ -136,9 +140,6 @@
     "Return to Works": "返回作品",
 
     // About
-    "MT works between abstraction and the visible world. The photographs begin with real places and objects, then stay with the point at which description becomes uncertain: a shoreline held in fog, a plane of stone, or light crossing an ordinary form.": "MT 的创作游走于抽象与可见世界之间。作品始于真实的地点与物体，并停留在描述开始变得模糊的那一刻：雾中的海岸线、一片石面，或掠过寻常形体的光。",
-    "A fine art photography practice concerned with weather, surface, distance, and the time required to look.": "一种关注天气、表面、距离，以及凝视所需时间的艺术摄影实践。",
-    "The resulting photographs are restrained and enduring, intended to be lived with, studied over time, and passed on.": "这些作品克制而持久，适合长久相伴、慢慢品读，并得以传承。",
     "Based in USA": "常驻美国",
     "Working from a quiet studio, with projects worldwide.": "在安静的工作室中创作，项目遍及世界各地。",
     "Available for commissions": "接受委托创作",
@@ -220,8 +221,8 @@
     "Browse works": "浏览作品",
 
     // Exhibition and series prototypes (requirements 06 and 07)
-    "Exhibition | MT Presence": "展厅 | MT Presence",
-    "Series | MT Presence": "系列 | MT Presence",
+    "Exhibition | MT Presence": "展厅 | MT 此间",
+    "Series | MT Presence": "系列 | MT 此间",
     "Exhibition view": "作品浏览",
     "Series": "系列",
     "Site": "网站导航",

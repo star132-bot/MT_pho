@@ -50,7 +50,10 @@
   // ----- Markup -------------------------------------------------------------
 
   const brand = element("a", "mt-brand", { href: "/", "aria-label": "MT Presence home" });
-  brand.textContent = "MT Presence";
+  // The wordmark stays Latin in Chinese; the label is translated.
+  const wordmark = element("span", "", { "data-i18n-skip": "" });
+  wordmark.textContent = "MT Presence";
+  brand.append(wordmark);
 
   const navigation = element("nav", "mt-nav", { id: "public-site-navigation", "aria-label": "Primary" });
   navigation.dataset.publicNav = "";
