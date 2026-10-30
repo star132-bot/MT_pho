@@ -1446,8 +1446,9 @@
 /* ----- Site image places (网站图片位) --------------------------------------- */
 
 .site-images-layout {
+  --wire-mountains: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 60' preserveAspectRatio='none'%3E%3Cpath d='M0 60V40l20-13 14 9 24-20 22 18 14-8 26 15v19z' fill='%231d1c1a' fill-opacity='.08'/%3E%3Cpath d='M0 60V50l28-10 22 8 26-12 44 15v9z' fill='%231d1c1a' fill-opacity='.07'/%3E%3C/svg%3E");
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr);
+  grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
   gap: 0;
   border-top: 1px solid var(--admin-line);
 }
@@ -1474,29 +1475,73 @@
   letter-spacing: 0.08em;
 }
 
+/* Each page is drawn as in design/admin-mockups-v4/03-site-image-slots.jpg:
+   wordmark bar, image places with a mountain placeholder, captions, footer. */
 .wire-page {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  aspect-ratio: 3 / 4.6;
-  padding: 10px 10px 14px;
+  --wire-pad: 12px;
+  aspect-ratio: 1 / 2;
+  padding: 0 var(--wire-pad) 10px;
   border: 1px solid var(--admin-line-strong);
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.45);
 }
 
 .wire-bar {
+  display: flex;
   flex: none;
-  height: 7px;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  margin: 0 calc(-1 * var(--wire-pad));
+  padding: 0 var(--wire-pad);
   border-bottom: 1px solid var(--admin-line);
-  background:
-    linear-gradient(var(--admin-faint), var(--admin-faint)) left 0 top 0 / 34% 2px no-repeat,
-    linear-gradient(var(--admin-line-strong), var(--admin-line-strong)) right 0 top 0 / 30% 2px no-repeat;
+}
+
+.wire-bar em {
+  margin-right: auto;
+  color: var(--admin-muted);
+  font-family: var(--admin-latin);
+  font-size: 7px;
+  font-style: normal;
+  letter-spacing: 0.24em;
+  white-space: nowrap;
+}
+
+.wire-bar i {
+  display: block;
+  width: 9px;
+  height: 2px;
+  background: var(--admin-line-strong);
 }
 
 .wire-caption {
-  color: var(--admin-faint);
+  margin-bottom: -4px;
+  color: var(--admin-muted);
   font-size: 10px;
   letter-spacing: 0.1em;
+}
+
+.wire-foot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  margin: auto calc(-1 * var(--wire-pad)) 0;
+  padding: 10px var(--wire-pad) 0;
+  border-top: 1px solid var(--admin-line);
+}
+
+.wire-foot i {
+  display: block;
+  width: 34%;
+  height: 2px;
+  background: var(--admin-line-strong);
+}
+
+.wire-foot i + i {
+  width: 14%;
 }
 
 .wire-slot {
@@ -1505,22 +1550,21 @@
   place-items: center;
   min-height: 0;
   padding: 0;
-  border: 1px dashed var(--admin-line-strong);
+  border: 1px solid var(--admin-line);
   border-radius: 1px;
-  background:
-    linear-gradient(170deg, transparent 58%, rgba(29, 28, 26, 0.06) 58%, rgba(29, 28, 26, 0.06) 70%, transparent 70%),
-    rgba(29, 28, 26, 0.03);
+  background: var(--wire-mountains) center bottom / 100% 72% no-repeat, rgba(29, 28, 26, 0.035);
   color: var(--admin-ink);
   cursor: pointer;
   transition: border-color 160ms ease, background-color 160ms ease;
 }
 
 .wire-slot b,
-.site-slot-legend b {
+.site-slot-legend b,
+.site-slot-head b {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   border: 1px solid var(--admin-ink);
   border-radius: 50%;
   background: var(--admin-paper);
@@ -1560,28 +1604,43 @@
 
 .wire-selected {
   grid-template-columns: repeat(5, 1fr);
-  gap: 3px;
-  height: 34px;
-  padding: 3px;
+  align-items: start;
+  gap: 4px;
+  height: 54px;
+  padding: 4px;
+  background: rgba(29, 28, 26, 0.02);
 }
 
 .wire-selected i {
   display: block;
+  justify-self: stretch;
+  height: 72%;
+  background: var(--wire-mountains) center bottom / 100% 80% no-repeat, rgba(29, 28, 26, 0.05);
+}
+
+.wire-selected i:nth-child(even) {
   height: 100%;
-  background: rgba(29, 28, 26, 0.07);
 }
 
 .wire-selected b {
   position: absolute;
 }
 
+.wire-about-row {
+  display: grid;
+  grid-template-columns: 0.9fr 1fr;
+  gap: 8px;
+  align-items: start;
+}
+
 .wire-about {
-  aspect-ratio: 16 / 8;
+  aspect-ratio: 3 / 4;
 }
 
 .wire-lines {
   display: grid;
-  gap: 5px;
+  gap: 6px;
+  padding-top: 4px;
 }
 
 .wire-lines i,
@@ -1591,8 +1650,9 @@
   background: var(--admin-line-strong);
 }
 
-.wire-lines i:nth-child(2) { width: 70%; }
-.wire-lines i:nth-child(3) { width: 45%; }
+.wire-lines i:nth-child(2) { width: 80%; }
+.wire-lines i:nth-child(3) { width: 90%; }
+.wire-lines i:nth-child(4) { width: 50%; }
 
 .wire-posters {
   display: grid;
@@ -1600,6 +1660,7 @@
   grid-template-columns: 1fr 1fr;
   gap: 4px;
   min-height: 160px;
+  margin: 0 calc(-1 * var(--wire-pad));
 }
 
 .wire-contact {
@@ -1610,12 +1671,12 @@
 }
 
 .wire-contact .wire-slot {
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 3 / 5;
 }
 
 .wire-form {
   display: grid;
-  gap: 9px;
+  gap: 12px;
   padding-top: 4px;
 }
 
@@ -1677,8 +1738,16 @@
 }
 
 .site-slot-head .admin-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   font-size: 26px;
-  white-space: pre;
+}
+
+.site-slot-head .admin-title b {
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
 }
 
 .site-slot-state {
@@ -1695,24 +1764,20 @@
 .site-slot-images li {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 22px;
   padding: 14px 0;
   border-bottom: 1px solid var(--admin-line);
 }
 
 .site-slot-images .admin-thumb {
-  width: 76px;
-  height: 76px;
-}
-
-.site-slot-images li.is-default {
-  opacity: 0.72;
+  width: 74px;
+  height: 92px;
 }
 
 .site-slot-facts {
   display: grid;
   flex: 1;
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -1723,20 +1788,53 @@
   font-weight: 400;
 }
 
+.site-slot-load {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin: 4px 0 2px;
+  color: var(--admin-text);
+  font-family: var(--admin-latin);
+  font-size: 14px;
+}
+
 .site-slot-status {
+  font-family: var(--admin-sans);
   font-size: 13px;
 }
 
+/* 更换图片 | 从作品中选择: quiet text actions with a hairline between. */
 .site-slot-row-actions {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px 14px;
-  max-width: 150px;
+  align-items: center;
+  gap: 6px 0;
 }
 
 .site-slot-row-actions .admin-link {
+  padding: 0 12px;
+  border-bottom: 0;
   font-size: 13px;
+  line-height: 1.1;
+}
+
+.site-slot-row-actions .admin-link:first-child {
+  padding-left: 0;
+}
+
+.site-slot-row-actions .admin-link + .admin-link {
+  border-left: 1px solid var(--admin-line-strong);
+}
+
+.site-slot-row-actions .admin-link:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.site-slot-row-actions .admin-link:disabled {
+  color: var(--admin-faint);
+  cursor: default;
 }
 
 .site-slot-actions {
@@ -1875,16 +1973,21 @@
   }
 
   .wire-page {
-    padding: 6px;
+    --wire-pad: 6px;
+  }
+
+  .wire-bar em {
+    font-size: 5px;
   }
 
   .site-slot-images li {
-    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 14px;
   }
 
-  .site-slot-row-actions {
-    justify-content: flex-start;
-    max-width: none;
+  .site-slot-images .admin-thumb {
+    width: 60px;
+    height: 76px;
   }
 }
 

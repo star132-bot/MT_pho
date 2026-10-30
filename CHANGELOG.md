@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.9.2 - 2026-10-31
+
+网站图片位 now follows the approved mockup `design/admin-mockups-v4/03-site-image-slots.jpg`. Admin only; no visitor, server or database changes.
+
+- **Every image shows its size and load state**, including the built-in default images (pixel size, file size from a HEAD request, load time; 文件偏大 above 2.5 MB). Production places are all unset, so before this the page showed no loading facts at all.
+- **Actions on each image**, as in the mockup: 更换图片 · 上移 · 下移 · 移除 for chosen works; 从作品中选择 · 上传新图片 ↗ on default images. The separate pick button below the list is gone.
+- **Wireframes drawn like the mockup**: wordmark bar, mountain placeholders, 精选作品 / 关于照片 captions and a footer; taller pages. The two Works posters stay separate (④ 此间留彩, ⑤ 此间留灰).
+- The detail title carries the circled place number, thumbnails are portrait, and the page opens on ② 首页精选作品.
+
 ## v1.9.1 - 2026-10-30
 
 Brand copy from the client for MT 此间 (MT Presence), with language fixes. Review, final wording and placement: `docs/product/brand-copy-2026-10-30.md`. Visitor pages only; no admin, server or database changes.

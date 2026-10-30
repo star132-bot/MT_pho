@@ -14,7 +14,7 @@
       page: "/",
       defaults: [1, 2, 3, 4, 5].map((index) => `/assets/art/selected-0${index}.jpg`),
     },
-    { key: "home_about", number: 3, label: "关于照片", where: "首页「关于创作」旁边的照片。", capacity: 1, page: "/#about", defaults: ["/assets/art/about.jpg"] },
+    { key: "home_about", number: 3, label: "关于照片", where: "首页「关于此间」旁边的照片。", capacity: 1, page: "/#about", defaults: ["/assets/art/about.jpg"] },
     {
       key: "works_poster_colour",
       number: 4,
@@ -51,7 +51,6 @@
   const descriptionElement = document.querySelector("[data-slot-description]");
   const stateElement = document.querySelector("[data-slot-state]");
   const imagesList = document.querySelector("[data-slot-images]");
-  const pickButton = document.querySelector("[data-slot-pick]");
   const resetButton = document.querySelector("[data-slot-reset]");
   const viewLink = document.querySelector("[data-slot-view]");
   const dirtyElement = document.querySelector("[data-slot-dirty]");
@@ -66,7 +65,7 @@
   let saved = {};      // slot key -> [item] from the server
   let staged = {};     // slot key -> [work] being edited
   let current = new URLSearchParams(global.location.search).get("slot");
-  if (!BY_KEY[current]) current = "home_hero";
+  if (!BY_KEY[current]) current = "home_selected";
   let pickerTarget = null; // index to replace, or null to add
   let pickerSeries = "all";
   let publishedWorks = [];
@@ -153,13 +152,13 @@
     });
   }
 
-  function timedImage(url, onTime) {
+  function timedImage(url, onLoad) {
     const image = document.createElement("img");
     const started = performance.now();
     image.alt = "";
     image.decoding = "async";
-    image.addEventListener("load", () => onTime((performance.now() - started) / 1000));
-    image.addEventListener("error", () => onTime(null));
+    image.addEventListener("load", () => onLoad((performance.now() - started) / 1000, image));
+    image.addEventListener("error", () => onLoad(null, image));
     image.src = url;
     return image;
   }
@@ -174,82 +173,122 @@
     return wrapper;
   }
 
-  function imageRow(work, index, slot) {
+  function numberBadge(number) {
+    const badge = document.createElement("b");
+    badge.textContent = String(number);
+    return badge;
+  }
+
+  // The display file of a place should stay small enough for visitors.
+  const LARGE_BYTES = 2.5 * 1024 * 1024;
+
+  function loadState(seconds, bytes) {
+    if (seconds === null) return stateText("bad", "加载失败");
+    const time = seconds < 0.1 ? "<0.1" : seconds.toFixed(1);
+    if (bytes && bytes > LARGE_BYTES) return stateText("warn", `文件偏大 · ${time} s`);
+    return stateText(seconds > 1.5 ? "warn" : "ok", `加载${seconds > 1.5 ? "偏慢" : "正常"} · ${time} s`);
+  }
+
+  function sizeText(width, height, bytes) {
+    const parts = [];
+    if (width && height) parts.push(`${width} × ${height}`);
+    if (bytes) parts.push(shell.formatBytes(bytes));
+    return parts.join(" · ");
+  }
+
+  // Byte size of a built-in image; the browser does not expose it for images.
+  async function fileBytes(url) {
+    try {
+      const response = await fetch(url, { method: "HEAD", cache: "no-store", credentials: "same-origin" });
+      return Number(response.headers.get("content-length")) || null;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  // One image of a place, as in design/admin-mockups-v4/03-site-image-slots.jpg:
+  // thumbnail, size and load state, then the actions for this position.
+  function slotRow(slot, index, work = null, url = "") {
     const items = staged[slot.key];
     const item = document.createElement("li");
+    if (!work) item.className = "is-default";
     const thumb = document.createElement("span");
     thumb.className = "admin-thumb";
     const facts = document.createElement("div");
     facts.className = "site-slot-facts";
     const name = document.createElement("strong");
-    name.textContent = `${slot.capacity > 1 ? `${index + 1}. ` : ""}${work.title || work.original_filename || "未命名作品"}`;
-    const meta = document.createElement("span");
-    meta.className = "admin-meta";
-    const display = work.derivatives?.display;
-    const details = [shell.SERIES[work.content_category] || "未分类"];
-    if (display) details.push(`${display.width}×${display.height}`, shell.formatBytes(display.byte_size));
-    meta.textContent = details.join(" · ");
+    const prefix = slot.capacity > 1 ? `${index + 1}. ` : "";
+    name.textContent = `${prefix}${work ? work.title || work.original_filename || "未命名作品" : "网站默认图"}`;
+    const source = document.createElement("span");
+    source.className = "admin-meta";
+    source.textContent = work ? shell.SERIES[work.content_category] || "未分类" : url.replace("/assets/art/", "");
+    const load = document.createElement("p");
+    load.className = "site-slot-load";
+    const size = document.createElement("span");
     const status = document.createElement("span");
     status.className = "site-slot-status";
-    if (work.live === false) {
-      status.append(stateText("bad", "已不在网站上，正在显示默认图"));
-    } else if (!display || !work.derivatives?.thumbnail) {
-      status.append(stateText("warn", display ? "缺少缩略图" : "缺少展示图"));
+    status.append(stateText("", "检查加载…"));
+    load.append(size, status);
+
+    if (work) {
+      const display = work.derivatives?.display;
+      if (display) size.textContent = sizeText(display.width, display.height, display.byte_size);
+      if (work.live === false) {
+        status.replaceChildren(stateText("bad", "已不在网站上，正在显示默认图"));
+      } else if (!display || !work.derivatives?.thumbnail) {
+        status.replaceChildren(stateText("warn", display ? "缺少缩略图" : "缺少展示图"));
+      }
+      const measured = work.live !== false && display && work.derivatives?.thumbnail;
+      if (work.thumbnail?.signed_url) {
+        thumb.append(timedImage(work.thumbnail.signed_url, (seconds) => {
+          if (measured) status.replaceChildren(loadState(seconds, display.byte_size));
+        }));
+      } else if (measured) {
+        status.replaceChildren(stateText("warn", "缺少缩略图"));
+      }
     } else {
-      status.append(stateText("", "检查加载…"));
-    }
-    if (work.thumbnail?.signed_url) {
-      thumb.append(timedImage(work.thumbnail.signed_url, (seconds) => {
-        if (work.live === false || !display || !work.derivatives?.thumbnail) return;
-        status.replaceChildren(seconds === null
-          ? stateText("bad", "加载失败")
-          : stateText(seconds > 1.5 ? "warn" : "ok", `加载${seconds > 1.5 ? "偏慢" : "正常"} · ${seconds < 0.1 ? "<0.1" : seconds.toFixed(1)} s`));
+      const bytes = fileBytes(url);
+      thumb.append(timedImage(url, async (seconds, image) => {
+        const byteSize = await bytes;
+        size.textContent = seconds === null ? "" : sizeText(image.naturalWidth, image.naturalHeight, byteSize);
+        status.replaceChildren(loadState(seconds, byteSize));
       }));
     }
-    facts.append(name, meta, status);
 
     const actions = document.createElement("div");
     actions.className = "site-slot-row-actions";
-    const addAction = (label, handler, disabled = false, tone = "") => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "admin-link";
-      if (tone) button.dataset.tone = tone;
-      button.textContent = label;
-      button.disabled = disabled;
-      button.addEventListener("click", handler);
-      actions.append(button);
+    const addAction = (label, handler, { disabled = false, tone = "", href = "" } = {}) => {
+      const control = document.createElement(href ? "a" : "button");
+      control.className = "admin-link";
+      if (href) {
+        control.href = href;
+        control.target = "_blank";
+        control.rel = "noopener";
+      } else {
+        control.type = "button";
+        control.disabled = disabled;
+        control.addEventListener("click", handler);
+      }
+      if (tone) control.dataset.tone = tone;
+      control.textContent = label;
+      actions.append(control);
     };
-    addAction("更换", () => openPicker(index));
-    if (slot.capacity > 1) {
-      addAction("上移", () => move(index, -1), index === 0);
-      addAction("下移", () => move(index, 1), index === items.length - 1);
+    if (work) {
+      addAction("更换图片", () => openPicker(index));
+      if (slot.capacity > 1) {
+        addAction("上移", () => move(index, -1), { disabled: index === 0 });
+        addAction("下移", () => move(index, 1), { disabled: index === items.length - 1 });
+      }
+      addAction("移除", () => {
+        items.splice(index, 1);
+        render();
+      }, { tone: "bad" });
+    } else {
+      // Positions fill in order, so a default row adds after the chosen works.
+      addAction("从作品中选择", () => openPicker(null));
+      addAction("上传新图片 ↗", null, { href: "/workspace/images" });
     }
-    addAction("移除", () => {
-      items.splice(index, 1);
-      render();
-    }, false, "bad");
-    item.append(thumb, facts, actions);
-    return item;
-  }
-
-  function defaultRow(url, index, slot) {
-    const item = document.createElement("li");
-    item.className = "is-default";
-    const thumb = document.createElement("span");
-    thumb.className = "admin-thumb";
-    const image = document.createElement("img");
-    image.src = url;
-    image.alt = "";
-    thumb.append(image);
-    const facts = document.createElement("div");
-    facts.className = "site-slot-facts";
-    const name = document.createElement("strong");
-    name.textContent = `${slot.capacity > 1 ? `${index + 1}. ` : ""}网站默认图`;
-    const meta = document.createElement("span");
-    meta.className = "admin-meta";
-    meta.textContent = url.replace("/assets/art/", "");
-    facts.append(name, meta);
+    facts.append(name, source, load, actions);
     item.append(thumb, facts);
     return item;
   }
@@ -257,24 +296,20 @@
   function render() {
     const slot = BY_KEY[current];
     const items = staged[slot.key] || [];
-    titleElement.textContent = `${slot.number}  ${slot.label}`;
+    titleElement.replaceChildren(numberBadge(slot.number), document.createTextNode(slot.label));
     descriptionElement.textContent = slot.where;
     viewLink.href = slot.page;
     if (items.length) {
       stateElement.textContent = slot.capacity > 1
         ? `已选 ${items.length} / ${slot.capacity} 张${items.length < slot.capacity ? "，不足的位置继续显示默认图" : ""}。`
         : "使用作品图片。";
-      imagesList.replaceChildren(...items.map((work, index) => imageRow(work, index, slot)));
-      if (slot.capacity > 1 && items.length < slot.capacity) {
-        imagesList.append(...slot.defaults.slice(items.length).map((url, offset) => defaultRow(url, items.length + offset, slot)));
-      }
     } else {
-      stateElement.textContent = "还没有设置，网站正在显示默认图：";
-      imagesList.replaceChildren(...slot.defaults.map((url, index) => defaultRow(url, index, slot)));
+      stateElement.textContent = "还没有设置，网站正在显示默认图。";
     }
-    // A full multi-image place is changed per image ("更换" on each row).
-    pickButton.hidden = slot.capacity > 1 && items.length >= slot.capacity;
-    pickButton.textContent = slot.capacity > 1 ? "从作品中添加" : items.length ? "从作品中更换" : "从作品中选择";
+    imagesList.replaceChildren(
+      ...items.map((work, index) => slotRow(slot, index, work)),
+      ...slot.defaults.slice(items.length).map((url, offset) => slotRow(slot, items.length + offset, null, url)),
+    );
     resetButton.disabled = !items.length;
     const dirty = isDirty(slot.key);
     dirtyElement.textContent = dirty ? "有未保存的修改" : (saved[slot.key]?.[0]?.updated_at ? `上次更新 ${shell.formatTime(saved[slot.key][0].updated_at)}` : "");
@@ -406,7 +441,6 @@
     const button = event.target.closest("[data-slot-button]");
     if (button) selectSlot(button.dataset.slotButton);
   });
-  pickButton.addEventListener("click", () => openPicker());
   resetButton.addEventListener("click", () => {
     staged[current] = [];
     render();
@@ -436,7 +470,6 @@
       errorBox.hidden = false;
       errorBox.textContent = "网站图片位读取失败。下面显示的是默认图，暂时不能保存；请刷新重试。";
       saveButton.hidden = true;
-      pickButton.disabled = true;
     }
     render();
   }
