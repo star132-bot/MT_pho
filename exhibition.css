@@ -65,7 +65,114 @@ html:has(> body.exhibition-page) {
   background: #000;
   -webkit-user-select: none;
   user-select: none;
-  touch-action: pan-y pinch-zoom;
+  /* Pinch still zooms; horizontal and vertical swipes belong to the viewer
+     (page, and pull down to leave). */
+  touch-action: pinch-zoom;
+}
+
+/* ----- Atmosphere around the work (phones and tablets) ---------------------- */
+
+/* 留白 and 虚实相生: a blurred, slowly drifting copy of the work, with mist
+   moving through it, surrounds the sharp photograph instead of black bars. */
+.exhibition-ambient {
+  position: absolute;
+  inset: 0;
+  display: none;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: calc(1 - var(--close, 0) * 0.85);
+  transform: translate3d(calc(var(--tilt-x, 0) * -16px), calc(var(--tilt-y, 0) * -16px), 0);
+  transition: transform 500ms var(--ease-out);
+}
+
+[data-scene="screen"] .exhibition-ambient {
+  display: block;
+}
+
+.ambient-layer {
+  position: absolute;
+  inset: -14%;
+  background-position: center;
+  background-size: cover;
+  opacity: 0;
+  filter: blur(44px) saturate(1.25) brightness(0.5);
+  transition: opacity 1600ms var(--ease-standard);
+  animation: ambient-drift 40s ease-in-out infinite alternate;
+}
+
+.ambient-layer.is-active {
+  opacity: 1;
+}
+
+/* The grey series becomes a pale ink-wash haze rather than a dark glow. */
+[data-series="grey"] .ambient-layer {
+  filter: blur(48px) brightness(0.62) contrast(0.85);
+}
+
+@keyframes ambient-drift {
+  from { transform: scale(1.1) translate3d(-1.6%, -1.2%, 0); }
+  to { transform: scale(1.22) translate3d(1.6%, 1.4%, 0); }
+}
+
+.ambient-mist {
+  position: absolute;
+  inset: 0;
+  background-image: var(--noise-coarse), var(--noise-coarse);
+  background-size: 1500px 1500px, 960px 960px;
+  opacity: 0.06;
+  mix-blend-mode: screen;
+  animation: mist-drift 90s linear infinite;
+}
+
+[data-series="grey"] .ambient-mist {
+  opacity: 0.17;
+}
+
+@keyframes mist-drift {
+  from { background-position: 0 0, 0 0; }
+  to { background-position: 1500px 160px, -960px -80px; }
+}
+
+/* Depth: the edges fall into shadow, keeping the eye on the work. */
+.exhibition-ambient::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: radial-gradient(ellipse 85% 70% at 50% 50%, rgba(0, 0, 0, 0) 35%, rgba(0, 0, 0, 0.6) 100%);
+}
+
+[data-scene="screen"] .exhibition-stage {
+  transform: translate3d(calc(var(--tilt-x, 0) * 6px), calc(var(--tilt-y, 0) * 6px), 0);
+  transition: transform 500ms var(--ease-out);
+}
+
+[data-scene="screen"] .exhibition-work {
+  box-shadow: 0 28px 70px -24px rgba(0, 0, 0, 0.75);
+}
+
+/* The photograph breathes: an almost imperceptible push in, as in a slow
+   film, so a still work never feels frozen. */
+[data-scene="screen"] .exhibition:not(.is-miniature) .exhibition-work img {
+  animation: work-breathe 28s ease-in-out infinite alternate;
+}
+
+@keyframes work-breathe {
+  from { transform: scale(1); }
+  to { transform: scale(1.035); }
+}
+
+/* While the photograph is pulled down to leave, the controls step aside. */
+.exhibition[style*="--close"] .exhibition-overlay,
+.exhibition[style*="--close"] .exhibition-preview,
+.exhibition[style*="--close"] .exhibition-edge {
+  opacity: 0 !important;
+  transition: opacity 160ms var(--ease-standard);
+}
+
+/* Grey series: the next work spreads outward like ink on paper. */
+.exhibition-work.is-ink-reveal {
+  -webkit-mask-image: radial-gradient(circle at 50% 55%, #000 calc(var(--ink) - 30%), transparent var(--ink));
+  mask-image: radial-gradient(circle at 50% 55%, #000 calc(var(--ink) - 30%), transparent var(--ink));
 }
 
 .exhibition.is-idle,
@@ -316,6 +423,30 @@ html:has(> body.exhibition-page) {
   from { background-position: 100% 0; opacity: 0.55; }
   50% { opacity: 1; }
   to { background-position: 0% 0; opacity: 0.6; }
+}
+
+/* Real light is never perfectly still: the beam breathes very slowly. */
+.exhibition:not(.is-miniature) .room-light {
+  animation: light-breathe 12s ease-in-out infinite alternate;
+}
+
+@keyframes light-breathe {
+  from { opacity: 0.88; }
+  to { opacity: 1; }
+}
+
+.room-motes {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  transform: translateX(calc(var(--mx) * 10px));
+}
+
+[data-light="daylight"] .room-motes,
+[data-light="even"] .room-motes {
+  display: none;
 }
 
 /* Ceiling track and the spotlight that lights the work (spot light only). */
@@ -860,103 +991,122 @@ html:has(> body.exhibition-page) {
   to { opacity: 1; filter: blur(0); transform: none; }
 }
 
-/* ----- Preview of the next work --------------------------------------------- */
+/* ----- Thumbnail strip (as in Apple Photos) ---------------------------------- */
 
+/* Frosted glass at the bottom. With the menu it is always there; in viewing
+   mode it surfaces briefly when the visitor pages or reaches for it. */
 .exhibition-preview {
+  --strip-h: 46px;
   position: absolute;
-  bottom: max(18px, env(safe-area-inset-bottom));
+  bottom: max(14px, env(safe-area-inset-bottom));
   left: 50%;
-  display: flex;
-  gap: 8px;
-  max-width: min(84vw, 980px);
-  padding: 6px;
-  overflow-x: auto;
-  transform: translateX(-50%);
-  scrollbar-width: none;
+  z-index: 5;
+  width: min(92vw, 760px);
+  padding: 6px 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: rgba(16, 16, 16, 0.3);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 10px);
+  transition: opacity 480ms var(--ease-standard), transform 480ms var(--ease-out);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
 }
 
-.exhibition-preview::-webkit-scrollbar {
+.exhibition-preview[hidden] {
   display: none;
 }
 
+[data-scene="hall"] .exhibition-preview {
+  --strip-h: 52px;
+}
+
+[data-mode="info"] .exhibition-preview,
+.exhibition.is-strip-awake .exhibition-preview {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+
+/* Viewing mode keeps it lighter: present, but the work still leads. */
+[data-mode="view"] .exhibition.is-strip-awake .exhibition-preview {
+  opacity: 0.78;
+}
+
+[data-mode="view"] .exhibition.is-strip-awake .exhibition-preview:hover,
+[data-mode="view"] .exhibition.is-strip-awake .exhibition-preview:focus-within {
+  opacity: 1;
+}
+
+.exhibition-strip {
+  display: flex;
+  align-items: center;
+  column-gap: 2px;
+  height: var(--strip-h);
+  /* Half the strip on each side, so the first and last can sit centred. */
+  padding: 0 50%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+}
+
+.exhibition-strip::-webkit-scrollbar {
+  display: none;
+}
+
+/* exhibition.js centres the strip with the same narrow width (0.62) and
+   current-thumbnail margin (6px). */
 .exhibition-thumb {
-  position: relative;
   flex: none;
-  width: 46px;
-  height: 46px;
+  width: calc(var(--strip-h) * 0.62);
+  height: var(--strip-h);
+  margin: 0;
   padding: 0;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.3);
+  border: 0;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
   cursor: pointer;
-  opacity: 0.64;
-  transition: opacity 200ms var(--ease-standard), transform 200ms var(--ease-out);
+  opacity: 0.46;
+  transition:
+    width 420ms var(--ease-out),
+    margin 420ms var(--ease-out),
+    opacity 300ms var(--ease-standard);
 }
 
 .exhibition-thumb img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
 .exhibition-thumb:hover,
-.exhibition-thumb:focus-visible,
-.exhibition-thumb[aria-current="true"] {
-  opacity: 1;
+.exhibition-thumb:focus-visible {
+  opacity: 0.86;
   outline: none;
 }
 
+.exhibition-thumb:focus-visible {
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85);
+}
+
 .exhibition-thumb[aria-current="true"] {
-  border-color: rgba(255, 255, 255, 0.86);
-}
-
-[data-preview="next"] .exhibition-thumb {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 9px;
-  width: auto;
-  height: auto;
-  overflow: visible;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.78);
-  opacity: 0.8;
-}
-
-[data-preview="next"] .exhibition-thumb img {
-  width: 66px;
-  height: 66px;
-  border: 1px solid rgba(255, 255, 255, 0.36);
-  border-radius: 3px;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
-}
-
-/* Phones: a small thumbnail with the label beside it, below the caption. */
-[data-scene="screen"][data-preview="next"] .exhibition-thumb {
-  flex-direction: row;
-  gap: 12px;
-}
-
-[data-scene="screen"][data-preview="next"] .exhibition-thumb img {
-  width: 44px;
-  height: 44px;
-}
-
-.exhibition-thumb-label {
-  font-family: var(--serif);
-  font-size: 12px;
-  letter-spacing: 0.32em;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+  width: calc(var(--strip-h) * var(--thumb-ratio, 1));
+  margin: 0 6px;
+  opacity: 1;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
 /* ----- Hint and status ------------------------------------------------------ */
 
 .exhibition-hint {
   position: absolute;
-  bottom: max(28px, calc(env(safe-area-inset-bottom) + 18px));
+  bottom: max(96px, calc(env(safe-area-inset-bottom) + 86px));
   left: 50%;
   z-index: 5;
   margin: 0;
@@ -1080,6 +1230,17 @@ html:has(> body.exhibition-page) {
   .exhibition-room,
   .exhibition-work {
     transition-duration: 1ms !important;
+  }
+
+  .ambient-layer,
+  .ambient-mist,
+  .room-light,
+  .exhibition-work img {
+    animation: none !important;
+  }
+
+  .room-motes {
+    display: none;
   }
 
   .exhibition-page[data-light="daylight"] .room-light::after,

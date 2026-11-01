@@ -229,6 +229,7 @@
     "Open menu": "打开菜单",
     "Close menu": "关闭菜单",
     "Other works": "其他作品",
+    "Works in this series": "本系列作品",
     "Next": "下一张",
     "Tap the image to show the menu": "轻点画面显示菜单",
     "Click the artwork to show the menu": "点击画面显示菜单",

@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.9.3 - 2026-11-01
+
+Exhibition view: more immersive viewing, after the client's feedback on requirement 07 (`docs/product/client-feedback-2026-10-15.md`). Visitor exhibition page only; no admin, server or database changes.
+
+- **Series strip.** A frosted strip of translucent thumbnails at the bottom, like the Photos app: the current work is wide and bright, the others narrow. Click a thumbnail or scrub the strip to change work. It shows in info mode and wakes for a few seconds after paging or when the pointer nears the bottom.
+- **Atmosphere.** The work's own colours, blurred, drift slowly behind it with a light mist and vignette; on 此间留灰 the haze is cooler and the mist denser. The screen view breathes very slowly (scale 1 → 1.035 over 28 s); in the gallery hall the light breathes and dust drifts in the spotlight beam.
+- **Transitions.** 此间留灰 works appear like ink spreading from the centre; 此间留彩 works come up out of a soft glow. On touch devices the outgoing work slides away.
+- **Gestures.** Swipe to page; pull down to close back to Works. Paging during a transition is queued instead of dropped. Device tilt adds slight parallax on Android.
+- Honours reduced motion; low-power devices skip the dust. Asset versions bumped (`?v=20261031-immersive`).
+
 ## v1.9.2 - 2026-10-31
 
 网站图片位 now follows the approved mockup `design/admin-mockups-v4/03-site-image-slots.jpg`. Admin only; no visitor, server or database changes.
