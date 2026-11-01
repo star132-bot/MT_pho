@@ -52,8 +52,9 @@
     },
     position: {
       label: "文字位置",
-      attribute: "captionPosition",
+      attribute: "captionRequest",
       choices: [
+        ["auto", "自动（按页面）"],
         ["top-left", "左上"], ["top-center", "上中"], ["top-right", "右上"],
         ["middle-left", "左中"], ["middle-center", "正中"], ["middle-right", "右中"],
         ["bottom-left", "左下"], ["bottom-center", "中下"], ["bottom-right", "右下"],
@@ -63,19 +64,27 @@
   };
   // The room's wall occupies the upper part of the viewport; the floor the rest.
   const WALL_FRACTION = 0.8;
+  // Automatic caption placement: the narrowest column beside the work that
+  // still reads as a wall label, and the bands kept clear for the menu and
+  // series label above and the thumbnail strip below.
+  const CAPTION_COLUMN_MIN = 140;
+  const CAPTION_TOP_RESERVE = 84;
+  const CAPTION_STRIP_RESERVE = 84;
   const SWIPE_DISTANCE = 56;
   const WHEEL_DISTANCE = 60;
   const HINT_STORAGE_KEY = "mt-presence-exhibition-hint-v1";
   // Per-work wall and caption settings chosen in the upload studio
   // (studio-exhibition.js). Kept in this browser until the new database.
   const WORK_SETTINGS_KEY = "mt-presence-exhibition-settings-v1";
-  const WORK_SETTING_FIELDS = [["wall", "wall", "wall"], ["position", "captionPosition", "position"], ["style", "captionStyle", "style"]];
+  const WORK_SETTING_FIELDS = [["wall", "wall", "wall"], ["position", "captionRequest", "position"], ["style", "captionStyle", "style"]];
   const IDLE_CURSOR_MS = 2600;
   // The thumbnail strip (as in Apple Photos) appears with the menu, and in
   // viewing mode briefly whenever the visitor pages or reaches for it.
   const STRIP_AWAKE_MS = 2800;
   const STRIP_NARROW = 0.62;
   const STRIP_CURRENT_MARGIN = 6;
+  // Room kept at each side of a series that sits centred as a group.
+  const STRIP_FIT_MARGIN = 24;
   const CLOSE_DISTANCE = 120;
   const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
   // Old or very small devices keep the photograph and drop the particles.
@@ -195,6 +204,65 @@
     room.style.setProperty("--art-w", `${Math.round(artWidth)}px`);
     room.style.setProperty("--art-h", `${Math.round(artHeight)}px`);
     room.style.setProperty("--art-y", `${Math.round(centerY)}px`);
+    placeCaption({ width, height, artWidth, artHeight, centerY });
+  }
+
+  // "auto" (the default) places the text by the shape of the page and the
+  // work: beside it as a wall label when there is room, else below or above
+  // it, else softly over the photograph's lower corner. Each place is tried
+  // in turn with the title measured where it would stand, and the
+  // introduction is cut to the lines that fit. A position chosen for the work
+  // is used as it is.
+  function captionPlaces({ width, height, artWidth, artHeight, centerY }) {
+    const hall = scene() === "hall";
+    const clamp = (value, low, high) => Math.min(Math.max(value, low), high);
+    // The column exhibition.css gives a wall label: gaps of 2.6vw either
+    // side, clear of the page arrow (padding plus icon).
+    const arrow = clamp(width * 0.024, 10, 34) + clamp(width * 0.032, 30, 46);
+    const column = (width - artWidth) / 2 - width * 0.052 - arrow;
+    const top = centerY - artHeight / 2;
+    const bottom = centerY + artHeight / 2;
+    const floor = hall ? height * WALL_FRACTION : height - CAPTION_STRIP_RESERVE;
+    const places = [];
+    if (column >= CAPTION_COLUMN_MIN) places.push(["bottom-right", Math.min(bottom, floor) - CAPTION_TOP_RESERVE, 7]);
+    places.push(["bottom-center", floor - bottom - height * 0.026, 4]);
+    places.push(["top-center", top - CAPTION_TOP_RESERVE - height * 0.022, 3]);
+    return places;
+  }
+
+  function placeCaption(layout) {
+    const request = body.dataset.captionRequest || "auto";
+    const auto = request === "auto";
+    body.toggleAttribute("data-caption-auto", auto);
+    caption.style.removeProperty("--caption-lines");
+    if (!auto) {
+      body.dataset.captionPosition = request;
+      return;
+    }
+    // An introduction needs at least two lines to read.
+    const needed = captionText.hidden ? 0 : 2;
+    const lineHeight = parseFloat(global.getComputedStyle(captionText).lineHeight) || 30;
+    let roomiest = null;
+    for (const [position, space, maxLines] of captionPlaces(layout)) {
+      body.dataset.captionPosition = position;
+      const titleBlock = captionTitle.offsetHeight + (parseFloat(global.getComputedStyle(captionTitle).marginBottom) || 0);
+      const lines = space < titleBlock ? -1 : Math.min(maxLines, Math.floor((space - titleBlock) / lineHeight));
+      if (lines >= needed) {
+        caption.style.setProperty("--caption-lines", String(Math.max(1, lines)));
+        return;
+      }
+      if (lines >= 0 && (!roomiest || lines > roomiest[1])) roomiest = [position, lines];
+    }
+    // In the room the label stays on the wall, shortened, rather than cover
+    // the photograph; on the full screen the work fills the page, so the text
+    // lies softly over its lower corner.
+    if (scene() === "hall" && roomiest) {
+      body.dataset.captionPosition = roomiest[0];
+      caption.style.setProperty("--caption-lines", String(Math.max(1, roomiest[1])));
+      return;
+    }
+    body.dataset.captionPosition = scene() === "hall" ? "middle-center" : "bottom-left";
+    caption.style.setProperty("--caption-lines", "3");
   }
 
   // ----- Images -------------------------------------------------------------
@@ -311,8 +379,11 @@
     centerStrip(smooth);
   }
 
-  // Centre the current thumbnail. Widths are animating, so the target is
-  // computed from the final layout rather than measured mid-transition.
+  // A series whose thumbnails fit across the page sits centred as a group;
+  // a longer one scrolls so the current thumbnail stays in the middle. The
+  // centring itself is left to exhibition.css, so it holds at any width.
+  // Widths are animating, so the scroll target is computed from the final
+  // layout rather than measured mid-transition.
   function centerStrip(smooth) {
     const current = strip.children[index];
     if (!current) return;
@@ -320,16 +391,20 @@
     const height = current.offsetHeight;
     const gap = parseFloat(style.columnGap) || 0;
     const ratio = parseFloat(current.style.getPropertyValue("--thumb-ratio")) || 1;
-    const center = (parseFloat(style.paddingLeft) || 0)
-      + index * (height * STRIP_NARROW + gap)
-      + STRIP_CURRENT_MARGIN
-      + (height * ratio) / 2;
+    const content = (strip.children.length - 1) * (height * STRIP_NARROW + gap)
+      + height * ratio
+      + STRIP_CURRENT_MARGIN * 2;
+    const fits = content <= strip.clientWidth - STRIP_FIT_MARGIN * 2;
+    strip.classList.toggle("is-fitting", fits);
+    // With the strip scrolling, its side padding is half its width, so the
+    // offset that centres the current thumbnail is the same at any width.
+    const offset = index * (height * STRIP_NARROW + gap) + STRIP_CURRENT_MARGIN + (height * ratio) / 2;
     stripProgrammatic = true;
     global.clearTimeout(stripProgrammaticTimer);
     stripProgrammaticTimer = global.setTimeout(() => {
       stripProgrammatic = false;
     }, 700);
-    strip.scrollTo({ left: center - strip.clientWidth / 2, behavior: smooth && motionAllowed() ? "smooth" : "auto" });
+    strip.scrollTo({ left: fits ? 0 : offset, behavior: smooth && motionAllowed() ? "smooth" : "auto" });
   }
 
   function stripCenteredIndex() {
@@ -391,7 +466,7 @@
 
   const pageDefaults = {
     wall: body.dataset.wall,
-    captionPosition: body.dataset.captionPosition,
+    captionRequest: body.dataset.captionRequest || "auto",
     captionStyle: body.dataset.captionStyle,
   };
 
@@ -417,8 +492,8 @@
     image.src = work.src;
     image.alt = cleanText(work.alt_text) || work.title;
     image.dataset.workId = work.id;
-    layoutArtwork();
     renderCaption(work);
+    layoutArtwork();
     renderPreview();
     setAmbient(work);
     renderSeriesLabel();
@@ -890,6 +965,13 @@
     layoutArtwork();
     centerStrip(false);
   });
+  // A window resize event can report a width the page has not settled on
+  // (browser zoom, a window still being dragged); the observers fire once
+  // the new layout is known.
+  if (global.ResizeObserver) {
+    new ResizeObserver(() => layoutArtwork()).observe(stage);
+    new ResizeObserver(() => centerStrip(false)).observe(strip);
+  }
   image.addEventListener("load", layoutArtwork);
   image.addEventListener("error", async () => {
     if (refreshedAfterError) return;
@@ -905,6 +987,7 @@
       setScene(value);
     } else {
       body.dataset[attribute] = value;
+      if (attribute === "captionRequest") layoutArtwork();
     }
     if (attribute === "captionStyle") {
       const work = currentWork();

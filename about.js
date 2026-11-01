@@ -3,8 +3,6 @@
   const name = document.querySelector("[data-about-name]");
   const headline = document.querySelector("[data-about-headline]");
   const bio = document.querySelector("[data-about-bio]");
-  const location = document.querySelector("[data-about-location]");
-  const availability = document.querySelector("[data-about-availability]");
   const avatar = document.querySelector("[data-about-avatar]");
 
   function cleanText(value) {
@@ -26,9 +24,6 @@
     if (name) name.textContent = displayName;
     if (headline && cleanText(profile.professional_headline)) headline.textContent = profile.professional_headline;
     if (bio && cleanText(profile.bio)) bio.textContent = profile.bio;
-    const place = [cleanText(profile.city), cleanText(profile.country_code)].filter(Boolean).join(", ");
-    if (location && place) location.textContent = `Based in ${place}`;
-    if (availability && cleanText(profile.availability_status)) availability.textContent = profile.availability_status;
     if (!avatar) return;
     avatar.textContent = initials(displayName);
     const avatarUrl = cleanText(profile.avatar_url);

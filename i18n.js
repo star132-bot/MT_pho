@@ -6,7 +6,7 @@
   // translated. Chinese copy is a first draft for the photographer to review.
   const STORAGE_KEY = "mt-presence-language";
   const SUPPORTED = ["en", "zh"];
-  const TRANSLATED_ATTRIBUTES = ["placeholder", "aria-label", "title"];
+  const TRANSLATED_ATTRIBUTES = ["placeholder", "aria-label", "title", "alt"];
   const SKIP_SELECTOR = "script, style, template, textarea, [data-i18n-skip]";
 
   const ZH = {
@@ -41,8 +41,6 @@
     "Language": "语言",
 
     // Footer
-    "Inquiries": "合作咨询",
-    "Exhibitions, licensing, and commissions.": "展览、授权与委托创作。",
     "For presentations, image use, and considered collaborations, begin a conversation with the artist.": "如需展览、作品使用授权或合作，欢迎与艺术家联系。",
     "Contact Artist": "联系艺术家",
     "Fine art photography for long looking.": "值得长久凝视的艺术摄影。",
@@ -140,12 +138,12 @@
     "Return to Works": "返回作品",
 
     // About
-    "Based in USA": "常驻美国",
-    "Working from a quiet studio, with projects worldwide.": "在安静的工作室中创作，项目遍及世界各地。",
-    "Available for commissions": "接受委托创作",
-    "Limited editorial, private, and collaborative assignments.": "承接少量出版、私人及合作项目。",
-    "Working internationally": "国际合作",
-    "Projects, exhibitions, and conversations across continents.": "跨越各大洲的项目、展览与交流。",
+    "In the field": "山野之间",
+    "In the hills and by the water, waiting for the light and the animals to come in their own time.": "在山野与水边守候，等光线与鸟兽自己到来。",
+    "Black and white, and colour": "黑白与色彩",
+    "Black and white to quiet the colour and keep only light and form; colour to hold the feel of a place.": "以黑白收住色彩，只留光影与形态；以色彩记下一方水土的气息。",
+    "A slower way of seeing": "慢下来的观看",
+    "Slowing down, and giving attention back to what is in front of us: a patch of light, a bird, a ridge.": "放慢脚步，把注意力还给眼前的一片光、一只鸟、一道山脊。",
     "Read the artist statement": "阅读艺术家自述",
 
     // Contact
@@ -246,6 +244,22 @@
     // Visitor site redesign (design/site-mockups-v2)
     "Selected works": "精选作品",
     "Sea of Clouds at Dawn": "云海晨曦",
+    "Pines in Morning Mist": "松林晨雾",
+    "Pines in Morning Mist: a few pines standing on a rocky ridge in thick fog.": "松林晨雾：浓雾中，几棵松立在岩脊上。",
+    "Lakeshore after Rain": "雨后湖畔",
+    "Lakeshore after Rain: an alpine lake and its reflection under low cloud.": "雨后湖畔：低云下的高山湖泊与倒影。",
+    "Forest in Fog": "雾中森林",
+    "Forest in Fog: a pine forest fading, layer by layer, into thick fog.": "雾中森林：松林在浓雾中一层层淡去。",
+    "Edge of the Coast": "海岸之境",
+    "Edge of the Coast: sea cliffs in mist above a calm sea.": "海岸之境：雾中的海崖与平静的海面。",
+    "Rhythm of the Dunes": "沙丘之韵",
+    "Rhythm of the Dunes: rolling sand ridges under an overcast sky.": "沙丘之韵：阴天下起伏的沙脊。",
+    "Correspondence": "来信",
+    "If a work stays with you, we would be glad to hear from you.": "如果某一幅作品留在了你心里，欢迎来信告诉我们。",
+    // Image descriptions (alt) for screen readers.
+    "Black-and-white mountain ridges floating above a sea of clouds at dawn.": "黎明时分，黑白的山脊浮在云海之上。",
+    "A photographer seen from behind on a misty ridge.": "雾中山脊上，一位摄影者的背影。",
+    "A dark granite cliff wrapped in rolling clouds.": "翻涌的云雾环绕着深色的花岗岩峭壁。",
     "Search works": "搜索作品",
     "Close search": "关闭搜索",
     "Language": "语言",

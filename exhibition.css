@@ -811,6 +811,7 @@ html:has(> body.exhibition-page) {
 
 .exhibition-caption {
   --caption-color: var(--caption-ink, rgba(245, 241, 233, 0.8));
+  --edge-reserve: calc(clamp(10px, 2.4vw, 34px) + clamp(30px, 3.2vw, 46px));
   position: absolute;
   max-width: min(34rem, 72vw);
   color: var(--caption-color);
@@ -851,7 +852,8 @@ html:has(> body.exhibition-page) {
    beside it, above or below it, or (middle-centre) on the photograph. */
 [data-scene="hall"] .exhibition-caption {
   --caption-gap: 2.6vw;
-  --caption-column: max(150px, calc((100% - var(--art-w)) / 2 - var(--caption-gap) * 2));
+  /* Clear of the page arrows (.exhibition-edge padding + icon). */
+  --caption-column: max(140px, calc((100% - var(--art-w)) / 2 - var(--caption-gap) * 2 - var(--edge-reserve)));
   --caption-lines: 7;
 }
 
@@ -906,6 +908,54 @@ html:has(> body.exhibition-page) {
 [data-scene="hall"][data-caption-position="middle-center"] .exhibition-caption {
   --caption-color: rgba(255, 255, 255, 0.88);
   --caption-shadow: 0 1px 18px rgba(0, 0, 0, 0.62);
+}
+
+/* Automatic placement (data-caption-auto, exhibition.js): on the full screen
+   the text, too, is placed relative to the work, in the space the page's
+   shape leaves free: beside it, below or above it, or with no free space
+   over the photograph's own lower-left corner. exhibition.js sets the
+   number of lines that fit (--caption-lines). */
+[data-scene="screen"][data-caption-auto][data-caption-position="bottom-right"] .exhibition-caption {
+  --caption-lines: 7;
+  top: auto;
+  right: auto;
+  /* Level with the work's lower edge, but never down in the thumbnail strip. */
+  bottom: max(calc(100% - var(--art-y) - var(--art-h) / 2), calc(max(16px, env(safe-area-inset-bottom)) + 70px));
+  left: calc(50% + var(--art-w) / 2 + 2.6vw);
+  width: min(22rem, max(140px, calc((100% - var(--art-w)) / 2 - 5.2vw - var(--edge-reserve))));
+  text-align: left;
+  translate: none;
+}
+
+[data-scene="screen"][data-caption-auto][data-caption-position="bottom-center"] .exhibition-caption {
+  --caption-lines: 4;
+  top: calc(var(--art-y) + var(--art-h) / 2 + 2.6vh);
+  bottom: auto;
+  width: min(30rem, 86vw);
+}
+
+[data-scene="screen"][data-caption-auto][data-caption-position="bottom-left"] .exhibition-caption {
+  top: auto;
+  bottom: max(calc(100% - var(--art-y) - var(--art-h) / 2 + 3vh), calc(max(16px, env(safe-area-inset-bottom)) + 70px));
+  left: calc(50% - var(--art-w) / 2 + max(20px, 4vw));
+  width: min(26rem, calc(var(--art-w) - max(40px, 8vw)));
+}
+
+[data-scene="screen"][data-caption-auto][data-caption-position="top-center"] .exhibition-caption {
+  --caption-lines: 3;
+  top: auto;
+  bottom: calc(100% - var(--art-y) + var(--art-h) / 2 + 2.2vh);
+  width: min(30rem, 86vw);
+}
+
+/* Semi-transparent: the text is a quiet companion to the work, a little
+   fainter in the introduction than in the title. */
+[data-caption-auto] .exhibition-caption-title {
+  opacity: 0.86;
+}
+
+[data-caption-auto] .exhibition-caption-text {
+  opacity: 0.72;
 }
 
 .exhibition-caption-text {
@@ -993,26 +1043,22 @@ html:has(> body.exhibition-page) {
 
 /* ----- Thumbnail strip (as in Apple Photos) ---------------------------------- */
 
-/* Frosted glass at the bottom. With the menu it is always there; in viewing
-   mode it surfaces briefly when the visitor pages or reaches for it. */
+/* As in Apple Photos on iPad: thumbnails sit straight on the scene near the
+   bottom edge, with no panel behind them, and fade out at both ends. With the
+   menu they are always there; in viewing mode they surface briefly when the
+   visitor pages or reaches for them. */
 .exhibition-preview {
-  --strip-h: 46px;
+  --strip-h: 40px;
   position: absolute;
-  bottom: max(14px, env(safe-area-inset-bottom));
-  left: 50%;
+  right: 0;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 0;
   z-index: 5;
-  width: min(92vw, 760px);
-  padding: 6px 0;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 14px;
-  background: rgba(16, 16, 16, 0.3);
   opacity: 0;
   pointer-events: none;
-  transform: translate(-50%, 10px);
+  transform: translateY(10px);
   transition: opacity 480ms var(--ease-standard), transform 480ms var(--ease-out);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  backdrop-filter: blur(20px) saturate(1.5);
 }
 
 .exhibition-preview[hidden] {
@@ -1020,14 +1066,14 @@ html:has(> body.exhibition-page) {
 }
 
 [data-scene="hall"] .exhibition-preview {
-  --strip-h: 52px;
+  --strip-h: 46px;
 }
 
 [data-mode="info"] .exhibition-preview,
 .exhibition.is-strip-awake .exhibition-preview {
   opacity: 1;
   pointer-events: auto;
-  transform: translate(-50%, 0);
+  transform: none;
 }
 
 /* Viewing mode keeps it lighter: present, but the work still leads. */
@@ -1050,8 +1096,17 @@ html:has(> body.exhibition-page) {
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scrollbar-width: none;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+}
+
+/* A series that fits (exhibition.js) sits centred as a group, every
+   thumbnail in full. */
+.exhibition-strip.is-fitting {
+  justify-content: center;
+  padding: 0;
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 .exhibition-strip::-webkit-scrollbar {
@@ -1068,10 +1123,15 @@ html:has(> body.exhibition-page) {
   padding: 0;
   overflow: hidden;
   border: 0;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  /* Only a faint placeholder while the thumbnail loads; the image covers it. */
+  background: rgba(128, 128, 128, 0.16);
   cursor: pointer;
-  opacity: 0.46;
+  opacity: 0.55;
+  /* Only the upper half shows; from the middle down it is fully transparent,
+     with a short soft edge rather than a hard cut. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 46%, transparent 54%);
+  mask-image: linear-gradient(to bottom, #000 46%, transparent 54%);
   transition:
     width 420ms var(--ease-out),
     margin 420ms var(--ease-out),
@@ -1099,7 +1159,6 @@ html:has(> body.exhibition-page) {
   width: calc(var(--strip-h) * var(--thumb-ratio, 1));
   margin: 0 6px;
   opacity: 1;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
 /* ----- Hint and status ------------------------------------------------------ */

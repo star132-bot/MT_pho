@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.9.4 - 2026-11-01
+
+Visitor copy, language switch and exhibition view after the client's review. No server or database changes.
+
+- **Homepage About.** The three practice notes are no longer commercial (based in USA / available for commissions / working internationally). They now read 山野之间 / In the field, 黑白与色彩 / Black and white, and colour, 慢下来的观看 / A slower way of seeing. Their headings line up across the three columns. The admin profile's city and availability no longer overwrite them (`about.js`).
+- **Homepage invitation.** 来信 / Correspondence: 如果某一幅作品留在了你心里，欢迎来信告诉我们。 This replaces 合作咨询 and 展览、授权与委托创作。.
+- **Selected works defaults are bilingual.** The five built-in titles and image descriptions have English and Chinese versions. A work chosen in 网站图片位 keeps its own title untranslated (`site-images.js`).
+- **Image descriptions (alt) follow the language switch** (`i18n.js`).
+- **Staff sign-in is fully Chinese.** The leftover English labels are translated, and so are the server's sign-in messages, such as a wrong password (`auth.js`).
+- **Exhibition thumbnail strip, as in Apple Photos on iPad.** The strip has no frame or background, and each thumbnail shows only its upper half. When the series fits, the whole row is centred, and stays centred when the window is resized or the browser zoomed. Otherwise the current thumbnail stays in the middle.
+- **Exhibition caption placed automatically.** By default the caption goes beside the work as a wall label, or else below or above it, or else over the photograph's lower corner, depending on the page's shape and the work's proportions. The text is semi-transparent. The introduction is cut to the lines that fit, and never overlaps the work, the strip, the arrows or the menu. A position chosen per work still wins. The `?proto=1` panel has 自动（按页面）.
+
 ## v1.9.3 - 2026-11-01
 
 Exhibition view: more immersive viewing, after the client's feedback on requirement 07 (`docs/product/client-feedback-2026-10-15.md`). Visitor exhibition page only; no admin, server or database changes.

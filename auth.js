@@ -160,7 +160,7 @@ function configureMode() {
     passwordHint.hidden = mode !== "resetPassword";
   }
   if (passwordConfirmationLabel) {
-    passwordConfirmationLabel.textContent = mode === "resetPassword" ? "Confirm new password" : "Confirm password";
+    passwordConfirmationLabel.textContent = mode === "resetPassword" ? "再次输入新密码" : "再次输入密码";
   }
 
   if (config.callbackType) {
@@ -209,6 +209,39 @@ function showNotice(message, kind = "error") {
   notice.focus();
 }
 
+// The server answers in English; the staff sign-in page is in Chinese.
+const SERVER_MESSAGES_ZH = {
+  "Email or password is incorrect.": "邮箱或密码不正确。",
+  "Email and password are required.": "请输入邮箱和密码。",
+  "Enter a valid email address.": "请输入有效的邮箱地址。",
+  "Check the highlighted fields.": "请检查标出的内容。",
+  "Verify your email before signing in.": "请先验证邮箱再登录。",
+  "Verify your email before signing in. Request a new code if needed.": "请先验证邮箱再登录，需要的话可以重新获取验证码。",
+  "This verification link is invalid or has expired.": "这个验证链接无效或已过期。",
+  "Enter the 8-digit code from your password recovery email.": "请输入找回密码邮件中的 8 位验证码。",
+  "The recovery code is invalid or has expired.": "验证码无效或已过期。",
+  "Too many recovery attempts. Wait before trying again.": "尝试次数太多，请稍后再试。",
+  "Please wait before requesting another reset link.": "请稍等一会儿再重新获取。",
+  "Unable to send a reset link right now. Try again later.": "现在无法发送邮件，请稍后再试。",
+  "Request a new password reset link to continue.": "请重新获取找回密码的验证码后再继续。",
+  "Password recovery is not configured for this environment.": "当前环境没有配置找回密码。",
+  "Password is too long.": "密码太长。",
+  "Passwords do not match.": "两次输入的密码不一致。",
+  "Choose a stronger password and try again.": "请换一个更难猜的密码再试。",
+  "Authentication is temporarily unavailable.": "登录服务暂时不可用，请稍后再试。",
+  "Authentication is not configured for this environment.": "当前环境没有配置登录服务。",
+  "Sign in to continue.": "请先登录。",
+  "The request origin could not be verified.": "无法验证请求来源，请刷新页面后重试。",
+  "The security token is missing or expired.": "页面已过期，请刷新后重试。",
+};
+
+function serverMessage(message) {
+  const text = String(message || "");
+  const minimum = text.match(/^Use at least (\d+) characters\.$/);
+  if (minimum) return `至少 ${minimum[1]} 个字符。`;
+  return SERVER_MESSAGES_ZH[text] || text;
+}
+
 function applyFieldErrors(errors = {}) {
   let firstInvalid = null;
   Object.entries(errors).forEach(([name, message]) => {
@@ -218,7 +251,7 @@ function applyFieldErrors(errors = {}) {
       input.setAttribute("aria-invalid", "true");
       firstInvalid ||= input;
     }
-    if (error) error.textContent = message;
+    if (error) error.textContent = serverMessage(message);
   });
   firstInvalid?.focus();
 }
@@ -241,7 +274,7 @@ async function csrfToken(force = false) {
       headers: { Accept: "application/json" },
     }).then(async (response) => {
       const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.csrf_token) throw new Error("Unable to initialize the secure form.");
+      if (!response.ok || !result.csrf_token) throw new Error("安全表单初始化失败。");
       return result.csrf_token;
     });
   }
@@ -302,7 +335,7 @@ function showInvalidCallback(message) {
   form.hidden = true;
   switchRow.hidden = true;
   showNotice(message);
-  nextLink.textContent = mode === "resetPassword" ? "Request a new link" : "Return to sign in";
+  nextLink.textContent = mode === "resetPassword" ? "重新获取链接" : "返回登录";
   nextLink.href = mode === "resetPassword" ? "/auth/forgot-password" : "/auth/sign-in";
   nextLink.hidden = false;
 }
@@ -330,7 +363,7 @@ async function prepareCallbackMode() {
         }),
       });
       if (!response.ok) {
-        showInvalidCallback(result.error?.message || "这个链接无效或已过期。");
+        showInvalidCallback(serverMessage(result.error?.message) || "这个链接无效或已过期。");
         return;
       }
     } else {
@@ -386,7 +419,7 @@ form.addEventListener("submit", async (event) => {
       body: JSON.stringify(requestPayload),
     });
     if (!response.ok) {
-      showNotice(result.error?.message || "操作没有完成，请重试。");
+      showNotice(serverMessage(result.error?.message) || "操作没有完成，请重试。");
       applyFieldErrors(result.error?.field_errors);
       if (mode === "forgotPassword" && recoveryCodeStep) {
         resendLink.textContent = "重新获取验证码";

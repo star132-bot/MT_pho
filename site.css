@@ -629,6 +629,7 @@ body.mt-page {
 
 .mt-about-facts li {
   display: grid;
+  align-content: start;
   gap: 8px;
 }
 

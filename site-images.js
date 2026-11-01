@@ -25,6 +25,8 @@
       // Selected works carry their own caption: title and year.
       const caption = image.closest("figure")?.querySelector("figcaption[data-site-image-caption]");
       if (caption && work.title) {
+        // Work titles are the photographer's own words and never translated.
+        caption.dataset.i18nSkip = "";
         const year = String(work.captured_at || work.published_at || "").slice(0, 4);
         caption.replaceChildren(document.createTextNode(work.title));
         if (/^\d{4}$/.test(year)) {
