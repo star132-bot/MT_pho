@@ -8,7 +8,7 @@ PUBLIC_RUNTIME_FILES = frozenset({
     "index.html", "works.html", "contact.html", "privacy.html", "terms.html", "exhibition.html",
     "auth.html", "mfa.html", "account-settings.html", "admin.html",
     "upload-studio.html", "inbox.html", "admin-works.html", "admin-audit.html",
-    "styles.css", "site.css", "privacy.css", "admin-audit.css", "exhibition.css", "robots.txt", "sitemap.xml", "favicon.svg",
+    "styles.css", "site.css", "privacy.css", "admin-audit.css", "exhibition.css", "robots.txt", "sitemap.xml", "favicon.svg", "apple-touch-icon.png",
     "global-header.js", "archive-data.js", "archive-upload.js", "public-archive.js",
     "about.js", "series.js", "exhibition.js", "studio-exhibition.js", "image-guard.js",
     "public-navigation.js", "series-data.js", "contact.js", "i18n.js",
@@ -42,6 +42,7 @@ DATABASE_MIGRATION_FILES = frozenset({
 
 REQUIRED_RELEASE_FILES = PUBLIC_RUNTIME_FILES | DATABASE_MIGRATION_FILES | frozenset({
     "server.py",
+    "404.html",
     "requirements-scanner.txt",
     "workers/image_probe.py",
     "workers/image_scanner.py",

@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.9.5 - 2026-11-02
+
+Exhibition rebuilt after the client's concept images, new sample works, and a round of fixes. No database changes.
+
+- **Three ways to view.** Phones get concept D: the work in the upper part of a near-black screen, its edges melting into the dark, title and introduction centred below. Computers open the gallery and can switch to the immersive view (展厅 / 沉浸, remembered per browser). The immersive view fills the window with the work (any landscape screen) and asks the browser for full screen.
+- **Photographed rooms per series** (`assets/art/room-sun.jpg`, `room-grey.jpg`, generated, see `docs/design/image-sources.md`): 此间留彩 hangs in a sunlit gallery, 此间留灰 in an overcast one with a grey plaster wall. The light moves slowly (sun wandering and dimming as clouds pass, leaf shadows stirring, a cold shaft swelling and fading) and dust drifts only where the room is lit. Hidden while reduced motion is on; no dust on low-power devices. The ceiling lamp is gone.
+- **The work is larger and the room taller** (research notes in `docs/product/client-feedback-2026-10-15.md`); a dark or light wall-label card sits beside it; titles are plain serif, English introductions italic; larger serif wordmark and counter.
+- **Thumbnail strip**: soft blurred top edge, upper half shown, lower half almost transparent, a warm light line under the current work; the row is centred whenever it fits, at any width or zoom.
+- **Captions placed by the page's shape** keep clear of the work, strip, arrows and switch at every tested size.
+- **Sample works**: the 27 mixed-ratio samples are replaced by 24 generated 3:2 landscapes (12 per series) with titles and descriptions embedded in their files; 600px thumbnails for local use. These are placeholders, not MT's work.
+- **Fixes**: a page for broken links instead of an error message (`404.html`); 16px form fields on phones (no iOS zoom); larger footer links on phones; phones no longer download the gallery photograph; the work title is the page heading and the tab title follows the language; lighter series posters; an iPhone home-screen icon; share tags for the exhibition; both galleries in the sitemap.
+- **Tools**: `scripts/preview_admin.py` previews the staff admin locally against a stand-in database (never the live one).
+
 ## v1.9.4 - 2026-11-01
 
 Visitor copy, language switch and exhibition view after the client's review. No server or database changes.

@@ -13,7 +13,8 @@
   // The miniature renders the real exhibition at a fixed size, then scales it.
   const VIRTUAL = { hall: { width: 1280, height: 800 }, screen: { width: 390, height: 844 } };
   const PHONE_FRAME_HEIGHT = 440;
-  const WALL_FRACTION = 0.8;
+  const WALL_FRACTION = 0.86;
+  const HALL_TOP_CLEARANCE = 84;
 
   const section = document.querySelector("[data-studio-exhibit]");
   const form = document.querySelector("[data-studio-form]");
@@ -124,9 +125,9 @@
     let centerY = size.height / 2;
     if (scene === "hall") {
       const wallHeight = size.height * WALL_FRACTION;
-      maxWidth = size.width * (ratio > 2.2 ? 0.8 : 0.62);
-      maxHeight = wallHeight * 0.68;
-      centerY = wallHeight * 0.47;
+      centerY = wallHeight * 0.5;
+      maxWidth = size.width * (ratio > 2.2 ? 0.86 : 0.7);
+      maxHeight = Math.min(wallHeight * 0.74, (centerY - HALL_TOP_CLEARANCE) * 2);
     }
     let width = maxWidth;
     let height = width / ratio;

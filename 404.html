@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en" data-image-guard>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>Page not found | MT Presence</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="stylesheet" href="/site.css?v=20261102-polish" />
+    <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
+  </head>
+  <body class="mt-page">
+    <header class="mt-header" aria-label="Primary navigation" data-public-header data-global-header>
+      <div class="header-identity-slot" data-header-identity-slot></div>
+    </header>
+
+    <!-- Served by server.py for any address that is not a page (send_page_not_found). -->
+    <main class="mt-not-found">
+      <p class="mt-kicker">404</p>
+      <h1>Page not found</h1>
+      <p>This page may have moved, or the address has a typo.</p>
+      <div class="mt-not-found-links">
+        <a class="mt-text-link" href="/">Back to home</a>
+        <a class="mt-text-link" href="/works.html">Enter Works <span aria-hidden="true">→</span></a>
+      </div>
+    </main>
+
+    <footer class="mt-footer" aria-label="Site footer" data-site-footer data-footer-variant="public"></footer>
+    <script src="/image-guard.js?v=20261021-image-guard"></script>
+    <script src="/i18n.js?v=20261102-polish"></script>
+    <script src="/global-header.js?v=20261030-brand-copy"></script>
+    <script src="/site-footer.js?v=20261030-brand-copy"></script>
+    <script src="/public-navigation.js?v=20260722-public-shell"></script>
+  </body>
+</html>

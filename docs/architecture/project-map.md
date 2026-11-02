@@ -176,11 +176,12 @@
 - `docs/design/image-sources.md`：记录当前临时图片素材来源、使用规则和替换要求。
 - `shots/`：页面验收截图和历史设计快照目录；包含首页、Works、Manage 的调试和对比图，不参与运行时页面加载。
 - `assets/art/`：首页主视觉和作品图片资源目录；当前为 `gpt-image-2-all` 生成的临时 AI 视觉样张，正式上线前应替换为 MT 真实作品或确认授权可用的最终生成图。
-- `assets/archive/`：作品档案页本地样例图目录；当前 27 张样例下载自 Picsum Photos，用于保证 `works.html` 不依赖运行时外链加载。
+- `assets/archive/`：作品档案页本地样例图目录；当前 24 张统一 3:2 横幅样例（此间留灰、此间留彩各 12 张）为 AI 生成的临时图，用于保证 `works.html` 不依赖运行时外链加载，来源见 `docs/design/image-sources.md`。
 - `data/.gitkeep`：保留本地数据目录；`data/*.db` 为本地运行产物并由 `.gitignore` 忽略，当前支持生成 `data/archive.db`，联系作者不再生成消息数据库。
 - `data/messages.db`：历史消息数据库产物；当前功能已移除，仅保留为旧运行产物说明，不再被页面或 API 使用。
 - `tmp/art-source/`：临时源图目录；由处理脚本读取，不直接被页面引用。
 - `scripts/prepare_art_assets.py`：历史/备用本地处理脚本；读取 `tmp/art-source/` 下的源图，裁切、调色并输出到 `assets/art/`；当前页面不依赖该脚本生成的推荐比例逻辑。
+- `scripts/preview_admin.py`：本地后台预览（不连线上）。在本机起一个假的 Supabase，用本地样例作品回答后台的请求，再用全新环境变量启动一份 `server.py`（默认端口 8132）；打开 `http://127.0.0.1:8132/admin`，任意邮箱密码即可登录，修改类操作一律被拒绝。只用于看后台的样子和流程。
 - `scripts/seed_local_archive_db.py`：本地 SQLite 作品库 seed 脚本；通过 Node VM 读取 `archive-data.js`，生成 `data/archive.db`，写入 27 张本地 sample 图片、`original/display/thumbnail` 资产、派生标签、`image_taggings`、`archive-featured` collection 和 seed analysis 记录。
 - `project-development-guardrails/agents/openai.yaml`：Codex 项目入口配置；定义该 skill 的显示名、简短说明和默认提示词。
 - `skills/frontend-aesthetic-reviewer/`：前端审美评审 skill 目录；用于截图、页面审查和设计提示，不参与站点运行时。
@@ -282,7 +283,7 @@
 - `styles.css`：公开顶栏、无 rail 全宽布局、搜索/文本 tabs、四/三/二/一列 masonry、hover/focus 操作、纯色工具栏+炭黑舞台+独立展签 Viewer、Series/About/Lightbox/Contact、内部工具和响应式规则。
 - `docs/architecture/database-design.md`：定义项目完工后可能接入的服务端数据库模型和当前 IndexedDB 字段迁移关系。
 - `database/schema.sql`：预留服务端作品档案表结构、索引和 `archive_image_view` 查询视图；当前不执行。
-- `assets/archive/`：存放 27 张本地摄影样例图，覆盖 `1:1`、`4:3`、`4:5`、`2:3`、`3:2`、`16:9`、`Panorama`。
+- `assets/archive/`：存放 24 张本地样例图，统一 `3:2` 横幅（与作者作品的比例一致）。
 
 ### 分类规则
 
@@ -717,7 +718,7 @@
 - `index.html`、`works.html`、`contact.html`、`exhibition.html`；`privacy.html`、`terms.html` 只换了页头页脚，正文待按 v1.7.0 实际情况重写。
 - `global-header.js`、`site-footer.js`、`public-navigation.js`、`i18n.js`、`about.js`、`series.js`、`contact.js`、`exhibition.js`、`image-guard.js`。
 - `studio-exhibition.js`：上传页「展厅展示」区块（需求 03 原型），设置存在浏览器 `mt-presence-exhibition-settings-v1`。
-- `assets/art/home-hero.jpg`、`selected-01…05.jpg`、`about.jpg`、`contact.jpg`：生成的临时配图；`assets/archive/` 27 张本地样例作品亦为生成图，来源见 `docs/design/image-sources.md`。
+- `assets/art/home-hero.jpg`、`selected-01…05.jpg`、`about.jpg`、`contact.jpg`：生成的临时配图；`assets/archive/` 24 张本地样例作品亦为生成图，来源见 `docs/design/image-sources.md`。
 - `archive-data.js`：样例作品（中文标题、简介）；`scripts/seed_local_archive_db.py` 写入简介。
 - `server.py`：`PUBLIC_ROOT_STATIC_FILES`、`HEADER_IDENTITY_PUBLIC_PAGES`、`RETIRED_PAGE_REDIRECTS`、`/work.html` 跳转；`scripts/production_release_contract.py` 的 `PUBLIC_RUNTIME_FILES` 与之一致。
 - 验收：`scripts/validate_product_phase0.py`、`validate_interaction_integrity.py`、`validate_public_delivery.py`、`test_public_image_contract.py`、`test_public_delivery_boundary.py`、`test_public_browser.py`（需要 `agent-browser`）。

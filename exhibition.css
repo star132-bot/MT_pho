@@ -58,7 +58,8 @@ html:has(> body.exhibition-page) {
   --art-w: 60vw;
   --art-h: 60vh;
   --art-y: 40vh;
-  --wall-height: 80%;
+  /* WALL_FRACTION in exhibition.js and studio-exhibition.js. */
+  --wall-height: 86%;
   position: fixed;
   inset: 0;
   overflow: hidden;
@@ -141,6 +142,20 @@ html:has(> body.exhibition-page) {
   background: radial-gradient(ellipse 85% 70% at 50% 50%, rgba(0, 0, 0, 0) 35%, rgba(0, 0, 0, 0.6) 100%);
 }
 
+/* Phones held upright (concept D): the haze drawn from the work fades into
+   near black, so the work in the upper part of the screen glows. */
+[data-phone] .ambient-layer {
+  filter: blur(44px) saturate(1.1) brightness(0.22);
+}
+
+[data-phone][data-series="grey"] .ambient-layer {
+  filter: blur(48px) brightness(0.2) contrast(0.85);
+}
+
+[data-phone] .exhibition-ambient::after {
+  background: radial-gradient(ellipse 90% 60% at 50% 40%, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.78) 100%);
+}
+
 [data-scene="screen"] .exhibition-stage {
   transform: translate3d(calc(var(--tilt-x, 0) * 6px), calc(var(--tilt-y, 0) * 6px), 0);
   transition: transform 500ms var(--ease-out);
@@ -148,6 +163,39 @@ html:has(> body.exhibition-page) {
 
 [data-scene="screen"] .exhibition-work {
   box-shadow: 0 28px 70px -24px rgba(0, 0, 0, 0.75);
+}
+
+/* Immersive view on a computer (concept C): while the menu shows, the top
+   and bottom of the screen shade off so the bar, caption and thumbnails
+   read over the work. */
+.exhibition-stage::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0) 20%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.62));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 360ms var(--ease-standard);
+}
+
+[data-scene="screen"][data-mode="info"]:not([data-phone]) .exhibition-stage::after {
+  opacity: 1;
+}
+
+/* Phones (concept D): the work's edges melt into the dark, and no shadow. */
+[data-phone] .exhibition-work {
+  box-shadow: none;
+}
+
+[data-phone] .exhibition-work img {
+  -webkit-mask-image:
+    linear-gradient(to bottom, transparent, #000 6%, #000 94%, transparent),
+    linear-gradient(to right, transparent, #000 4%, #000 96%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to bottom, transparent, #000 6%, #000 94%, transparent),
+    linear-gradient(to right, transparent, #000 4%, #000 96%, transparent);
+  mask-composite: intersect;
 }
 
 /* The photograph breathes: an almost imperceptible push in, as in a slow
@@ -195,12 +243,14 @@ html:has(> body.exhibition-page) {
 }
 
 .exhibition-page[data-wall="gray"] {
-  --wall-base: #46474a;
+  /* The dark room (the default): a warm charcoal wall in near darkness, so
+     the lit work seems to glow (design/exhibition-concepts-2026-11-01, A). */
+  --wall-base: #2e2c2a;
   --wall-noise: var(--noise-fine), var(--noise-coarse);
   --wall-noise-size: 220px 220px, 900px 900px;
-  --wall-noise-opacity: 0.34;
-  --floor-top: #2f2f31;
-  --floor-bottom: #151516;
+  --wall-noise-opacity: 0.3;
+  --floor-top: #262422;
+  --floor-bottom: #0f0e0d;
 }
 
 .exhibition-page[data-wall="concrete"] {
@@ -265,6 +315,164 @@ html:has(> body.exhibition-page) {
   display: block;
 }
 
+/* Photographed rooms (the default): an empty gallery photographed with its
+   own daylight, sunlit for 此间留彩 and overcast for 此间留灰
+   (assets/art/room-sun.jpg, room-grey.jpg). exhibition.js (ROOM_PLATES)
+   sets --plate-image and sizes it to cover the room. Its light is never
+   quite still: a brighter copy of the photograph, masked to a soft patch,
+   wanders across it and dims now and then as if a cloud passed
+   (.room-plate-light); the sun's rays shimmer (.room-beams); a faint haze
+   drifts through the grey room (.room-haze); dust drifts in the light
+   (.room-particles, drawn by exhibition.js). */
+.room-plate,
+.room-plate-light {
+  position: absolute;
+  top: var(--plate-y, 0);
+  left: var(--plate-x, 0);
+  display: none;
+  width: var(--plate-w, 100%);
+  height: var(--plate-h, 100%);
+  background: var(--plate-image, none) center / 100% 100% no-repeat;
+  pointer-events: none;
+}
+
+.room-beams,
+.room-haze,
+.room-particles {
+  position: absolute;
+  inset: 0;
+  display: none;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.exhibition-page[data-wall="room"] .room-plate,
+.exhibition-page[data-wall="room"] .room-plate-light,
+.exhibition-page[data-wall="room"] .room-particles {
+  display: block;
+}
+
+.exhibition-page[data-wall="room"] .room-wall,
+.exhibition-page[data-wall="room"] .room-floor,
+.exhibition-page[data-wall="room"] .room-light::after {
+  display: none;
+}
+
+/* The grey room keeps its plaster grey rather than brown. */
+.exhibition-page[data-wall="room"][data-series="grey"] .room-plate,
+.exhibition-page[data-wall="room"][data-series="grey"] .room-plate-light {
+  filter: saturate(0.55);
+}
+
+/* Sunlight from the window on the left wanders over the window and leaf
+   shapes, fades as a cloud passes, and the leaves' shadows stir. */
+.room-plate-light {
+  mix-blend-mode: screen;
+  opacity: 0.3;
+  -webkit-mask-image: radial-gradient(closest-side, #000, transparent);
+  mask-image: radial-gradient(closest-side, #000, transparent);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 62% 120%;
+  mask-size: 62% 120%;
+  animation:
+    sun-wander 44s ease-in-out infinite alternate,
+    sun-clouds 27s ease-in-out infinite,
+    leaves-stir 7s ease-in-out infinite;
+}
+
+@keyframes sun-wander {
+  from { -webkit-mask-position: 0% 30%; mask-position: 0% 30%; }
+  to { -webkit-mask-position: 55% 70%; mask-position: 55% 70%; }
+}
+
+@keyframes sun-clouds {
+  0%, 100% { opacity: 0.36; }
+  30% { opacity: 0.1; }
+  55% { opacity: 0.44; }
+  80% { opacity: 0.22; }
+}
+
+@keyframes leaves-stir {
+  0%, 100% { translate: 0 0; }
+  35% { translate: 1.5px -1px; }
+  70% { translate: -1px 1px; }
+}
+
+/* In the grey room the cold light from the high window on the right swells
+   and fades slowly along its shaft. */
+.exhibition-page[data-series="grey"] .room-plate-light {
+  -webkit-mask-size: 70% 130%;
+  mask-size: 70% 130%;
+  animation:
+    shaft-wander 60s ease-in-out infinite alternate,
+    shaft-breathe 31s ease-in-out infinite;
+}
+
+@keyframes shaft-wander {
+  from { -webkit-mask-position: 100% 0%; mask-position: 100% 0%; }
+  to { -webkit-mask-position: 62% 55%; mask-position: 62% 55%; }
+}
+
+@keyframes shaft-breathe {
+  0%, 100% { opacity: 0.18; }
+  40% { opacity: 0.05; }
+  70% { opacity: 0.26; }
+}
+
+/* Shafts of sunlight slanting down from the window, shimmering faintly. */
+.exhibition-page[data-wall="room"][data-series="colour"] .room-beams {
+  display: block;
+  background:
+    linear-gradient(42deg, transparent 30%, rgba(255, 232, 192, 0.2) 38%, transparent 46%),
+    linear-gradient(42deg, transparent 44%, rgba(255, 232, 192, 0.13) 51%, transparent 58%),
+    linear-gradient(42deg, transparent 56%, rgba(255, 232, 192, 0.08) 62%, transparent 68%);
+  filter: blur(16px);
+  mix-blend-mode: screen;
+  -webkit-mask-image: linear-gradient(to right, #000 10%, transparent 72%);
+  mask-image: linear-gradient(to right, #000 10%, transparent 72%);
+  animation: beams-shimmer 13s ease-in-out infinite alternate;
+}
+
+@keyframes beams-shimmer {
+  from { opacity: 0.45; }
+  to { opacity: 1; }
+}
+
+/* A faint haze drifting through the grey room. */
+.exhibition-page[data-wall="room"][data-series="grey"] .room-haze {
+  display: block;
+  background-image: var(--noise-coarse), var(--noise-coarse);
+  background-size: 1500px 1500px, 960px 960px;
+  mix-blend-mode: screen;
+  opacity: 0.1;
+  animation: mist-drift 140s linear infinite;
+}
+
+/* Around the work the room falls into shade: lightly in the sunlit room,
+   deeply in the grey one. (Light presets set the same properties, so these
+   name the light too.) */
+.exhibition-page[data-wall="room"][data-series="colour"][data-light] {
+  --vignette-mid: 0.05;
+  --vignette-edge: 0.3;
+  --pool-x: 1.8;
+  --pool-y: 1.6;
+}
+
+.exhibition-page[data-wall="room"][data-series="grey"][data-light] {
+  --vignette-mid: 0.24;
+  --vignette-edge: 0.72;
+  --pool-x: 1.3;
+  --pool-y: 1.3;
+}
+
+/* The sunlit wall is pale: the text and controls on it are dark. */
+.exhibition-page[data-wall="room"][data-series="colour"] {
+  --caption-ink: rgba(40, 33, 26, 0.86);
+  --caption-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
 .room-wall {
   position: absolute;
   inset: 0 0 auto;
@@ -326,13 +534,15 @@ html:has(> body.exhibition-page) {
 }
 
 .exhibition-page[data-light="spot"] {
-  /* A bright warm wall with a soft halo under the ceiling light. */
-  --vignette-mid: 0.1;
-  --vignette-edge: 0.32;
+  /* A warm wall with a soft halo under the ceiling light. The wall falls
+     off into shade away from the work: against a darker surround the same
+     image reads brighter (simultaneous contrast), so it seems to glow. */
+  --vignette-mid: 0.16;
+  --vignette-edge: 0.5;
   --glow: 0.62;
   --glow-color: 255, 222, 170;
-  --pool-x: 1.7;
-  --pool-y: 1.5;
+  --pool-x: 1.5;
+  --pool-y: 1.35;
   --floor-glow: 0.34;
 }
 
@@ -395,7 +605,8 @@ html:has(> body.exhibition-page) {
   mix-blend-mode: soft-light;
 }
 
-/* The spotlight beam: a warm cone from the fixture down over the work. */
+/* The spotlight beam: a warm cone from a light above, out of view, down
+   over the work. Only the light is shown, never the lamp. */
 .exhibition-page[data-light="spot"] .room-light::after {
   background:
     radial-gradient(
@@ -433,74 +644,6 @@ html:has(> body.exhibition-page) {
 @keyframes light-breathe {
   from { opacity: 0.88; }
   to { opacity: 1; }
-}
-
-.room-motes {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  transform: translateX(calc(var(--mx) * 10px));
-}
-
-[data-light="daylight"] .room-motes,
-[data-light="even"] .room-motes {
-  display: none;
-}
-
-/* Ceiling track and the spotlight that lights the work (spot light only). */
-.room-fixture {
-  position: absolute;
-  top: 12px;
-  left: 50%;
-  display: none;
-  width: 22px;
-  height: 58px;
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-
-[data-light="spot"] .room-fixture {
-  display: block;
-}
-
-.room-fixture::before {
-  /* Stem from the ceiling track. */
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 4px;
-  height: 20px;
-  content: "";
-  background: #2b2723;
-  transform: translateX(-50%);
-}
-
-.room-fixture::after {
-  /* Cylinder head with its lit lens. */
-  position: absolute;
-  top: 18px;
-  left: 0;
-  width: 22px;
-  height: 34px;
-  content: "";
-  border-radius: 3px 3px 2px 2px;
-  background:
-    linear-gradient(transparent 84%, #fff2d6 84%),
-    linear-gradient(90deg, #121110, #3b3733 46%, #191715);
-  box-shadow: 0 10px 18px rgba(255, 226, 176, 0.55);
-}
-
-[data-light="spot"] .room-wall::after {
-  /* The track itself, a thin line just below the ceiling. */
-  position: absolute;
-  top: 12px;
-  right: 0;
-  left: 0;
-  height: 3px;
-  content: "";
-  background: linear-gradient(rgba(36, 32, 28, 0.42), rgba(36, 32, 28, 0.16));
 }
 
 /* Lights up on arrival; dims while the work is being changed. */
@@ -561,10 +704,25 @@ html:has(> body.exhibition-page) {
 
 [data-scene="hall"] .exhibition-work {
   transition: opacity 1100ms var(--ease-out);
+  /* Lit from above, the work casts a long soft shadow down the wall and a
+     close one at its edge, so it stands off the wall. */
   box-shadow:
-    calc(var(--mx) * -7px) calc(18px + var(--my) * -3px) 34px -8px rgba(0, 0, 0, 0.5),
-    calc(var(--mx) * -3px) 5px 9px -2px rgba(0, 0, 0, 0.32),
+    calc(var(--mx) * -8px) calc(28px + var(--my) * -3px) 50px -14px rgba(0, 0, 0, 0.55),
+    calc(var(--mx) * -3px) 7px 12px -3px rgba(0, 0, 0, 0.34),
     0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Arrival: the visitor steps up to the work. Slow and small, since strong
+   motion on a large view can unsettle. Scale composes with the parallax
+   and tilt transforms. */
+.exhibition.is-arriving .exhibition-room,
+.exhibition.is-arriving .exhibition-stage {
+  animation: arrive 2600ms var(--ease-out) both;
+}
+
+@keyframes arrive {
+  from { scale: 0.955; }
+  to { scale: 1; }
 }
 
 /* The work receives the same light as the wall: brighter at the top. */
@@ -690,10 +848,10 @@ html:has(> body.exhibition-page) {
 }
 
 .exhibition-brand {
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(255, 255, 255, 0.86);
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 12px;
-  letter-spacing: 0.46em;
+  font-size: clamp(13px, 1.05vw, 17px);
+  letter-spacing: 0.34em;
   text-decoration: none;
   text-shadow: 0 1px 10px rgba(0, 0, 0, 0.45);
   text-transform: uppercase;
@@ -797,13 +955,57 @@ html:has(> body.exhibition-page) {
   color: #fff;
 }
 
+/* Gallery or immersive full screen, chosen on a computer (exhibition.js). */
+.exhibition-view-switch {
+  position: absolute;
+  top: max(24px, calc(env(safe-area-inset-top) + 6px));
+  left: 50%;
+  display: none;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(12, 12, 12, 0.28);
+  transform: translateX(-50%);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .exhibition-view-switch {
+    display: flex;
+  }
+
+  [data-mode="info"] .exhibition-view-switch {
+    pointer-events: auto;
+  }
+}
+
+.exhibition-view-switch button {
+  padding: 5px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(243, 240, 234, 0.62);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}
+
+.exhibition-view-switch button[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
 .exhibition-series {
   position: absolute;
   top: max(30px, calc(env(safe-area-inset-top) + 12px));
   right: max(24px, env(safe-area-inset-right));
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 12px;
-  letter-spacing: 0.16em;
+  color: rgba(255, 255, 255, 0.8);
+  font-family: var(--serif);
+  font-size: clamp(13px, 1vw, 16px);
+  letter-spacing: 0.12em;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
 }
 
@@ -825,11 +1027,23 @@ html:has(> body.exhibition-page) {
 }
 
 .exhibition-caption-title {
-  margin: 0 0 0.8em;
+  margin: 0 0 0.7em;
   font-family: var(--serif);
-  font-size: clamp(15px, 1.25vw, 21px);
-  letter-spacing: 0.38em;
-  opacity: 0.92;
+  font-weight: 400;
+  font-size: clamp(17px, 1.45vw, 24px);
+  letter-spacing: 0.06em;
+  opacity: 0.94;
+}
+
+/* English introductions are set in italic, as in the concepts; Chinese has
+   no true italic, so it stays upright. */
+html[lang="en"] .exhibition-caption-text {
+  font-style: italic;
+}
+
+/* On a phone the title leads the space below the work (concept D). */
+[data-phone] .exhibition-caption-title {
+  font-size: 22px;
 }
 
 .exhibition-caption-text {
@@ -905,6 +1119,49 @@ html:has(> body.exhibition-page) {
   transform: none;
 }
 
+[data-scene="hall"][data-wall="room"] .exhibition-caption {
+  /* PLATE_CAPTION_GAP in exhibition.js. */
+  --caption-gap: 1.8vw;
+}
+
+/* A photographed room's wall label (concept A): a small card beside the
+   work, the title over a short warm rule; dark in the grey room, light on
+   the sunlit wall. */
+[data-scene="hall"][data-wall="room"][data-caption-position="bottom-right"] .exhibition-caption {
+  width: min(var(--caption-column), 17rem);
+  padding: 18px 22px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 2px;
+  background: rgba(22, 20, 18, 0.6);
+  box-shadow: 0 14px 34px -14px rgba(0, 0, 0, 0.65);
+  text-shadow: none;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+[data-scene="hall"][data-wall="room"][data-caption-position="bottom-right"] .exhibition-caption-title {
+  font-size: clamp(16px, 1.25vw, 20px);
+}
+
+[data-scene="hall"][data-wall="room"][data-caption-position="bottom-right"] .exhibition-caption-title::after {
+  display: block;
+  width: 28px;
+  height: 1px;
+  margin-top: 12px;
+  background: rgba(214, 186, 150, 0.6);
+  content: "";
+}
+
+[data-scene="hall"][data-wall="room"][data-series="colour"][data-caption-position="bottom-right"] .exhibition-caption {
+  border-color: rgba(70, 50, 30, 0.08);
+  background: rgba(252, 249, 243, 0.62);
+  box-shadow: 0 14px 34px -18px rgba(70, 45, 20, 0.35);
+}
+
+[data-scene="hall"][data-wall="room"][data-series="colour"][data-caption-position="bottom-right"] .exhibition-caption-title::after {
+  background: rgba(150, 112, 70, 0.6);
+}
+
 [data-scene="hall"][data-caption-position="middle-center"] .exhibition-caption {
   --caption-color: rgba(255, 255, 255, 0.88);
   --caption-shadow: 0 1px 18px rgba(0, 0, 0, 0.62);
@@ -937,8 +1194,21 @@ html:has(> body.exhibition-page) {
 [data-scene="screen"][data-caption-auto][data-caption-position="bottom-left"] .exhibition-caption {
   top: auto;
   bottom: max(calc(100% - var(--art-y) - var(--art-h) / 2 + 3vh), calc(max(16px, env(safe-area-inset-bottom)) + 70px));
-  left: calc(50% - var(--art-w) / 2 + max(20px, 4vw));
-  width: min(26rem, calc(var(--art-w) - max(40px, 8vw)));
+  /* Clear of the work's corner, and of the screen's edge when the work is
+     wider than the screen. */
+  left: max(calc(50% - var(--art-w) / 2 + max(20px, 4vw)), max(20px, 4vw));
+  width: min(26rem, calc(var(--art-w) - max(40px, 8vw)), calc(100% - max(40px, 8vw)));
+}
+
+/* Over the work in the immersive view (concept C): a large serif title. */
+[data-scene="screen"]:not([data-phone])[data-caption-auto][data-caption-position="bottom-left"] .exhibition-caption {
+  width: min(34rem, calc(100% - max(40px, 8vw)));
+}
+
+[data-scene="screen"]:not([data-phone])[data-caption-auto][data-caption-position="bottom-left"] .exhibition-caption-title {
+  margin-bottom: 0.45em;
+  font-size: clamp(22px, 2.2vw, 36px);
+  letter-spacing: 0.02em;
 }
 
 [data-scene="screen"][data-caption-auto][data-caption-position="top-center"] .exhibition-caption {
@@ -1076,23 +1346,14 @@ html:has(> body.exhibition-page) {
   transform: none;
 }
 
-/* Viewing mode keeps it lighter: present, but the work still leads. */
-[data-mode="view"] .exhibition.is-strip-awake .exhibition-preview {
-  opacity: 0.78;
-}
-
-[data-mode="view"] .exhibition.is-strip-awake .exhibition-preview:hover,
-[data-mode="view"] .exhibition.is-strip-awake .exhibition-preview:focus-within {
-  opacity: 1;
-}
-
 .exhibition-strip {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   column-gap: 2px;
-  height: var(--strip-h);
+  /* Room above for the soft top edge. */
+  height: calc(var(--strip-h) + 6px);
   /* Half the strip on each side, so the first and last can sit centred. */
-  padding: 0 50%;
+  padding: 6px 50% 0;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scrollbar-width: none;
@@ -1104,7 +1365,7 @@ html:has(> body.exhibition-page) {
    thumbnail in full. */
 .exhibition-strip.is-fitting {
   justify-content: center;
-  padding: 0;
+  padding: 6px 0 0;
   -webkit-mask-image: none;
   mask-image: none;
 }
@@ -1116,49 +1377,89 @@ html:has(> body.exhibition-page) {
 /* exhibition.js centres the strip with the same narrow width (0.62) and
    current-thumbnail margin (6px). */
 .exhibition-thumb {
+  position: relative;
   flex: none;
   width: calc(var(--strip-h) * 0.62);
   height: var(--strip-h);
   margin: 0;
   padding: 0;
-  overflow: hidden;
   border: 0;
-  border-radius: 2px;
-  /* Only a faint placeholder while the thumbnail loads; the image covers it. */
-  background: rgba(128, 128, 128, 0.16);
+  background: none;
   cursor: pointer;
-  opacity: 0.55;
-  /* Only the upper half shows; from the middle down it is fully transparent,
-     with a short soft edge rather than a hard cut. */
-  -webkit-mask-image: linear-gradient(to bottom, #000 46%, transparent 54%);
-  mask-image: linear-gradient(to bottom, #000 46%, transparent 54%);
   transition:
     width 420ms var(--ease-out),
-    margin 420ms var(--ease-out),
-    opacity 300ms var(--ease-standard);
+    margin 420ms var(--ease-out);
 }
 
+/* The thumbnail: a soft top edge rising to 80% opaque; around the middle it
+   fades, and the whole lower half is almost transparent (95%). */
 .exhibition-thumb img {
+  position: relative;
   display: block;
   width: 100%;
   height: 100%;
+  border-radius: 2px;
+  /* Only a faint placeholder while the thumbnail loads; the image covers it. */
+  background: rgba(128, 128, 128, 0.16);
   object-fit: cover;
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.8) 14%, rgba(0, 0, 0, 0.8) 36%, rgba(0, 0, 0, 0.05) 52%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.8) 14%, rgba(0, 0, 0, 0.8) 36%, rgba(0, 0, 0, 0.05) 52%);
 }
 
-.exhibition-thumb:hover,
-.exhibition-thumb:focus-visible {
-  opacity: 0.86;
-  outline: none;
+/* A blurred ghost of the image along the top edge, so the border is soft
+   rather than cut. The image comes from --thumb-src (exhibition.js). */
+.exhibition-thumb::before {
+  position: absolute;
+  top: -4px;
+  right: -2px;
+  left: -2px;
+  height: 45%;
+  background: var(--thumb-src, none) center top / cover no-repeat;
+  content: "";
+  filter: blur(3px);
+  opacity: 0.45;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent);
+  mask-image: linear-gradient(to bottom, #000, transparent);
 }
 
 .exhibition-thumb:focus-visible {
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85);
+  border-radius: 3px;
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 1px;
 }
 
 .exhibition-thumb[aria-current="true"] {
   width: calc(var(--strip-h) * var(--thumb-ratio, 1));
   margin: 0 6px;
+}
+
+/* A soft line of light under the work on show, just below the visible
+   upper half (the lower half is almost transparent). It fades across as
+   the work changes. */
+.exhibition-thumb::after {
+  position: absolute;
+  top: calc(52% + 3px);
+  right: 16%;
+  left: 16%;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(255, 246, 228, 0.92);
+  box-shadow: 0 0 8px 1px rgba(255, 236, 200, 0.6);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 420ms var(--ease-standard);
+}
+
+.exhibition-thumb[aria-current="true"]::after {
   opacity: 1;
+}
+
+/* On the sunlit oak floor a faint shadow sets the light line off. */
+.exhibition-page[data-wall="room"][data-series="colour"][data-scene="hall"] .exhibition-thumb::after {
+  background: rgba(255, 252, 244, 0.98);
+  box-shadow: 0 1px 3px rgba(70, 45, 20, 0.5), 0 0 8px 1px rgba(255, 240, 210, 0.7);
 }
 
 /* ----- Hint and status ------------------------------------------------------ */
@@ -1291,15 +1592,22 @@ html:has(> body.exhibition-page) {
     transition-duration: 1ms !important;
   }
 
+  .exhibition.is-arriving .exhibition-room,
+  .exhibition.is-arriving .exhibition-stage {
+    animation: none !important;
+  }
+
+  .room-plate-light,
+  .room-beams,
+  .room-haze {
+    animation: none !important;
+  }
+
   .ambient-layer,
   .ambient-mist,
   .room-light,
   .exhibition-work img {
     animation: none !important;
-  }
-
-  .room-motes {
-    display: none;
   }
 
   .exhibition-page[data-light="daylight"] .room-light::after,

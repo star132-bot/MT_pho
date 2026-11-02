@@ -71,7 +71,7 @@ def main() -> None:
                 browser.command("open", base + route)
                 browser.wait_for("document.readyState === 'complete'")
                 if route == "/":
-                    browser.wait_for("document.querySelector('[data-about-name]').textContent === 'Browser Creator'")
+                    browser.wait_for("document.querySelector('[data-about-name]').textContent === 'MT Presence'")
                 if route == "/works.html":
                     browser.wait_for("document.querySelector('[data-series-status-box]').dataset.seriesState === 'ready' && document.querySelectorAll('[data-series-poster]:not([hidden])').length === 2")
                 if route.startswith("/exhibition.html"):

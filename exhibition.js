@@ -23,8 +23,9 @@
   const preview = document.querySelector("[data-exhibition-preview]");
   const strip = document.querySelector("[data-exhibition-strip]");
   const ambientLayers = [...document.querySelectorAll("[data-ambient-layer]")];
-  const motesCanvas = document.querySelector("[data-room-motes]");
   const hint = document.querySelector("[data-exhibition-hint]");
+  const particlesCanvas = document.querySelector("[data-room-particles]");
+  const viewButtons = document.querySelectorAll("[data-exhibition-view-switch] [data-view]");
   const status = document.querySelector("[data-exhibition-status]");
   const statusText = document.querySelector("[data-exhibition-status-text]");
   const retryButton = document.querySelector("[data-exhibition-retry]");
@@ -41,7 +42,7 @@
       label: "展墙",
       attribute: "wall",
       choices: [
-        ["white", "美术馆白墙"], ["gray", "深灰博物馆墙"], ["concrete", "清水混凝土"],
+        ["room", "实景展厅（留彩阳光 / 留灰阴天）"], ["white", "美术馆白墙"], ["gray", "深灰博物馆墙"], ["concrete", "清水混凝土"],
         ["wood", "深色木饰面"], ["red", "深红墙"], ["green", "墨绿墙"],
       ],
     },
@@ -62,8 +63,54 @@
     },
     style: { label: "文字风格", attribute: "captionStyle", choices: [["serif", "衬线淡入"], ["vertical", "竖排"], ["reveal", "逐字浮现"]] },
   };
-  // The room's wall occupies the upper part of the viewport; the floor the rest.
-  const WALL_FRACTION = 0.8;
+  // The room's wall occupies the upper part of the viewport; the floor the
+  // rest. A tall wall reads as a high ceiling, which people judge more
+  // spacious and more beautiful (the "cathedral effect").
+  const WALL_FRACTION = 0.86;
+  // The work never rises into the top bar.
+  const HALL_TOP_CLEARANCE = 84;
+  // Photographed rooms: an empty gallery generated with its own daylight and
+  // floor and nothing on the wall (docs/design/image-sources.md), one for
+  // each series: a sunlit room for 此间留彩, a dim overcast one for 此间留灰.
+  // The image covers the room with its floor on the room's floor line, and
+  // the work hangs midway between the top of the wall and the floor. top:
+  // the row kept near the top of the screen if the image has to be enlarged;
+  // floor: where the wall meets the floor; both fractions of the image
+  // height, measured on the image.
+  const ROOM_PLATES = {
+    colour: { src: "/assets/art/room-sun.jpg", width: 1672, height: 941, top: 0.08, floor: 0.879 },
+    grey: { src: "/assets/art/room-grey.jpg", width: 1672, height: 941, top: 0.08, floor: 0.815 },
+  };
+  const PLATE_TOP_AT = 0.1;
+  // Dust drifting in the room's light: each mote is born in the light, drifts
+  // a while and fades, and shows only where the photograph is lit, as real
+  // dust does (exhibition.css moves the light itself). Warm and lively in the
+  // sun, sparse, cool and slow in the grey room. count: per 1440 x 900 of
+  // room; speed and rise in pixels per second; light: the brightness range
+  // (0 to 1, of the photograph) over which dust goes from unseen to fully lit;
+  // soft: the share of large, out-of-focus motes nearer the eye, which carry
+  // the effect against a bright sunlit wall.
+  const PARTICLE_STYLES = {
+    colour: { count: 80, color: "255, 250, 236", speed: 9, rise: -3, size: [1.3, 3.4], alpha: 1, light: [0.68, 0.95], soft: 0.35 },
+    grey: { count: 46, color: "226, 232, 240", speed: 5, rise: 1.5, size: [0.6, 1.8], alpha: 0.7, light: [0.26, 0.55], soft: 0.18 },
+  };
+  // Old or very small devices keep the photograph and drop the particles.
+  const lowPower = (global.navigator.hardwareConcurrency || 8) <= 2 || (global.navigator.deviceMemory || 8) <= 2;
+  // In a photographed room the work keeps to about the width of concept A,
+  // leaving room for its label beside it.
+  const PLATE_ART_WIDTH = 0.56;
+  // The gap between a work and its label, as a fraction of the page width
+  // (exhibition.css --caption-gap): a photographed room's card sits closer.
+  const CAPTION_GAP = 0.026;
+  const PLATE_CAPTION_GAP = 0.018;
+  // The room reaches 12px past the window so its parallax never shows an edge.
+  const ROOM_BLEED = 12;
+  // The immersive view fills the screen when that crops no more than this
+  // much of the work: the photographer's works are landscape, and this lets
+  // a 3:2 work fill any landscape screen, even 21:9. A portrait work, cropped
+  // far more, is shown whole.
+  const IMMERSIVE_MAX_CROP = 0.4;
+  const ARRIVAL_MS = 2800;
   // Automatic caption placement: the narrowest column beside the work that
   // still reads as a wall label, and the bands kept clear for the menu and
   // series label above and the thumbnail strip below.
@@ -73,6 +120,14 @@
   const SWIPE_DISTANCE = 56;
   const WHEEL_DISTANCE = 60;
   const HINT_STORAGE_KEY = "mt-presence-exhibition-hint-v1";
+  // On a computer the visitor chooses the gallery (dark room, the work in a
+  // pool of light) or the immersive full screen; the choice is remembered.
+  const VIEW_STORAGE_KEY = "mt-presence-exhibition-view-v1";
+  // Phones held upright: the work in the upper part of the screen, its title
+  // and introduction centred in the space below.
+  const PHONE_MAX_WIDTH = 700;
+  const PHONE_ART_HEIGHT = 0.6;
+  const PHONE_ART_CENTRE = 0.42;
   // Per-work wall and caption settings chosen in the upload studio
   // (studio-exhibition.js). Kept in this browser until the new database.
   const WORK_SETTINGS_KEY = "mt-presence-exhibition-settings-v1";
@@ -87,8 +142,6 @@
   const STRIP_FIT_MARGIN = 24;
   const CLOSE_DISTANCE = 120;
   const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
-  // Old or very small devices keep the photograph and drop the particles.
-  const lowPower = (global.navigator.hardwareConcurrency || 8) <= 2 || (global.navigator.deviceMemory || 8) <= 2;
 
   const params = new URLSearchParams(global.location.search);
   const prototypeMode = params.get("proto") === "1";
@@ -98,6 +151,11 @@
   const hallQuery = global.matchMedia("(hover: hover) and (pointer: fine)");
 
   let seriesKey = SERIES[params.get("series")] ? params.get("series") : "";
+  // Where the room's photograph lies, in room coordinates (layoutArtwork),
+  // and a small copy of its brightness (preparePlate), for the particles.
+  let plateBox = null;
+  let plateLight = null;
+  let particlesFrame = 0;
   let works = [];
   let index = 0;
   let changing = false;
@@ -115,7 +173,6 @@
   let stripProgrammaticTimer = 0;
   let stripProgrammatic = false;
   let stripUserScrolling = false;
-  let motesFrame = 0;
   const imageCache = new Map();
   // The grey series is revealed like ink spreading on paper; the property is
   // registered so the mask edge can be animated smoothly.
@@ -149,18 +206,211 @@
 
   function setScene(next) {
     body.dataset.scene = next === "hall" ? "hall" : "screen";
+    renderViewSwitch();
     layoutArtwork();
-    startMotes();
+    if (next === "hall" && seriesKey) preparePlate();
   }
 
   function sceneFromDevice() {
     const forced = prototypeMode ? params.get("scene") : "";
     if (forced === "hall" || forced === "screen") return forced;
-    return hallQuery.matches ? "hall" : "screen";
+    return hallQuery.matches ? storedView() || "hall" : "screen";
+  }
+
+  function storedView() {
+    try {
+      const view = global.localStorage.getItem(VIEW_STORAGE_KEY);
+      return view === "hall" || view === "screen" ? view : "";
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  function chooseView(view) {
+    try {
+      global.localStorage.setItem(VIEW_STORAGE_KEY, view);
+    } catch (_error) {
+      // Without storage the choice lasts for this visit.
+    }
+    setFullscreen(view === "screen");
+    setScene(view);
+  }
+
+  // The immersive view also takes the whole screen, hiding the browser's own
+  // bars; the gallery gives it back. Browsers allow this only on a click, so
+  // it is asked for when the visitor chooses the view, never on arrival.
+  function setFullscreen(on) {
+    const element = document.documentElement;
+    const active = document.fullscreenElement || document.webkitFullscreenElement;
+    try {
+      if (on && !active) (element.requestFullscreen || element.webkitRequestFullscreen)?.call(element)?.catch?.(() => {});
+      if (!on && active) (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)?.catch?.(() => {});
+    } catch (_error) {
+      // Full screen is a nicety; the view works without it.
+    }
+  }
+
+  function renderViewSwitch() {
+    viewButtons.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.view === scene())));
   }
 
   function motionAllowed() {
     return !reducedMotion.matches;
+  }
+
+  // ----- Room ---------------------------------------------------------------
+
+  function roomPlate() {
+    return body.dataset.wall === "room" ? ROOM_PLATES[seriesKey] || null : null;
+  }
+
+  // Loads the room's photograph before the lights come up, and keeps a small
+  // copy of its brightness so dust shows only in its light. Resolves on
+  // load or after a short wait, so a slow image never holds the work back.
+  function preparePlate() {
+    const plate = roomPlate();
+    if (!plate || plateLight?.src === plate.src) return Promise.resolve();
+    return Promise.race([
+      new Promise((resolve) => {
+        const source = new Image();
+        source.decoding = "async";
+        source.onload = () => {
+          try {
+            const sample = document.createElement("canvas");
+            sample.width = 160;
+            sample.height = Math.round((160 * plate.height) / plate.width);
+            const context = sample.getContext("2d", { willReadFrequently: true });
+            context.drawImage(source, 0, 0, sample.width, sample.height);
+            const pixels = context.getImageData(0, 0, sample.width, sample.height).data;
+            const brightness = new Float32Array(sample.width * sample.height);
+            for (let i = 0; i < brightness.length; i += 1) {
+              brightness[i] = (pixels[i * 4] * 0.299 + pixels[i * 4 + 1] * 0.587 + pixels[i * 4 + 2] * 0.114) / 255;
+            }
+            plateLight = { src: plate.src, width: sample.width, height: sample.height, brightness };
+          } catch (_error) {
+            plateLight = null;
+          }
+          resolve();
+        };
+        source.onerror = () => resolve();
+        source.src = plate.src;
+      }),
+      wait(1500),
+    ]);
+  }
+
+  function lightAt(x, y) {
+    if (!plateBox || !plateLight) return 0;
+    const u = Math.floor(((x - plateBox.x) / plateBox.width) * plateLight.width);
+    const v = Math.floor(((y - plateBox.y) / plateBox.height) * plateLight.height);
+    if (u < 0 || v < 0 || u >= plateLight.width || v >= plateLight.height) return 0;
+    return plateLight.brightness[v * plateLight.width + u];
+  }
+
+  function startParticles() {
+    if (particlesFrame || !particlesCanvas?.getContext || lowPower || !motionAllowed()) return;
+    const context = particlesCanvas.getContext("2d");
+    if (!context) return;
+    let motes = [];
+    let last = global.performance.now();
+    let cleared = false;
+
+    // Born in the light: the brightest of a few random spots.
+    function newMote(style, width, height) {
+      let x = 0;
+      let y = 0;
+      let best = -1;
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const candidateX = Math.random() * width;
+        const candidateY = Math.random() * height;
+        const light = lightAt(candidateX, candidateY) + Math.random() * 0.15;
+        if (light > best) {
+          best = light;
+          x = candidateX;
+          y = candidateY;
+        }
+      }
+      const [small, large] = style.size;
+      const size = small + Math.random() * (large - small);
+      return {
+        x,
+        y,
+        age: 0,
+        life: 8 + Math.random() * 12,
+        size,
+        blur: Math.random() < style.soft,
+        vx: (Math.random() - 0.5) * style.speed,
+        vy: style.rise * (0.5 + Math.random()),
+        sway: 0.5 + Math.random() * 1.5,
+        phase: Math.random() * Math.PI * 2,
+        twinkle: 0.4 + Math.random() * 1.1,
+      };
+    }
+
+    function frame(now) {
+      particlesFrame = global.requestAnimationFrame(frame);
+      const elapsed = Math.min(64, now - last) / 1000;
+      last = now;
+      const style = PARTICLE_STYLES[seriesKey];
+      if (document.hidden || scene() !== "hall" || !roomPlate() || !plateBox || !plateLight || !style) {
+        if (!cleared) {
+          context.clearRect(0, 0, particlesCanvas.width, particlesCanvas.height);
+          cleared = true;
+        }
+        return;
+      }
+      cleared = false;
+      // Soft dust needs no full retina sharpness; this keeps the canvas light.
+      const ratio = Math.min(1.5, global.devicePixelRatio || 1);
+      const width = particlesCanvas.clientWidth;
+      const height = particlesCanvas.clientHeight;
+      if (particlesCanvas.width !== Math.round(width * ratio) || particlesCanvas.height !== Math.round(height * ratio)) {
+        particlesCanvas.width = Math.round(width * ratio);
+        particlesCanvas.height = Math.round(height * ratio);
+      }
+      const wanted = Math.round(style.count * Math.min(1.5, Math.max(0.6, (width * height) / (1440 * 900))));
+      while (motes.length < wanted) motes.push(newMote(style, width, height));
+      if (motes.length > wanted) motes = motes.slice(0, wanted);
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.clearRect(0, 0, width, height);
+      context.globalCompositeOperation = "lighter";
+      const [dark, bright] = style.light;
+      motes.forEach((mote, moteIndex) => {
+        mote.age += elapsed;
+        mote.phase += mote.twinkle * elapsed;
+        mote.x += (mote.vx + Math.sin(mote.phase) * mote.sway * 2) * elapsed;
+        mote.y += mote.vy * elapsed;
+        if (mote.age > mote.life || mote.x < -8 || mote.x > width + 8 || mote.y < -8 || mote.y > height + 8) {
+          motes[moteIndex] = newMote(style, width, height);
+          return;
+        }
+        // Visible only in the light, brightest where the room is brightest,
+        // fading in and out over its life.
+        const light = Math.max(0, Math.min(1, (lightAt(mote.x, mote.y) - dark) / (bright - dark))) ** 1.2;
+        const fade = Math.min(1, mote.age / 2, (mote.life - mote.age) / 2);
+        if (light * fade <= 0.01) return;
+        const glint = 0.7 + 0.3 * Math.sin(mote.phase * 2.3);
+        const alpha = style.alpha * light * fade * glint * (mote.blur ? 0.35 : 1);
+        const radius = mote.blur ? mote.size * 4.5 : mote.size;
+        if (mote.blur) {
+          const glow = context.createRadialGradient(mote.x, mote.y, 0, mote.x, mote.y, radius);
+          glow.addColorStop(0, `rgba(${style.color}, ${alpha.toFixed(3)})`);
+          glow.addColorStop(1, `rgba(${style.color}, 0)`);
+          context.fillStyle = glow;
+          context.shadowBlur = 0;
+        } else {
+          // A small glow, so a mote reads as a point of light.
+          context.fillStyle = `rgba(${style.color}, ${alpha.toFixed(3)})`;
+          context.shadowColor = `rgba(${style.color}, ${alpha.toFixed(3)})`;
+          context.shadowBlur = 5;
+        }
+        context.beginPath();
+        context.arc(mote.x, mote.y, radius, 0, Math.PI * 2);
+        context.fill();
+      });
+    }
+
+    particlesFrame = global.requestAnimationFrame(frame);
   }
 
   // ----- Layout -------------------------------------------------------------
@@ -179,16 +429,53 @@
     const width = stage.clientWidth;
     const height = stage.clientHeight;
     const ratio = artworkRatio(work);
+    const phone = scene() === "screen" && !hallQuery.matches && width <= PHONE_MAX_WIDTH && height > width;
+    body.toggleAttribute("data-phone", phone);
     let maxWidth;
     let maxHeight;
     let centerY;
+    let wallHeight = height;
     if (scene() === "hall") {
-      // Hung slightly above the wall's centre with generous breathing room,
-      // the way a single work is hung in a gallery.
-      const wallHeight = height * WALL_FRACTION;
-      maxWidth = width * (ratio > 2.2 ? 0.8 : 0.62);
-      maxHeight = wallHeight * 0.68;
-      centerY = wallHeight * 0.47;
+      // Hung at the wall's centre, large: the wider the angle a picture fills
+      // in the visitor's view, the stronger the sense of being there (THX
+      // recommends 40 degrees, SMPTE 30), with breathing room kept around it.
+      wallHeight = height * WALL_FRACTION;
+      centerY = wallHeight * 0.5;
+      const plate = roomPlate();
+      plateBox = null;
+      if (plate) {
+        const roomWidth = width + ROOM_BLEED * 2;
+        const roomHeight = height + ROOM_BLEED * 2;
+        const span = height * (WALL_FRACTION - PLATE_TOP_AT);
+        const scale = Math.max(
+          roomWidth / plate.width,
+          roomHeight / plate.height,
+          span / ((plate.floor - plate.top) * plate.height),
+        );
+        const plateWidth = plate.width * scale;
+        const plateHeight = plate.height * scale;
+        // Raised or lowered, always covering the room, so its floor sits on
+        // the room's floor line.
+        const wanted = ROOM_BLEED + height * WALL_FRACTION - plate.floor * plateHeight;
+        const top = Math.min(0, Math.max(roomHeight - plateHeight, wanted));
+        plateBox = { x: (roomWidth - plateWidth) / 2, y: top, width: plateWidth, height: plateHeight };
+        room.style.setProperty("--plate-image", cssUrl(plate.src));
+        room.style.setProperty("--plate-w", `${Math.round(plateWidth)}px`);
+        room.style.setProperty("--plate-h", `${Math.round(plateHeight)}px`);
+        room.style.setProperty("--plate-x", `${Math.round(plateBox.x)}px`);
+        room.style.setProperty("--plate-y", `${Math.round(top)}px`);
+        wallHeight = top - ROOM_BLEED + plate.floor * plateHeight;
+        const wallTop = Math.max(0, top - ROOM_BLEED + plate.top * plateHeight);
+        centerY = (wallTop + wallHeight) / 2;
+        maxWidth = width * (ratio > 2.2 ? 0.84 : PLATE_ART_WIDTH);
+        maxHeight = Math.min((wallHeight - wallTop) * 0.75, (centerY - HALL_TOP_CLEARANCE) * 2);
+      } else {
+        maxWidth = width * (ratio > 2.2 ? 0.86 : 0.7);
+        maxHeight = Math.min(wallHeight * 0.74, (centerY - HALL_TOP_CLEARANCE) * 2);
+      }
+    } else if (phone) {
+      maxWidth = width;
+      maxHeight = height * PHONE_ART_HEIGHT;
     } else {
       // Full screen, complete and uncropped (question 13 default).
       maxWidth = width;
@@ -201,10 +488,21 @@
       artHeight = maxHeight;
       artWidth = artHeight * ratio;
     }
+    if (phone) centerY = Math.max(HALL_TOP_CLEARANCE + artHeight / 2, height * PHONE_ART_CENTRE);
+    // The immersive view on a computer (concept C) fills the screen with the
+    // work when only a little of it would be cropped.
+    // Scaled up to cover, it loses 1 - 1/cover along its longer side.
+    if (scene() === "screen" && !phone && hallQuery.matches) {
+      const cover = Math.max(width / artWidth, height / artHeight);
+      if (1 - 1 / cover <= IMMERSIVE_MAX_CROP) {
+        artWidth *= cover;
+        artHeight *= cover;
+      }
+    }
     room.style.setProperty("--art-w", `${Math.round(artWidth)}px`);
     room.style.setProperty("--art-h", `${Math.round(artHeight)}px`);
     room.style.setProperty("--art-y", `${Math.round(centerY)}px`);
-    placeCaption({ width, height, artWidth, artHeight, centerY });
+    placeCaption({ width, height, artWidth, artHeight, centerY, wallHeight });
   }
 
   // "auto" (the default) places the text by the shape of the page and the
@@ -213,16 +511,17 @@
   // in turn with the title measured where it would stand, and the
   // introduction is cut to the lines that fit. A position chosen for the work
   // is used as it is.
-  function captionPlaces({ width, height, artWidth, artHeight, centerY }) {
+  function captionPlaces({ width, height, artWidth, artHeight, centerY, wallHeight }) {
     const hall = scene() === "hall";
     const clamp = (value, low, high) => Math.min(Math.max(value, low), high);
-    // The column exhibition.css gives a wall label: gaps of 2.6vw either
-    // side, clear of the page arrow (padding plus icon).
+    // The column exhibition.css gives a wall label: a gap either side,
+    // clear of the page arrow (padding plus icon).
     const arrow = clamp(width * 0.024, 10, 34) + clamp(width * 0.032, 30, 46);
-    const column = (width - artWidth) / 2 - width * 0.052 - arrow;
+    const gap = hall && roomPlate() ? PLATE_CAPTION_GAP : CAPTION_GAP;
+    const column = (width - artWidth) / 2 - width * gap * 2 - arrow;
     const top = centerY - artHeight / 2;
     const bottom = centerY + artHeight / 2;
-    const floor = hall ? height * WALL_FRACTION : height - CAPTION_STRIP_RESERVE;
+    const floor = hall ? wallHeight : height - CAPTION_STRIP_RESERVE;
     const places = [];
     if (column >= CAPTION_COLUMN_MIN) places.push(["bottom-right", Math.min(bottom, floor) - CAPTION_TOP_RESERVE, 7]);
     places.push(["bottom-center", floor - bottom - height * 0.026, 4]);
@@ -245,7 +544,12 @@
     let roomiest = null;
     for (const [position, space, maxLines] of captionPlaces(layout)) {
       body.dataset.captionPosition = position;
-      const titleBlock = captionTitle.offsetHeight + (parseFloat(global.getComputedStyle(captionTitle).marginBottom) || 0);
+      // The dark room's wall label is a padded card (exhibition.css).
+      const box = global.getComputedStyle(caption);
+      const titleBlock = captionTitle.offsetHeight
+        + (parseFloat(global.getComputedStyle(captionTitle).marginBottom) || 0)
+        + (parseFloat(box.paddingTop) || 0)
+        + (parseFloat(box.paddingBottom) || 0);
       const lines = space < titleBlock ? -1 : Math.min(maxLines, Math.floor((space - titleBlock) / lineHeight));
       if (lines >= needed) {
         caption.style.setProperty("--caption-lines", String(Math.max(1, lines)));
@@ -356,6 +660,8 @@
     button.style.setProperty("--thumb-ratio", String(Math.min(1.9, Math.max(0.56, ratio))));
     const thumb = document.createElement("img");
     thumb.src = work.thumbnail_url || work.src;
+    // The same image, blurred along the top edge (exhibition.css).
+    button.style.setProperty("--thumb-src", cssUrl(thumb.src));
     thumb.alt = "";
     thumb.loading = "lazy";
     thumb.decoding = "async";
@@ -498,7 +804,7 @@
     setAmbient(work);
     renderSeriesLabel();
     updateUrl(work);
-    document.title = `${work.title} | MT Presence`;
+    document.title = `${work.title} | ${t("MT Presence")}`;
     announcer.textContent = `${index + 1} / ${works.length}: ${work.title}`;
     preloadNeighbours();
   }
@@ -676,7 +982,7 @@
     } catch (_error) {
       // Without storage the hint simply shows on each visit.
     }
-    hint.textContent = t(scene() === "hall" ? "Click the artwork to show the menu" : "Tap the image to show the menu");
+    hint.textContent = t(hallQuery.matches ? "Click the artwork to show the menu" : "Tap the image to show the menu");
     hint.hidden = false;
     global.setTimeout(dismissHint, 3200);
   }
@@ -879,67 +1185,6 @@
     }
   }
 
-  // Fine dust drifting slowly through the spotlight beam: the detail that
-  // makes the room read as a real, lit space rather than a picture of one.
-  function startMotes() {
-    if (motesFrame || !motesCanvas?.getContext || lowPower || !motionAllowed() || scene() !== "hall") return;
-    const context = motesCanvas.getContext("2d");
-    if (!context) return;
-    const motes = Array.from({ length: 46 }, () => newMote(true));
-    let last = global.performance.now();
-
-    function newMote(anywhere) {
-      return {
-        u: Math.random() * 2 - 1,
-        v: anywhere ? Math.random() : -0.03,
-        size: 0.5 + Math.random() * 1.5,
-        drift: (Math.random() - 0.5) * 0.00005,
-        fall: 0.000012 + Math.random() * 0.00004,
-        phase: Math.random() * Math.PI * 2,
-        twinkle: 0.0005 + Math.random() * 0.0011,
-      };
-    }
-
-    function frame(now) {
-      motesFrame = global.requestAnimationFrame(frame);
-      const elapsed = Math.min(64, now - last);
-      last = now;
-      if (document.hidden || scene() !== "hall" || !/^(spot|wash)$/.test(body.dataset.light)) return;
-      const ratio = Math.min(2, global.devicePixelRatio || 1);
-      const width = motesCanvas.clientWidth;
-      const height = motesCanvas.clientHeight;
-      if (motesCanvas.width !== Math.round(width * ratio) || motesCanvas.height !== Math.round(height * ratio)) {
-        motesCanvas.width = Math.round(width * ratio);
-        motesCanvas.height = Math.round(height * ratio);
-      }
-      context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      context.clearRect(0, 0, width, height);
-      context.globalCompositeOperation = "lighter";
-      const artWidth = parseFloat(room.style.getPropertyValue("--art-w")) || width * 0.5;
-      const artHeight = parseFloat(room.style.getPropertyValue("--art-h")) || height * 0.5;
-      const artY = parseFloat(room.style.getPropertyValue("--art-y")) || height * 0.4;
-      // A cone from the fixture to just past the top edge of the work.
-      const beamHeight = artY - artHeight * 0.25;
-      motes.forEach((mote, moteIndex) => {
-        mote.u += mote.drift * elapsed;
-        mote.v += mote.fall * elapsed;
-        mote.phase += mote.twinkle * elapsed;
-        if (mote.v > 1 || Math.abs(mote.u) > 1) motes[moteIndex] = newMote(false);
-        const spread = 30 + (artWidth * 0.95 - 30) * mote.v;
-        const x = width / 2 + mote.u * spread / 2;
-        const y = mote.v * beamHeight;
-        const edge = 1 - mote.u * mote.u;
-        const alpha = (0.18 + 0.42 * (0.5 + 0.5 * Math.sin(mote.phase))) * edge * Math.min(1, mote.v * 6);
-        context.fillStyle = `rgba(255, 238, 210, ${alpha.toFixed(3)})`;
-        context.beginPath();
-        context.arc(x, y, mote.size, 0, Math.PI * 2);
-        context.fill();
-      });
-    }
-
-    motesFrame = global.requestAnimationFrame(frame);
-  }
-
   // Phones that report their tilt without asking: the work and the mist
   // around it shift by different amounts, giving the view depth (like the
   // 3D effect in Apple Photos). iPhones would ask permission, so they skip it.
@@ -979,6 +1224,7 @@
     if (await refreshWorks()) renderWork();
   });
   hallQuery.addEventListener?.("change", () => setScene(sceneFromDevice()));
+  viewButtons.forEach((button) => button.addEventListener("click", () => chooseView(button.dataset.view)));
 
   // ----- Prototype panel ----------------------------------------------------
 
@@ -988,6 +1234,7 @@
     } else {
       body.dataset[attribute] = value;
       if (attribute === "captionRequest") layoutArtwork();
+      if (attribute === "wall") preparePlate().then(layoutArtwork);
     }
     if (attribute === "captionStyle") {
       const work = currentWork();
@@ -1070,17 +1317,24 @@
     index = Math.max(0, works.findIndex((work) => work.id === requestedId));
     body.dataset.series = seriesKey;
     room.classList.add("is-dark");
-    await ensureLoaded(currentWork());
+    // The room's photograph is only for the gallery; phones never load it.
+    await Promise.all([ensureLoaded(currentWork()), scene() === "hall" ? preparePlate() : null]);
     renderWork();
     status.hidden = true;
     // The lights come up once the first work is on the wall. Reading the
     // computed style commits the dark state so the change animates; no
     // animation frame is needed, which background tabs would postpone.
     global.getComputedStyle(figure).opacity;
-    global.setTimeout(() => room.classList.remove("is-dark"), 30);
+    global.setTimeout(() => {
+      room.classList.remove("is-dark");
+      // ...and the visitor steps up to the work (exhibition.css).
+      room.classList.add("is-arriving");
+      global.setTimeout(() => room.classList.remove("is-arriving"), ARRIVAL_MS);
+    }, 30);
     showHint();
     wakeCursor();
     wakeStrip();
+    startParticles();
   }
 
   retryButton.addEventListener("click", start);

@@ -197,14 +197,16 @@ def validate_archive_view(connection: sqlite3.Connection, sample_items: list[dic
     if display_mode_violations:
         fail(f"Found {display_mode_violations} content_type/display_mode violations.")
 
-    required_ratio_codes = set(RATIO_CODE_BY_LABEL.values())
+    # The samples need not cover every ratio: since 2026-11-01 they are all
+    # 3:2, like the photographer's own work. Each must be a known category.
+    known_ratio_codes = set(RATIO_CODE_BY_LABEL.values())
     actual_ratio_codes = {
         row[0]
         for row in connection.execute("SELECT DISTINCT ratio_category_code FROM archive_image_view")
     }
-    missing_ratio_codes = sorted(required_ratio_codes - actual_ratio_codes)
-    if missing_ratio_codes:
-        fail(f"archive_image_view does not cover ratio categories: {', '.join(missing_ratio_codes)}")
+    unknown_ratio_codes = sorted(actual_ratio_codes - known_ratio_codes, key=str)
+    if unknown_ratio_codes:
+        fail(f"archive_image_view has unknown ratio categories: {', '.join(map(str, unknown_ratio_codes))}")
 
     rows = connection.execute("SELECT id, tags, tag_groups FROM archive_image_view").fetchall()
     for image_id, tags_json, tag_groups_json in rows:

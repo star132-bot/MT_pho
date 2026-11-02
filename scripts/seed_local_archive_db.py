@@ -381,6 +381,16 @@ def seed_item(connection: sqlite3.Connection, item: dict, index: int) -> None:
         (f"{image_id}-thumbnail", "thumbnail", original_asset_id),
     ]
     for asset_id, kind, source_asset_id in asset_rows:
+        # A 600px copy in assets/archive/thumbs (as the live site's
+        # thumbnails), when there is one; otherwise the file itself.
+        path, asset_size, asset_checksum, asset_width, asset_height = src, byte_size, checksum, width, height
+        thumb = Path(src).parent / "thumbs" / Path(src).name
+        if kind == "thumbnail" and (ROOT / thumb).exists():
+            scale = 600 / max(width, height)
+            path = thumb.as_posix()
+            asset_size = file_size(ROOT / thumb)
+            asset_checksum = file_sha256(ROOT / thumb)
+            asset_width, asset_height = round(width * scale), round(height * scale)
         connection.execute(
             """
             INSERT INTO image_assets (
@@ -394,14 +404,14 @@ def seed_item(connection: sqlite3.Connection, item: dict, index: int) -> None:
                 image_id,
                 kind,
                 f"local-assets-{kind}",
-                f"{kind}/{src}",
-                src,
+                f"{kind}/{path}",
+                path,
                 None,
                 mime_type,
-                byte_size,
-                width,
-                height,
-                checksum,
+                asset_size,
+                asset_width,
+                asset_height,
+                asset_checksum,
                 source_asset_id,
                 created_at,
             ),

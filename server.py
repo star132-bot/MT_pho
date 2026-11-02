@@ -643,7 +643,7 @@ PUBLIC_ROOT_STATIC_FILES = {
     "index.html", "works.html", "contact.html", "privacy.html", "terms.html", "exhibition.html",
     "auth.html", "mfa.html", "account-settings.html", "admin.html",
     "upload-studio.html", "inbox.html", "admin-works.html", "admin-audit.html",
-    "styles.css", "site.css", "privacy.css", "admin-audit.css", "exhibition.css", "robots.txt", "sitemap.xml", "favicon.svg",
+    "styles.css", "site.css", "privacy.css", "admin-audit.css", "exhibition.css", "robots.txt", "sitemap.xml", "favicon.svg", "apple-touch-icon.png",
     "global-header.js", "archive-data.js", "archive-upload.js", "public-archive.js",
     "about.js", "series.js", "exhibition.js", "studio-exhibition.js", "image-guard.js",
     "public-navigation.js", "series-data.js", "contact.js", "i18n.js",
@@ -5128,6 +5128,22 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
         super().end_headers()
+
+    def send_page_not_found(self) -> None:
+        """A page for a person who followed a broken link; JSON for anything else."""
+        try:
+            body = (ROOT / "404.html").read_bytes() if "text/html" in self.headers.get("Accept", "") else b""
+        except OSError:
+            body = b""
+        if not body:
+            self.send_json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
+            return
+        self.send_response(HTTPStatus.NOT_FOUND)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
 
     def send_json(self, status: HTTPStatus, payload: dict) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -10036,11 +10052,11 @@ class MTRequestHandler(SimpleHTTPRequestHandler):
             return
 
         if is_private_static_path(canonical_path):
-            self.send_json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
+            self.send_page_not_found()
             return
 
         if not is_public_static_path(canonical_path):
-            self.send_json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
+            self.send_page_not_found()
             return
 
         self.path = canonical_path

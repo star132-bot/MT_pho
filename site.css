@@ -1163,13 +1163,58 @@ body.mt-paper-page {
 
   .mt-footer-nav {
     flex-wrap: wrap;
-    gap: 14px 22px;
+    gap: 4px 22px;
+  }
+
+  /* A finger-sized target for each footer link. */
+  .mt-footer-nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+  }
+
+  /* At 16px iOS Safari does not zoom the page when a field is focused. */
+  .mt-field input,
+  .mt-field textarea {
+    font-size: 16px;
   }
 
   .mt-footer-copy {
     grid-column: 1;
     text-align: left;
   }
+}
+
+/* The page for a broken link (404.html). */
+.mt-not-found {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 18px;
+  width: min(100% - 48px, 760px);
+  min-height: 70vh;
+  margin: 0 auto;
+  padding: 120px 0 80px;
+}
+
+.mt-not-found h1 {
+  margin: 0;
+  font-family: var(--mt-serif, serif);
+  font-size: clamp(28px, 4vw, 44px);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+}
+
+.mt-not-found p {
+  margin: 0;
+  color: var(--mt-muted);
+}
+
+.mt-not-found-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 32px;
+  margin-top: 12px;
 }
 
 @media (prefers-reduced-motion: reduce) {
