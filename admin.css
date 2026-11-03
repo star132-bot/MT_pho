@@ -2338,8 +2338,7 @@
   font-weight: 400;
 }
 
-.admin-page .upload-studio-field-group h3,
-.admin-page .upload-studio-readiness h3 {
+.admin-page .upload-studio-field-group h3 {
   color: var(--admin-ink);
   font-family: var(--admin-serif);
   font-size: 16px;
@@ -2366,12 +2365,6 @@
   box-shadow: none;
   color: var(--admin-ink);
   font-size: 14px;
-}
-
-.admin-page .upload-studio-readiness {
-  border: 1px solid var(--admin-line);
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.3);
 }
 
 .admin-page .upload-studio-footer {

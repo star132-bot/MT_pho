@@ -107,10 +107,7 @@ const saveState = document.querySelector("[data-studio-save-state]");
 const saveRecordButton = document.querySelector("[data-studio-save-record]");
 const reloadRecordButton = document.querySelector("[data-studio-reload-record]");
 const deleteRecordButton = document.querySelector("[data-studio-delete-record]");
-const readinessElement = document.querySelector("[data-studio-readiness]");
-const readinessSummary = document.querySelector("[data-studio-readiness-summary]");
-const readinessList = document.querySelector("[data-studio-readiness-list]");
-const readinessRefreshButton = document.querySelector("[data-studio-readiness-refresh]");
+const publishNote = document.querySelector("[data-studio-publish-note]");
 const submitRecordButton = document.querySelector("[data-studio-submit-record]");
 const submitRecordLabel = document.querySelector("[data-studio-submit-label]");
 const submitDialog = document.querySelector("[data-studio-submit-dialog]");
@@ -396,7 +393,6 @@ function hydrateQuickUploadForm() {
   elements.namedItem("property_release_status").value = cleanText(stored.property_release_status) || "not_applicable";
   elements.namedItem("ai_disclosure").value = cleanText(stored.ai_disclosure) || "none";
   elements.namedItem("sensitive_content_disclosure").value = cleanText(stored.sensitive_content_disclosure) || "none";
-  elements.namedItem("rights_declared").checked = false;
   syncQuickModelReleaseVisibility();
 }
 
@@ -415,7 +411,7 @@ function quickUploadDefaultsFromForm() {
       ? cleanText(formData.get("model_release_status")) || null
       : "not_applicable",
     property_release_status: cleanText(formData.get("property_release_status")) || null,
-    rights_declared: formData.get("rights_declared") === "on",
+    rights_declared: true,
     ai_disclosure: cleanText(formData.get("ai_disclosure")) || null,
     sensitive_content_disclosure: cleanText(formData.get("sensitive_content_disclosure")) || null,
   };
@@ -1184,42 +1180,41 @@ function applyReadinessFieldErrors(readiness) {
   });
 }
 
-function readinessSummaryText(readiness) {
-  if (!workspaceOnline) return "离线时无法检查。";
-  if (!readiness || readiness.status === "checking") return "正在检查发布条件…";
+// What still keeps this Draft off the site, in the owner's words. Only things
+// the owner can act on are named: the rights declaration and alt text are
+// filled in when publishing, and the automatic processing is waited for.
+function publishBlocker(readiness) {
+  if (!readiness) return "";
+  const errors = readiness.field_errors || {};
+  const failed = (code) => readiness.checks?.some((check) => check.code === code && check.state === "blocked");
+  if (errors.title) return "先写一个标题。";
+  if (errors.content_category) return "选一个系列。";
+  if (failed("image_assets")) return "图片文件不完整，请重新上传这张图片。";
+  if (failed("security_scan")) return "这张图片没有通过安全扫描，不能发布。";
+  if (failed("submission_state")) return "这张图片已经发布过了，请刷新页面。";
+  return "";
+}
+
+function publishNoteText(readiness) {
+  if (!workspaceOnline) return "离线时不能发布。";
+  if (!readiness) return "";
   if (readiness.status === "submitting") return "正在发布…";
-  if (readiness.status === "stale") return "保存最新修改后会重新检查。";
-  if (readiness.status === "error") return readiness.message || "检查失败，请重试。";
-  if (readiness.status === "submitted") return "这个版本已经提交。";
-  if (readiness.ready) return "可以发布。";
-  if (readinessIsPending(readiness)) return "自动检查还在进行中。";
-  const blockers = Number.isInteger(readiness.blocker_count) ? readiness.blocker_count : 0;
-  return blockers === 1 ? "有 1 项需要处理。" : `有 ${blockers || "几"} 项需要处理。`;
+  if (readiness.status === "error") return readiness.message || "发布失败，请重试。";
+  if (readiness.status === "blocked") return publishBlocker(readiness);
+  if (readiness.status === "pending") {
+    return submissionInFlight ? "图片处理完就会自动发布…" : "图片还在自动处理，几秒后就能发布。";
+  }
+  return "";
 }
 
 function renderReadiness() {
-  if (!readinessElement || !readinessList) return;
+  if (!publishNote) return;
   const record = records.find((item) => item.id === activeRecordId);
   const readiness = record?.readiness || null;
-  const displayStatus = !workspaceOnline ? "error" : readiness?.status || "checking";
-  readinessElement.dataset.state = displayStatus;
-  readinessElement.setAttribute("aria-busy", String(["checking", "submitting"].includes(displayStatus)));
-  if (readinessSummary) readinessSummary.textContent = readinessSummaryText(readiness);
-  const checks = readiness?.checks?.length === READINESS_CHECK_DEFAULTS.length
-    ? readiness.checks
-    : READINESS_CHECK_DEFAULTS.map((check) => ({ ...check, state: "pending" }));
-  readinessList.innerHTML = checks.map((check) => {
-    const state = ["pass", "pending", "blocked"].includes(check.state) ? check.state : "blocked";
-    const icon = state === "pass" ? "icon-check" : state === "pending" ? "icon-retry" : "icon-alert";
-    return `
-      <li data-state="${state}">
-        <svg class="ui-icon" aria-hidden="true" focusable="false"><use href="#${icon}"></use></svg>
-        <span>
-          <strong>${escapeHtml(check.label)}</strong>
-          <small>${escapeHtml(check.message)}</small>
-        </span>
-      </li>`;
-  }).join("");
+  const text = publishNoteText(readiness);
+  publishNote.textContent = text;
+  publishNote.hidden = !text;
+  publishNote.dataset.state = readiness?.status || "";
   applyReadinessFieldErrors(readiness);
 }
 
@@ -1717,7 +1712,7 @@ function renderEditor() {
     detail: { id: record.id, src: displayUrl(record), width: record.width, height: record.height },
   }));
   if (studioTitle) {
-    studioTitle.textContent = record.title || "Untitled Work";
+    studioTitle.textContent = record.title || "未命名作品";
   }
   if (studioKicker) {
     studioKicker.textContent = `${record.folder_name || activeFolder().name} / ${taskLabel(taskByRecordId.get(record.id)?.stage || "complete")}`;
@@ -1786,36 +1781,19 @@ function setWorkspaceControls() {
   if (deleteRecordButton) {
     deleteRecordButton.disabled = !workspaceOnline || !activeRecordId || draftSaveInFlight || draftConflict || workspaceBusy;
   }
-  if (readinessRefreshButton) {
-    readinessRefreshButton.disabled = !workspaceOnline
-      || !activeRecordId
-      || draftDirty
-      || draftSaveInFlight
-      || draftConflict
-      || workspaceBusy
-      || record?.readiness?.status === "checking";
-  }
   if (submitRecordLabel) {
-    submitRecordLabel.textContent = submissionInFlight
-      ? (record?.readiness?.status === "submitting" ? "正在发布…" : "正在检查…")
-      : "发布到网站";
+    submitRecordLabel.textContent = submissionInFlight ? "正在发布…" : "发布到网站";
   }
   if (submitRecordButton) {
     submitRecordButton.disabled = !workspaceOnline
       || !activeRecordId
-      || draftDirty
-      || draftSaveInFlight
       || draftConflict
       || workspaceBusy
-      || record?.readiness?.status !== "ready"
-      || record?.readiness?.ready !== true
       || !["draft", "changes_requested"].includes(record?.workflow_status || "draft");
   }
   if (submitReadyButton) {
     submitReadyButton.disabled = importDisabled || !recordsForActiveFolder().length;
-    submitReadyButton.textContent = bulkSubmissionInFlight
-      ? (submissionInFlight ? "正在发布…" : "正在检查…")
-      : "检查并发布";
+    submitReadyButton.textContent = bulkSubmissionInFlight ? "正在发布…" : "全部发布";
   }
 }
 
@@ -2104,15 +2082,6 @@ function confirmSubmission({ title, message, confirmLabel }) {
   });
 }
 
-function confirmDraftSubmission(record) {
-  const title = record?.title || "Untitled Work";
-  return confirmSubmission({
-    title: `Publish "${title}"?`,
-    message: "已保存的版本会立即出现在网站上。发布即表示你拥有这张照片的版权，并且它适合公开展示。",
-    confirmLabel: "发布到网站",
-  });
-}
-
 function createSubmissionIdempotencyKey(recordId) {
   const existing = submissionIdempotencyKeys.get(recordId);
   if (existing) return existing;
@@ -2121,14 +2090,73 @@ function createSubmissionIdempotencyKey(recordId) {
   return key;
 }
 
-function focusReadiness() {
-  readinessElement?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  readinessRefreshButton?.focus({ preventScroll: true });
+const STAFF_DEFAULT_FIELDS = [
+  "alt_text", "copyright_holder", "copyright_year", "contains_recognizable_people", "model_release_status",
+  "property_release_status", "rights_declared", "ai_disclosure", "sensitive_content_disclosure",
+];
+const PUBLISH_POLL_DELAY = 1500;
+const PUBLISH_WAIT_LIMIT = 2 * 60 * 1000;
+
+// A Draft saved without the owner's declaration (uploaded before it was
+// filled in automatically) gets it before publishing.
+async function withStaffDefaults(record) {
+  const prepared = staffUploadDefaults(record);
+  if (STAFF_DEFAULT_FIELDS.every((field) => prepared[field] === record[field])) return record;
+  return (await persistRecord(prepared)).savedRecord;
+}
+
+// The server's answer once the automatic processing (the security scan of
+// the three image files) has finished, or after two minutes of waiting.
+async function readinessWhenSettled(record) {
+  const startedAt = Date.now();
+  for (;;) {
+    const readiness = normalizeReadiness(await getWorkspaceDraftReadiness(record.id), record);
+    replaceRecordReadiness(record.id, readiness);
+    if (record.id === activeRecordId) renderReadiness();
+    if (readiness.status !== "pending" || Date.now() - startedAt > PUBLISH_WAIT_LIMIT) return readiness;
+    await new Promise((resolve) => { window.setTimeout(resolve, PUBLISH_POLL_DELAY); });
+  }
+}
+
+// Draft to website in one step: the saved version is submitted and goes
+// straight through the owner's audited self-publish.
+async function publishRecord(record) {
+  const prepared = await withStaffDefaults(record);
+  const readiness = await readinessWhenSettled(prepared);
+  if (!readiness.ready) {
+    const error = new Error(readiness.status === "pending"
+      ? "图片还在处理，请稍后再点发布。"
+      : publishBlocker(readiness) || "暂时不能发布，请稍后再试。");
+    error.readiness = readiness;
+    throw error;
+  }
+  const result = await submitWorkspaceDraft(prepared, createSubmissionIdempotencyKey(record.id));
+  submissionIdempotencyKeys.delete(record.id);
+  let publishError = null;
+  try {
+    await selfPublishSubmission(result.submission.id);
+  } catch (error) {
+    // The work stays safely submitted; it simply is not public yet.
+    publishError = error;
+  }
+  return { result, publishError };
+}
+
+function publishErrorText(error) {
+  return error.code === "REVIEW_SELF_PUBLISH_FORBIDDEN"
+    ? "发布需要网站主人的账号（超级管理员）。"
+    : error.message || "发布失败。";
 }
 
 async function performActiveRecordSubmission() {
   const recordId = activeRecordId;
   if (!recordId || !workspaceOnline || submissionPreparing || submissionInFlight) return false;
+  const titleField = formElement?.elements.namedItem("title");
+  if (titleField && !cleanText(titleField.value)) {
+    showToast("先写一个标题再发布。", "error");
+    titleField.focus();
+    return false;
+  }
   submissionPreparing = true;
   setWorkspaceControls();
   let submitted = false;
@@ -2136,65 +2164,25 @@ async function performActiveRecordSubmission() {
   try {
     const saved = await flushDraftBeforeNavigation();
     if (!saved || activeRecordId !== recordId) {
-      showToast("请先保存最新修改再发布。", "error");
+      showToast("最新修改没有保存，请再点一次发布。", "error");
       return false;
     }
     submissionInFlight = true;
     clearReadinessPoll();
     setWorkspaceControls();
-    const readiness = await refreshActiveReadiness({ allowWhileSubmitting: true });
-    const currentRecord = records.find((item) => item.id === recordId);
-    if (!currentRecord || !readiness?.ready || readiness.status !== "ready" || draftConflict) {
-      showToast(readiness?.message || "这张草稿还不能发布。", "error");
-      focusReadiness();
-      return false;
-    }
-    const confirmed = await confirmDraftSubmission(currentRecord);
-    if (!confirmed) return false;
-
-    replaceRecordReadiness(recordId, { ...readiness, status: "submitting", ready: false });
-    renderReadiness();
-    setWorkspaceControls();
-    const idempotencyKey = createSubmissionIdempotencyKey(recordId);
-    const result = await submitWorkspaceDraft(currentRecord, idempotencyKey);
-    submissionIdempotencyKeys.delete(recordId);
-    let publishError = null;
-    try {
-      await selfPublishSubmission(result.submission.id);
-    } catch (error) {
-      // The work stays safely submitted; it simply is not public yet.
-      publishError = error;
-    }
-    let cacheDeleted = true;
-    try {
-      await deleteStoredItem(recordId);
-    } catch (_error) {
-      cacheDeleted = false;
-    }
-    (currentRecord.assets || []).forEach((asset) => {
-      if (asset.objectUrl) {
-        URL.revokeObjectURL(asset.objectUrl);
-        objectUrls.delete(asset.objectUrl);
-      }
-    });
-    records = records.filter((item) => item.id !== recordId);
-    const completedTask = taskByRecordId.get(recordId);
-    taskByRecordId.delete(recordId);
-    uploadTasks = uploadTasks.filter((task) => task !== completedTask);
+    const record = records.find((item) => item.id === recordId);
+    if (!record) return false;
+    const { publishError } = await publishRecord(record);
+    await removeSubmittedWorkspaceRecord(records.find((item) => item.id === recordId) || record);
     activeRecordId = recordsForActiveFolder()[0]?.id || null;
     nextRecordId = activeRecordId;
     submitted = true;
     resetDraftEditState(activeRecordId ? "已保存。" : "");
     if (publishError) {
-      const reason = publishError.code === "REVIEW_SELF_PUBLISH_FORBIDDEN"
-        ? "发布需要超级管理员账号。"
-        : publishError.message || "发布失败。";
-      showToast(`已保存并提交，但还没公开：${reason}`, "error");
+      showToast(`已保存并提交，但还没公开：${publishErrorText(publishError)}`, "error");
       return true;
     }
-    showToast(cacheDeleted
-      ? "已发布到网站。"
-      : "已发布到网站。", "info", publicWorkLink(recordId));
+    showToast("已发布到网站。", "info", publicWorkLink(recordId));
     return true;
   } catch (error) {
     if (error?.status && error.status < 500) submissionIdempotencyKeys.delete(recordId);
@@ -2219,6 +2207,7 @@ async function performActiveRecordSubmission() {
         checks: currentReadiness?.checks || READINESS_CHECK_DEFAULTS.map((check) => ({ ...check, state: "blocked" })),
       });
       showToast(error?.message || "发布失败，草稿仍然保留。", "error");
+      if (error?.readiness?.field_errors?.title) titleField?.focus();
     }
     return false;
   } finally {
@@ -2277,6 +2266,8 @@ async function removeSubmittedWorkspaceRecord(record) {
   return cacheDeleted;
 }
 
+// Publishes every Draft in the open folder. One confirmation, because many
+// works go public at once; a Draft without a title stays behind.
 async function submitReadyRecordsInFolder() {
   if (
     bulkSubmissionInFlight
@@ -2286,7 +2277,7 @@ async function submitReadyRecordsInFolder() {
     || activeWorkspaceView !== "drafts"
   ) return;
   if (!(await flushDraftBeforeNavigation())) {
-    showToast("请先保存当前草稿再批量发布。", "error");
+    showToast("当前草稿的修改没有保存，请稍后再试。", "error");
     return;
   }
   const folder = activeFolder();
@@ -2295,83 +2286,54 @@ async function submitReadyRecordsInFolder() {
     showToast(`「${folder.name}」里没有草稿。`, "error");
     return;
   }
+  const titled = candidates.filter((record) => cleanText(record.title));
+  const untitled = candidates.length - titled.length;
+  if (!titled.length) {
+    showToast("这些草稿都还没有标题，写好标题再发布。", "error");
+    return;
+  }
+  const confirmed = await confirmSubmission({
+    title: `发布「${folder.name}」里的 ${titled.length} 张作品？`,
+    message: untitled
+      ? `发布后立即出现在网站上。另有 ${untitled} 张还没有标题，会留在草稿里。`
+      : "发布后立即出现在网站上。",
+    confirmLabel: `发布 ${titled.length} 张`,
+  });
+  if (!confirmed) return;
 
   bulkSubmissionInFlight = true;
   submissionPreparing = true;
+  submissionInFlight = true;
   setWorkspaceControls();
   try {
-    const readinessResults = await mapWithConcurrency(candidates, 4, async (record) => {
+    const results = await mapWithConcurrency(titled, 2, async (record) => {
       try {
-        const readiness = normalizeReadiness(await getWorkspaceDraftReadiness(record.id), record);
-        replaceRecordReadiness(record.id, readiness);
-        return { record, readiness, error: null };
-      } catch (error) {
-        return { record, readiness: null, error };
-      }
-    });
-    renderAll();
-    const ready = readinessResults
-      .filter((result) => result.readiness?.ready === true && result.readiness.status === "ready")
-      .map((result) => records.find((record) => record.id === result.record.id) || result.record);
-    const checkingFailed = readinessResults.filter((result) => result.error).length;
-    if (!ready.length) {
-      const pending = readinessResults.length - checkingFailed;
-      showToast(
-        checkingFailed
-          ? `没有可以发布的草稿，其中 ${checkingFailed} 张检查失败。`
-          : `${pending} 张草稿还在等待填写信息或安全扫描。`,
-        "error",
-      );
-      return;
-    }
-
-    const confirmed = await confirmSubmission({
-      title: `发布 ${ready.length} 张已就绪的草稿？`,
-      message: `只发布「${folder.name}」里已通过检查的草稿，其余的留在这里。发布即表示你拥有这些照片的版权，并且它们适合公开展示。`,
-      confirmLabel: `发布 ${ready.length} 张`,
-    });
-    if (!confirmed) return;
-
-    submissionInFlight = true;
-    setWorkspaceControls();
-    const submittedResults = await mapWithConcurrency(ready, 2, async (record) => {
-      const idempotencyKey = createSubmissionIdempotencyKey(record.id);
-      try {
-        const result = await submitWorkspaceDraft(record, idempotencyKey);
-        submissionIdempotencyKeys.delete(record.id);
-        let publishError = null;
-        try {
-          await selfPublishSubmission(result.submission.id);
-        } catch (error) {
-          publishError = error;
-        }
-        const cacheDeleted = await removeSubmittedWorkspaceRecord(record);
-        return { record, result, cacheDeleted, publishError, error: null };
+        const { publishError } = await publishRecord(record);
+        await removeSubmittedWorkspaceRecord(records.find((item) => item.id === record.id) || record);
+        return { record, publishError, error: null };
       } catch (error) {
         if (error?.status && error.status < 500) submissionIdempotencyKeys.delete(record.id);
         if (error?.readiness) replaceRecordReadiness(record.id, normalizeReadiness(error.readiness, record));
-        return { record, result: null, cacheDeleted: true, error };
+        return { record, publishError: null, error };
       }
     });
-    const submitted = submittedResults.filter((result) => !result.error);
+    const submitted = results.filter((result) => !result.error);
     const published = submitted.filter((result) => !result.publishError).length;
     const notPublic = submitted.length - published;
-    const failed = submittedResults.length - submitted.length;
-    const cacheWarnings = submitted.filter((result) => !result.cacheDeleted).length;
+    const leftBehind = results.length - submitted.length + untitled;
     activeRecordId = recordsForActiveFolder()[0]?.id || null;
     resetDraftEditState(activeRecordId ? "已保存。" : "");
+    const firstPublishError = submitted.find((result) => result.publishError)?.publishError;
     const problems = [
-      notPublic ? `${notPublic} 张已提交但还没公开` : "",
-      failed ? `${failed} 张留在草稿里需要处理` : "",
+      notPublic ? `${notPublic} 张已提交但还没公开（${publishErrorText(firstPublishError)}）` : "",
+      leftBehind ? `${leftBehind} 张留在草稿里` : "",
     ].filter(Boolean);
     showToast(
       problems.length
         ? `已发布 ${published} 张；${problems.join("；")}。`
-        : cacheWarnings
-          ? `已发布 ${published} 张。`
-          : `已发布 ${published} 张到网站。`,
+        : `已发布 ${published} 张到网站。`,
       problems.length ? "error" : "info",
-      published ? { href: "/works.html", label: "作品管理" } : null,
+      published ? { href: "/works.html", label: "查看作品" } : null,
     );
   } finally {
     bulkSubmissionInFlight = false;
@@ -2528,15 +2490,15 @@ async function processUploadTask(task) {
     task.update("uploading", 97, "正在校验文件并创建草稿。");
     let record = await completeWorkspaceUpload(task.intent, task.localRecord, task.abortController.signal);
     task.intent = null;
-    let quickDefaultsApplied = false;
-    if (task.quickDefaults) {
-      task.update("uploading", 99, "正在应用共用设置。");
-      try {
-        record = await saveWorkspaceDraft(applyQuickUploadDefaults(record, task.quickDefaults));
-        quickDefaultsApplied = true;
-      } catch (error) {
-        task.message = error?.message || "共用设置没有保存，草稿仍可编辑。";
-      }
+    // The batch settings and the owner's declaration are saved straight away,
+    // so the new Draft can be published as it is.
+    let defaultsSaved = false;
+    task.update("uploading", 99, "正在保存作品信息。");
+    try {
+      record = await saveWorkspaceDraft(staffUploadDefaults(applyQuickUploadDefaults(record, task.quickDefaults)));
+      defaultsSaved = true;
+    } catch (error) {
+      task.message = error?.message || "作品信息没有保存，草稿仍可编辑。";
     }
     task.recordId = record.id;
     taskByRecordId.set(record.id, task);
@@ -2545,31 +2507,22 @@ async function processUploadTask(task) {
       activeRecordId = record.id;
       resetDraftEditState("已保存。");
     }
-    let cacheSaved = true;
     try {
       await putStoredItem(record);
     } catch (_error) {
-      cacheSaved = false;
+      // The offline cache is optional; the Draft is on the server.
     }
     releaseTaskRuntime(task);
     task.inFlight = false;
     task.update(
       "complete",
       100,
-      quickDefaultsApplied
-        ? "草稿已创建，安全扫描进行中。"
-        : task.quickDefaults
-          ? "草稿已创建，发布前请检查共用设置。"
-          : "草稿已创建。",
+      defaultsSaved || !task.quickDefaults ? "已上传，改好文字就能发布。" : "已上传，请检查右侧的系列和标签。",
     );
     if (activeRecordId === record.id) refreshActiveReadiness();
     showToast(
-      task.quickDefaults && !quickDefaultsApplied
-        ? "图片已存为草稿，共用设置需要检查。"
-        : cacheSaved
-          ? "图片已上传为草稿。"
-          : "图片已上传为草稿。",
-      task.quickDefaults && !quickDefaultsApplied ? "error" : "info",
+      task.quickDefaults && !defaultsSaved ? "图片已上传，共用设置没有保存，请检查系列和标签。" : "图片已上传，改好文字就能发布。",
+      task.quickDefaults && !defaultsSaved ? "error" : "info",
     );
   } catch (error) {
     if (task.intent?.upload_id) {
@@ -3017,10 +2970,6 @@ document.addEventListener("keydown", (event) => {
 recognizablePeopleSelect?.addEventListener("change", syncComplianceFieldVisibility);
 
 reloadRecordButton?.addEventListener("click", reloadActiveRecord);
-
-readinessRefreshButton?.addEventListener("click", () => {
-  refreshActiveReadiness();
-});
 
 submitRecordButton?.addEventListener("click", () => {
   submitActiveRecord();

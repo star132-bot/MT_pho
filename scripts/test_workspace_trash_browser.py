@@ -195,7 +195,7 @@ def main() -> None:
         browser.wait_for("document.querySelector('[data-quick-upload-dialog]')?.open === true")
         assert_browser(
             browser,
-            "document.querySelector('[data-quick-upload-input]')?.multiple === true && document.querySelector('[data-quick-upload-form] [name=copyright_year]')?.value.length === 4 && document.querySelector('[data-quick-upload-form] [name=content_category]')?.value === 'auto' && document.querySelector('[data-quick-upload-form] [name=rights_declared]')?.required === true && document.querySelector('[data-quick-upload-form] .upload-studio-confirm-actions')?.getBoundingClientRect().bottom <= innerHeight + 1",
+            "document.querySelector('[data-quick-upload-input]')?.multiple === true && document.querySelector('[data-quick-upload-form] [name=copyright_year]')?.value.length === 4 && document.querySelector('[data-quick-upload-form] [name=content_category]')?.value === 'auto' && !document.querySelector('[data-quick-upload-form] [name=rights_declared]') && document.querySelector('[data-quick-upload-form] .upload-studio-confirm-actions')?.getBoundingClientRect().bottom <= innerHeight + 1",
             "Quick Upload did not expose one reusable declaration form for a multi-file batch",
         )
         browser.command("screenshot", "/tmp/mt-workspace-quick-upload-desktop.png")
@@ -235,7 +235,7 @@ def main() -> None:
         browser.wait_for("document.querySelector('[data-studio-submit-dialog]')?.open === true")
         assert_browser(
             browser,
-            "document.querySelector('[data-studio-submit-dialog-title]')?.textContent.includes('Submit 1 ready Draft') && document.querySelector('[data-studio-submit-dialog-description]')?.textContent.includes('Only ready Drafts')",
+            "document.querySelector('[data-studio-submit-dialog-title]')?.textContent.includes('里的 1 张作品') && document.querySelector('[data-studio-submit-dialog-description]')?.textContent.includes('发布后立即出现在网站上')",
             "Batch submission did not recheck readiness before presenting its bounded confirmation",
         )
         browser.command("click", "[data-studio-submit-dialog] button[value=cancel]")

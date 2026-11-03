@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.9.6 - 2026-11-03
+
+Upload page: edit the text and publish, with no checklist. No server or database changes.
+
+- **One-step publishing.** A work uploaded one at a time could not be published without editing it first: the 发布检查 panel asked for alt text and a rights declaration whose fields are hidden. These defaults (alt text from the title, the owner as copyright holder, no people, no AI) are now saved as soon as an upload completes, and again when publishing an older Draft that lacks them.
+- **No checklist, no confirmation.** The 发布检查 panel, the single-work publish dialog and the batch upload's rights checkbox are gone. 发布到网站 (or ⌘/Ctrl+Enter) saves the latest edits and publishes; while the server's security scan is still running it waits ("图片处理完就会自动发布…") and publishes when it finishes. A short note appears only when the owner must act, such as a missing title.
+- **全部发布** publishes every titled Draft in the folder after one confirmation; untitled ones stay behind.
+- The batch upload dialog sizes to its content instead of a fixed 820px height.
+- **Tools**: `scripts/preview_admin.py` now runs the whole upload page locally (upload, edit, publish) against an in-memory stand-in with a simulated scan, signed in as the owner.
+
 ## v1.9.5 - 2026-11-02
 
 Exhibition rebuilt after the client's concept images, new sample works, and a round of fixes. No database changes.

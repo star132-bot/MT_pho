@@ -184,14 +184,19 @@ def main() -> None:
         'name="property_release_status"', 'name="rights_declared"',
         'name="ai_disclosure"', 'name="sensitive_content_disclosure"',
         "data-studio-reload-record", "20261018-upload-prefill",
-        "data-studio-readiness", "data-studio-readiness-refresh", "data-studio-readiness-list",
-        "发布检查", "发布状态", "data-studio-submit-record",
+        "data-studio-publish-note", "data-studio-submit-record",
         "把这张草稿发布到网站？", "data-studio-submit-dialog",
         'data-studio-view="drafts"', 'data-studio-view="trash"', "data-studio-trash-count",
         "data-quick-upload-open", "data-quick-upload-dialog", "data-quick-upload-form",
         "data-quick-upload-input", "data-studio-submit-ready", "data-quick-hidden-fields",
-        "上传后的图片先存入私有存储并经过安全扫描",
+        "上传后图片会自动处理",
     }, "Phase 2 Upload Studio page")
+    # Publishing is one step for the owner: no checklist to work through and
+    # no declaration to tick before a batch upload.
+    if "data-studio-readiness" in upload_html or "发布检查" in upload_html:
+        raise RuntimeError("Upload Studio shows the publish checklist again")
+    if re.search(r'name="rights_declared"[^>]*\brequired\b', upload_html):
+        raise RuntimeError("Batch upload asks for a rights checkbox again")
     if 'href="/admin/reviews"' in upload_html or "Submit for Review" in upload_html:
         raise RuntimeError("Upload Studio still points at the retired review queue")
     require(upload_js, {
@@ -225,13 +230,15 @@ def main() -> None:
         "activeRecordId !== recordId", "renderEditor();", 'window.addEventListener("pagehide"',
         "READINESS_CHECK_DEFAULTS", 'code: "submission_state"', "refreshActiveReadiness",
         "scheduleReadinessPoll", "readinessRequestId", "submissionInFlight",
-        "submissionIdempotencyKeys", "createSubmissionIdempotencyKey", "confirmDraftSubmission",
+        "submissionIdempotencyKeys", "createSubmissionIdempotencyKey",
+        "async function withStaffDefaults(record)", "async function readinessWhenSettled(record)",
+        "async function publishRecord(record)", "function publishBlocker(readiness)",
         "performActiveRecordSubmission", "submitWorkspaceDraft", 'confirmation: "submit-for-review"',
         "error?.details", 'window.addEventListener("beforeunload"',
         "applyQuickUploadDefaults", "quickUploadDefaultsFromForm", "rememberedQuickUploadDefaults",
-        "record = await saveWorkspaceDraft(applyQuickUploadDefaults(record, task.quickDefaults))",
+        "record = await saveWorkspaceDraft(staffUploadDefaults(applyQuickUploadDefaults(record, task.quickDefaults)))",
         "submitReadyRecordsInFolder", "getWorkspaceDraftReadiness", "mapWithConcurrency",
-        "里已通过检查的草稿", "submitWorkspaceDraft(record, idempotencyKey)",
+        "submitWorkspaceDraft(prepared, createSubmissionIdempotencyKey(record.id))",
     }, "Phase 2 Upload Studio client")
     require(works_html, {
         "data-public-header",

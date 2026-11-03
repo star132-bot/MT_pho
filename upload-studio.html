@@ -9,9 +9,9 @@
       content="A secure workspace for importing images, organizing folders, and editing private MT Presence Drafts."
     />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css?v=20261021-visitor-experience" />
+    <link rel="stylesheet" href="/styles.css?v=20261103-easy-publish" />
     <link rel="stylesheet" href="/exhibition.css?v=20261102-polish" />
-    <link rel="stylesheet" href="/admin.css?v=20261028-admin-2" />
+    <link rel="stylesheet" href="/admin.css?v=20261103-easy-publish" />
     <template id="mt-header-identity" data-header-identity>{"authenticated":false,"status":"pending"}</template>
   </head>
   <body class="admin-page upload-studio-page" data-admin-page="upload">
@@ -208,9 +208,9 @@
           <div class="upload-studio-batch-bar" data-studio-drafts-only>
             <div>
               <strong>批量发布</strong>
-              <span>检查这个文件夹里的每张草稿，只发布通过发布检查的图片。</span>
+              <span>把这个文件夹里的草稿全部发布到网站。</span>
             </div>
-            <button type="button" data-studio-submit-ready disabled>检查并发布</button>
+            <button type="button" data-studio-submit-ready disabled>全部发布</button>
           </div>
 
           <div class="upload-studio-queue" data-studio-queue aria-live="polite">
@@ -436,32 +436,10 @@
               </div>
             </section>
 
-            <section class="upload-studio-readiness" data-studio-readiness data-state="checking" aria-labelledby="studio-readiness-heading">
-              <header class="upload-studio-readiness-header">
-                <div>
-                  <h3 id="studio-readiness-heading">发布检查</h3>
-                  <p data-studio-readiness-summary aria-live="polite">正在检查…</p>
-                </div>
-                <button
-                  class="upload-studio-readiness-refresh"
-                  type="button"
-                  data-studio-readiness-refresh
-                  aria-label="重新检查"
-                  data-tooltip="重新检查"
-                >
-                  <svg class="ui-icon" aria-hidden="true" focusable="false">
-                    <use href="#icon-retry"></use>
-                  </svg>
-                </button>
-              </header>
-              <ul class="upload-studio-readiness-list" data-studio-readiness-list>
-                <li data-state="pending"><svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg><span><strong>作品信息</strong><small>正在检查标题和系列。</small></span></li>
-                <li data-state="pending"><svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg><span><strong>版权声明</strong><small>正在检查版权声明。</small></span></li>
-                <li data-state="pending"><svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg><span><strong>图片文件</strong><small>正在检查原图、展示图和缩略图。</small></span></li>
-                <li data-state="pending"><svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg><span><strong>安全扫描</strong><small>正在检查扫描结果。</small></span></li>
-                <li data-state="pending"><svg class="ui-icon" aria-hidden="true"><use href="#icon-retry"></use></svg><span><strong>发布状态</strong><small>正在检查草稿状态。</small></span></li>
-              </ul>
-            </section>
+            <!-- Publishing needs no checklist: the server's rules are met by the
+                 defaults above, and the automatic image processing is waited
+                 for. Only something the owner must do shows here. -->
+            <p class="upload-studio-publish-note" data-studio-publish-note aria-live="polite" hidden></p>
 
             <div class="upload-studio-footer">
               <div class="upload-studio-footer-danger">
@@ -549,12 +527,8 @@
             <span>共用标签 <small>选填</small></span>
             <input name="tags" type="text" maxlength="1000" placeholder="风景，云海，2026" />
           </label>
-          <label class="upload-studio-check upload-studio-span">
-            <input name="rights_declared" type="checkbox" required />
-            <span>我确认拥有所有选中作品的版权。</span>
-          </label>
           <!-- Declarations about the owner's own photography; prefilled when the
-               dialog opens and kept out of view. -->
+               dialog opens and kept out of view (see staffUploadDefaults). -->
           <div hidden data-quick-hidden-fields>
             <input name="copyright_holder" type="text" maxlength="160" required />
             <input name="copyright_year" type="number" min="1000" required />
@@ -578,7 +552,7 @@
             </select>
           </div>
           </div>
-          <p class="upload-studio-quick-note">上传后的图片先存入私有存储并经过安全扫描，通过后才能发布。</p>
+          <p class="upload-studio-quick-note">上传后图片会自动处理，几秒后改好文字就能发布。</p>
         </div>
         <div class="upload-studio-confirm-actions">
           <button class="upload-studio-secondary" type="button" data-quick-upload-cancel>取消</button>
@@ -593,7 +567,7 @@
     <script src="/archive-data.js?v=20260610-works-viewer-editor"></script>
     <script src="/archive-upload.js?v=20261018-upload-prefill"></script>
     <script src="/account-menu.js?v=20261028-admin"></script>
-    <script src="/upload-studio.js?v=20261028-admin"></script>
+    <script src="/upload-studio.js?v=20261103-easy-publish"></script>
     <script src="/studio-exhibition.js?v=20261101-grand"></script>
   </body>
 </html>

@@ -181,7 +181,7 @@
 - `data/messages.db`：历史消息数据库产物；当前功能已移除，仅保留为旧运行产物说明，不再被页面或 API 使用。
 - `tmp/art-source/`：临时源图目录；由处理脚本读取，不直接被页面引用。
 - `scripts/prepare_art_assets.py`：历史/备用本地处理脚本；读取 `tmp/art-source/` 下的源图，裁切、调色并输出到 `assets/art/`；当前页面不依赖该脚本生成的推荐比例逻辑。
-- `scripts/preview_admin.py`：本地后台预览（不连线上）。在本机起一个假的 Supabase，用本地样例作品回答后台的请求，再用全新环境变量启动一份 `server.py`（默认端口 8132）；打开 `http://127.0.0.1:8132/admin`，任意邮箱密码即可登录，修改类操作一律被拒绝。只用于看后台的样子和流程。
+- `scripts/preview_admin.py`：本地后台预览（不连线上）。在本机起一个假的 Supabase，用本地样例作品回答后台的请求，再用全新环境变量启动一份 `server.py`（默认端口 8132）；打开 `http://127.0.0.1:8132/admin`，任意邮箱密码即可登录，身份是网站主人（超级管理员）。上传图片页可以完整走一遍：上传、改文字、发布；图片只存在内存里，约 3 秒后模拟安全扫描通过，发布后出现在作品管理和公开页面，停掉预览即清空。其他修改（网站图片位、下架）一律被拒绝。
 - `scripts/seed_local_archive_db.py`：本地 SQLite 作品库 seed 脚本；通过 Node VM 读取 `archive-data.js`，生成 `data/archive.db`，写入 27 张本地 sample 图片、`original/display/thumbnail` 资产、派生标签、`image_taggings`、`archive-featured` collection 和 seed analysis 记录。
 - `project-development-guardrails/agents/openai.yaml`：Codex 项目入口配置；定义该 skill 的显示名、简短说明和默认提示词。
 - `skills/frontend-aesthetic-reviewer/`：前端审美评审 skill 目录；用于截图、页面审查和设计提示，不参与站点运行时。
